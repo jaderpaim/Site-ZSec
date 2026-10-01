@@ -1,0 +1,1 @@
+ALTER VIEW public.vw_ranking_ia_usuarios SET (security_invoker = true);

@@ -1,0 +1,78 @@
+# ─── Trigger ──────────────────────────────────────────────────────────────────
+# ⚠️ ATENÇÃO: O repositório GitHub deve ter apenas a branch 'develop', definida como default.
+trigger: none
+
+# ─── Resources (Mude o nome do repo aqui ⬇️) ──────────────────────────
+resources:
+  repositories:
+    - repository: targetRepoAuth
+      type: git
+      name: "b-security"
+      ref: main
+
+# ─── Agent Pool ───────────────────────────────────────────────────────────────
+pool:
+  vmImage: "ubuntu-latest"
+
+# ─── Steps ────────────────────────────────────────────────────────────────────
+steps:
+  # ─── 1. Source (GitHub) ─────────────────────────────
+  - checkout: self
+    fetchDepth: 0
+    persistCredentials: false
+    path: s/lovable-code
+
+  # ─── 2. Auth (Aperto de mão com o Azure) ────────────
+  - checkout: targetRepoAuth
+    fetchDepth: 1
+    persistCredentials: false
+    path: s/_auth
+
+  # ─── 3. Sincronização DevOps ────────────────────────
+  - script: |
+      # Descobre a URL correta direto da configuração do checkout
+      cd "$(Build.SourcesDirectory)/_auth"
+      TARGET_URL=$(git config --get remote.origin.url)
+
+      # Retorna para a pasta do código fonte
+      cd "$(Build.SourcesDirectory)/lovable-code"
+
+      echo "⚙️ Configurando Identidade do Pipeline..."
+      git config --global user.email "azure-sync-bot@bernoulli.com.br"
+      git config --global user.name "Azure DevOps Sync Agent"
+
+      # Autenticação Segura
+      B64_PAT=$(printf ":%s" "$SYSTEM_ACCESSTOKEN" | base64 -w 0)
+      AUTH_HEADER="Authorization: Basic ${B64_PAT}"
+
+      # Busca e baixa o HEAD atual da 'main' no Azure DevOps (âncora do squash)
+      MAIN_HEAD=$(git -c http.extraHeader="$AUTH_HEADER" \
+        ls-remote "$TARGET_URL" refs/heads/main | cut -f1)
+
+      # Captura apenas a árvore de arquivos do estado atual (sem histórico)
+      CURRENT_TREE=$(git rev-parse HEAD^{tree})
+      SHORT_SHA=$(git rev-parse --short HEAD)
+
+      # Cria 1 commit sintético cujo pai é o HEAD da 'main' do ADO
+      # Isso garante que homolog seja sempre descendente direto de main,
+      # permitindo PR homolog -> main sem conflito de histórico.
+      if [ -n "$MAIN_HEAD" ]; then
+        # Faz fetch do objeto para que ele exista localmente antes do commit-tree
+        git -c http.extraHeader="$AUTH_HEADER" \
+          fetch "$TARGET_URL" refs/heads/main
+        NEW_COMMIT=$(git commit-tree "$CURRENT_TREE" \
+          -p "$MAIN_HEAD" \
+          -m "sync: GitHub -> Azure DevOps [squashed @ $SHORT_SHA]")
+      else
+        # Fallback: main ainda não existe — commit órfão (primeiro provisionamento)
+        NEW_COMMIT=$(git commit-tree "$CURRENT_TREE" \
+          -m "sync: GitHub -> Azure DevOps [squashed @ $SHORT_SHA]")
+      fi
+
+      # Envia o commit único (não a branch local com todos os commits)
+      git -c http.extraHeader="$AUTH_HEADER" \
+        push --force "$TARGET_URL" "${NEW_COMMIT}:refs/heads/homolog"
+
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: "🔄 Mirroring: GitHub -> Azure DevOps Repos"

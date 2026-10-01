@@ -1,0 +1,1 @@
+ALTER TABLE public.smtp_config ADD COLUMN IF NOT EXISTS password text;

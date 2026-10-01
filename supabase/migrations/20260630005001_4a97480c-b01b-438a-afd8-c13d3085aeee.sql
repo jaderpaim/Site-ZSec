@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS "auth view sophos audit events" ON public.sophos_audit_events;
+CREATE POLICY "admin+analista view sophos audit events" ON public.sophos_audit_events FOR SELECT USING (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'analista'::app_role));

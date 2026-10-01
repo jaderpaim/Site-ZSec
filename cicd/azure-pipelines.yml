@@ -1,0 +1,104 @@
+trigger:
+  branches:
+    include:
+      - homolog
+      - main
+
+pr:
+  branches:
+    include:
+      - homolog
+      - main
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Produtos Digitais/pipeline-templates
+      ref: refs/heads/main
+
+extends:
+  template: templates/webapp-templates/webapp-orchestrator.yml@templates
+  parameters:
+    # ── Lovable ───────────────────────────────────────────────────────────────
+    isLovableProject: true
+
+    # ── Strategy (byBranch) ─────────────────────────────────────────────────────
+    runBeta: ${{ or(eq(variables['Build.SourceBranchName'], 'homolog'), eq(variables['Build.Reason'], 'PullRequest')) }}
+    runProd: ${{ or(eq(variables['Build.SourceBranchName'], 'main'), eq(variables['Build.Reason'], 'PullRequest')) }}
+
+    # ── Build ─────────────────────────────────────────────────────────────────
+    # vite.config.ts já força nitro.preset='node_server' fora de builds Lovable
+    # (ver comentário lá) — o build gera um servidor Node standalone em .output/.
+    runBuild: true
+    buildCommand: build
+    buildDirectory: ".output" # zip do conteúdo de .output (server/ + public/)
+
+    # ── Runtime ───────────────────────────────────────────────────────────────
+    startUpCommand: "node server/index.mjs"
+
+    # ── KeyVault ──────────────────────────────────────────────────────────────
+    # Sem filtro definido: como isLovableProject=true, resolve para '' (nenhum
+    # secret carregado) em vez de puxar tudo do vault compartilhado. Carregar
+    # um secret aqui não aplica nada sozinho — é preciso referenciar a
+    # variável carregada em {env}CustomSettings pra virar App Setting de fato.
+    useKeyVault: true
+
+    # ── Beta WebApp ───────────────────────────────────────────────────────────
+    betaWebAppName: b-pd-wapp-lov-lb-b-security
+    betaResourceGroup: beta-seguranca-informacao
+    betaTargetSubscription: "3ba0573e-c4e0-43e6-a04b-d8ab54abad76"
+    betaKeyVaultName: b-kv-seg-info
+    betaKeyVaultSubscription: "ProdutosDigitais-Beta-SC"
+    betaKeyVaultSecretsFilter: |
+      vite-supabase-url-b-security
+      vite-supabase-publishable-key-b-security
+      vite-supabase-project-id-b-security
+      supabase-access-token
+    BetaCustomSettings: >
+      VITE_SUPABASE_URL=$(vite-supabase-url-b-security)
+      VITE_SUPABASE_PUBLISHABLE_KEY=$(vite-supabase-publishable-key-b-security)
+      VITE_SUPABASE_PROJECT_ID=$(vite-supabase-project-id-b-security)
+      VITE_RELEASE=$(Build.BuildId)
+
+    # ── Prod WebApp ───────────────────────────────────────────────────────────
+    prodWebAppName: p-pd-wapp-lov-lb-b-security
+    prodResourceGroup: prod-seguranca-informacao
+    prodTargetSubscription: "3ba0573e-c4e0-43e6-a04b-d8ab54abad76"
+    prodKeyVaultName: p-kv-seg-info
+    prodKeyVaultSubscription: "ProdutosDigitais-Prod-SC"
+    prodKeyVaultSecretsFilter: |
+      vite-supabase-url-b-security
+      vite-supabase-publishable-key-b-security
+      vite-supabase-project-id-b-security
+      supabase-access-token
+    ProdCustomSettings: >
+      VITE_SUPABASE_URL=$(vite-supabase-url-b-security)
+      VITE_SUPABASE_PUBLISHABLE_KEY=$(vite-supabase-publishable-key-b-security)
+      VITE_SUPABASE_PROJECT_ID=$(vite-supabase-project-id-b-security)
+      VITE_RELEASE=$(Build.BuildId)
+
+    # ── Health Check ──────────────────────────────────────────────────────────
+    healthEndpoint: "/"
+
+    # ── Security ──────────────────────────────────────────────────────────────
+    sonarSources: "./src"
+    enableGitleaks: true
+    gitleaksStrategy: warn
+    enableTelemetry: true
+
+    # ── Supabase Backend Setup ──────────────────────────────────────────────────
+    runSupabaseMigration: true
+    supabaseVerifyJwt: true
+
+    # TODO: confirmar se beta/prod usam o mesmo projeto Supabase ou instâncias
+    # separadas. Hoje só existe um projeto (tcacmepuiyoqkypatkqa, ver .env.example).
+    betaSupabaseAccessTokenSecretName: "supabase-access-token"
+    betaSupabaseProjectIdSecretName: "vite-supabase-project-id-b-security"
+    betaSupabaseSecrets: |
+      # EXAMPLE_SECRET=$(nome-do-secret)
+
+    prodSupabaseAccessTokenSecretName: "supabase-access-token"
+    prodSupabaseProjectIdSecretName: "vite-supabase-project-id-b-security"
+    prodSupabaseSecrets: |
+      # EXAMPLE_SECRET=$(nome-do-secret)

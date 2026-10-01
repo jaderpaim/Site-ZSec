@@ -1,0 +1,1 @@
+ALTER FUNCTION public.schedule_hook_cron(text, text, text, text) SET search_path = public;

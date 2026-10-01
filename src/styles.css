@@ -1,0 +1,161 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: "Inter", sui-serif, system-ui, sans-serif;
+}
+
+:root {
+  --radius: 0.375rem;
+  --background: oklch(0.18 0.03 250);
+  --foreground: oklch(0.96 0.01 230);
+  --surface: oklch(0.22 0.035 250);
+  --surface-elevated: oklch(0.26 0.04 250);
+  --card: oklch(0.22 0.035 250);
+  --card-foreground: oklch(0.96 0.01 230);
+  --popover: oklch(0.24 0.038 250);
+  --popover-foreground: oklch(0.96 0.01 230);
+  --primary: oklch(0.78 0.13 220);
+  --primary-foreground: oklch(0.16 0.03 250);
+  --secondary: oklch(0.28 0.035 250);
+  --secondary-foreground: oklch(0.96 0.01 230);
+  --muted: oklch(0.28 0.035 250);
+  --muted-foreground: oklch(0.7 0.03 230);
+  --accent: oklch(0.32 0.045 245);
+  --accent-foreground: oklch(0.96 0.01 230);
+  --destructive: oklch(0.62 0.22 25);
+  --destructive-foreground: oklch(0.99 0.005 250);
+  --border: oklch(0.32 0.035 248);
+  --input: oklch(0.28 0.035 250);
+  --ring: oklch(0.78 0.13 220);
+
+  --success: oklch(0.72 0.16 165);
+  --warning: oklch(0.8 0.15 80);
+  --danger: oklch(0.65 0.22 25);
+  --info: oklch(0.78 0.13 220);
+
+  --chart-1: oklch(0.78 0.13 220);
+  --chart-2: oklch(0.72 0.16 165);
+  --chart-3: oklch(0.8 0.15 80);
+  --chart-4: oklch(0.65 0.22 25);
+  --chart-5: oklch(0.65 0.18 295);
+
+  --sidebar: oklch(0.2 0.032 250);
+  --sidebar-foreground: oklch(0.7 0.03 230);
+  --sidebar-primary: oklch(0.78 0.13 220);
+  --sidebar-primary-foreground: oklch(0.16 0.03 250);
+  --sidebar-accent: oklch(0.27 0.035 250);
+  --sidebar-accent-foreground: oklch(0.96 0.01 230);
+  --sidebar-border: oklch(0.28 0.035 250);
+  --sidebar-ring: oklch(0.78 0.13 220);
+}
+
+.dark {
+  /* Same as :root — app is dark-only */
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+  .text-mono-xs {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+}
+
+/* ── Scrollbar estilizada ─────────────────────────────────────────────────── */
+/* Track e thumb usando a paleta oklch do tema */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: oklch(0.2 0.032 250); /* --sidebar */
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.35 0.04 248); /* ligeiramente acima do --border */
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.78 0.13 220); /* --primary */
+}
+
+::-webkit-scrollbar-corner {
+  background: oklch(0.2 0.032 250);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.35 0.04 248) oklch(0.2 0.032 250);
+}

@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_vulnerabilities_aplicacao_identified_at ON public.vulnerabilities_aplicacao (identified_at DESC);

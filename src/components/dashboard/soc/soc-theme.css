@@ -1,0 +1,69 @@
+/* SOC Executive Theme — escopo local ao módulo SOC */
+.soc-scope {
+  --soc-bg: #0a0d14;
+  --soc-bg-2: #0f1724;
+  --soc-surface: #131a27;
+  --soc-surface-2: #1c2537;
+  --soc-border: rgba(255, 255, 255, 0.06);
+  --soc-border-strong: rgba(255, 255, 255, 0.1);
+  --soc-shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
+
+  --soc-text: #e6ebf2;
+  --soc-text-muted: #8a95a8;
+
+  --soc-primary: #0066ff;
+  --soc-accent: #00d4ff;
+  --soc-critical: #ff3b5c;
+  --soc-high: #ff6b35;
+  --soc-warning: #ffb020;
+  --soc-success: #00c896;
+
+  --soc-grad-divider: linear-gradient(180deg, #0066ff, #00d4ff);
+
+  background: var(--soc-bg);
+  color: var(--soc-text);
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+.soc-scope .soc-body {
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+.soc-scope .soc-display {
+  font-family: "Barlow Condensed", "DM Sans", sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.soc-scope .soc-stagger-in {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: socIn 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes socIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar fina para painéis */
+.soc-scope ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.soc-scope ::-webkit-scrollbar-thumb {
+  background: rgba(0, 102, 255, 0.3);
+  border-radius: 999px;
+}
+.soc-scope ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.5);
+}
+
+/* Recharts ticks override dentro do SOC */
+.soc-scope .recharts-cartesian-axis-tick text {
+  fill: var(--soc-text-muted) !important;
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+}
+.soc-scope .recharts-cartesian-grid line {
+  stroke: rgba(255, 255, 255, 0.04);
+}

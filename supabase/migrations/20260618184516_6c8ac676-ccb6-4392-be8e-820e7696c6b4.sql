@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_vulnerabilities_infra_identified_at ON public.vulnerabilities_infra (identified_at DESC);

@@ -1,0 +1,1 @@
+ALTER TABLE public.domains ADD COLUMN IF NOT EXISTS last_changed_date date;

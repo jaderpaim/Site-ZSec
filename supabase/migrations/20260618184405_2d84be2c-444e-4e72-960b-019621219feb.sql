@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_ia_web_events_event_at ON public.ia_web_events (event_at);

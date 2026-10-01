@@ -1,0 +1,24 @@
+-- Agenda sincronização diária do Privacy Tools (10h UTC = 07h BRT)
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+DO $$ BEGIN PERFORM cron.unschedule('privacy-tools-sync'); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+SELECT cron.schedule(
+  'privacy-tools-sync',
+  '0 10 * * *',
+  $$
+  SELECT net.http_post(
+    url     := 'https://b-security.bernoulli.com.br/api/public/hooks/privacy-tools-sync',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjYWNtZXB1aXlvcWt5cGF0a3FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTAwNzcsImV4cCI6MjA5NDE4NjA3N30.Xwm_jgXksknSyZHsaONRPYiumfmwuyQncP3KT1q98d4'
+    ),
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
+UPDATE public.cron_job_runs
+   SET enabled = true
+ WHERE job_name = 'privacy-tools-sync';

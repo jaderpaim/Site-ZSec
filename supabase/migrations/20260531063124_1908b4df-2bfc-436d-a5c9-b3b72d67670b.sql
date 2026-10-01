@@ -1,0 +1,1 @@
+ALTER TABLE public.fornecedores ADD COLUMN IF NOT EXISTS alert_days integer NOT NULL DEFAULT 30;

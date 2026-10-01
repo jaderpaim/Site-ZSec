@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS idx_cloudflare_firewall_events_datetime ON public.cloudflare_firewall_events (datetime);
+CREATE INDEX IF NOT EXISTS idx_cloudflare_firewall_events_action_datetime ON public.cloudflare_firewall_events (action, datetime);

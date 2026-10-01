@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_sophos_events_event_at ON public.sophos_events (event_at);

@@ -1,0 +1,28 @@
+name: Sync to Production
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mirror Repository
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+
+          git clone https://x-access-token:${{ secrets.PROD_TOKEN }}@github.com/Si-Bernoulli/indicadores-de-seguran-a.git prod
+
+          rsync -av --exclude='.git' ./ prod/
+
+          cd prod
+
+          git add .
+          git commit -m "Sync from HMG" || echo "No changes"
+
+          git push origin main
