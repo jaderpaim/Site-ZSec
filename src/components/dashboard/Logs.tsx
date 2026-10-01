@@ -40,11 +40,11 @@ import {
 
 // ─── Design Tokens (espelho do módulo Integrações) ──────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  surfaceHover: "#161C2E",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  surfaceHover: "var(--tl-161c2e, #161C2E)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -56,11 +56,11 @@ const T = {
   dangerBg: "rgba(239,68,68,0.10)",
   info: "#6366F1",
   infoBg: "rgba(99,102,241,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 const CSS = `
@@ -3477,7 +3477,7 @@ function CronJobsTab({ logs, isLoading }: { logs: CronJobRun[]; isLoading: boole
           style={{
             textAlign: "center",
             padding: "48px 0",
-            color: "#6B7280",
+            color: "var(--tl-6b7280, #6B7280)",
             fontSize: 13,
             fontFamily: "'DM Sans',sans-serif",
           }}
@@ -3487,7 +3487,7 @@ function CronJobsTab({ logs, isLoading }: { logs: CronJobRun[]; isLoading: boole
       ) : logs.length === 0 ? (
         <div className="logs-panel">
           <div className="logs-panel-body">
-            <div style={{ textAlign: "center", padding: "40px 0", color: "#6B7280", fontSize: 13 }}>
+            <div style={{ textAlign: "center", padding: "40px 0", color: "var(--tl-6b7280, #6B7280)", fontSize: 13 }}>
               Nenhum cron job monitorado.
             </div>
           </div>
@@ -3568,7 +3568,7 @@ function CronJobsTab({ logs, isLoading }: { logs: CronJobRun[]; isLoading: boole
                   <div
                     style={{
                       fontSize: 10,
-                      color: "#6B7280",
+                      color: "var(--tl-6b7280, #6B7280)",
                       fontFamily: "'IBM Plex Mono',monospace",
                       background: T.surfaceAlt,
                       borderRadius: 5,

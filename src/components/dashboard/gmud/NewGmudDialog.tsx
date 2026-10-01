@@ -15,10 +15,10 @@ import { Loader2, CalendarDays, AlertTriangle, Shield } from "lucide-react";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   success: "#10B981",
@@ -27,10 +27,10 @@ const T = {
   warningBg: "rgba(245,158,11,0.10)",
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 type FormErrors = Partial<Record<string, string>>;
@@ -100,7 +100,7 @@ const CSS = `
   /* department multi-select list */
   .gng-dept-list { display:flex; flex-direction:column; gap:2px; max-height:220px; overflow-y:auto; border:1px solid ${T.border}; border-radius:6px; padding:6px; background:${T.surfaceAlt}; }
   .gng-dept-item { display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:5px; cursor:pointer; }
-  .gng-dept-item:hover { background:rgba(255,255,255,0.04); }
+  .gng-dept-item:hover { background:rgba(var(--tl-ink, 255,255,255),0.04); }
   .gng-dept-name { font-size:13px; color:${T.textPrimary}; flex:1; }
   .gng-dept-tag { font-size:9px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:${T.accent}; background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.3); border-radius:4px; padding:2px 6px; }
 

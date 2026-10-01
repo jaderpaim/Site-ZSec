@@ -42,12 +42,12 @@ import {
 
 // ── Design Tokens (idêntico ao VulnerabilidadesReal) ─────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  surfaceHi: "#161C2E",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  surfaceHi: "var(--tl-161c2e, #161C2E)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -61,14 +61,14 @@ const T = {
   purpleBg: "rgba(167,139,250,0.10)",
   cyan: "#22D3EE",
   cyanBg: "rgba(34,211,238,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 // ── Inline CSS ────────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ const CSS = `
     border:none; background:transparent; font-size:12px; font-weight:600; font-family:'DM Sans',sans-serif;
     color:${T.textMuted}; cursor:pointer; transition:all 0.15s; white-space:nowrap; letter-spacing:0.01em;
   }
-  .pt-tab:hover:not(.active) { color:${T.textSecondary}; background:rgba(255,255,255,0.04); }
+  .pt-tab:hover:not(.active) { color:${T.textSecondary}; background:rgba(var(--tl-ink, 255,255,255),0.04); }
   .pt-tab.consent.active { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.25); }
   .pt-tab.cookies.active { background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.25); }
   .pt-tab.uso.active     { background:${T.accentSoft}; color:${T.accent}; border:1px solid rgba(59,130,246,0.25); }

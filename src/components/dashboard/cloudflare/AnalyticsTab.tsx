@@ -75,11 +75,11 @@ import { usePermissions } from "@/lib/use-permissions";
 
 // ── Design tokens (mesmos de CloudflareReal.tsx / OperationsTab.tsx) ───────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -90,13 +90,26 @@ const T = {
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
+};
+
+// Moldura da interface v2 (mesmos nomes do T; os gráficos continuam no T)
+const V2 = {
+  surfaceAlt: "var(--v2-surface-2)",
+  surface: "var(--v2-surface)",
+  borderHi: "var(--v2-line-strong)",
+  border: "var(--v2-line)",
+  textPrimary: "var(--v2-fg)",
+  textSecondary: "var(--v2-fg-2)",
+  textMuted: "var(--v2-fg-3)",
+  textSubtle: "var(--v2-fg-3)",
+  textDim: "var(--v2-fg-3)",
 };
 const SERIES_PALETTE = [T.accent, T.success, T.warning, T.danger, T.purple];
 // Largura da janela flutuante de detalhe de log/evento (Security · Sampled logs).
@@ -150,132 +163,132 @@ const COUNTRY_ISO: Record<string, string> = {
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-  .an-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
+  .an-root { font-family:var(--font-ui); color:var(--v2-fg); }
   .an-root * { box-sizing:border-box; }
   .an-root input, .an-root select {
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; color:${T.textPrimary};
+    background:var(--v2-surface-2); border:1px solid var(--v2-line); color:var(--v2-fg);
     font-family:'IBM Plex Mono',monospace; font-size:12px; border-radius:6px; padding:6px 8px;
   }
   .an-root input:focus, .an-root select:focus { outline:none; border-color:rgba(59,130,246,0.5); }
-  .an-root select option { background:${T.surface}; color:${T.textPrimary}; }
+  .an-root select option { background:var(--v2-surface); color:var(--v2-fg); }
 
-  .an-select-trigger { background:${T.surfaceAlt} !important; border:1px solid ${T.border} !important; color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace !important; font-size:12px !important; height:32px !important; }
-  .an-select-content { background:${T.surface} !important; border:1px solid ${T.borderHi} !important; color:${T.textPrimary} !important; z-index:1000 !important; }
-  .an-select-item { color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace !important; font-size:12px !important; cursor:pointer !important; }
+  .an-select-trigger { background:var(--v2-surface-2) !important; border:1px solid var(--v2-line) !important; color:var(--v2-fg) !important; font-family:'IBM Plex Mono',monospace !important; font-size:12px !important; height:32px !important; }
+  .an-select-content { background:var(--v2-surface) !important; border:1px solid var(--v2-line-strong) !important; color:var(--v2-fg) !important; z-index:1000 !important; }
+  .an-select-item { color:var(--v2-fg) !important; font-family:'IBM Plex Mono',monospace !important; font-size:12px !important; cursor:pointer !important; }
   .an-select-item[data-highlighted] { background:${T.accentGlow} !important; color:${T.accent} !important; }
 
   /* ── Toolbar / sub-nav ── */
-  .an-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:14px 20px; background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; }
+  .an-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:14px 20px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:10px; }
   .an-toolbar-group { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 
-  .an-subnav { display:flex; align-items:center; gap:2px; padding:4px; background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:8px; width:fit-content; flex-wrap:wrap; }
-  .an-subnav-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; border:none; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; color:${T.textMuted}; background:transparent; }
+  .an-subnav { display:flex; align-items:center; gap:2px; padding:4px; background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; width:fit-content; flex-wrap:wrap; }
+  .an-subnav-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; border:none; cursor:pointer; font-family:var(--font-ui); transition:all 0.15s; color:var(--v2-fg-3); background:transparent; }
   .an-subnav-btn.active { background:${T.accentGlow}; color:${T.accent}; border:1px solid rgba(59,130,246,0.25); }
-  .an-subnav-btn:hover:not(.active):not(:disabled) { color:${T.textSecondary}; background:rgba(255,255,255,0.04); }
+  .an-subnav-btn:hover:not(.active):not(:disabled) { color:var(--v2-fg-2); background:rgba(var(--tl-ink, 255,255,255),0.04); }
   .an-subnav-btn:disabled { opacity:0.4; cursor:not-allowed; }
   .an-badge-soon { font-size:9px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; padding:1px 6px; border-radius:4px; background:rgba(107,114,128,0.18); color:${T.neutral}; font-family:'IBM Plex Mono',monospace; }
 
-  .an-day-btn { padding:5px 14px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid ${T.border}; cursor:pointer; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; color:${T.textMuted}; background:transparent; letter-spacing:0.04em; }
+  .an-day-btn { padding:5px 14px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid var(--v2-line); cursor:pointer; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; color:var(--v2-fg-3); background:transparent; letter-spacing:0.04em; }
   .an-day-btn.active { background:${T.accentGlow}; border-color:rgba(59,130,246,0.4); color:${T.accent}; }
-  .an-day-btn:hover:not(.active) { border-color:${T.borderHi}; color:${T.textSecondary}; }
+  .an-day-btn:hover:not(.active) { border-color:var(--v2-line-strong); color:var(--v2-fg-2); }
 
-  .an-zone-btn { display:inline-flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 12px; border:1px solid ${T.border}; border-radius:6px; background:${T.surfaceAlt}; font-size:11px; color:${T.textPrimary}; cursor:pointer; min-width:200px; font-family:'DM Sans',sans-serif; transition:border-color 0.15s; }
-  .an-zone-btn:hover { border-color:${T.borderHi}; }
+  .an-zone-btn { display:inline-flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 12px; border:1px solid var(--v2-line); border-radius:6px; background:var(--v2-surface-2); font-size:11px; color:var(--v2-fg); cursor:pointer; min-width:200px; font-family:var(--font-ui); transition:border-color 0.15s; }
+  .an-zone-btn:hover { border-color:var(--v2-line-strong); }
 
-  .an-add-filter-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600; border:1px dashed ${T.borderHi}; cursor:pointer; font-family:'DM Sans',sans-serif; color:${T.accent}; background:transparent; }
+  .an-add-filter-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600; border:1px dashed var(--v2-line-strong); cursor:pointer; font-family:var(--font-ui); color:${T.accent}; background:transparent; }
   .an-add-filter-btn:hover { background:${T.accentSoft}; }
-  .an-filter-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:5px; font-size:11px; font-weight:500; border:1px solid ${T.borderHi}; font-family:'IBM Plex Mono',monospace; color:${T.warning}; background:${T.warningBg}; }
+  .an-filter-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:5px; font-size:11px; font-weight:500; border:1px solid var(--v2-line-strong); font-family:'IBM Plex Mono',monospace; color:${T.warning}; background:${T.warningBg}; }
   .an-filter-chip .close { opacity:0.6; cursor:pointer; display:flex; }
   .an-filter-chip .close:hover { opacity:1; }
-  .an-filter-popover { width:auto; padding:14px; display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; background:${T.surface}; border:1px solid ${T.borderHi}; border-radius:8px; }
-  .an-filter-field-label { font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
+  .an-filter-popover { width:auto; padding:14px; display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; background:var(--v2-surface); border:1px solid var(--v2-line-strong); border-radius:8px; }
+  .an-filter-field-label { font-size:12px; font-weight:500;   color:var(--v2-fg-3); font-family:var(--font-ui); }
   .an-filter-field { display:flex; flex-direction:column; gap:5px; min-width:150px; }
-  .an-filter-hint { font-size:10px; color:${T.textMuted}; font-family:'DM Sans',sans-serif; }
+  .an-filter-hint { font-size:10px; color:var(--v2-fg-3); font-family:var(--font-ui); }
 
   /* ── Block card ── */
-  .an-block { background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; display:flex; flex-direction:column; min-width:200px; min-height:140px; overflow:auto; }
-  .an-block-header { display:flex; align-items:center; gap:7px; padding:10px 16px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; border-radius:10px 10px 0 0; font-size:11px; font-weight:600; color:${T.textPrimary}; text-transform:uppercase; letter-spacing:0.09em; font-family:'IBM Plex Mono',monospace; }
+  .an-block { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:10px; display:flex; flex-direction:column; min-width:200px; min-height:140px; overflow:auto; }
+  .an-block-header { display:flex; align-items:center; gap:7px; padding:10px 16px; background:var(--v2-surface-2); border-bottom:1px solid var(--v2-line); border-radius:10px 10px 0 0; font-size:12px; font-weight:500; color:var(--v2-fg);   font-family:var(--font-ui); }
   .an-block-body { flex:1; padding:16px; display:flex; flex-direction:column; }
 
   /* ── KPI row ── */
   .an-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; width:100%; }
-  .an-kpi { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; gap:4px; position:relative; overflow:hidden; }
+  .an-kpi { background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; gap:4px; position:relative; overflow:hidden; }
   .an-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kc,${T.accent}); }
-  .an-kpi-label { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
-  .an-kpi-value { font-size:22px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; line-height:1; color:var(--kc,${T.textPrimary}); }
+  .an-kpi-label { font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); }
+  .an-kpi-value { font-size:22px; font-weight:700; font-family:var(--font-ui); letter-spacing:-0.02em; line-height:1; color:var(--kc,var(--v2-fg)); }
   .an-kpi-spark { height:26px; margin-top:2px; }
   .an-kpi-trend { display:inline-flex; align-items:center; gap:1px; font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
   .an-kpi-clickable { cursor:pointer; transition:border-color 0.15s,background 0.15s; }
-  .an-kpi-clickable:hover { border-color:${T.borderHi}; background:${T.surface}; }
+  .an-kpi-clickable:hover { border-color:var(--v2-line-strong); background:var(--v2-surface); }
   .an-kpi-clickable.active { border-color:var(--kc,${T.accent}); box-shadow:0 0 0 1px var(--kc,${T.accent}) inset; }
-  .an-kpi-locked { background:transparent; border-style:dashed; border-color:${T.borderHi}; gap:7px; }
+  .an-kpi-locked { background:transparent; border-style:dashed; border-color:var(--v2-line-strong); gap:7px; }
   .an-kpi-locked::before { display:none; }
-  .an-kpi-locked .an-kpi-value { color:${T.textMuted}; font-size:18px; }
-  .an-kpi-source-tag { display:inline-flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:9px; color:${T.textMuted}; background:rgba(107,114,128,0.12); border:1px solid ${T.border}; border-radius:4px; padding:3px 6px; width:fit-content; }
+  .an-kpi-locked .an-kpi-value { color:var(--v2-fg-3); font-size:18px; }
+  .an-kpi-source-tag { display:inline-flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--v2-fg-3); background:rgba(107,114,128,0.12); border:1px solid var(--v2-line); border-radius:4px; padding:3px 6px; width:fit-content; }
 
   /* ── Group tabs (gráfico central) ── */
   .an-group-tabs { display:flex; align-items:center; gap:2px; }
-  .an-group-tab { padding:4px 10px; border-radius:5px; font-size:10px; font-weight:600; border:1px solid transparent; cursor:pointer; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; background:transparent; text-transform:uppercase; letter-spacing:0.04em; }
+  .an-group-tab { padding:4px 10px; border-radius:5px; font-size:12px; font-weight:500; border:1px solid transparent; cursor:pointer; font-family:var(--font-ui); color:var(--v2-fg-3); background:transparent;   }
   .an-group-tab.active { background:${T.accentSoft}; color:${T.accent}; border-color:rgba(59,130,246,0.3); }
-  .an-group-tab:hover:not(.active) { color:${T.textSecondary}; }
+  .an-group-tab:hover:not(.active) { color:var(--v2-fg-2); }
   .an-live-tag { font-size:9px; font-family:'IBM Plex Mono',monospace; padding:2px 6px; border-radius:4px; }
   .an-live-tag.live { background:${T.successBg}; color:${T.success}; }
   .an-live-tag.sampled { background:rgba(107,114,128,0.15); color:${T.neutral}; }
 
   /* ── Top statistics grid ── */
   .an-stats-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; }
-  .an-stat-panel { background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; overflow:hidden; display:flex; flex-direction:column; transition:border-color 0.15s; }
-  .an-stat-panel:hover { border-color:${T.borderHi}; }
-  .an-stat-panel-header { display:flex; align-items:center; gap:7px; padding:11px 16px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
+  .an-stat-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; transition:border-color 0.15s; }
+  .an-stat-panel:hover { border-color:var(--v2-line-strong); }
+  .an-stat-panel-header { display:flex; align-items:center; gap:7px; padding:11px 16px; background:var(--v2-surface-2); border-bottom:1px solid var(--v2-line); font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); }
   .an-stat-expand { margin-left:auto; background:none; border:none; color:${T.accent}; font-size:10px; cursor:pointer; font-family:'IBM Plex Mono',monospace; text-transform:none; letter-spacing:0; padding:2px 4px; }
   .an-stat-expand:hover { text-decoration:underline; }
   .an-stat-panel-body { padding:8px 14px 12px; display:flex; flex-direction:column; gap:2px; min-height:70px; }
   .an-stat-row { position:relative; display:flex; align-items:center; height:30px; cursor:default; border-radius:5px; }
   .an-stat-row.clickable { cursor:pointer; }
-  .an-stat-row.clickable:hover { background:rgba(255,255,255,0.03); }
+  .an-stat-row.clickable:hover { background:rgba(var(--tl-ink, 255,255,255),0.03); }
   .an-stat-row.clickable:hover .an-stat-label { color:${T.accent}; }
   .an-stat-row.active { background:${T.accentSoft}; box-shadow:0 0 0 1px ${T.accent} inset; }
   .an-stat-bar { position:absolute; left:0; top:2px; bottom:2px; background:${T.accentSoft}; border-radius:4px; z-index:0; }
-  .an-stat-label { position:relative; z-index:1; font-size:12.5px; color:${T.textPrimary}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; padding-left:10px; font-family:'IBM Plex Mono',monospace; }
-  .an-stat-count { position:relative; z-index:1; font-size:11.5px; font-weight:600; color:${T.textSecondary}; font-family:'IBM Plex Mono',monospace; padding-left:10px; padding-right:2px; }
-  .an-empty-mini { font-size:12px; color:${T.textMuted}; padding:10px 4px; font-family:'DM Sans',sans-serif; }
+  .an-stat-label { position:relative; z-index:1; font-size:12.5px; color:var(--v2-fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; padding-left:10px; font-family:'IBM Plex Mono',monospace; }
+  .an-stat-count { position:relative; z-index:1; font-size:11.5px; font-weight:600; color:var(--v2-fg-2); font-family:'IBM Plex Mono',monospace; padding-left:10px; padding-right:2px; }
+  .an-empty-mini { font-size:12px; color:var(--v2-fg-3); padding:10px 4px; font-family:var(--font-ui); }
 
   /* ── Table (sample logs) ── */
   .an-table { width:100%; border-collapse:collapse; }
-  .an-table th { padding:6px 10px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; border-bottom:1px solid ${T.border}; }
-  .an-table td { padding:7px 10px; border-bottom:1px solid rgba(30,38,64,0.45); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
+  .an-table th { padding:6px 10px; font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); text-align:left; border-bottom:1px solid var(--v2-line); }
+  .an-table td { padding:7px 10px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.45); font-size:12px; color:var(--v2-fg); vertical-align:middle; }
   .an-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
   .an-table tbody tr:last-child td { border-bottom:none; }
   .an-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
-  .an-table .dim { color:${T.textPrimary}; }
+  .an-table .dim { color:var(--v2-fg); }
   .an-table .right { text-align:right; }
-  .an-log-detail { background:${T.surfaceAlt}; padding:14px 18px; font-size:12.5px; line-height:1.7; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:14px 28px; border-radius:8px; }
-  .an-log-detail-title { font-size:10.5px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; margin-bottom:8px; }
+  .an-log-detail { background:var(--v2-surface-2); padding:14px 18px; font-size:12.5px; line-height:1.7; font-family:'IBM Plex Mono',monospace; color:var(--v2-fg-3); display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:14px 28px; border-radius:8px; }
+  .an-log-detail-title { font-size:10.5px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--v2-fg); font-family:'IBM Plex Mono',monospace; margin-bottom:8px; }
   .an-row-open > td { background:${T.accentSoft} !important; }
   .an-row-open > td:first-child { box-shadow: inset 3px 0 0 ${T.accent}; }
-  .an-log-panel { position:fixed; width:${LOG_PANEL_WIDTH}px; max-width:94vw; max-height:80vh; overflow-y:auto; background:${T.surface}; border:1px solid ${T.borderHi}; border-radius:12px; box-shadow:0 20px 48px rgba(0,0,0,0.55); color:${T.textPrimary}; }
-  .an-log-panel-header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid ${T.border}; position:sticky; top:0; background:${T.surface}; border-radius:12px 12px 0 0; cursor:move; user-select:none; touch-action:none; }
-  .an-log-panel-title { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; color:${T.textPrimary}; }
-  .an-log-panel-close { background:transparent; border:none; color:${T.textMuted}; cursor:pointer; padding:6px; border-radius:6px; display:flex; align-items:center; justify-content:center; }
-  .an-log-panel-close:hover { background:rgba(255,255,255,0.08); color:${T.textPrimary}; }
+  .an-log-panel { position:fixed; width:${LOG_PANEL_WIDTH}px; max-width:94vw; max-height:80vh; overflow-y:auto; background:var(--v2-surface); border:1px solid var(--v2-line-strong); border-radius:12px; box-shadow:0 20px 48px rgba(0,0,0,0.55); color:var(--v2-fg); }
+  .an-log-panel-header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--v2-line); position:sticky; top:0; background:var(--v2-surface); border-radius:12px 12px 0 0; cursor:move; user-select:none; touch-action:none; }
+  .an-log-panel-title { font-family:var(--font-ui); font-weight:700; font-size:15px; color:var(--v2-fg); }
+  .an-log-panel-close { background:transparent; border:none; color:var(--v2-fg-3); cursor:pointer; padding:6px; border-radius:6px; display:flex; align-items:center; justify-content:center; }
+  .an-log-panel-close:hover { background:rgba(var(--tl-ink, 255,255,255),0.08); color:var(--v2-fg); }
   .an-log-panel-body { padding:18px 20px 22px; display:flex; flex-direction:column; gap:18px; }
-  .an-related-events-btn { background:transparent; border:1px solid ${T.accent}; color:${T.accent}; font-size:10.5px; font-weight:600; padding:5px 10px; border-radius:6px; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .an-related-events-btn { background:transparent; border:1px solid ${T.accent}; color:${T.accent}; font-size:10.5px; font-weight:600; padding:5px 10px; border-radius:6px; cursor:pointer; font-family:var(--font-ui); }
   .an-related-events-btn:hover { background:${T.accentSoft}; }
-  .an-rule-hit-card { border:1px solid ${T.border}; border-radius:8px; padding:10px 12px; background:${T.surfaceAlt}; }
-  .an-log-detail b { color:${T.textPrimary}; font-weight:600; }
-  .an-pagination { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-top:1px solid ${T.border}; font-size:11px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .an-page-btn { padding:3px 8px; border-radius:4px; border:1px solid ${T.border}; background:transparent; color:${T.textPrimary}; cursor:pointer; font-size:11px; }
+  .an-rule-hit-card { border:1px solid var(--v2-line); border-radius:8px; padding:10px 12px; background:var(--v2-surface-2); }
+  .an-log-detail b { color:var(--v2-fg); font-weight:600; }
+  .an-pagination { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-top:1px solid var(--v2-line); font-size:11px; color:var(--v2-fg-3); font-family:'IBM Plex Mono',monospace; }
+  .an-page-btn { padding:3px 8px; border-radius:4px; border:1px solid var(--v2-line); background:transparent; color:var(--v2-fg); cursor:pointer; font-size:11px; }
   .an-page-btn:disabled { opacity:0.35; cursor:not-allowed; }
 
   /* ── Badge ── */
-  .an-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
+  .an-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:4px; font-size:12px; font-weight:500;   font-family:var(--font-ui); white-space:nowrap; }
   .an-badge-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
 
   /* ── Loading / Error / Empty states ── */
-  .an-state-box { padding:32px 24px; background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; }
+  .an-state-box { padding:32px 24px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:10px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; }
   .an-state-icon { width:40px; height:40px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
-  .an-empty { padding:28px 16px; text-align:center; color:${T.textMuted}; font-size:12px; font-family:'DM Sans',sans-serif; }
-  .an-hint-box { padding:10px 14px; background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:8px; font-size:11px; color:${T.textMuted}; font-family:'DM Sans',sans-serif; }
+  .an-empty { padding:28px 16px; text-align:center; color:var(--v2-fg-3); font-size:12px; font-family:var(--font-ui); }
+  .an-hint-box { padding:10px 14px; background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; font-size:11px; color:var(--v2-fg-3); font-family:var(--font-ui); }
 
   @keyframes an-spin { to{transform:rotate(360deg)} }
   .an-spin { animation:an-spin 0.8s linear infinite; }
@@ -283,17 +296,17 @@ const CSS = `
   /* ── Scrollbar ── */
   .an-root ::-webkit-scrollbar { width:4px; height:4px; }
   .an-root ::-webkit-scrollbar-track { background:transparent; }
-  .an-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
+  .an-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:2px; }
 
   /* ── Tooltip (recharts) ── */
-  .an-tip { background:${T.surface}; border:1px solid ${T.borderHi}; border-radius:8px; padding:10px 14px; font-family:'DM Sans',sans-serif; box-shadow:0 20px 40px rgba(0,0,0,0.5); min-width:150px; }
-  .an-tip-label { font-size:10px; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
+  .an-tip { background:var(--v2-surface); border:1px solid var(--v2-line-strong); border-radius:8px; padding:10px 14px; font-family:var(--font-ui); box-shadow:0 20px 40px rgba(0,0,0,0.5); min-width:150px; }
+  .an-tip-label { font-size:12px; font-family:var(--font-ui); color:var(--v2-fg-3);   margin-bottom:6px; }
   .an-tip-row { display:flex; align-items:center; gap:6px; font-size:12px; margin-bottom:3px; }
   .an-tip-dot { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
-  .an-tip-name { color:${T.textSecondary}; font-size:11px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .an-tip-val { color:${T.textPrimary}; font-weight:600; font-family:'IBM Plex Mono',monospace; margin-left:auto; }
+  .an-tip-name { color:var(--v2-fg-2); font-size:11px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .an-tip-val { color:var(--v2-fg); font-weight:600; font-family:'IBM Plex Mono',monospace; margin-left:auto; }
 
-  .recharts-legend-item-text { color:${T.textSecondary} !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
+  .recharts-legend-item-text { color:var(--v2-fg-2) !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
   .recharts-cartesian-axis-tick-value { fill:${T.chartTick} !important; font-size:10px; font-family:'IBM Plex Mono',monospace; }
   .recharts-text { fill:${T.chartTick} !important; }
 `;
@@ -654,8 +667,8 @@ function ZonePicker({
         style={{
           width: 300,
           padding: 0,
-          background: T.surface,
-          border: `1px solid ${T.borderHi}`,
+          background: V2.surface,
+          border: `1px solid ${V2.borderHi}`,
           borderRadius: 8,
           boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
         }}
@@ -664,7 +677,7 @@ function ZonePicker({
         <Command style={{ background: "transparent" }}>
           <CommandInput placeholder="Buscar zona…" style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }} />
           <CommandList>
-            <CommandEmpty style={{ color: T.textMuted, fontSize: 12, padding: 12 }}>
+            <CommandEmpty style={{ color: V2.textMuted, fontSize: 12, padding: 12 }}>
               Nenhuma zona encontrada.
             </CommandEmpty>
             <CommandGroup>
@@ -676,7 +689,7 @@ function ZonePicker({
                     onChange(z.id);
                     setOpen(false);
                   }}
-                  style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: T.textPrimary }}
+                  style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: V2.textPrimary }}
                 >
                   <Check size={14} style={{ opacity: zoneId === z.id ? 1 : 0, color: T.success }} />
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{z.name}</span>
@@ -765,11 +778,11 @@ const ATTACK_SCORE_LABELS: Record<string, string> = {
   not_scored: "Not scored",
 };
 const ATTACK_SCORE_COLORS: Record<string, string> = {
-  attack: "#7F1D1D",
+  attack: "var(--tl-7f1d1d, #7F1D1D)",
   likely_attack: "#F87171",
   unlikely_attack: "#22C55E",
-  unknown: "#14532D",
-  not_scored: "#9CA3AF",
+  unknown: "var(--tl-14532d, #14532D)",
+  not_scored: "var(--tl-9ca3af, #9CA3AF)",
 };
 const ATTACK_SCORE_ORDER = ["attack", "likely_attack", "unlikely_attack", "unknown", "not_scored"];
 function attackScoreLabel(score: string): string {
@@ -799,9 +812,9 @@ const BOT_DECISION_LABELS: Record<string, string> = {
 };
 const BOT_DECISION_COLORS: Record<string, string> = {
   automated: "#A16207",
-  likely_automated: "#7F1D1D",
+  likely_automated: "var(--tl-7f1d1d, #7F1D1D)",
   likely_human: "#22C55E",
-  verified_bot: "#14532D",
+  verified_bot: "var(--tl-14532d, #14532D)",
 };
 const BOT_DECISION_ORDER = ["automated", "likely_automated", "likely_human", "verified_bot"];
 function botDecisionLabel(decision: string): string {
@@ -812,10 +825,10 @@ function botDecisionColor(decision: string, idx: number): string {
 }
 const BOT_SOURCE_META: Record<string, { label: string; color: string }> = {
   machine_learning: { label: "Machine learning", color: "#1D4ED8" },
-  not_computed: { label: "Not computed", color: "#9CA3AF" },
+  not_computed: { label: "Not computed", color: "var(--tl-9ca3af, #9CA3AF)" },
   heuristics: { label: "Heuristics", color: "#EC4899" },
   verified_bot: { label: "Verified bot", color: "#38BDF8" },
-  javascript_detections: { label: "JavaScript detections", color: "#312E81" },
+  javascript_detections: { label: "JavaScript detections", color: "var(--tl-312e81, #312E81)" },
 };
 function botSourceLabel(source: string): string {
   return BOT_SOURCE_META[source]?.label ?? source.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -856,31 +869,31 @@ function RelatedSecurityEventsButton({
       {open && (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
           {isFetching ? (
-            <span style={{ fontSize: 11, color: T.textMuted }}>Carregando…</span>
+            <span style={{ fontSize: 11, color: V2.textMuted }}>Carregando…</span>
           ) : errorMsg ? (
             <span style={{ fontSize: 11, color: T.danger }}>{errorMsg}</span>
           ) : hits.length === 0 ? (
-            <span style={{ fontSize: 11, color: T.textMuted }}>Nenhuma regra de firewall bateu nesse Ray ID.</span>
+            <span style={{ fontSize: 11, color: V2.textMuted }}>Nenhuma regra de firewall bateu nesse Ray ID.</span>
           ) : (
             hits.map((h, i) => (
               <div key={i} className="an-rule-hit-card">
-                <div style={{ fontSize: 12, fontWeight: 700, color: T.textPrimary, textTransform: "capitalize" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: V2.textPrimary, textTransform: "capitalize" }}>
                   {h.action} · {eventServiceLabel(h.source)}
                 </div>
                 {h.rulesetId && (
-                  <div style={{ fontSize: 11, color: T.textMuted, marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: V2.textMuted, marginTop: 6 }}>
                     Ruleset{" "}
-                    <span style={{ color: T.textSecondary, fontFamily: "'IBM Plex Mono',monospace" }}>
+                    <span style={{ color: V2.textSecondary, fontFamily: "'IBM Plex Mono',monospace" }}>
                       {h.rulesetId}
                     </span>
                   </div>
                 )}
-                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
-                  Rule <span style={{ color: T.textSecondary }}>{h.description || h.ruleId}</span>
+                <div style={{ fontSize: 11, color: V2.textMuted, marginTop: 4 }}>
+                  Rule <span style={{ color: V2.textSecondary }}>{h.description || h.ruleId}</span>
                 </div>
                 {h.description && h.ruleId && h.ruleId !== h.description && (
                   <div
-                    style={{ fontSize: 10, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace", marginTop: 2 }}
+                    style={{ fontSize: 10, color: V2.textMuted, fontFamily: "'IBM Plex Mono',monospace", marginTop: 2 }}
                   >
                     {h.ruleId}
                   </div>
@@ -1415,7 +1428,7 @@ export function AnalyticsTab() {
 
             {httpLoading ? (
               <div className="an-state-box">
-                <span style={{ fontSize: 13, color: T.textSecondary }}>Carregando HTTP Traffic…</span>
+                <span style={{ fontSize: 13, color: V2.textSecondary }}>Carregando HTTP Traffic…</span>
               </div>
             ) : httpError || (httpData && !(httpData as any).ok) ? (
               <div className="an-state-box">
@@ -1426,7 +1439,7 @@ export function AnalyticsTab() {
                   <Activity size={18} color={T.danger} />
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: T.danger }}>Erro ao carregar HTTP Traffic</span>
-                <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+                <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
                   {httpData && !(httpData as any).ok ? (httpData as any).error : ((httpError as Error)?.message ?? "")}
                 </span>
               </div>
@@ -1621,7 +1634,7 @@ export function AnalyticsTab() {
                     alignItems: "center",
                     gap: 8,
                     fontSize: 11,
-                    color: T.textMuted,
+                    color: V2.textMuted,
                     fontFamily: "'IBM Plex Mono',monospace",
                   }}
                 >
@@ -1765,7 +1778,7 @@ export function AnalyticsTab() {
         {/* ── Security ── */}
         {activeSection === "security" && (
           <>
-            <div className="an-group-tabs" style={{ borderBottom: `1px solid ${T.border}`, paddingBottom: 10 }}>
+            <div className="an-group-tabs" style={{ borderBottom: `1px solid ${V2.border}`, paddingBottom: 10 }}>
               <button
                 className={`an-group-tab${securityTab === "traffic" ? " active" : ""}`}
                 onClick={() => setSecurityTab("traffic")}
@@ -1784,16 +1797,16 @@ export function AnalyticsTab() {
               !isLiveWindow ? (
                 <div className="an-state-box">
                   <Shield size={20} color={T.textMuted} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: V2.textPrimary }}>
                     Security Events só funciona na janela ao vivo
                   </span>
-                  <span style={{ fontSize: 11, color: T.textMuted }}>
+                  <span style={{ fontSize: 11, color: V2.textMuted }}>
                     Selecione uma zona e um período de até 4 dias.
                   </span>
                 </div>
               ) : eventsOverviewLoading ? (
                 <div className="an-state-box">
-                  <span style={{ fontSize: 13, color: T.textSecondary }}>Carregando Events…</span>
+                  <span style={{ fontSize: 13, color: V2.textSecondary }}>Carregando Events…</span>
                 </div>
               ) : eventsOverviewError || !evOv ? (
                 <div className="an-state-box">
@@ -1804,7 +1817,7 @@ export function AnalyticsTab() {
                     <Shield size={18} color={T.danger} />
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: T.danger }}>Erro ao carregar Events</span>
-                  <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+                  <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
                     {(eventsOverviewData as any)?.ok === false
                       ? (eventsOverviewData as any).error
                       : ((eventsOverviewError as Error)?.message ?? "")}
@@ -1826,14 +1839,14 @@ export function AnalyticsTab() {
                       style={{
                         fontSize: 12.5,
                         fontWeight: 600,
-                        color: T.textPrimary,
-                        fontFamily: "'DM Sans',sans-serif",
+                        color: V2.textPrimary,
+                        fontFamily: "var(--font-ui)",
                       }}
                     >
                       Events summary
                     </span>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'DM Sans',sans-serif" }}>
+                      <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "var(--font-ui)" }}>
                         Group view by
                       </span>
                       <Select value="action" onValueChange={() => {}}>
@@ -1933,12 +1946,12 @@ export function AnalyticsTab() {
                                     display: "inline-block",
                                   }}
                                 />
-                                <span style={{ color: T.textSecondary, fontFamily: "'DM Sans',sans-serif" }}>
+                                <span style={{ color: V2.textSecondary, fontFamily: "var(--font-ui)" }}>
                                   {b.label}
                                 </span>
                                 <span
                                   style={{
-                                    color: T.textPrimary,
+                                    color: V2.textPrimary,
                                     fontFamily: "'IBM Plex Mono',monospace",
                                     fontWeight: 600,
                                   }}
@@ -1955,7 +1968,7 @@ export function AnalyticsTab() {
                               height: 10,
                               borderRadius: 6,
                               overflow: "hidden",
-                              background: T.surfaceAlt,
+                              background: V2.surfaceAlt,
                             }}
                           >
                             {eventServiceBuckets.map((b) => (
@@ -1978,7 +1991,7 @@ export function AnalyticsTab() {
                       alignItems: "center",
                       gap: 8,
                       fontSize: 11,
-                      color: T.textMuted,
+                      color: V2.textMuted,
                       fontFamily: "'IBM Plex Mono',monospace",
                     }}
                   >
@@ -2074,8 +2087,8 @@ export function AnalyticsTab() {
                         style={{
                           padding: "8px 16px 0",
                           fontSize: 10,
-                          color: T.textMuted,
-                          fontFamily: "'DM Sans',sans-serif",
+                          color: V2.textMuted,
+                          fontFamily: "var(--font-ui)",
                         }}
                       >
                         Atualizando…
@@ -2085,12 +2098,12 @@ export function AnalyticsTab() {
                       <table className="an-table">
                         <thead style={{ position: "sticky", top: 0, zIndex: 20 }}>
                           <tr>
-                            <th style={{ background: T.surface, width: 24 }}></th>
-                            <th style={{ background: T.surface }}>Date</th>
-                            <th style={{ background: T.surface }}>Action taken</th>
-                            <th style={{ background: T.surface }}>Country</th>
-                            <th style={{ background: T.surface }}>IP address</th>
-                            <th style={{ background: T.surface }}>Service</th>
+                            <th style={{ background: V2.surface, width: 24 }}></th>
+                            <th style={{ background: V2.surface }}>Date</th>
+                            <th style={{ background: V2.surface }}>Action taken</th>
+                            <th style={{ background: V2.surface }}>Country</th>
+                            <th style={{ background: V2.surface }}>IP address</th>
+                            <th style={{ background: V2.surface }}>Service</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2171,8 +2184,8 @@ export function AnalyticsTab() {
                     style={{
                       fontSize: 12.5,
                       fontWeight: 600,
-                      color: T.textPrimary,
-                      fontFamily: "'DM Sans',sans-serif",
+                      color: V2.textPrimary,
+                      fontFamily: "var(--font-ui)",
                     }}
                   >
                     Suspicious activity
@@ -2184,7 +2197,7 @@ export function AnalyticsTab() {
                       padding: "2px 9px",
                       borderRadius: 10,
                       background: (ov?.suspiciousActivityCount ?? 0) > 0 ? T.dangerBg : "rgba(139,150,172,0.12)",
-                      color: (ov?.suspiciousActivityCount ?? 0) > 0 ? T.danger : T.textMuted,
+                      color: (ov?.suspiciousActivityCount ?? 0) > 0 ? T.danger : V2.textMuted,
                       fontFamily: "'IBM Plex Mono',monospace",
                     }}
                   >
@@ -2202,16 +2215,16 @@ export function AnalyticsTab() {
                 {!isLiveWindow ? (
                   <div className="an-state-box">
                     <Shield size={20} color={T.textMuted} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: V2.textPrimary }}>
                       Security Analytics só funciona na janela ao vivo
                     </span>
-                    <span style={{ fontSize: 11, color: T.textMuted }}>
+                    <span style={{ fontSize: 11, color: V2.textMuted }}>
                       Selecione uma zona e um período de até 4 dias.
                     </span>
                   </div>
                 ) : securityOverviewLoading ? (
                   <div className="an-state-box">
-                    <span style={{ fontSize: 13, color: T.textSecondary }}>Carregando Security…</span>
+                    <span style={{ fontSize: 13, color: V2.textSecondary }}>Carregando Security…</span>
                   </div>
                 ) : securityOverviewError || !ov ? (
                   <div className="an-state-box">
@@ -2222,7 +2235,7 @@ export function AnalyticsTab() {
                       <Shield size={18} color={T.danger} />
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 600, color: T.danger }}>Erro ao carregar Security</span>
-                    <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+                    <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
                       {(securityOverviewData as any)?.ok === false
                         ? (securityOverviewData as any).error
                         : ((securityOverviewError as Error)?.message ?? "")}
@@ -2236,8 +2249,8 @@ export function AnalyticsTab() {
                         style={{
                           fontSize: 12.5,
                           fontWeight: 600,
-                          color: T.textPrimary,
-                          fontFamily: "'DM Sans',sans-serif",
+                          color: V2.textPrimary,
+                          fontFamily: "var(--font-ui)",
                         }}
                       >
                         Request activity
@@ -2272,8 +2285,8 @@ export function AnalyticsTab() {
                             style={{
                               fontSize: 12.5,
                               fontWeight: 600,
-                              color: T.textPrimary,
-                              fontFamily: "'DM Sans',sans-serif",
+                              color: V2.textPrimary,
+                              fontFamily: "var(--font-ui)",
                             }}
                           >
                             Number of requests made by bots and humans
@@ -2281,9 +2294,9 @@ export function AnalyticsTab() {
                           <div
                             style={{
                               fontSize: 11,
-                              color: T.textMuted,
+                              color: V2.textMuted,
                               marginTop: 4,
-                              fontFamily: "'DM Sans',sans-serif",
+                              fontFamily: "var(--font-ui)",
                             }}
                           >
                             Identify how much traffic came from bots or humans based on the{" "}
@@ -2301,14 +2314,14 @@ export function AnalyticsTab() {
 
                         {botOverviewLoading ? (
                           <div className="an-state-box">
-                            <span style={{ fontSize: 13, color: T.textSecondary }}>Carregando…</span>
+                            <span style={{ fontSize: 13, color: V2.textSecondary }}>Carregando…</span>
                           </div>
                         ) : botOverviewError || !botOv ? (
                           <div className="an-state-box">
                             <span style={{ fontSize: 13, fontWeight: 600, color: T.danger }}>
                               Erro ao carregar Bot analysis
                             </span>
-                            <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+                            <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
                               {(botOverviewData as any)?.ok === false
                                 ? (botOverviewData as any).error
                                 : ((botOverviewError as Error)?.message ?? "")}
@@ -2370,7 +2383,7 @@ export function AnalyticsTab() {
                                         />
                                         <Tooltip
                                           content={<GenericTooltip />}
-                                          cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                                          cursor={{ fill: "rgba(var(--tl-ink, 255,255,255),0.04)" }}
                                         />
                                         <Legend
                                           wrapperStyle={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace" }}
@@ -2397,9 +2410,9 @@ export function AnalyticsTab() {
                                 <div
                                   style={{
                                     fontSize: 11,
-                                    color: T.textMuted,
+                                    color: V2.textMuted,
                                     marginBottom: 12,
-                                    fontFamily: "'DM Sans',sans-serif",
+                                    fontFamily: "var(--font-ui)",
                                   }}
                                 >
                                   Review which engines or services were responsible for applying bot scores to requests.
@@ -2423,12 +2436,12 @@ export function AnalyticsTab() {
                                               display: "inline-block",
                                             }}
                                           />
-                                          <span style={{ color: T.textSecondary, fontFamily: "'DM Sans',sans-serif" }}>
+                                          <span style={{ color: V2.textSecondary, fontFamily: "var(--font-ui)" }}>
                                             {botSourceLabel(s.source)}
                                           </span>
                                           <span
                                             style={{
-                                              color: T.textPrimary,
+                                              color: V2.textPrimary,
                                               fontFamily: "'IBM Plex Mono',monospace",
                                               fontWeight: 600,
                                             }}
@@ -2445,7 +2458,7 @@ export function AnalyticsTab() {
                                         height: 10,
                                         borderRadius: 6,
                                         overflow: "hidden",
-                                        background: T.surfaceAlt,
+                                        background: V2.surfaceAlt,
                                       }}
                                     >
                                       {botSourceBuckets.map((s, i) => (
@@ -2474,8 +2487,8 @@ export function AnalyticsTab() {
                             style={{
                               fontSize: 12.5,
                               fontWeight: 600,
-                              color: T.textPrimary,
-                              fontFamily: "'DM Sans',sans-serif",
+                              color: V2.textPrimary,
+                              fontFamily: "var(--font-ui)",
                             }}
                           >
                             Number of clean and malicious requests
@@ -2483,9 +2496,9 @@ export function AnalyticsTab() {
                           <div
                             style={{
                               fontSize: 11,
-                              color: T.textMuted,
+                              color: V2.textMuted,
                               marginTop: 4,
-                              fontFamily: "'DM Sans',sans-serif",
+                              fontFamily: "var(--font-ui)",
                             }}
                           >
                             Determine how much traffic was clean or malicious based on the{" "}
@@ -2503,14 +2516,14 @@ export function AnalyticsTab() {
 
                         {attackOverviewLoading ? (
                           <div className="an-state-box">
-                            <span style={{ fontSize: 13, color: T.textSecondary }}>Carregando…</span>
+                            <span style={{ fontSize: 13, color: V2.textSecondary }}>Carregando…</span>
                           </div>
                         ) : attackOverviewError || !attackOv ? (
                           <div className="an-state-box">
                             <span style={{ fontSize: 13, fontWeight: 600, color: T.danger }}>
                               Erro ao carregar Attack analysis
                             </span>
-                            <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+                            <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
                               {(attackOverviewData as any)?.ok === false
                                 ? (attackOverviewData as any).error
                                 : ((attackOverviewError as Error)?.message ?? "")}
@@ -2572,7 +2585,7 @@ export function AnalyticsTab() {
                                         />
                                         <Tooltip
                                           content={<GenericTooltip />}
-                                          cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                                          cursor={{ fill: "rgba(var(--tl-ink, 255,255,255),0.04)" }}
                                         />
                                         <Legend
                                           wrapperStyle={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace" }}
@@ -2599,9 +2612,9 @@ export function AnalyticsTab() {
                                 <div
                                   style={{
                                     fontSize: 11,
-                                    color: T.textMuted,
+                                    color: V2.textMuted,
                                     marginBottom: 12,
-                                    fontFamily: "'DM Sans',sans-serif",
+                                    fontFamily: "var(--font-ui)",
                                   }}
                                 >
                                   Cloudflare scores each request 1 (attack) through 99 (clean).
@@ -2638,8 +2651,8 @@ export function AnalyticsTab() {
                                           <span
                                             style={{
                                               fontSize: 12,
-                                              color: T.textSecondary,
-                                              fontFamily: "'DM Sans',sans-serif",
+                                              color: V2.textSecondary,
+                                              fontFamily: "var(--font-ui)",
                                               flex: 1,
                                             }}
                                           >
@@ -2649,7 +2662,7 @@ export function AnalyticsTab() {
                                             style={{
                                               fontSize: 12,
                                               fontWeight: 600,
-                                              color: T.textPrimary,
+                                              color: V2.textPrimary,
                                               fontFamily: "'IBM Plex Mono',monospace",
                                             }}
                                           >
@@ -2665,7 +2678,7 @@ export function AnalyticsTab() {
                                         height: 10,
                                         borderRadius: 6,
                                         overflow: "hidden",
-                                        background: T.surfaceAlt,
+                                        background: V2.surfaceAlt,
                                       }}
                                     >
                                       {orderedAttackScores.map((s, i) => (
@@ -2684,9 +2697,9 @@ export function AnalyticsTab() {
                                 <div
                                   style={{
                                     fontSize: 11,
-                                    color: T.textMuted,
+                                    color: V2.textMuted,
                                     marginTop: 14,
-                                    fontFamily: "'DM Sans',sans-serif",
+                                    fontFamily: "var(--font-ui)",
                                   }}
                                 >
                                   Gain deeper control with granular attack scores, including various sub attack vectors
@@ -2810,7 +2823,7 @@ export function AnalyticsTab() {
                         alignItems: "center",
                         gap: 8,
                         fontSize: 11,
-                        color: T.textMuted,
+                        color: V2.textMuted,
                         fontFamily: "'IBM Plex Mono',monospace",
                       }}
                     >
@@ -3003,8 +3016,8 @@ export function AnalyticsTab() {
                           style={{
                             padding: "8px 16px 0",
                             fontSize: 10,
-                            color: T.textMuted,
-                            fontFamily: "'DM Sans',sans-serif",
+                            color: V2.textMuted,
+                            fontFamily: "var(--font-ui)",
                           }}
                         >
                           Atualizando…
@@ -3014,13 +3027,13 @@ export function AnalyticsTab() {
                         <table className="an-table">
                           <thead style={{ position: "sticky", top: 0, zIndex: 20 }}>
                             <tr>
-                              <th style={{ background: T.surface, width: 24 }}></th>
-                              <th style={{ background: T.surface }}>Time</th>
-                              <th style={{ background: T.surface }}>Source IP</th>
-                              <th style={{ background: T.surface }}>Host</th>
-                              <th style={{ background: T.surface }}>Path</th>
-                              <th style={{ background: T.surface }}>Ray ID</th>
-                              <th style={{ background: T.surface }}>Analyses</th>
+                              <th style={{ background: V2.surface, width: 24 }}></th>
+                              <th style={{ background: V2.surface }}>Time</th>
+                              <th style={{ background: V2.surface }}>Source IP</th>
+                              <th style={{ background: V2.surface }}>Host</th>
+                              <th style={{ background: V2.surface }}>Path</th>
+                              <th style={{ background: V2.surface }}>Ray ID</th>
+                              <th style={{ background: V2.surface }}>Analyses</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3305,7 +3318,7 @@ export function AnalyticsTab() {
 function EmptyState({ message }: { message: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-      <span style={{ fontSize: 12, color: T.textMuted, fontFamily: "'DM Sans',sans-serif" }}>{message}</span>
+      <span style={{ fontSize: 12, color: V2.textMuted, fontFamily: "var(--font-ui)" }}>{message}</span>
     </div>
   );
 }

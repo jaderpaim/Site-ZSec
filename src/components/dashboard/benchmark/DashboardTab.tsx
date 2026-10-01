@@ -18,12 +18,12 @@ import { getBenchmarkOverview, type MaturidadeRefRow, type InvestimentoRefRow } 
 
 // ── Tokens — mesma paleta do Painel Executivo (consistência entre painéis) ────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
   // Fundo do tooltip: mais claro que os cartões, senão o texto branco não separa do fundo.
-  tooltipBg: "#1C2438",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  tooltipBg: "var(--tl-1c2438, #1C2438)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   // Azul escuro e saturado para a barra de posição na escala — contrasta com o
   // trilho sem clarear a tabela.
@@ -32,11 +32,11 @@ const T = {
   warning: "#F59E0B",
   danger: "#EF4444",
   purple: "#A78BFA",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  chartGrid: "rgba(30,38,64,0.7)",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-64748b, #64748B)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
 };
 
 const CSS = `
@@ -248,7 +248,7 @@ function MaturidadeRuler({
               tick={<Tick />}
             />
             <Tooltip
-              cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              cursor={{ fill: "rgba(var(--tl-ink, 255,255,255),0.05)" }}
               contentStyle={{
                 background: T.tooltipBg,
                 border: `1px solid ${T.borderHi}`,
@@ -667,7 +667,7 @@ export function BenchmarkDashboardTab() {
                               style={{
                                 left: `${((mn ?? 0) / escala) * 100}%`,
                                 width: `${(((mx ?? escala) - (mn ?? 0)) / escala) * 100}%`,
-                                background: `linear-gradient(90deg, #1E3A8A, ${T.accentDeep})`,
+                                background: `linear-gradient(90deg, var(--tl-1e3a8a, #1E3A8A), ${T.accentDeep})`,
                                 borderLeftColor: T.accent,
                                 borderRightColor: T.accent,
                                 borderRadius: 4,

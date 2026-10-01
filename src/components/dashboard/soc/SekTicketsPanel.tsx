@@ -30,16 +30,16 @@ import { replySekTicket } from "@/lib/sek-zendesk.functions";
 // textMuted/textSecondary iguais a textPrimary de propósito, pra bater com
 // o resto da página (ver const T em SocReal.tsx).
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
   accent: "#3B82F6",
   success: "#10B981",
   warning: "#F59E0B",
   danger: "#EF4444",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textMuted: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 // sek_tickets ainda não existe no types.ts gerado (migration nova, aplicada
@@ -96,7 +96,7 @@ function TicketStatusBadge({ status }: { status: string }) {
   const color = resolved ? T.neutral : T.warning;
   const bg = resolved ? "rgba(107,114,128,0.1)" : "rgba(245,158,11,0.10)";
   return (
-    <span className="exec-badge" style={{ background: bg, color, border: `1px solid ${color}33` }}>
+    <span className="exec-badge" style={{ background: bg, color, border: `1px solid color-mix(in srgb, ${color} 20%, transparent)` }}>
       <span className="exec-badge-dot" style={{ background: color }} />
       {STATUS_LABEL[status] ?? status}
     </span>
@@ -108,7 +108,7 @@ function SeverityBadge({ subject }: { subject: string }) {
   if (!severity) return <span style={{ color: T.textMuted }}>—</span>;
   const color = SEVERITY_COLOR[severity] ?? T.neutral;
   return (
-    <span className="exec-badge" style={{ background: `${color}22`, color, border: `1px solid ${color}55` }}>
+    <span className="exec-badge" style={{ background: `color-mix(in srgb, ${color} 13%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)` }}>
       {SEVERITY_LABEL[severity] ?? severity}
     </span>
   );

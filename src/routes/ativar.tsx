@@ -55,7 +55,7 @@ function AtivarPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0b0f1a",
+        background: "var(--tl-0b0f1a, #0b0f1a)",
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
@@ -63,7 +63,7 @@ function AtivarPage() {
         <div style={{ textAlign: "center", maxWidth: 400, padding: "0 24px" }}>
           <div style={{ fontSize: 32, marginBottom: 16 }}>⚠️</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: "#f87171", marginBottom: 8 }}>Link inválido</div>
-          <div style={{ fontSize: 14, color: "#9ca3af", lineHeight: 1.6 }}>{error}</div>
+          <div style={{ fontSize: 14, color: "var(--tl-9ca3af, #9ca3af)", lineHeight: 1.6 }}>{error}</div>
           <a
             href="/login"
             style={{
@@ -82,12 +82,12 @@ function AtivarPage() {
           </a>
         </div>
       ) : (
-        <div style={{ textAlign: "center", color: "#9ca3af" }}>
+        <div style={{ textAlign: "center", color: "var(--tl-9ca3af, #9ca3af)" }}>
           <div
             style={{
               width: 40,
               height: 40,
-              border: "3px solid #1e2a3a",
+              border: "3px solid var(--tl-1e2a3a, #1e2a3a)",
               borderTop: "3px solid #2563eb",
               borderRadius: "50%",
               margin: "0 auto 16px",

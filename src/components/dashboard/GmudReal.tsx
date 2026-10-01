@@ -7,16 +7,16 @@ import { CronHealthBadge } from "./CronHealthBadge";
 
 // ── Design Tokens — mesma paleta dos outros dashboards ─────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
   success: "#10B981",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-64748b, #64748B)",
 };
 
 const CSS = `
@@ -65,7 +65,7 @@ const CSS = `
   }
   .gmud-tab:hover:not(.active) {
     color: ${T.textSecondary};
-    background: rgba(255,255,255,0.04);
+    background: rgba(var(--tl-ink, 255,255,255),0.04);
   }
   .gmud-tab.active {
     background: ${T.accentGlow};
@@ -97,7 +97,7 @@ const CSS = `
   /* Scrollbar */
   .gmud-root ::-webkit-scrollbar       { width: 4px; height: 4px; }
   .gmud-root ::-webkit-scrollbar-track { background: transparent; }
-  .gmud-root ::-webkit-scrollbar-thumb { background: #2A3560; border-radius: 2px; }
+  .gmud-root ::-webkit-scrollbar-thumb { background: var(--tl-2a3560, #2A3560); border-radius: 2px; }
 `;
 
 export function GmudDashboard() {

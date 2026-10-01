@@ -1,20 +1,17 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import {
-  FileWarning,
-  ShieldAlert,
-  Clock,
-  Users,
-  ScrollText,
-  Search,
-  DoorOpen,
-  ExternalLink,
-  ChevronDown,
-  X,
-} from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+import { ShieldAlert, Search, ExternalLink, ChevronDown, X } from "lucide-react";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import { listDlpEvents, getDlpSyncStatus } from "@/lib/dlp.functions";
 
 // Módulo DLP (Purview) — Fase 1: só leitura dos eventos já sincronizados
@@ -26,10 +23,10 @@ import { listDlpEvents, getDlpSyncStatus } from "@/lib/dlp.functions";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   success: "#10B981",
@@ -40,10 +37,10 @@ const T = {
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
   cyan: "#22D3EE",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#7C8AA0",
-  chartGrid: "rgba(30,38,64,0.7)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-7c8aa0, #7C8AA0)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
 };
 
 // Cor por canal de saída. A mesma cor identifica o workload na barra, no badge
@@ -56,159 +53,134 @@ const CANAL: Record<string, { nome: string; cor: string }> = {
   Endpoint: { nome: "Endpoint", cor: T.warning },
   EndpointDevices: { nome: "Endpoint", cor: T.warning },
 };
-const canalDe = (w: string | null) => (w && CANAL[w]) || { nome: w ?? "Outro", cor: "#6B7280" };
+const canalDe = (w: string | null) =>
+  (w && CANAL[w]) || { nome: w ?? "Outro", cor: "var(--tl-6b7280, #6B7280)" };
 
+// ── CSS (interface v2) ─────────────────────────────────────────────────────────
+// Moldura nos tokens v2-*. O quadro "Por onde o dado tentou sair" mantém o
+// formato anterior (classes .dlp-canal*), por decisão de produto.
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .dlp-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; display:flex; flex-direction:column; gap:16px; }
+  .dlp-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
   .dlp-root * { box-sizing:border-box; }
-  @keyframes dlp-fadeup { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-  .dlp-fadeup { animation:dlp-fadeup .3s ease forwards; }
-  .dlp-root ::-webkit-scrollbar { width:4px; height:4px; }
+  .dlp-root ::-webkit-scrollbar { width:6px; height:6px; }
   .dlp-root ::-webkit-scrollbar-track { background:transparent; }
-  .dlp-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
-  .dlp-root .recharts-cartesian-axis-tick-value { fill:${T.textMuted} !important; font-size:10px; font-family:'IBM Plex Mono',monospace; }
+  .dlp-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .dlp-root button:focus-visible, .dlp-root input:focus-visible, .dlp-root tr:focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .dlp-root .recharts-cartesian-axis-tick-value { fill:var(--v2-fg-3) !important; font-size:11px; font-family:var(--font-data); }
+  .dlp-root .mono { font-family:var(--font-data); font-size:12.5px; }
+  .dlp-root .dim { color:var(--v2-fg-3); }
+  .dlp-muted { font-size:13px; color:var(--v2-fg-3); }
 
-  /* ── Header ── */
-  .dlp-hdr { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; padding:16px 22px;
-    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-  .dlp-hdr-brand { display:flex; align-items:center; gap:12px; }
-  .dlp-hdr-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-    background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.3); flex-shrink:0; }
-  .dlp-hdr-title { font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em; }
-  .dlp-hdr-sub { font-size:11px; color:${T.textMuted}; margin-top:2px; }
-  .dlp-pill { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:6px; font-size:11px;
-    font-family:'IBM Plex Mono',monospace; font-weight:600; background:${T.surfaceAlt}; border:1px solid ${T.border}; color:${T.textSecondary}; }
+  /* ── Cabeçalho ── */
+  .dlp-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .dlp-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .dlp-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .dlp-live { display:inline-flex; align-items:center; gap:6px; }
+  .dlp-live::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--v2-ok); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-ok) 25%, transparent); }
+  .dlp-seg { display:inline-flex; padding:3px; gap:2px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:8px; }
+  .dlp-seg button { border:0; background:transparent; padding:4px 12px; border-radius:5px; font-size:13px; color:var(--v2-fg-2); cursor:pointer; font-family:inherit; }
+  .dlp-seg button:hover { color:var(--v2-fg); }
+  .dlp-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); font-weight:500; box-shadow:inset 0 0 0 1px var(--v2-line); }
 
-  /* ── KPI ── */
-  .dlp-kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
-  @media (max-width:1150px){ .dlp-kpis { grid-template-columns:repeat(3,1fr); } }
-  @media (max-width:700px){ .dlp-kpis { grid-template-columns:repeat(2,1fr); } }
-  .dlp-kpi { background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; padding:14px 16px;
-    position:relative; overflow:hidden; transition:border-color .2s; }
-  .dlp-kpi:hover { border-color:${T.borderHi}; }
-  .dlp-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kc,${T.accent}); }
-  .dlp-kpi-icon { position:absolute; top:10px; right:10px; width:38px; height:38px; border-radius:9px;
-    display:flex; align-items:center; justify-content:center; background:var(--kbg,${T.accentGlow}); }
-  .dlp-kpi-label { font-size:9px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; color:${T.textMuted};
-    font-family:'IBM Plex Mono',monospace; margin-bottom:6px; max-width:calc(100% - 42px); }
-  .dlp-kpi-value { font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em;
-    line-height:1.05; color:var(--kc,${T.textPrimary}); word-break:break-word; }
-  .dlp-kpi-hint { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:6px; }
+  /* ── KPIs ── */
+  .dlp-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .dlp-kpi { padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); min-width:0; }
+  .dlp-kpi-label { font-size:12.5px; color:var(--v2-fg-2); }
+  .dlp-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dlp-kpi-hint { font-size:12px; color:var(--v2-fg-3); }
 
-  /* ── Panel ── */
-  .dlp-panel { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; overflow:hidden; }
-  .dlp-panel-hdr { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
-    padding:13px 20px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; }
-  .dlp-panel-title { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:.09em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; }
-  .dlp-panel-sub { font-size:11px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .dlp-panel-body { padding:16px 20px; }
-  .dlp-grid { display:grid; grid-template-columns:minmax(320px,5fr) 7fr; gap:16px; }
-  @media (max-width:1150px){ .dlp-grid { grid-template-columns:1fr; } }
+  /* ── Painéis ── */
+  .dlp-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; }
+  .dlp-span-2 { grid-column:span 2; }
+  @media (max-width: 1100px) { .dlp-grid { grid-template-columns:minmax(0, 1fr); } .dlp-span-2 { grid-column:auto; } }
+  .dlp-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; }
+  .dlp-panel-hdr { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px 4px; flex-wrap:wrap; }
+  .dlp-panel-title { font-size:14px; font-weight:600; margin:0; color:var(--v2-fg); }
+  .dlp-panel-sub { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .dlp-panel-body { padding:12px 18px 18px; }
 
-  /* ── Canais de saída: a barra é a assinatura do módulo. Cada linha é uma
-       porta pela qual o dado tentou sair, com o peso relativo à vista. ── */
+  /* ── Por onde o dado tentou sair (formato anterior) ── */
   .dlp-canal { display:grid; grid-template-columns:104px 1fr 46px; align-items:center; gap:12px;
     width:100%; padding:7px 8px; border:none; background:transparent; border-radius:8px;
     font-family:'DM Sans',sans-serif; text-align:left; cursor:pointer; transition:background .15s, opacity .15s; }
-  .dlp-canal:hover { background:rgba(255,255,255,0.035); }
-  .dlp-canal.on { background:rgba(255,255,255,0.06); }
+  .dlp-canal:hover { background:rgba(var(--tl-ink, 255,255,255),0.035); }
+  .dlp-canal.on { background:rgba(var(--tl-ink, 255,255,255),0.06); }
   .dlp-canal.off { opacity:.4; }
   .dlp-canal-nome { font-size:11px; color:${T.textSecondary}; font-family:'IBM Plex Mono',monospace; text-align:right;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .dlp-canal-track { height:22px; border-radius:5px; overflow:hidden; background:rgba(30,38,64,0.5); }
+  .dlp-canal-track { height:22px; border-radius:5px; overflow:hidden; background:rgba(var(--tl-line-rgb, 30,38,64),0.5); }
   .dlp-canal-fill { height:100%; border-radius:5px; transition:width .6s ease; }
   .dlp-canal-val { font-size:12px; font-weight:700; font-family:'IBM Plex Mono',monospace; text-align:right; }
 
-  /* ── Chips de informação sensível ── */
-  .dlp-chips { display:flex; flex-wrap:wrap; gap:8px; }
-  .dlp-chip { display:inline-flex; align-items:center; gap:7px; padding:5px 10px; border-radius:7px;
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; font-size:11.5px; color:${T.textPrimary}; }
-  .dlp-chip b { font-family:'IBM Plex Mono',monospace; font-size:11px; color:${T.warning}; }
-  button.dlp-chip { cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .15s; }
-  button.dlp-chip:hover { border-color:${T.borderHi}; }
-  button.dlp-chip.on { border-color:${T.warning}; background:${T.warningBg}; }
+  /* ── Etiquetas (informação sensível) ── */
+  .dlp-tags { display:flex; flex-wrap:wrap; gap:8px; }
+  .dlp-tag { display:inline-flex; align-items:center; gap:8px; height:30px; padding:0 10px; border-radius:8px; border:1px solid var(--v2-line); background:var(--v2-surface); font-size:12.5px; color:var(--v2-fg); font-family:inherit; cursor:pointer; }
+  .dlp-tag:hover:not(.static) { background:var(--v2-hover); }
+  .dlp-tag.static { cursor:default; }
+  .dlp-tag[aria-pressed="true"] { background:color-mix(in oklch, var(--v2-accent) 14%, transparent); border-color:color-mix(in oklch, var(--v2-accent) 45%, transparent); }
+  .dlp-tag b { font-family:var(--font-data); font-weight:500; font-size:12px; color:var(--v2-fg-2); }
 
-  /* ── Seletor de período: um só estado governa KPIs, barras, gráfico e tabela,
-       para os números da tela nunca discordarem entre si. ── */
-  .dlp-seg { display:inline-flex; gap:2px; padding:3px; background:${T.surfaceAlt};
-    border:1px solid ${T.border}; border-radius:8px; }
-  .dlp-seg button { padding:5px 12px; border-radius:6px; border:none; background:transparent;
-    color:${T.textMuted}; font-size:11.5px; font-weight:600; font-family:'DM Sans',sans-serif;
-    cursor:pointer; transition:all .15s; }
-  .dlp-seg button:hover:not(.on) { color:${T.textPrimary}; background:rgba(255,255,255,0.04); }
-  .dlp-seg button.on { background:${T.accentGlow}; color:#93C5FD; }
+  /* ── Quem mais acionou ── */
+  .dlp-list { display:grid; }
+  .dlp-list button { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:10px; align-items:center; padding:8px; margin:0 -8px; border:0; border-radius:8px; background:transparent; text-align:left; color:var(--v2-fg); cursor:pointer; font-family:inherit; }
+  .dlp-list button:hover { background:var(--v2-hover); }
+  .dlp-list button[aria-pressed="true"] { background:color-mix(in oklch, var(--v2-accent) 14%, transparent); }
+  .dlp-list span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dlp-list b { font-family:var(--font-data); font-weight:500; font-size:12.5px; color:var(--v2-fg-2); }
 
-  /* ── Filtros ativos: filtro por clique sem essa faixa vira armadilha, porque
-       a lista encolhe e o motivo fica invisível. ── */
-  .dlp-ativos { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:11px 20px;
-    border-bottom:1px solid ${T.border}; background:rgba(59,130,246,0.045); }
-  .dlp-ativos-l { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .dlp-ativo { display:inline-flex; align-items:center; gap:7px; padding:4px 7px 4px 10px; border-radius:6px;
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; font-size:11.5px; color:${T.textPrimary}; }
-  .dlp-ativo button { background:none; border:none; padding:0; display:flex; cursor:pointer; color:${T.textMuted}; }
-  .dlp-ativo button:hover { color:${T.danger}; }
-  .dlp-limpar { background:none; border:none; color:#93C5FD; font-size:11.5px; font-weight:600;
-    font-family:'DM Sans',sans-serif; cursor:pointer; padding:0 2px; }
-  .dlp-limpar:hover { text-decoration:underline; }
-
-  /* ── Filtros ── */
-  .dlp-filtros { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .dlp-busca { display:flex; align-items:center; gap:7px; padding:6px 11px; border-radius:7px; background:${T.surfaceAlt};
-    border:1px solid ${T.border}; min-width:230px; }
-  .dlp-busca input { background:transparent; border:none; outline:none; color:${T.textPrimary}; font-size:12px;
-    font-family:'DM Sans',sans-serif; width:100%; }
-  .dlp-busca input::placeholder { color:${T.textMuted}; }
-  .dlp-busca:focus-within { border-color:${T.accent}; }
-  .dlp-root button:focus-visible, .dlp-root input:focus-visible { outline:2px solid ${T.accent}; outline-offset:2px; }
+  /* ── Aviso ── */
+  .dlp-note { display:flex; gap:10px; align-items:flex-start; padding:10px 14px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface); font-size:12.5px; color:var(--v2-fg-2); }
+  .dlp-note svg { flex-shrink:0; margin-top:1px; color:var(--v2-fg-3); }
 
   /* ── Tabela ── */
-  .dlp-scroll { max-height:560px; overflow:auto; }
-  .dlp-table { width:100%; border-collapse:collapse; }
-  .dlp-table thead { position:sticky; top:0; z-index:10; }
-  .dlp-table th { padding:9px 14px; font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-    color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface};
-    border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .dlp-table td { padding:11px 14px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12.5px; vertical-align:middle; }
-  .dlp-table tbody tr { cursor:pointer; transition:background .12s; }
-  .dlp-table tbody tr:hover td { background:rgba(245,158,11,0.05); }
-  .dlp-table tbody tr:last-child td { border-bottom:none; }
-  .dlp-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; color:${T.textSecondary}; white-space:nowrap; }
-  .dlp-table .dim { color:${T.textMuted}; }
-  .dlp-trunc { display:block; max-width:230px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dlp-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .dlp-toolbar .dlp-panel-title { margin-right:4px; }
+  .dlp-count { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
+  .dlp-busca { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg-3); width:300px; max-width:100%; }
+  .dlp-busca:focus-within { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .dlp-busca input { flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--v2-fg); font-size:13px; font-family:inherit; }
+  .dlp-busca input::placeholder { color:var(--v2-fg-3); }
+  .dlp-chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 8px 0 10px; border-radius:99px; border:0; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-fg); font-size:12.5px; font-family:inherit; cursor:pointer; max-width:100%; }
+  .dlp-chip svg { color:var(--v2-fg-3); flex-shrink:0; }
+  .dlp-scroll { overflow:auto; max-height:560px; }
+  .dlp-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .dlp-table th { position:sticky; top:0; z-index:1; padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .dlp-table td { padding:8px 12px; height:44px; border-bottom:1px solid var(--v2-line); vertical-align:middle; }
+  .dlp-table th:first-child, .dlp-table td:first-child { padding-left:18px; }
+  .dlp-table th:last-child, .dlp-table td:last-child { padding-right:18px; }
+  .dlp-table tbody tr { cursor:pointer; }
+  .dlp-table tbody tr:hover td { background:var(--v2-hover); }
+  .dlp-table tbody tr:last-child td { border-bottom:0; }
+  .dlp-trunc { display:block; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dlp-cpill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in srgb, var(--c) 14%, transparent); color:color-mix(in srgb, var(--c) 75%, var(--v2-fg)); }
+  .dlp-cpill::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--c); }
 
-  .dlp-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:5px; font-size:10px;
-    font-weight:700; font-family:'IBM Plex Mono',monospace; border:1px solid transparent; white-space:nowrap; }
-  .dlp-dot { width:7px; height:7px; border-radius:999px; flex-shrink:0; }
+  /* ── Vazio ── */
+  .dlp-empty { padding:40px 24px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
+  .dlp-empty-t { font-weight:600; }
+  .dlp-empty-s { font-size:13px; color:var(--v2-fg-3); max-width:52ch; }
+  .dlp-caminho { font-family:var(--font-data); font-size:12.5px; color:var(--v2-fg-2); padding:6px 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); }
 
-  /* ── Vazio: convite à ação, não aviso de erro ── */
-  .dlp-empty { padding:56px 24px; text-align:center; }
-  .dlp-empty-t { font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; }
-  .dlp-empty-s { font-size:13px; color:${T.textMuted}; margin-top:8px; line-height:1.6; max-width:460px;
-    margin-left:auto; margin-right:auto; }
-  .dlp-caminho { display:inline-flex; align-items:center; gap:6px; margin-top:14px; padding:6px 12px; border-radius:7px;
-    background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.3); color:#93C5FD; font-size:11.5px;
-    font-family:'IBM Plex Mono',monospace; font-weight:600; }
+  /* ── Botões ── */
+  .dlp-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; border:1px solid var(--v2-line); background:var(--v2-surface); font-size:13px; font-weight:500; color:var(--v2-fg); cursor:pointer; font-family:inherit; }
+  .dlp-btn:hover { background:var(--v2-hover); border-color:var(--v2-line-strong); }
+  .dlp-btn.ghost { background:transparent; border-color:transparent; color:var(--v2-fg-2); }
+  .dlp-btn.sm { height:28px; padding:0 10px; font-size:12.5px; }
 
-  /* ── Detalhe ── */
-  .dlp-dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1px; background:${T.border};
-    border:1px solid ${T.border}; border-radius:10px; overflow:hidden; }
-  .dlp-dl > div { background:${T.surface}; padding:12px 14px; }
-  .dlp-dt { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:${T.textMuted};
-    font-family:'IBM Plex Mono',monospace; margin-bottom:6px; }
-  .dlp-dd { font-size:12.5px; color:${T.textPrimary}; word-break:break-word; }
-  .dlp-secao { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:${T.textMuted};
-    font-family:'IBM Plex Mono',monospace; margin-bottom:9px; }
-  .dlp-raw { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:8px; padding:12px;
-    font-size:11px; font-family:'IBM Plex Mono',monospace; color:${T.textSecondary}; overflow:auto; max-height:300px;
-    white-space:pre-wrap; word-break:break-word; margin:0; }
-  .dlp-toggle { display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid ${T.border};
-    border-radius:7px; padding:6px 11px; color:${T.textSecondary}; font-size:11.5px; font-family:'DM Sans',sans-serif;
-    font-weight:600; cursor:pointer; transition:all .15s; }
-  .dlp-toggle:hover { border-color:${T.borderHi}; color:${T.textPrimary}; }
+  /* ── Tooltip do gráfico ── */
+  .dlp-tip { display:grid; gap:2px; padding:8px 10px; background:var(--v2-surface-2); border:1px solid var(--v2-line-strong); border-radius:8px; font-size:12px; box-shadow:0 12px 32px rgba(0,0,0,0.3); }
+  .dlp-tip span { color:var(--v2-fg-2); font-family:var(--font-data); }
+
+  /* ── Painel lateral ── */
+  .dlp-sheet { gap:20px; }
+  .dlp-dl { display:grid; grid-template-columns:130px minmax(0, 1fr); gap:10px 16px; font-size:13px; margin:0; }
+  .dlp-dl dt { color:var(--v2-fg-3); }
+  .dlp-dl dd { margin:0; min-width:0; overflow-wrap:anywhere; }
+  .dlp-secao { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--v2-fg-3); margin:0 0 8px; }
+  .dlp-link { color:var(--v2-accent); display:inline-flex; align-items:center; gap:5px; }
+  .dlp-toggle { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; padding:0; font-size:13px; color:var(--v2-accent); cursor:pointer; font-family:inherit; }
+  .dlp-raw { margin:10px 0 0; font:400 11.5px/1.55 var(--font-data); background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; padding:10px 12px; color:var(--v2-fg-2); overflow:auto; max-height:320px; }
+  .dlp-sheet-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; border-top:1px solid var(--v2-line); padding-top:14px; }
 `;
 
 type DlpEventRow = {
@@ -242,7 +214,9 @@ const tsDe = (ev?: { creation_time: string | null; collected_at: string } | null
 
 const nf = new Intl.NumberFormat("pt-BR");
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "medium" }) : "sem data";
+  iso
+    ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "medium" })
+    : "sem data";
 
 // Tempo relativo: "há 12 min" comunica frescor melhor que um carimbo de data.
 function fmtRel(iso: string | null): string {
@@ -281,29 +255,33 @@ function tiposSensiveis(raw: unknown): Array<{ nome: string; qtd: number }> {
   return [...mapa.entries()].map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd);
 }
 
-function Kpi({
-  label,
-  valor,
-  hint,
-  cor,
-  bg,
-  icon: Icon,
-}: {
-  label: string;
-  valor: string;
-  hint?: string;
-  cor: string;
-  bg: string;
-  icon: any;
-}) {
+function Kpi({ label, valor, hint }: { label: string; valor: string; hint?: string }) {
   return (
-    <div className="dlp-kpi dlp-fadeup" style={{ ["--kc" as any]: cor, ["--kbg" as any]: bg }}>
-      <div className="dlp-kpi-icon">
-        <Icon size={17} color={cor} />
-      </div>
-      <div className="dlp-kpi-label">{label}</div>
-      <div className="dlp-kpi-value">{valor}</div>
-      {hint && <div className="dlp-kpi-hint">{hint}</div>}
+    <div className="dlp-kpi">
+      <span className="dlp-kpi-label">{label}</span>
+      <span className="dlp-kpi-value">{valor}</span>
+      {hint && <span className="dlp-kpi-hint">{hint}</span>}
+    </div>
+  );
+}
+
+// Tooltip do gráfico "Eventos por dia"
+function SerieTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: { dia: string; qtd: number } }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  const d = new Date(p.dia + "T12:00:00");
+  return (
+    <div className="dlp-tip">
+      <b>{d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })}</b>
+      <span>
+        {nf.format(p.qtd)} {p.qtd === 1 ? "evento" : "eventos"}
+      </span>
     </div>
   );
 }
@@ -330,6 +308,8 @@ export function DlpDashboard() {
   const [periodo, setPeriodo] = React.useState<PeriodoKey>("tudo");
   const [canal, setCanal] = React.useState<string | null>(null);
   const [tipo, setTipo] = React.useState<string | null>(null);
+  const [pessoa, setPessoa] = React.useState<string | null>(null);
+  const [politica, setPolitica] = React.useState<string | null>(null);
 
   // A varredura do payload é cara (recursiva, sobre o evento inteiro), então
   // roda UMA vez por evento e o resultado alimenta tanto o resumo quanto o
@@ -357,9 +337,13 @@ export function DlpDashboard() {
     const usuarios = new Set<string>();
     const politicas = new Set<string>();
     const porCanal = new Map<string, number>();
+    const porPessoa = new Map<string, number>();
     const tipos = new Map<string, number>();
     for (const ev of noPeriodo) {
-      if (ev.user_id) usuarios.add(ev.user_id.toLowerCase());
+      if (ev.user_id) {
+        usuarios.add(ev.user_id.toLowerCase());
+        porPessoa.set(ev.user_id, (porPessoa.get(ev.user_id) ?? 0) + 1);
+      }
       if (ev.policy_name) politicas.add(ev.policy_name);
       const w = ev.workload ?? "Outro";
       porCanal.set(w, (porCanal.get(w) ?? 0) + 1);
@@ -367,12 +351,18 @@ export function DlpDashboard() {
         tipos.set(t.nome, (tipos.get(t.nome) ?? 0) + t.qtd);
       }
     }
-    const canais = [...porCanal.entries()].map(([w, qtd]) => ({ w, qtd, ...canalDe(w) })).sort((a, b) => b.qtd - a.qtd);
+    const canais = [...porCanal.entries()]
+      .map(([w, qtd]) => ({ w, qtd, ...canalDe(w) }))
+      .sort((a, b) => b.qtd - a.qtd);
     return {
       usuarios: usuarios.size,
       politicas: politicas.size,
       canais,
       maxCanal: canais[0]?.qtd ?? 0,
+      pessoas: [...porPessoa.entries()]
+        .map(([nome, qtd]) => ({ nome, qtd }))
+        .sort((a, b) => b.qtd - a.qtd)
+        .slice(0, 6),
       tipos: [...tipos.entries()]
         .map(([nome, qtd]) => ({ nome, qtd }))
         .sort((a, b) => b.qtd - a.qtd)
@@ -410,97 +400,105 @@ export function DlpDashboard() {
     return noPeriodo.filter((ev) => {
       if (canal && (ev.workload ?? "Outro") !== canal) return false;
       if (tipo && !(tiposPorEvento.get(ev.id) ?? []).some((t) => t.nome === tipo)) return false;
+      if (pessoa && ev.user_id !== pessoa) return false;
+      if (politica && ev.policy_name !== politica) return false;
       if (!q) return true;
       return [ev.user_id, ev.policy_name, ev.rule_name, ev.file_name, ev.client_ip, ev.operation]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [noPeriodo, busca, canal, tipo, tiposPorEvento]);
+  }, [noPeriodo, busca, canal, tipo, pessoa, politica, tiposPorEvento]);
 
   const semEventos = !isLoading && events.length === 0;
 
   // Cada filtro ativo vira uma etiqueta removível na faixa acima da tabela.
   const ativos: Array<{ id: string; texto: string; limpar: () => void }> = [
-    canal ? { id: "canal", texto: `Canal: ${canalDe(canal).nome}`, limpar: () => setCanal(null) } : null,
+    canal
+      ? { id: "canal", texto: `Canal: ${canalDe(canal).nome}`, limpar: () => setCanal(null) }
+      : null,
     tipo ? { id: "tipo", texto: `Informação: ${tipo}`, limpar: () => setTipo(null) } : null,
-    busca.trim() ? { id: "busca", texto: `Busca: ${busca.trim()}`, limpar: () => setBusca("") } : null,
+    pessoa ? { id: "pessoa", texto: `Pessoa: ${pessoa}`, limpar: () => setPessoa(null) } : null,
+    politica
+      ? { id: "politica", texto: `Política: ${politica}`, limpar: () => setPolitica(null) }
+      : null,
+    busca.trim()
+      ? { id: "busca", texto: `Busca: ${busca.trim()}`, limpar: () => setBusca("") }
+      : null,
   ].filter(Boolean) as Array<{ id: string; texto: string; limpar: () => void }>;
 
   const limparTudo = () => {
     setCanal(null);
     setTipo(null);
+    setPessoa(null);
+    setPolitica(null);
     setBusca("");
   };
+
+  const selTipos = selected ? tiposSensiveis(selected.sensitive_info ?? selected.raw_event) : [];
 
   return (
     <div className="dlp-root">
       <style>{CSS}</style>
 
-      <div className="dlp-hdr dlp-fadeup">
-        <div className="dlp-hdr-brand">
-          <div className="dlp-hdr-icon">
-            <FileWarning size={20} color={T.warning} />
-          </div>
-          <div>
-            <div className="dlp-hdr-title">Prevenção de vazamento de dados</div>
-            <div className="dlp-hdr-sub">Microsoft Purview · eventos de política DLP nos canais da empresa</div>
-          </div>
+      {/* ── Cabeçalho da página ──────────────────────────────────────────── */}
+      <div className="dlp-ph">
+        <div>
+          <h1 className="dlp-ph-title">Prevenção de vazamento de dados</h1>
+          <p className="dlp-ph-sub">
+            <span className="dlp-live">
+              Sincronizado {fmtRel(statusData?.lastCollection ?? null)}
+            </span>
+            <span>·</span>
+            <span>Microsoft Purview · eventos de política DLP</span>
+          </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div className="dlp-seg" role="group" aria-label="Período">
-            {PERIODOS.map((p) => (
-              <button key={p.k} className={periodo === p.k ? "on" : ""} onClick={() => setPeriodo(p.k)}>
-                {p.rotulo}
-              </button>
-            ))}
-          </div>
-          <span className="dlp-pill">
-            <Clock size={12} /> Sincronizado {fmtRel(statusData?.lastCollection ?? null)}
-          </span>
+        <div className="dlp-seg" role="group" aria-label="Período">
+          {PERIODOS.map((p) => (
+            <button
+              key={p.k}
+              type="button"
+              aria-pressed={periodo === p.k}
+              onClick={() => setPeriodo(p.k)}
+            >
+              {p.rotulo}
+            </button>
+          ))}
         </div>
       </div>
 
       {semEventos ? (
-        <div className="dlp-panel dlp-fadeup">
+        <div className="dlp-panel">
           <div className="dlp-empty">
             <div className="dlp-empty-t">Nenhum evento coletado ainda</div>
             <div className="dlp-empty-s">
-              Conecte o Microsoft Purview para que as políticas de DLP passem a reportar aqui. Os eventos aparecem na
-              primeira sincronização depois da configuração.
+              Conecte o Microsoft Purview para que as políticas de DLP passem a reportar aqui. Os
+              eventos aparecem na primeira sincronização depois da configuração.
             </div>
             <div className="dlp-caminho">Integrações → Microsoft Purview DLP</div>
           </div>
         </div>
       ) : (
         <>
+          {/* ── KPIs ───────────────────────────────────────────────────────── */}
           <div className="dlp-kpis">
             <Kpi
-              label="Eventos coletados"
+              label="Eventos"
               valor={isLoading ? "…" : nf.format(noPeriodo.length)}
               hint={
                 periodo === "tudo"
-                  ? "mais recentes primeiro"
+                  ? "todos os sincronizados"
                   : `nos últimos ${PERIODOS.find((p) => p.k === periodo)?.dias} dias`
               }
-              cor={T.warning}
-              bg={T.warningBg}
-              icon={FileWarning}
             />
             <Kpi
               label="Pessoas envolvidas"
               valor={isLoading ? "…" : nf.format(resumo.usuarios)}
               hint="usuários distintos"
-              cor={T.accent}
-              bg={T.accentGlow}
-              icon={Users}
             />
             <Kpi
               label="Políticas acionadas"
               valor={isLoading ? "…" : nf.format(resumo.politicas)}
-              hint="regras que dispararam"
-              cor={T.purple}
-              bg="rgba(167,139,250,0.14)"
-              icon={ScrollText}
+              hint="políticas que dispararam"
             />
             <Kpi
               label="Canal mais usado"
@@ -510,31 +508,26 @@ export function DlpDashboard() {
                   ? `${nf.format(resumo.canais[0].qtd)} de ${nf.format(noPeriodo.length)} eventos`
                   : undefined
               }
-              cor={resumo.canais[0]?.cor ?? T.cyan}
-              bg="rgba(34,211,238,0.14)"
-              icon={DoorOpen}
             />
             <Kpi
               label="Último evento"
               valor={isLoading ? "…" : fmtRel(resumo.ultimo)}
               hint={resumo.ultimo ? fmtDate(resumo.ultimo) : undefined}
-              cor={T.success}
-              bg={T.successBg}
-              icon={Clock}
             />
           </div>
 
           <div className="dlp-grid">
-            <div className="dlp-panel dlp-fadeup">
+            {/* ── Por onde o dado tentou sair (mesmo formato de antes) ────── */}
+            <div className="dlp-panel">
               <div className="dlp-panel-hdr">
-                <div className="dlp-panel-title">
-                  <DoorOpen size={13} /> Por onde o dado tentou sair
+                <div>
+                  <h2 className="dlp-panel-title">Por onde o dado tentou sair</h2>
+                  <p className="dlp-panel-sub">Clique num canal para filtrar</p>
                 </div>
-                <div className="dlp-panel-sub">clique para filtrar</div>
               </div>
               <div className="dlp-panel-body">
                 {resumo.canais.length === 0 ? (
-                  <div style={{ fontSize: 12.5, color: T.textMuted }}>Sem canal identificado.</div>
+                  <div className="dlp-muted">Sem canal identificado.</div>
                 ) : (
                   resumo.canais.map((c) => (
                     <button
@@ -561,146 +554,228 @@ export function DlpDashboard() {
                     </button>
                   ))
                 )}
-
-                {resumo.tipos.length > 0 && (
-                  <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-                    <div className="dlp-secao">Informação sensível detectada</div>
-                    <div className="dlp-chips">
-                      {resumo.tipos.map((t) => (
-                        <button
-                          key={t.nome}
-                          className={`dlp-chip${tipo === t.nome ? " on" : ""}`}
-                          aria-pressed={tipo === t.nome}
-                          onClick={() => setTipo(tipo === t.nome ? null : t.nome)}
-                          title={tipo === t.nome ? "Remover filtro" : `Filtrar por ${t.nome}`}
-                        >
-                          {t.nome} <b>{nf.format(t.qtd)}</b>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
-            <div className="dlp-panel dlp-fadeup">
+            {/* ── Eventos por dia ─────────────────────────────────────────── */}
+            <div className="dlp-panel dlp-span-2">
               <div className="dlp-panel-hdr">
-                <div className="dlp-panel-title">
-                  <ShieldAlert size={13} /> Eventos por dia
+                <div>
+                  <h2 className="dlp-panel-title">Eventos por dia</h2>
+                  <p className="dlp-panel-sub">
+                    Últimos {serieDias} dias, inclusive os dias sem evento
+                  </p>
                 </div>
-                <div className="dlp-panel-sub">últimos 14 dias</div>
               </div>
-              <div className="dlp-panel-body" style={{ height: 232 }}>
+              <div className="dlp-panel-body" style={{ height: 240 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={serie} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="dlpGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={T.warning} stopOpacity={0.45} />
-                        <stop offset="100%" stopColor={T.warning} stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke={T.chartGrid} strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="rotulo" tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <AreaChart data={serie} margin={{ top: 8, right: 10, left: -18, bottom: 0 }}>
+                    <CartesianGrid stroke="var(--v2-line)" vertical={false} />
+                    <XAxis
+                      dataKey="rotulo"
+                      tickLine={false}
+                      axisLine={false}
+                      interval="preserveStartEnd"
+                    />
                     <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={44} />
                     <Tooltip
-                      cursor={{ stroke: T.borderHi }}
-                      contentStyle={{
-                        background: T.surface,
-                        border: `1px solid ${T.borderHi}`,
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontFamily: "'IBM Plex Mono',monospace",
-                        color: T.textPrimary,
-                      }}
-                      labelStyle={{ color: T.textMuted, fontSize: 10 }}
-                      formatter={(v: any) => [nf.format(Number(v)), "eventos"]}
+                      cursor={{ stroke: "var(--v2-line-strong)" }}
+                      content={<SerieTooltip />}
                     />
-                    <Area type="monotone" dataKey="qtd" stroke={T.warning} strokeWidth={2} fill="url(#dlpGrad)" />
+                    <Area
+                      type="linear"
+                      dataKey="qtd"
+                      stroke="var(--v2-med)"
+                      strokeWidth={2}
+                      fill="color-mix(in oklch, var(--v2-med) 20%, transparent)"
+                      dot={(props: { cx?: number; cy?: number; index?: number }) =>
+                        props.index === serie.length - 1 ? (
+                          <circle
+                            key="ultimo"
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={4}
+                            fill="var(--v2-med)"
+                            stroke="var(--v2-surface)"
+                            strokeWidth={2}
+                          />
+                        ) : (
+                          <g key={`d${props.index}`} />
+                        )
+                      }
+                      activeDot={{
+                        r: 4,
+                        fill: "var(--v2-med)",
+                        stroke: "var(--v2-surface)",
+                        strokeWidth: 2,
+                      }}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </div>
 
-          <div className="dlp-panel dlp-fadeup">
-            <div className="dlp-panel-hdr">
-              <div className="dlp-panel-title">
-                <ScrollText size={13} /> Eventos
-                <span className="dlp-panel-sub" style={{ marginLeft: 4 }}>
-                  {nf.format(filtrados.length)}
-                  {filtrados.length !== noPeriodo.length ? ` de ${nf.format(noPeriodo.length)}` : ""}
-                </span>
+          <div className="dlp-grid">
+            {/* ── Informação sensível detectada ───────────────────────────── */}
+            <div className="dlp-panel dlp-span-2">
+              <div className="dlp-panel-hdr">
+                <div>
+                  <h2 className="dlp-panel-title">Informação sensível detectada</h2>
+                  <p className="dlp-panel-sub">
+                    Quantidade de ocorrências nos eventos · clique para filtrar
+                  </p>
+                </div>
               </div>
-              <div className="dlp-filtros">
-                <label className="dlp-busca">
-                  <Search size={13} color={T.textMuted} />
-                  <input
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Buscar pessoa, política, arquivo ou IP"
-                  />
-                </label>
+              <div className="dlp-panel-body">
+                {resumo.tipos.length === 0 ? (
+                  <div className="dlp-muted">
+                    Nenhum tipo de informação identificado nos eventos do período.
+                  </div>
+                ) : (
+                  <div className="dlp-tags">
+                    {resumo.tipos.map((t) => (
+                      <button
+                        key={t.nome}
+                        type="button"
+                        className="dlp-tag"
+                        aria-pressed={tipo === t.nome}
+                        onClick={() => setTipo(tipo === t.nome ? null : t.nome)}
+                        title={tipo === t.nome ? "Remover filtro" : `Filtrar por ${t.nome}`}
+                      >
+                        {t.nome} <b>{nf.format(t.qtd)}</b>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {ativos.length > 0 && (
-              <div className="dlp-ativos">
-                <span className="dlp-ativos-l">Filtrando por</span>
-                {ativos.map((a) => (
-                  <span key={a.id} className="dlp-ativo">
-                    {a.texto}
-                    <button onClick={a.limpar} aria-label={`Remover filtro ${a.texto}`}>
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-                {ativos.length > 1 && (
-                  <button className="dlp-limpar" onClick={limparTudo}>
-                    Limpar tudo
-                  </button>
+            {/* ── Quem mais acionou ───────────────────────────────────────── */}
+            <div className="dlp-panel">
+              <div className="dlp-panel-hdr">
+                <div>
+                  <h2 className="dlp-panel-title">Quem mais acionou</h2>
+                  <p className="dlp-panel-sub">Pessoas com mais eventos · clique para filtrar</p>
+                </div>
+              </div>
+              <div className="dlp-panel-body">
+                {resumo.pessoas.length === 0 ? (
+                  <div className="dlp-muted">Nenhuma pessoa identificada.</div>
+                ) : (
+                  <div className="dlp-list">
+                    {resumo.pessoas.map((p) => (
+                      <button
+                        key={p.nome}
+                        type="button"
+                        aria-pressed={pessoa === p.nome}
+                        onClick={() => setPessoa(pessoa === p.nome ? null : p.nome)}
+                        title={pessoa === p.nome ? "Remover filtro" : `Filtrar por ${p.nome}`}
+                      >
+                        <span className="mono">{p.nome}</span>
+                        <b>{nf.format(p.qtd)}</b>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
-            )}
+            </div>
+          </div>
+
+          <div className="dlp-note">
+            <ShieldAlert size={15} />
+            <span>
+              O Purview ainda não envia severidade nem status de investigação. Por isso o painel
+              mostra volume, canal e tipo de informação, sem classificar o risco de cada evento.
+            </span>
+          </div>
+
+          {/* ── Eventos ────────────────────────────────────────────────────── */}
+          <div className="dlp-panel">
+            <div className="dlp-toolbar">
+              <div className="dlp-panel-title">
+                Eventos{" "}
+                <span className="dlp-count">
+                  {nf.format(filtrados.length)}
+                  {filtrados.length !== noPeriodo.length
+                    ? ` de ${nf.format(noPeriodo.length)}`
+                    : ""}
+                </span>
+              </div>
+              <label className="dlp-busca">
+                <Search size={14} />
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar pessoa, política, arquivo ou IP"
+                  aria-label="Buscar eventos"
+                />
+              </label>
+              {ativos.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className="dlp-chip"
+                  onClick={a.limpar}
+                  title="Remover filtro"
+                >
+                  {a.texto} <X size={14} aria-label="Remover filtro" />
+                </button>
+              ))}
+              {ativos.length > 1 && (
+                <button type="button" className="dlp-btn ghost sm" onClick={limparTudo}>
+                  Limpar tudo
+                </button>
+              )}
+            </div>
 
             {isLoading ? (
-              <div className="dlp-empty" style={{ padding: "40px 24px", color: T.textMuted }}>
-                Carregando eventos…
+              <div className="dlp-empty">
+                <div className="dlp-empty-s">Carregando eventos…</div>
               </div>
             ) : filtrados.length === 0 ? (
-              <div className="dlp-empty" style={{ padding: "40px 24px" }}>
-                <div className="dlp-empty-t">Nenhum evento com esse filtro</div>
-                <div className="dlp-empty-s">Ajuste a busca ou volte para todos os canais.</div>
+              <div className="dlp-empty">
+                <div className="dlp-empty-t">Nenhum evento com esses filtros</div>
+                <div className="dlp-empty-s">Remova um filtro ou mude o período.</div>
+                {ativos.length > 0 && (
+                  <button type="button" className="dlp-btn sm" onClick={limparTudo}>
+                    Limpar filtros
+                  </button>
+                )}
               </div>
             ) : (
               <div className="dlp-scroll">
                 <table className="dlp-table">
                   <thead>
                     <tr>
-                      <th style={{ width: 165 }}>Data e hora</th>
+                      <th>Data e hora</th>
                       <th>Pessoa</th>
                       <th>Política</th>
                       <th>Regra</th>
-                      <th style={{ width: 130 }}>Canal</th>
+                      <th>Canal</th>
                       <th>Arquivo</th>
-                      <th style={{ width: 130 }}>IP de origem</th>
+                      <th>IP de origem</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtrados.map((ev) => {
                       const c = canalDe(ev.workload);
+                      const abrir = () => {
+                        // O JSON bruto volta recolhido a cada evento: quem
+                        // abriu um raw antes não quer o próximo já aberto.
+                        setVerRaw(false);
+                        setSelected(ev);
+                      };
                       return (
                         <tr
                           key={ev.id}
-                          onClick={() => {
-                            // O JSON bruto volta recolhido a cada evento: quem
-                            // abriu um raw antes não quer o próximo já aberto.
-                            setVerRaw(false);
-                            setSelected(ev);
-                          }}
+                          tabIndex={0}
+                          onClick={abrir}
+                          onKeyDown={(e) => e.key === "Enter" && abrir()}
                         >
-                          <td className="mono">{fmtDate(ev.creation_time)}</td>
+                          <td className="mono dim">{fmtDate(ev.creation_time)}</td>
                           <td>
-                            <span className="dlp-trunc" title={ev.user_id ?? undefined}>
+                            <span className="dlp-trunc mono" title={ev.user_id ?? undefined}>
                               {ev.user_id ?? <span className="dim">não identificada</span>}
                             </span>
                           </td>
@@ -710,20 +785,15 @@ export function DlpDashboard() {
                             </span>
                           </td>
                           <td>
-                            <span className="dlp-trunc" title={ev.rule_name ?? undefined}>
-                              {ev.rule_name ?? <span className="dim">sem regra</span>}
+                            <span className="dlp-trunc dim" title={ev.rule_name ?? undefined}>
+                              {ev.rule_name ?? "sem regra"}
                             </span>
                           </td>
                           <td>
                             <span
-                              className="dlp-badge"
-                              style={{
-                                background: `${c.cor}1A`,
-                                color: c.cor,
-                                borderColor: `${c.cor}4D`,
-                              }}
+                              className="dlp-cpill"
+                              style={{ ["--c" as string]: c.cor } as React.CSSProperties}
                             >
-                              <span className="dlp-dot" style={{ background: c.cor }} />
                               {c.nome}
                             </span>
                           </td>
@@ -732,7 +802,7 @@ export function DlpDashboard() {
                               {ev.file_name ?? <span className="dim">sem arquivo</span>}
                             </span>
                           </td>
-                          <td className="mono">{ev.client_ip ?? "—"}</td>
+                          <td className="mono dim">{ev.client_ip ?? "—"}</td>
                         </tr>
                       );
                     })}
@@ -744,114 +814,130 @@ export function DlpDashboard() {
         </>
       )}
 
-      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent
-          className="max-w-3xl max-h-[85vh] overflow-y-auto"
-          style={{ background: T.surfaceAlt, borderColor: T.border, color: T.textPrimary }}
-        >
-          <div className="dlp-root" style={{ gap: 16 }}>
+      {/* ── Painel lateral: detalhe do evento ──────────────────────────────── */}
+      <DetailSheet
+        open={!!selected}
+        onOpenChange={(o) => !o && setSelected(null)}
+        eyebrow={
+          selected ? `${fmtDate(selected.creation_time)} · ${fmtRel(selected.creation_time)}` : null
+        }
+        title={selected?.policy_name ?? "Sem política identificada"}
+        badges={
+          selected && (
+            <>
+              <span
+                className="dlp-cpill"
+                style={{ ["--c" as string]: canalDe(selected.workload).cor } as React.CSSProperties}
+              >
+                {canalDe(selected.workload).nome}
+              </span>
+              <span className="dlp-tag static">{selected.rule_name ?? "sem regra"}</span>
+            </>
+          )
+        }
+        footer={
+          selected && (
+            <>
+              {selected.user_id && (
+                <button
+                  type="button"
+                  className="dlp-btn ghost"
+                  onClick={() => {
+                    setPessoa(selected.user_id);
+                    setSelected(null);
+                  }}
+                >
+                  Ver eventos desta pessoa
+                </button>
+              )}
+              {selected.policy_name && (
+                <button
+                  type="button"
+                  className="dlp-btn"
+                  onClick={() => {
+                    setPolitica(selected.policy_name);
+                    setSelected(null);
+                  }}
+                >
+                  Ver eventos desta política
+                </button>
+              )}
+            </>
+          )
+        }
+      >
+        {selected && (
+          <div className="dlp-root dlp-sheet">
             <style>{CSS}</style>
-            <DialogHeader>
-              <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8, color: T.textPrimary }}>
-                <ShieldAlert size={16} color={T.warning} /> Detalhe do evento
-              </DialogTitle>
-              <DialogDescription style={{ color: T.textMuted }}>
-                {selected?.policy_name ?? "Sem política identificada"} · {selected?.rule_name ?? "sem regra"}
-              </DialogDescription>
-            </DialogHeader>
+            <DetailList
+              items={[
+                ["Pessoa", selected.user_id ?? <span className="dim">não identificada</span>, true],
+                [
+                  "Operação",
+                  selected.operation ?? <span className="dim">não informada</span>,
+                  true,
+                ],
+                ["Canal", canalDe(selected.workload).nome],
+                [
+                  "Arquivo",
+                  selected.file_url ? (
+                    <a
+                      className="dlp-link"
+                      href={selected.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {selected.file_name ?? "abrir arquivo"} <ExternalLink size={12} />
+                    </a>
+                  ) : (
+                    (selected.file_name ?? <span className="dim">sem arquivo</span>)
+                  ),
+                ],
+                [
+                  "IP de origem",
+                  selected.client_ip ?? <span className="dim">não informado</span>,
+                  true,
+                ],
+              ]}
+            />
 
-            {selected && (
-              <>
-                <div className="dlp-dl">
-                  <div>
-                    <div className="dlp-dt">Data e hora</div>
-                    <div className="dlp-dd" style={{ fontFamily: "'IBM Plex Mono',monospace" }}>
-                      {fmtDate(selected.creation_time)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="dlp-dt">Operação</div>
-                    <div className="dlp-dd">{selected.operation ?? "não informada"}</div>
-                  </div>
-                  <div>
-                    <div className="dlp-dt">Pessoa</div>
-                    <div className="dlp-dd">{selected.user_id ?? "não identificada"}</div>
-                  </div>
-                  <div>
-                    <div className="dlp-dt">Canal</div>
-                    <div className="dlp-dd">{canalDe(selected.workload).nome}</div>
-                  </div>
-                  <div>
-                    <div className="dlp-dt">IP de origem</div>
-                    <div className="dlp-dd" style={{ fontFamily: "'IBM Plex Mono',monospace" }}>
-                      {selected.client_ip ?? "não informado"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="dlp-dt">Arquivo</div>
-                    <div className="dlp-dd">
-                      {selected.file_url ? (
-                        <a
-                          href={selected.file_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            color: "#93C5FD",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 5,
-                          }}
-                        >
-                          {selected.file_name ?? "abrir arquivo"} <ExternalLink size={12} />
-                        </a>
-                      ) : (
-                        (selected.file_name ?? "sem arquivo")
-                      )}
-                    </div>
-                  </div>
+            {selTipos.length > 0 && (
+              <DetailSection title="Informação sensível detectada">
+                <div className="dlp-tags">
+                  {selTipos.map((t) => (
+                    <span key={t.nome} className="dlp-tag static">
+                      {t.nome} <b>{nf.format(t.qtd)}</b>
+                    </span>
+                  ))}
                 </div>
-
-                {(() => {
-                  const tipos = tiposSensiveis(selected.sensitive_info ?? selected.raw_event);
-                  if (tipos.length === 0) return null;
-                  return (
-                    <div>
-                      <div className="dlp-secao">Informação sensível detectada</div>
-                      <div className="dlp-chips">
-                        {tipos.map((t) => (
-                          <span key={t.nome} className="dlp-chip">
-                            {t.nome} <b>{nf.format(t.qtd)}</b>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <div>
-                  {/* O JSON bruto continua acessível, mas recolhido: é material
-                      de investigação, não a leitura principal do evento. */}
-                  <button className="dlp-toggle" onClick={() => setVerRaw((v) => !v)}>
-                    <ChevronDown
-                      size={13}
-                      style={{
-                        transform: verRaw ? "rotate(180deg)" : "none",
-                        transition: "transform .15s",
-                      }}
-                    />
-                    {verRaw ? "Ocultar evento bruto" : "Ver evento bruto"}
-                  </button>
-                  {verRaw && (
-                    <pre className="dlp-raw" style={{ marginTop: 10 }}>
-                      {JSON.stringify(selected.raw_event, null, 2)}
-                    </pre>
-                  )}
-                </div>
-              </>
+              </DetailSection>
             )}
+
+            <div>
+              {/* O JSON bruto continua acessível, mas recolhido: é material
+                  de investigação, não a leitura principal do evento. */}
+              <button
+                type="button"
+                className="dlp-toggle"
+                aria-expanded={verRaw}
+                onClick={() => setVerRaw((v) => !v)}
+              >
+                <ChevronDown
+                  size={14}
+                  style={{
+                    transform: verRaw ? "rotate(180deg)" : "none",
+                    transition: "transform .15s",
+                  }}
+                />
+                {verRaw ? "Ocultar evento bruto" : "Ver evento bruto"}
+              </button>
+              {verRaw && (
+                <pre className="dlp-raw">{JSON.stringify(selected.raw_event, null, 2)}</pre>
+              )}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </DetailSheet>
     </div>
   );
 }

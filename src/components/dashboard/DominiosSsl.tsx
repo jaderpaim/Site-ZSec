@@ -37,7 +37,7 @@ import {
   X,
   History,
 } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import {
   listDomains,
   createDomain,
@@ -69,10 +69,10 @@ import { CronHealthBadge } from "@/components/dashboard/CronHealthBadge";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -83,159 +83,177 @@ const T = {
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
-// ── CSS ────────────────────────────────────────────────────────────────────────
+// ── CSS (interface v2) ─────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .dssl-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; display:flex; flex-direction:column; gap:16px; }
+  .dssl-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
   .dssl-root * { box-sizing:border-box; }
-
   @keyframes dssl-spin { to{transform:rotate(360deg)} }
-  @keyframes dssl-pulse-dot { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.45)} 50%{box-shadow:0 0 0 5px rgba(16,185,129,0)} }
   .dssl-spin { animation:dssl-spin 0.75s linear infinite; }
-
-  .dssl-root ::-webkit-scrollbar       { width:4px; height:4px; }
+  @media (prefers-reduced-motion: reduce) { .dssl-spin { animation:none; } }
+  .dssl-root ::-webkit-scrollbar { width:6px; height:6px; }
   .dssl-root ::-webkit-scrollbar-track { background:transparent; }
-  .dssl-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
+  .dssl-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .dssl-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .dssl-root .mono { font-family:var(--font-data); font-size:12.5px; }
+  .dssl-root .dim { color:var(--v2-fg-3); }
 
-  /* ── Header ── */
-  .dssl-page-hdr {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:12px;
-    padding:16px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-  }
-  .dssl-page-brand { display:flex; align-items:center; gap:12px; }
-  .dssl-page-icon  { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.3); flex-shrink:0; }
-  .dssl-page-title { font-size:15px; font-weight:700; color:${T.textPrimary}; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em; }
-  .dssl-page-sub   { font-size:11px; color:${T.textMuted}; margin-top:2px; }
+  /* ── Cabeçalho ── */
+  .dssl-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .dssl-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .dssl-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .dssl-ph-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 
-  /* ── Alert dept row ── */
-  .dssl-alert-row {
-    display:flex; align-items:center; gap:10px; padding:11px 16px;
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:9px;
-  }
-  .dssl-alert-label { font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; white-space:nowrap; display:flex; align-items:center; gap:6px; }
+  /* ── KPIs ── */
+  .dssl-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .dssl-kpi { position:relative; text-align:left; border:0; background:transparent; padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); cursor:pointer; color:inherit; font-family:inherit; }
+  .dssl-kpi:hover { background:var(--v2-hover); }
+  .dssl-kpi[aria-pressed="true"] { background:color-mix(in oklch, var(--v2-accent) 14%, transparent); }
+  .dssl-kpi[aria-pressed="true"]::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--v2-accent); }
+  .dssl-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .dssl-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .dssl-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .dssl-sw { width:8px; height:8px; border-radius:2px; display:inline-block; }
 
-  /* ── Panel ── */
-  .dssl-panel { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; overflow:hidden; }
-  .dssl-panel-hdr {
-    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
-    padding:13px 20px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border};
-  }
-  .dssl-panel-title { display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
-  .dssl-panel-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  /* ── Grade e cartões ── */
+  .dssl-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; align-items:start; }
+  .dssl-span-2 { grid-column:span 2; }
+  @media (max-width: 1100px) { .dssl-grid { grid-template-columns:minmax(0, 1fr); } .dssl-span-2 { grid-column:auto; } }
+  .dssl-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; overflow:hidden; display:flex; flex-direction:column; }
+  .dssl-panel-hdr { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px 4px; flex-wrap:wrap; }
+  .dssl-panel-title { font-size:14px; font-weight:600; margin:0; color:var(--v2-fg); }
+  .dssl-panel-sub { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .dssl-panel-body { padding:10px 18px 16px; }
+  .dssl-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .dssl-toolbar.split { justify-content:space-between; }
+  .dssl-actions { display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
 
-  /* ── Buttons ── */
-  .dssl-btn {
-    display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:7px;
-    font-size:12px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif;
-    transition:all 0.15s; white-space:nowrap; border:none;
-  }
+  /* ── Abas ── */
+  .dssl-seg { display:inline-flex; padding:3px; gap:2px; background:var(--v2-bg); border:1px solid var(--v2-line); border-radius:8px; }
+  .dssl-seg button { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; padding:4px 12px; border-radius:5px; font-size:13px; color:var(--v2-fg-2); cursor:pointer; font-family:inherit; }
+  .dssl-seg button:hover { color:var(--v2-fg); }
+  .dssl-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); font-weight:500; box-shadow:inset 0 0 0 1px var(--v2-line); }
+  .dssl-n { font-family:var(--font-data); font-size:12px; color:var(--v2-fg-3); }
+  .dssl-urg { font-family:var(--font-data); font-size:11px; font-weight:500; padding:0 6px; border-radius:99px; background:color-mix(in oklch, var(--v2-crit) 18%, transparent); color:var(--v2-crit); }
+  .dssl-recip { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--v2-fg-2); flex-wrap:wrap; }
+
+  /* ── Busca e filtros ── */
+  .dssl-search { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg-3); width:260px; max-width:100%; }
+  .dssl-search:focus-within { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .dssl-search input { flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--v2-fg); font-size:13px; font-family:inherit; }
+  .dssl-search input::placeholder { color:var(--v2-fg-3); }
+  .dssl-chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 8px 0 10px; border-radius:99px; border:0; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-fg); font-size:12.5px; cursor:pointer; font-family:inherit; }
+  .dssl-chip svg { color:var(--v2-fg-3); }
+
+  /* ── Botões ── */
+  .dssl-btn { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); transition:background .15s, border-color .15s; }
   .dssl-btn:disabled { opacity:0.45; cursor:not-allowed; }
-  .dssl-btn.outline { background:transparent; border:1px solid ${T.border}; color:${T.textSecondary}; }
-  .dssl-btn.outline:hover:not(:disabled) { border-color:${T.borderHi}; color:${T.textPrimary}; background:rgba(255,255,255,0.04); }
-  .dssl-btn.primary { background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.35); color:${T.accent}; }
-  .dssl-btn.primary:hover:not(:disabled) { background:rgba(59,130,246,0.24); }
-  .dssl-btn.success { background:${T.successBg}; border:1px solid rgba(16,185,129,0.35); color:${T.success}; }
-  .dssl-btn.success:hover:not(:disabled) { background:rgba(16,185,129,0.2); }
-  .dssl-btn.danger  { background:${T.dangerBg};  border:1px solid rgba(239,68,68,0.35);  color:${T.danger};  }
-  .dssl-btn.danger:hover:not(:disabled)  { background:rgba(239,68,68,0.2); }
-  .dssl-btn.icon-only { padding:6px; border-radius:6px; }
+  .dssl-btn:hover:not(:disabled) { background:var(--v2-hover); border-color:var(--v2-line-strong); }
+  .dssl-btn.outline { background:var(--v2-surface); }
+  .dssl-btn.ghost { background:transparent; border-color:transparent; color:var(--v2-fg-2); }
+  .dssl-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .dssl-btn.primary:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .dssl-btn.success { background:color-mix(in oklch, var(--v2-ok) 14%, transparent); border-color:color-mix(in oklch, var(--v2-ok) 40%, transparent); color:var(--v2-ok); }
+  .dssl-btn.danger { background:transparent; border-color:color-mix(in oklch, var(--v2-crit) 40%, transparent); color:var(--v2-crit); }
+  .dssl-btn.danger:hover:not(:disabled) { background:color-mix(in oklch, var(--v2-crit) 10%, transparent); }
+  .dssl-btn.icon-only { width:30px; height:30px; padding:0; justify-content:center; border-color:transparent; background:transparent; color:var(--v2-fg-2); }
+  .dssl-btn.icon-only:hover:not(:disabled) { background:var(--v2-hover); color:var(--v2-fg); border-color:transparent; }
+  .dssl-btn.icon-only.danger:hover:not(:disabled) { color:var(--v2-crit); background:color-mix(in oklch, var(--v2-crit) 12%, transparent); }
+  .dssl-btn.icon-only.success { color:var(--v2-ok); }
 
-  /* ── Table ── */
-  .dssl-table { width:100%; border-collapse:collapse; }
-  .dssl-table thead { position:sticky; top:0; z-index:10; }
-  .dssl-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .dssl-table th.r { text-align:right; }
+  /* ── Tabela ── */
+  .dssl-scroll { overflow:auto; max-height:580px; }
+  .dssl-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .dssl-table thead { position:sticky; top:0; z-index:1; }
+  .dssl-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .dssl-table th.r, .dssl-table td.r { text-align:right; }
   .dssl-table th.c { text-align:center; }
-  .dssl-table td { padding:10px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
-  .dssl-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
+  .dssl-table td { padding:8px 12px; height:44px; border-bottom:1px solid var(--v2-line); vertical-align:middle; }
+  .dssl-table th:first-child, .dssl-table td:first-child { padding-left:18px; }
+  .dssl-table th:last-child, .dssl-table td:last-child { padding-right:18px; }
+  .dssl-table tbody tr:hover td { background:var(--v2-hover); }
   .dssl-table tbody tr:last-child td { border-bottom:none; }
-  .dssl-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
-  .dssl-table .dim  { color:${T.textMuted}; }
-  .dssl-table .r td { text-align:right; }
-
-  /* ── Days chip ── */
-  .dssl-days { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:4px; font-size:10px; font-weight:700; font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
-  .dssl-days.ok      { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.22); }
-  .dssl-days.warn    { background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.22); }
-  .dssl-days.danger  { background:${T.dangerBg};  color:${T.danger};  border:1px solid rgba(239,68,68,0.22);  }
-  .dssl-days.neutral { background:rgba(107,114,128,0.08); color:${T.neutral}; border:1px solid rgba(107,114,128,0.15); }
-
-  /* ── Status badge ── */
-  .dssl-status { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; }
-  .dssl-status.ok  { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.22); }
-  .dssl-status.exp { background:${T.dangerBg};  color:${T.danger};  border:1px solid rgba(239,68,68,0.22);  }
-  .dssl-status-dot { width:5px; height:5px; border-radius:50%; background:currentColor; flex-shrink:0; }
-
-  /* ── Alert days input ── */
-  .dssl-days-input {
-    width:60px; padding:4px 6px; border:1px solid ${T.border}; border-radius:5px;
-    background:${T.surfaceAlt}; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace;
-    font-size:11px; text-align:center; outline:none; transition:border-color 0.15s;
-  }
-  .dssl-days-input:focus { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
-
-  /* ── Empty / Loading ── */
-  .dssl-empty { padding:40px; text-align:center; color:${T.textMuted}; font-size:13px; }
-  .dssl-loading { display:flex; align-items:center; justify-content:center; gap:8px; padding:40px; color:${T.textMuted}; font-size:12px; font-family:'IBM Plex Mono',monospace; }
-
-  /* ── Footer note ── */
-  .dssl-note { display:flex; align-items:flex-start; gap:7px; font-size:11px; color:${T.textSubtle}; padding:12px 16px 14px; line-height:1.5; font-family:'DM Sans',sans-serif; border-top:1px solid ${T.border}; }
-
-  /* ── Dialog ── */
-  .dssl-dlg-field { display:flex; flex-direction:column; gap:5px; }
-  .dssl-dlg-label { font-size:9px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .dssl-dlg-hint  { font-size:11px; color:${T.textSubtle}; line-height:1.5; }
-  .dssl-dlg-input {
-    width:100%; padding:8px 11px; border:1px solid ${T.border}; border-radius:6px;
-    background:${T.surfaceAlt}; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace;
-    font-size:12px; outline:none; transition:border-color 0.15s, box-shadow 0.15s;
-  }
-  .dssl-dlg-input:focus { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
-  .dssl-dlg-input::placeholder { color:${T.textSubtle}; }
-  .dssl-dlg-sep { height:1px; background:${T.border}; margin:4px 0; }
-  .dssl-dlg-section-label { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; display:flex; align-items:center; gap:6px; }
-  .dssl-dlg-section-label::after { content:''; flex:1; height:1px; background:${T.border}; }
-
-  /* ── Row clicável / indicadores ── */
   .dssl-table tbody tr.clickable { cursor:pointer; }
-  .dssl-row-tags { display:inline-flex; align-items:center; gap:6px; margin-left:8px; vertical-align:middle; }
-  .dssl-row-tag { display:inline-flex; align-items:center; gap:3px; font-size:10px; font-family:'IBM Plex Mono',monospace; color:${T.accent}; }
-  .dssl-src { display:inline-flex; align-items:center; padding:1px 6px; border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; background:rgba(167,139,250,0.10); color:${T.purple}; border:1px solid rgba(167,139,250,0.25); white-space:nowrap; }
-  .dssl-src.cf  { background:rgba(245,158,11,0.10); color:${T.warning}; border-color:rgba(245,158,11,0.25); }
-  .dssl-src.pub { background:${T.accentSoft}; color:${T.accent}; border-color:rgba(59,130,246,0.25); }
+  .dssl-row-act { display:flex; justify-content:flex-end; gap:2px; }
 
-  /* ── Sheet de detalhe ── */
-  .dssl-sh-wrap { display:flex; flex-direction:column; gap:18px; padding-top:16px; }
-  .dssl-sh-section { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:10px; padding:14px 16px; }
-  .dssl-sh-hd { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
-  .dssl-sh-title { display:flex; align-items:center; gap:6px; font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
+  /* ── Vence em ── */
+  .dssl-days { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font:500 12px var(--font-data); white-space:nowrap; --c:var(--v2-ok); background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .dssl-days svg { color:var(--c); }
+  .dssl-days.warn { --c:var(--v2-med); }
+  .dssl-days.danger { --c:var(--v2-crit); }
+  .dssl-days.neutral { --c:var(--v2-fg-3); }
+
+  /* ── Status ── */
+  .dssl-status { display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--v2-fg-2); }
+  .dssl-status-dot { width:7px; height:7px; border-radius:50%; background:var(--v2-ok); flex-shrink:0; }
+  .dssl-status.exp .dssl-status-dot { background:var(--v2-crit); }
+
+  /* ── Alerta (dias) editável ── */
+  .dssl-days-input { width:64px; height:28px; padding:0 8px; border:1px solid var(--v2-line); border-radius:6px; background:var(--v2-bg); color:var(--v2-fg); font:500 12.5px var(--font-data); text-align:center; outline:none; }
+  .dssl-days-input:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+
+  /* ── Origem ── */
+  .dssl-src { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--v2-fg-2); white-space:nowrap; }
+  .dssl-src svg { color:var(--v2-fg-3); }
+  .dssl-row-tags { display:inline-flex; align-items:center; gap:6px; margin-left:8px; vertical-align:middle; }
+  .dssl-row-tag { display:inline-flex; align-items:center; gap:4px; height:18px; padding:0 6px; border-radius:4px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font:500 11px var(--font-data); color:var(--v2-fg-2); }
+
+  /* ── Próximos vencimentos ── */
+  .dssl-upcoming { display:grid; }
+  .dssl-upcoming button { display:grid; grid-template-columns:24px minmax(0, 1fr) auto; gap:10px; align-items:center; padding:9px 8px; margin:0 -8px; border:0; border-radius:8px; background:transparent; text-align:left; color:var(--v2-fg); cursor:pointer; font-family:inherit; }
+  .dssl-upcoming button:hover { background:var(--v2-hover); }
+  .dssl-kind { width:24px; height:24px; border-radius:6px; display:grid; place-items:center; background:var(--v2-surface-2); border:1px solid var(--v2-line); color:var(--v2-fg-3); }
+  .dssl-upcoming b { display:block; font:500 12.5px var(--font-data); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dssl-upcoming small { display:block; font-size:12px; color:var(--v2-fg-3); }
+
+  /* ── Vazio / carregando / nota ── */
+  .dssl-empty { padding:40px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
+  .dssl-loading { display:flex; align-items:center; justify-content:center; gap:8px; padding:40px; color:var(--v2-fg-3); font-size:13px; }
+  .dssl-note { display:flex; align-items:flex-start; gap:10px; font-size:12.5px; color:var(--v2-fg-3); padding:10px 18px 12px; line-height:1.5; border-top:1px solid var(--v2-line); }
+  .dssl-note svg { flex-shrink:0; margin-top:2px; }
+
+  /* ── Diálogos ── */
+  .dssl-dlg-field { display:flex; flex-direction:column; gap:6px; }
+  .dssl-dlg-label { font-size:12.5px; font-weight:500; color:var(--v2-fg-2); font-family:var(--font-ui); }
+  .dssl-dlg-hint { font-size:12px; color:var(--v2-fg-3); line-height:1.5; }
+  .dssl-dlg-input { width:100%; padding:8px 12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); color:var(--v2-fg); font-family:var(--font-ui); font-size:13px; outline:none; }
+  .dssl-dlg-input:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .dssl-dlg-input::placeholder { color:var(--v2-fg-3); }
+  .dssl-dlg-sep { height:1px; background:var(--v2-line); margin:4px 0; }
+  .dssl-dlg-section-label { font-size:12px; font-weight:600; color:var(--v2-fg-3); display:flex; align-items:center; gap:6px; }
+  .dssl-dlg-section-label::after { content:''; flex:1; height:1px; background:var(--v2-line); }
+  .dssl-choice { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); }
+
+  /* ── Painel lateral ── */
+  .dssl-sh-section { display:grid; gap:10px; }
+  .dssl-sh-hd { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .dssl-sh-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--v2-fg-3); margin:0; }
   .dssl-sh-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px 16px; }
-  .dssl-sh-k { font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.neutral}; font-family:'IBM Plex Mono',monospace; margin-bottom:4px; }
-  .dssl-sh-v { font-size:12.5px; color:${T.textPrimary}; word-break:break-word; }
-  .dssl-sh-v.mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .dssl-sh-k { font-size:12px; color:var(--v2-fg-3); margin-bottom:2px; }
+  .dssl-sh-v { font-size:13px; color:var(--v2-fg); word-break:break-word; }
+  .dssl-sh-v.mono { font-family:var(--font-data); font-size:12.5px; }
   .dssl-sh-full { grid-column:1 / -1; }
-  .dssl-sh-empty { font-size:12px; color:${T.neutral}; }
-  .dssl-sh-list { display:flex; flex-direction:column; gap:8px; }
-  .dssl-sh-item { display:flex; flex-direction:column; gap:2px; padding:9px 11px; border:1px solid ${T.border}; border-radius:7px; background:${T.surface}; }
-  .dssl-sh-item a { color:${T.accent}; text-decoration:none; font-family:'IBM Plex Mono',monospace; font-size:12px; word-break:break-all; }
+  .dssl-sh-empty { font-size:13px; color:var(--v2-fg-3); }
+  .dssl-sh-list { display:grid; border:1px solid var(--v2-line); border-radius:8px; overflow:hidden; }
+  .dssl-sh-item { display:flex; flex-direction:column; gap:2px; padding:9px 12px; border-top:1px solid var(--v2-line); background:var(--v2-surface); }
+  .dssl-sh-item:first-child { border-top:0; }
+  .dssl-sh-item a { color:var(--v2-accent); text-decoration:none; font-family:var(--font-data); font-size:12.5px; word-break:break-all; }
   .dssl-sh-item a:hover { text-decoration:underline; }
   .dssl-sh-edit-row { display:flex; gap:6px; align-items:flex-start; }
-  .dssl-sh-notes { white-space:pre-wrap; font-size:12.5px; line-height:1.6; color:${T.textPrimary}; }
-  .dssl-choice { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid ${T.border}; border-radius:8px; background:${T.surfaceAlt}; }
-
-  /* ── Select override ── */
-  .dssl-root .dssl-select-trigger {
-    background:${T.surfaceAlt} !important; border-color:${T.border} !important;
-    color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace !important; font-size:11px !important;
-  }
+  .dssl-sh-notes { white-space:pre-wrap; font-size:13px; line-height:1.6; color:var(--v2-fg-2); padding:10px 12px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); }
+  .dssl-warn { display:flex; gap:8px; padding:9px 12px; border-radius:8px; font-size:12.5px; background:color-mix(in oklch, var(--v2-med) 12%, transparent); border:1px solid color-mix(in oklch, var(--v2-med) 35%, transparent); color:var(--v2-fg); }
+  .dssl-warn svg { flex-shrink:0; margin-top:2px; color:var(--v2-med); }
+  .dssl-hist { list-style:none; margin:0; padding:0; display:grid; gap:12px; }
+  .dssl-hist li { display:grid; grid-template-columns:12px 1fr; gap:10px; font-size:13px; }
+  .dssl-hist li::before { content:""; width:8px; height:8px; margin-top:6px; border-radius:50%; background:var(--v2-line-strong); }
+  .dssl-hist small { display:block; font-size:12px; color:var(--v2-fg-3); }
+  .dssl-hist code { display:block; font:400 11px var(--font-data); color:var(--v2-fg-3); overflow-wrap:anywhere; }
 `;
 
 // ── Helpers — UNCHANGED ────────────────────────────────────────────────────────
@@ -287,12 +305,34 @@ function useLiveDate() {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
+const plural = (n: number) => `${n} ${n === 1 ? "dia" : "dias"}`;
+
+// "Vence em": cor + ícone + texto (vermelho = vencido ou dentro do alerta; âmbar = até 60 dias)
 function DaysChip({ days, alertDays }: { days: number | null; alertDays: number }) {
-  if (days === null) return <span className="dssl-days neutral">—</span>;
-  if (days < 0) return <span className="dssl-days danger">Vencido há {Math.abs(days)}d</span>;
-  if (days <= alertDays) return <span className="dssl-days danger">{days}d</span>;
-  if (days <= 60) return <span className="dssl-days warn">{days}d</span>;
-  return <span className="dssl-days ok">{days}d</span>;
+  if (days === null) return <span className="dssl-days neutral">sem data</span>;
+  if (days < 0)
+    return (
+      <span className="dssl-days danger">
+        <AlertTriangle size={11} /> vencido há {plural(Math.abs(days))}
+      </span>
+    );
+  if (days <= alertDays)
+    return (
+      <span className="dssl-days danger">
+        <AlertTriangle size={11} /> {plural(days)}
+      </span>
+    );
+  if (days <= 60)
+    return (
+      <span className="dssl-days warn">
+        <Clock size={11} /> {plural(days)}
+      </span>
+    );
+  return (
+    <span className="dssl-days ok">
+      <CheckCircle2 size={11} /> {plural(days)}
+    </span>
+  );
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -304,6 +344,16 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
+
+// Filtro de situação (vindo dos KPIs) e helpers de ordenação
+type Situacao = "exp" | "soon" | null;
+const SITUACAO_LABEL: Record<"exp" | "soon", string> = { exp: "Situação: vencidos", soon: "Situação: a vencer" };
+function matchSituacao(f: Situacao, days: number | null, alert: number) {
+  if (!f) return true;
+  if (days === null) return false;
+  return f === "exp" ? days < 0 : days >= 0 && days <= alert;
+}
+const byDays = (a: number | null, b: number | null) => (a ?? Infinity) - (b ?? Infinity);
 
 // ── AlertDeptSelector — logic UNCHANGED ───────────────────────────────────────
 function AlertDeptSelector({ scope }: { scope: "domains" | "ssl" }) {
@@ -331,20 +381,21 @@ function AlertDeptSelector({ scope }: { scope: "domains" | "ssl" }) {
       disabled={mut.isPending || q.isLoading}
     >
       <SelectTrigger
+        aria-label="Departamento que também recebe os alertas"
         style={{
-          background: T.surfaceAlt,
-          borderColor: T.border,
-          color: T.textPrimary,
-          fontFamily: "'IBM Plex Mono',monospace",
-          fontSize: 11,
+          background: "var(--v2-surface)",
+          borderColor: "var(--v2-line)",
+          color: "var(--v2-fg)",
+          fontFamily: "var(--font-ui)",
+          fontSize: 13,
           height: 32,
-          width: 200,
+          width: 230,
         }}
       >
-        <SelectValue placeholder="Nenhum" />
+        <SelectValue placeholder="Nenhum departamento" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="__none__">Nenhum</SelectItem>
+        <SelectItem value="__none__">Nenhum departamento</SelectItem>
         {(depts.data ?? []).map((d) => (
           <SelectItem key={d.id} value={d.id}>
             {d.name}
@@ -424,235 +475,405 @@ export function DominiosSslDashboard() {
   useLiveDate();
   // ─────────────────────────────────────────────────────────────────────────
 
-  // KPI counts
-  const expiredDomains = domains.filter((d) => d.status === "expirado").length;
-  const criticalDomains = domains.filter((d) => {
-    const x = calcDaysToExpire(d.expiry_date);
-    return x !== null && x >= 0 && x <= (d.alert_days ?? 30);
-  }).length;
+  // ── Certificados (mesma consulta do painel de SSL; o React Query compartilha o cache) ──
+  const sslListFn = useServerFn(listSslCerts);
+  const sslQ = useQuery({ queryKey: ["ssl_certificates"], queryFn: () => sslListFn() });
+  const certs = sslQ.data?.certs ?? [];
+
+  // ── Estado da tela ──
+  const [view, setView] = React.useState<"ssl" | "dom">("ssl");
+  const [fSsl, setFSsl] = React.useState<Situacao>(null);
+  const [fDom, setFDom] = React.useState<Situacao>(null);
+  const [qDom, setQDom] = React.useState("");
+  const [certOpenId, setCertOpenId] = React.useState<string | null>(null);
+  const [domOpenId, setDomOpenId] = React.useState<string | null>(null);
+
+  // ── KPIs ──
+  const isExp = (d: number | null) => d !== null && d < 0;
+  const isSoon = (d: number | null, alert: number) => d !== null && d >= 0 && d <= alert;
+  const certDays = (c: SslRow) => calcDaysToExpire(c.valid_to);
+  const domDays = (d: (typeof domains)[number]) => calcDaysToExpire(d.expiry_date);
+  const certsExp = certs.filter((c) => isExp(certDays(c))).length;
+  const certsSoon = certs.filter((c) => isSoon(certDays(c), c.alert_days ?? 30)).length;
+  const domsExp = domains.filter((d) => isExp(domDays(d))).length;
+  const domsSoon = domains.filter((d) => isSoon(domDays(d), d.alert_days ?? 30)).length;
+  const kpiActive = view === "ssl" ? (fSsl ? `ssl:${fSsl}` : null) : fDom ? `dom:${fDom}` : null;
+  const clickKpi = (key: string) => {
+    if (key === "all") {
+      setFSsl(null);
+      setFDom(null);
+      return;
+    }
+    const [v, f] = key.split(":") as ["ssl" | "dom", "exp" | "soon"];
+    setView(v);
+    if (v === "ssl") setFSsl((cur) => (cur === f ? null : f));
+    else setFDom((cur) => (cur === f ? null : f));
+  };
+  const kpis: Array<{ key: string; label: string; value: number; foot: string; tone?: string }> = [
+    { key: "ssl:exp", label: "Certificados vencidos", value: certsExp, foot: "precisam de ação agora", tone: "var(--v2-crit)" },
+    { key: "ssl:soon", label: "Certificados a vencer", value: certsSoon, foot: "dentro do prazo de alerta", tone: "var(--v2-med)" },
+    { key: "dom:exp", label: "Domínios vencidos", value: domsExp, foot: "registro expirado", tone: "var(--v2-crit)" },
+    { key: "dom:soon", label: "Domínios a vencer", value: domsSoon, foot: "dentro do prazo de alerta", tone: "var(--v2-med)" },
+    {
+      key: "all",
+      label: "Monitorados",
+      value: certs.length + domains.length,
+      foot: `${certs.length} certificados · ${domains.length} domínios`,
+    },
+  ];
+
+  // ── Próximos vencimentos: domínios e certificados juntos, do mais urgente ao menos ──
+  const upcoming = [
+    ...certs.map((c) => ({ kind: "ssl" as const, id: c.id, name: c.domain_name, to: c.valid_to, alert: c.alert_days ?? 30 })),
+    ...domains.map((d) => ({ kind: "dom" as const, id: d.id, name: d.domain_name, to: d.expiry_date, alert: d.alert_days ?? 30 })),
+  ]
+    .map((x) => ({ ...x, days: calcDaysToExpire(x.to) }))
+    .filter((x) => x.days !== null)
+    .sort((a, b) => byDays(a.days, b.days))
+    .slice(0, 7);
+  const openItem = (kind: "ssl" | "dom", id: string) => {
+    setView(kind);
+    if (kind === "ssl") setCertOpenId(id);
+    else setDomOpenId(id);
+  };
+
+  // ── Domínios filtrados e ordenados pelo vencimento ──
+  const domRows = domains
+    .filter((d) => matchSituacao(fDom, domDays(d), d.alert_days ?? 30))
+    .filter((d) => !qDom.trim() || d.domain_name.toLowerCase().includes(qDom.trim().toLowerCase()))
+    .sort((a, b) => byDays(domDays(a), domDays(b)));
+  const urgentCerts = certsExp + certsSoon;
+  const urgentDoms = domsExp + domsSoon;
+  const openDomain = domains.find((d) => d.id === domOpenId) ?? null;
 
   return (
     <div className="dssl-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Page header ──────────────────────────────────────────────── */}
-      <div className="dssl-page-hdr">
-        <div className="dssl-page-brand">
-          <div className="dssl-page-icon">
-            <Globe size={18} color={T.accent} />
-          </div>
-          <div>
-            <div className="dssl-page-title">Domínios &amp; SSL</div>
-            <div className="dssl-page-sub">Monitoramento de vencimento de domínios e certificados</div>
-          </div>
+      {/* ── Cabeçalho ────────────────────────────────────────────────────── */}
+      <div className="dssl-ph">
+        <div>
+          <h1 className="dssl-ph-title">Domínios e SSL</h1>
+          <p className="dssl-ph-sub">
+            <span>Vencimento de domínios e certificados, com alerta diário por e-mail às 09h</span>
+          </p>
         </div>
-
-        {/* KPI pills */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "4px 10px",
-              borderRadius: 5,
-              background: "rgba(107,114,128,0.08)",
-              border: `1px solid ${T.border}`,
-              fontSize: 11,
-              fontFamily: "'IBM Plex Mono',monospace",
-              color: T.textMuted,
-            }}
-          >
-            <Globe size={11} /> {domains.length} domínios
-          </span>
-          {criticalDomains > 0 && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "4px 10px",
-                borderRadius: 5,
-                background: T.warningBg,
-                border: "1px solid rgba(245,158,11,0.25)",
-                fontSize: 11,
-                fontFamily: "'IBM Plex Mono',monospace",
-                color: T.warning,
-              }}
-            >
-              <AlertTriangle size={11} /> {criticalDomains} a vencer
-            </span>
-          )}
-          {expiredDomains > 0 && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "4px 10px",
-                borderRadius: 5,
-                background: T.dangerBg,
-                border: "1px solid rgba(239,68,68,0.25)",
-                fontSize: 11,
-                fontFamily: "'IBM Plex Mono',monospace",
-                color: T.danger,
-              }}
-            >
-              <AlertTriangle size={11} /> {expiredDomains} expirados
-            </span>
-          )}
+        <div className="dssl-ph-actions">
+          <CronHealthBadge jobName="ssl-expiry-check" moduleSlug="dominios-ssl" />
           <CronHealthBadge jobName="domains-expiry-check" moduleSlug="dominios-ssl" />
         </div>
       </div>
 
-      {/* ── Alert dept row ───────────────────────────────────────────── */}
-      {canEdit && (
-        <div className="dssl-alert-row">
-          <span className="dssl-alert-label">
-            <Bell size={10} /> Alertas por departamento
-          </span>
-          <AlertDeptSelector scope="domains" />
-        </div>
-      )}
+      {/* ── KPIs (clique filtra a aba correspondente) ───────────────────── */}
+      <div className="dssl-kpis">
+        {kpis.map((k) => (
+          <button
+            key={k.key}
+            type="button"
+            className="dssl-kpi"
+            aria-pressed={kpiActive === k.key}
+            onClick={() => clickKpi(k.key)}
+          >
+            <span className="dssl-kpi-label">
+              {k.tone && k.value > 0 && <span className="dssl-sw" style={{ background: k.tone }} />}
+              {k.label}
+            </span>
+            <span className="dssl-kpi-value">{q.isLoading || sslQ.isLoading ? "…" : k.value}</span>
+            <span className="dssl-kpi-foot">{k.foot}</span>
+          </button>
+        ))}
+      </div>
 
-      {/* ── Domains panel ────────────────────────────────────────────── */}
-      <div className="dssl-panel">
-        <div className="dssl-panel-hdr">
-          <div className="dssl-panel-title">
-            <Globe size={11} /> Domínios cadastrados
-            <span style={{ fontWeight: 400, color: T.textSubtle }}>({domains.length})</span>
-          </div>
-          {canEdit && (
-            <div className="dssl-panel-actions">
-              <button
-                className="dssl-btn outline"
-                onClick={() => refreshAllMut.mutate()}
-                disabled={refreshAllMut.isPending || domains.length === 0}
-              >
-                <RefreshCw size={12} className={refreshAllMut.isPending ? "dssl-spin" : ""} />
-                Atualizar todos
-              </button>
-              <NewDomainDialog onSubmit={(d) => createMut.mutateAsync(d)} pending={createMut.isPending} />
+      <div className="dssl-grid">
+        {/* ── Próximos vencimentos ────────────────────────────────────────── */}
+        <div className="dssl-panel">
+          <div className="dssl-panel-hdr">
+            <div>
+              <h2 className="dssl-panel-title">Próximos vencimentos</h2>
+              <p className="dssl-panel-sub">Domínios e certificados, do mais urgente ao menos</p>
             </div>
-          )}
+          </div>
+          <div className="dssl-panel-body">
+            {upcoming.length === 0 ? (
+              <div className="dssl-sh-empty">Nada cadastrado ainda.</div>
+            ) : (
+              <div className="dssl-upcoming">
+                {upcoming.map((x) => (
+                  <button key={`${x.kind}:${x.id}`} type="button" onClick={() => openItem(x.kind, x.id)}>
+                    <span className="dssl-kind" title={x.kind === "ssl" ? "Certificado" : "Domínio"}>
+                      {x.kind === "ssl" ? <Lock size={12} /> : <Globe size={12} />}
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <b>{x.name}</b>
+                      <small>
+                        {x.kind === "ssl" ? "Certificado" : "Domínio"} · vence em {fmtDate(x.to)}
+                      </small>
+                    </span>
+                    <DaysChip days={x.days} alertDays={x.alert} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {q.isLoading ? (
-          <div className="dssl-loading">
-            <Loader2 size={13} className="dssl-spin" color={T.accent} /> Carregando…
+        {/* ── Certificados / Domínios ─────────────────────────────────────── */}
+        <div className="dssl-panel dssl-span-2">
+          <div className="dssl-toolbar split">
+            <div className="dssl-seg" role="tablist" aria-label="Visão">
+              <button type="button" aria-pressed={view === "ssl"} onClick={() => setView("ssl")}>
+                Certificados SSL <span className="dssl-n">{certs.length}</span>
+                {urgentCerts > 0 && <span className="dssl-urg">{urgentCerts}</span>}
+              </button>
+              <button type="button" aria-pressed={view === "dom"} onClick={() => setView("dom")}>
+                Domínios <span className="dssl-n">{domains.length}</span>
+                {urgentDoms > 0 && <span className="dssl-urg">{urgentDoms}</span>}
+              </button>
+            </div>
+            {canEdit && (
+              <div className="dssl-recip">
+                <span>Alertas também para</span>
+                <AlertDeptSelector key={view} scope={view === "ssl" ? "ssl" : "domains"} />
+              </div>
+            )}
           </div>
-        ) : domains.length === 0 ? (
-          <div className="dssl-empty">Nenhum domínio cadastrado ainda.</div>
-        ) : (
-          <div style={{ overflowX: "auto", maxHeight: 580, overflowY: "auto" }}>
-            <table className="dssl-table">
-              <thead>
-                <tr>
-                  <th style={{ paddingLeft: 18 }}>Domínio</th>
-                  <th>Registro</th>
-                  <th>Criação</th>
-                  <th>Última mudança</th>
-                  <th>Validade</th>
-                  <th className="r">Dias p/ vencer</th>
-                  <th className="c">Alerta (dias)</th>
-                  <th>Status</th>
-                  <th className="r" style={{ paddingRight: 18 }}>
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {domains.map((d) => {
-                  const days = calcDaysToExpire(d.expiry_date);
-                  return (
-                    <tr key={d.id}>
-                      <td className="mono" style={{ paddingLeft: 18, color: T.textPrimary, fontWeight: 500 }}>
-                        {d.domain_name}
-                      </td>
-                      <td className="dim" style={{ fontSize: 11 }}>
-                        {regLabel(d.registrar)}
-                      </td>
-                      <td className="mono dim">{fmtDate(d.created_date)}</td>
-                      <td className="mono dim">{fmtDate(d.last_changed_date)}</td>
-                      <td className="mono dim">{fmtDate(d.expiry_date)}</td>
-                      <td style={{ textAlign: "right" }}>
-                        <DaysChip days={days} alertDays={d.alert_days ?? 30} />
-                      </td>
-                      <td style={{ textAlign: "center" }}>
-                        {canEdit ? (
-                          <input
-                            type="number"
-                            min={1}
-                            max={365}
-                            defaultValue={d.alert_days}
-                            className="dssl-days-input"
-                            onBlur={(e) => {
-                              const v = parseInt(e.target.value, 10);
-                              if (v && v !== d.alert_days) updateMut.mutate({ id: d.id, alert_days: v });
-                            }}
-                          />
-                        ) : (
-                          <span className="mono dim">{d.alert_days}</span>
-                        )}
-                      </td>
-                      <td>
-                        <StatusBadge status={d.status} />
-                      </td>
-                      <td style={{ textAlign: "right", paddingRight: 18 }}>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                          {canEdit && (
-                            <button
-                              className="dssl-btn outline icon-only"
-                              onClick={() => refreshMut.mutate(d.id)}
-                              disabled={refreshMut.isPending}
-                              title="Revalidar agora"
-                            >
-                              <RefreshCw
-                                size={12}
-                                className={refreshMut.isPending && refreshMut.variables === d.id ? "dssl-spin" : ""}
-                              />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <button className="dssl-btn danger icon-only" title="Remover">
-                                  <Trash2 size={12} />
-                                </button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remover domínio</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Tem certeza que deseja remover <b>{d.domain_name}</b>? Esta ação não pode ser
-                                    desfeita.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteMut.mutate(d.id)}>Remover</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </div>
-                      </td>
+
+          {/* Certificados (fica montado para o painel lateral abrir de qualquer aba) */}
+          <div style={{ display: view === "ssl" ? "flex" : "none", flexDirection: "column" }}>
+            <SslCertsPanel
+              canEdit={canEdit}
+              canDelete={canDelete}
+              filter={fSsl}
+              onClearFilter={() => setFSsl(null)}
+              openId={certOpenId}
+              setOpenId={setCertOpenId}
+            />
+          </div>
+
+          {/* Domínios */}
+          <div style={{ display: view === "dom" ? "flex" : "none", flexDirection: "column" }}>
+            <div className="dssl-toolbar">
+              <label className="dssl-search">
+                <Search size={14} />
+                <input
+                  value={qDom}
+                  onChange={(e) => setQDom(e.target.value)}
+                  placeholder="Buscar domínio"
+                  aria-label="Buscar domínios"
+                />
+              </label>
+              {fDom && (
+                <button type="button" className="dssl-chip" onClick={() => setFDom(null)}>
+                  {SITUACAO_LABEL[fDom]} <X size={14} aria-label="Remover filtro" />
+                </button>
+              )}
+              {canEdit && (
+                <div className="dssl-actions">
+                  <button
+                    className="dssl-btn"
+                    onClick={() => refreshAllMut.mutate()}
+                    disabled={refreshAllMut.isPending || domains.length === 0}
+                  >
+                    <RefreshCw size={14} className={refreshAllMut.isPending ? "dssl-spin" : ""} />
+                    Atualizar todos
+                  </button>
+                  <NewDomainDialog onSubmit={(d) => createMut.mutateAsync(d)} pending={createMut.isPending} />
+                </div>
+              )}
+            </div>
+
+            {q.isLoading ? (
+              <div className="dssl-loading">
+                <Loader2 size={14} className="dssl-spin" /> Carregando…
+              </div>
+            ) : domains.length === 0 ? (
+              <div className="dssl-empty">Nenhum domínio cadastrado ainda.</div>
+            ) : domRows.length === 0 ? (
+              <div className="dssl-empty">Nenhum domínio com esses filtros.</div>
+            ) : (
+              <div className="dssl-scroll">
+                <table className="dssl-table">
+                  <thead>
+                    <tr>
+                      <th>Domínio</th>
+                      <th>Registro</th>
+                      <th>Criação</th>
+                      <th>Última mudança</th>
+                      <th>Validade</th>
+                      <th>Vence em</th>
+                      <th className="r">Alerta (dias)</th>
+                      <th>Status</th>
+                      <th className="r">
+                        <span className="sr-only">Ações</span>
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {domRows.map((d) => {
+                      const days = domDays(d);
+                      return (
+                        <tr
+                          key={d.id}
+                          className="clickable"
+                          tabIndex={0}
+                          onClick={() => setDomOpenId(d.id)}
+                          onKeyDown={(e) => e.key === "Enter" && setDomOpenId(d.id)}
+                        >
+                          <td className="mono" style={{ fontWeight: 500 }}>
+                            {d.domain_name}
+                          </td>
+                          <td className="dim">{regLabel(d.registrar)}</td>
+                          <td className="mono dim">{fmtDate(d.created_date)}</td>
+                          <td className="mono dim">{fmtDate(d.last_changed_date)}</td>
+                          <td className="mono dim">{fmtDate(d.expiry_date)}</td>
+                          <td>
+                            <DaysChip days={days} alertDays={d.alert_days ?? 30} />
+                          </td>
+                          <td className="r" onClick={(e) => e.stopPropagation()}>
+                            {canEdit ? (
+                              <input
+                                type="number"
+                                min={1}
+                                max={365}
+                                defaultValue={d.alert_days}
+                                className="dssl-days-input"
+                                aria-label={`Dias de alerta de ${d.domain_name}`}
+                                onBlur={(e) => {
+                                  const v = parseInt(e.target.value, 10);
+                                  if (v && v !== d.alert_days) updateMut.mutate({ id: d.id, alert_days: v });
+                                }}
+                              />
+                            ) : (
+                              <span className="mono dim">{d.alert_days}</span>
+                            )}
+                          </td>
+                          <td>
+                            <StatusBadge status={d.status} />
+                          </td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <div className="dssl-row-act">
+                              {canEdit && (
+                                <button
+                                  className="dssl-btn icon-only"
+                                  onClick={() => refreshMut.mutate(d.id)}
+                                  disabled={refreshMut.isPending}
+                                  title="Revalidar agora"
+                                  aria-label={`Revalidar ${d.domain_name}`}
+                                >
+                                  <RefreshCw
+                                    size={14}
+                                    className={refreshMut.isPending && refreshMut.variables === d.id ? "dssl-spin" : ""}
+                                  />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <button
+                                      className="dssl-btn icon-only danger"
+                                      title="Remover"
+                                      aria-label={`Remover ${d.domain_name}`}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remover domínio</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Tem certeza que deseja remover <b>{d.domain_name}</b>? Esta ação não pode ser
+                                        desfeita.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => deleteMut.mutate(d.id)}>Remover</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="dssl-note">
+              <Bell size={14} />
+              <span>
+                Alertas por e-mail diariamente às 09h (Brasília) para administradores globais, administradores do módulo
+                e o departamento escolhido, conforme o "Alerta (dias)" de cada domínio.
+              </span>
+            </div>
           </div>
-        )}
-        <div className="dssl-note">
-          <Bell size={11} style={{ marginTop: 1, flexShrink: 0, color: T.textMuted }} />
-          Alertas por e-mail enviados aos administradores globais, administradores do módulo e departamento vinculado,
-          diariamente às 09h (Brasília), conforme "Alerta (dias)" de cada domínio.
         </div>
       </div>
 
-      {/* ── SSL panel ────────────────────────────────────────────────── */}
-      <SslCertsPanel canEdit={canEdit} canDelete={canDelete} />
+      {/* ── Painel lateral: domínio ──────────────────────────────────────────── */}
+      <DetailSheet
+        open={!!openDomain}
+        onOpenChange={(o) => !o && setDomOpenId(null)}
+        eyebrow={openDomain ? `Domínio · vence em ${fmtDate(openDomain.expiry_date)}` : null}
+        title={openDomain?.domain_name ?? ""}
+        badges={
+          openDomain && (
+            <>
+              <StatusBadge status={openDomain.status} />
+              <DaysChip days={domDays(openDomain)} alertDays={openDomain.alert_days ?? 30} />
+            </>
+          )
+        }
+        footer={
+          openDomain && canEdit ? (
+            <button
+              className="dssl-btn"
+              onClick={() => refreshMut.mutate(openDomain.id)}
+              disabled={refreshMut.isPending}
+            >
+              <RefreshCw size={14} className={refreshMut.isPending ? "dssl-spin" : ""} /> Revalidar agora
+            </button>
+          ) : null
+        }
+      >
+        {openDomain && (
+          <>
+            <DetailSection title="Registro">
+              <DetailList
+                items={[
+                  ["Registrador", regLabel(openDomain.registrar)],
+                  ["Criação", fmtDate(openDomain.created_date), true],
+                  ["Última mudança", fmtDate(openDomain.last_changed_date), true],
+                  ["Validade", fmtDate(openDomain.expiry_date), true],
+                  ["Alerta", `${openDomain.alert_days} dias antes`],
+                  [
+                    "Última verificação",
+                    openDomain.last_checked_at ? new Date(openDomain.last_checked_at).toLocaleString("pt-BR") : "—",
+                    true,
+                  ],
+                ]}
+              />
+            </DetailSection>
+            {openDomain.last_check_error && (
+              <div className="dssl-warn" style={{ fontFamily: "var(--font-ui)" }}>
+                <AlertTriangle size={14} />
+                <span>Aviso na última verificação: {openDomain.last_check_error}</span>
+              </div>
+            )}
+            {isExp(domDays(openDomain)) && (
+              <div className="dssl-warn" style={{ fontFamily: "var(--font-ui)" }}>
+                <AlertTriangle size={14} />
+                <span>
+                  Registro expirado. Se o domínio ainda for usado, renove no registrador antes que ele fique disponível
+                  para terceiros.
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </DetailSheet>
     </div>
   );
 }
@@ -694,14 +915,14 @@ function NewDomainDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="dssl-btn success">
-          <Plus size={13} /> Adicionar domínio
+        <button className="dssl-btn primary">
+          <Plus size={14} /> Novo domínio
         </button>
       </DialogTrigger>
-      <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+      <DialogContent style={{ background: "var(--v2-surface)", border: "1px solid var(--v2-line-strong)", borderRadius: 12, color: "var(--v2-fg)" }}>
         <DialogHeader>
           <DialogTitle
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+            style={{ fontFamily: "var(--font-ui)", fontSize: 16, fontWeight: 600, color: "var(--v2-fg)" }}
           >
             Cadastrar domínio
           </DialogTitle>
@@ -756,7 +977,23 @@ function NewDomainDialog({
 // ══════════════════════════════════════════════════════════════════════════════
 // SSL CERTS PANEL
 // ══════════════════════════════════════════════════════════════════════════════
-function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: boolean }) {
+function SslCertsPanel({
+  canEdit,
+  canDelete,
+  filter,
+  onClearFilter,
+  openId,
+  setOpenId,
+}: {
+  canEdit: boolean;
+  canDelete: boolean;
+  /** Situação vinda dos KPIs (vencidos / a vencer) */
+  filter: Situacao;
+  onClearFilter: () => void;
+  /** Certificado aberto no painel lateral (controlado pela tela, para abrir também pelos "Próximos vencimentos") */
+  openId: string | null;
+  setOpenId: (id: string | null) => void;
+}) {
   const qc = useQueryClient();
   const listFn = useServerFn(listSslCerts);
   const createFn = useServerFn(importSslCert);
@@ -773,7 +1010,9 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
     qc.invalidateQueries({ queryKey: ["ssl_certificate_details"] });
   };
 
-  const [detailId, setDetailId] = React.useState<string | null>(null);
+  const detailId = openId;
+  const setDetailId = setOpenId;
+  const [busca, setBusca] = React.useState("");
   const [renewTarget, setRenewTarget] = React.useState<SslRow | null>(null);
 
   const createMut = useMutation({
@@ -855,70 +1094,42 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
   const certs = q.data?.certs ?? [];
   useLiveDate();
 
-  // KPI counts for SSL
-  const expiredSsl = certs.filter((c) => c.status === "expirado").length;
-  const criticalSsl = certs.filter((c) => {
-    const x = calcDaysToExpire(c.valid_to);
-    return x !== null && x >= 0 && x <= (c.alert_days ?? 30);
-  }).length;
+  const rows = certs
+    .filter((c) => matchSituacao(filter, calcDaysToExpire(c.valid_to), c.alert_days ?? 30))
+    .filter((c) => {
+      const t = busca.trim().toLowerCase();
+      return !t || c.domain_name.toLowerCase().includes(t) || (c.issuer ?? "").toLowerCase().includes(t);
+    })
+    .sort((a, b) => byDays(calcDaysToExpire(a.valid_to), calcDaysToExpire(b.valid_to)));
 
   return (
-    <div className="dssl-panel">
-      <div className="dssl-panel-hdr">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div className="dssl-panel-title">
-            <Lock size={11} /> Certificados SSL
-            <span style={{ fontWeight: 400, color: T.textSubtle }}>({certs.length})</span>
-          </div>
-          {criticalSsl > 0 && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "2px 8px",
-                borderRadius: 4,
-                background: T.warningBg,
-                border: "1px solid rgba(245,158,11,0.22)",
-                fontSize: 10,
-                fontFamily: "'IBM Plex Mono',monospace",
-                color: T.warning,
-              }}
-            >
-              <AlertTriangle size={10} /> {criticalSsl} a vencer
-            </span>
-          )}
-          {expiredSsl > 0 && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "2px 8px",
-                borderRadius: 4,
-                background: T.dangerBg,
-                border: "1px solid rgba(239,68,68,0.22)",
-                fontSize: 10,
-                fontFamily: "'IBM Plex Mono',monospace",
-                color: T.danger,
-              }}
-            >
-              <AlertTriangle size={10} /> {expiredSsl} expirados
-            </span>
-          )}
-          <CronHealthBadge jobName="ssl-expiry-check" moduleSlug="dominios-ssl" />
-        </div>
+    <>
+      <div className="dssl-toolbar">
+        <label className="dssl-search">
+          <Search size={14} />
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar domínio ou emissor"
+            aria-label="Buscar certificados"
+          />
+        </label>
+        {filter && (
+          <button type="button" className="dssl-chip" onClick={onClearFilter}>
+            {SITUACAO_LABEL[filter]} <X size={14} aria-label="Remover filtro" />
+          </button>
+        )}
         {canEdit && (
-          <div className="dssl-panel-actions">
+          <div className="dssl-actions">
+            <button className="dssl-btn ghost" onClick={() => alertMut.mutate()} disabled={alertMut.isPending}>
+              <Bell size={14} className={alertMut.isPending ? "dssl-spin" : ""} /> Testar alertas
+            </button>
             <button
-              className="dssl-btn outline"
+              className="dssl-btn"
               onClick={() => refreshAllMut.mutate()}
               disabled={refreshAllMut.isPending || certs.length === 0}
             >
-              <RefreshCw size={12} className={refreshAllMut.isPending ? "dssl-spin" : ""} /> Atualizar todos
-            </button>
-            <button className="dssl-btn outline" onClick={() => alertMut.mutate()} disabled={alertMut.isPending}>
-              <Bell size={12} className={alertMut.isPending ? "dssl-spin" : ""} /> Testar alertas
+              <RefreshCw size={14} className={refreshAllMut.isPending ? "dssl-spin" : ""} /> Atualizar todos
             </button>
             <ImportSslDialog
               onSubmit={(d) => createMut.mutateAsync(d)}
@@ -932,42 +1143,51 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
 
       {q.isLoading ? (
         <div className="dssl-loading">
-          <Loader2 size={13} className="dssl-spin" color={T.accent} /> Carregando…
+          <Loader2 size={14} className="dssl-spin" /> Carregando…
         </div>
       ) : certs.length === 0 ? (
         <div className="dssl-empty">Nenhum certificado SSL cadastrado ainda.</div>
+      ) : rows.length === 0 ? (
+        <div className="dssl-empty">Nenhum certificado com esses filtros.</div>
       ) : (
-        <div style={{ overflowX: "auto", maxHeight: 580, overflowY: "auto" }}>
+        <div className="dssl-scroll">
           <table className="dssl-table">
             <thead>
               <tr>
-                <th style={{ paddingLeft: 18 }}>Domínio</th>
+                <th>Domínio</th>
                 <th>Origem</th>
                 <th>Emissor</th>
-                <th>Emissão</th>
                 <th>Validade</th>
-                <th className="r">Dias p/ vencer</th>
-                <th className="c">Alerta (dias)</th>
+                <th>Vence em</th>
+                <th className="r">Alerta (dias)</th>
                 <th>Status</th>
-                <th className="r" style={{ paddingRight: 18 }}>
-                  Ações
+                <th className="r">
+                  <span className="sr-only">Ações</span>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {certs.map((c) => {
+              {rows.map((c) => {
                 const days = calcDaysToExpire(c.valid_to);
                 return (
-                  <tr key={c.id} className="clickable" onClick={() => setDetailId(c.id)} title="Ver detalhes">
-                    <td className="mono" style={{ paddingLeft: 18, color: T.textPrimary, fontWeight: 500 }}>
-                      {c.domain_name}
+                  <tr
+                    key={c.id}
+                    className="clickable"
+                    tabIndex={0}
+                    onClick={() => setDetailId(c.id)}
+                    onKeyDown={(e) => e.key === "Enter" && setDetailId(c.id)}
+                  >
+                    <td>
+                      <span className="mono" style={{ fontWeight: 500 }}>
+                        {c.domain_name}
+                      </span>
                       <span className="dssl-row-tags">
                         {c.bindings_count > 0 && (
                           <span
                             className="dssl-row-tag"
                             title={
                               c.sync_kind === "cloudflare"
-                                ? `${c.bindings_count} host(s) proxyado(s) na Cloudflare`
+                                ? `${c.bindings_count} host(s) com proxy na Cloudflare`
                                 : `${c.bindings_count} URL(s) vinculada(s)`
                             }
                           >
@@ -984,15 +1204,12 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
                     <td>
                       <SyncKindTag kind={c.sync_kind} />
                     </td>
-                    <td className="dim" style={{ fontSize: 11 }}>
-                      {c.issuer || "—"}
-                    </td>
-                    <td className="mono dim">{fmtDate(c.valid_from)}</td>
+                    <td className="dim">{c.issuer || "—"}</td>
                     <td className="mono dim">{fmtDate(c.valid_to)}</td>
-                    <td style={{ textAlign: "right" }}>
+                    <td>
                       <DaysChip days={days} alertDays={c.alert_days ?? 30} />
                     </td>
-                    <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                    <td className="r" onClick={(e) => e.stopPropagation()}>
                       {canEdit ? (
                         <input
                           type="number"
@@ -1000,6 +1217,7 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
                           max={365}
                           defaultValue={c.alert_days}
                           className="dssl-days-input"
+                          aria-label={`Dias de alerta de ${c.domain_name}`}
                           onBlur={(e) => {
                             const v = parseInt(e.target.value, 10);
                             if (v && v !== c.alert_days) updateMut.mutate({ id: c.id, alert_days: v });
@@ -1012,26 +1230,28 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
                     <td>
                       <StatusBadge status={c.status} />
                     </td>
-                    <td style={{ textAlign: "right", paddingRight: 18 }} onClick={(e) => e.stopPropagation()}>
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div className="dssl-row-act">
                         {canEdit && c.source === "imported" && (
                           <button
-                            className="dssl-btn success icon-only"
+                            className="dssl-btn icon-only success"
                             onClick={() => setRenewTarget(c)}
                             title="Renovar (substituir por novo arquivo)"
+                            aria-label={`Renovar ${c.domain_name}`}
                           >
-                            <FileUp size={12} />
+                            <FileUp size={14} />
                           </button>
                         )}
                         {canEdit && c.source !== "imported" && (
                           <button
-                            className="dssl-btn outline icon-only"
+                            className="dssl-btn icon-only"
                             onClick={() => refreshMut.mutate(c.id)}
                             disabled={refreshMut.isPending}
                             title="Revalidar agora"
+                            aria-label={`Revalidar ${c.domain_name}`}
                           >
                             <RefreshCw
-                              size={12}
+                              size={14}
                               className={refreshMut.isPending && refreshMut.variables === c.id ? "dssl-spin" : ""}
                             />
                           </button>
@@ -1039,8 +1259,12 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
                         {canDelete && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <button className="dssl-btn danger icon-only" title="Remover">
-                                <Trash2 size={12} />
+                              <button
+                                className="dssl-btn icon-only danger"
+                                title="Remover"
+                                aria-label={`Remover ${c.domain_name}`}
+                              >
+                                <Trash2 size={14} />
                               </button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
@@ -1068,11 +1292,11 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
       )}
 
       <div className="dssl-note">
-        <ShieldCheck size={11} style={{ marginTop: 1, flexShrink: 0, color: T.textMuted }} />
-        Validade e emissor obtidos diretamente do certificado SSL público do domínio (certificados importados usam os
-        dados do arquivo e são renovados pelo botão de renovar). Clique numa linha para ver detalhes, observações e
-        URLs vinculadas. Alertas enviados aos administradores globais, administradores do módulo e departamento
-        vinculado, diariamente às 09h (Brasília).
+        <ShieldCheck size={14} />
+        <span>
+          Validade e emissor vêm do certificado público do domínio; certificados importados usam o arquivo e são
+          renovados pelo botão Renovar. Clique numa linha para ver detalhes, URLs vinculadas e histórico.
+        </span>
       </div>
 
       <SslCertDetailsSheet
@@ -1081,6 +1305,8 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
         canEdit={canEdit}
         onRenew={(c) => setRenewTarget(c)}
         onChanged={invalidate}
+        onRefresh={(id) => refreshMut.mutate(id)}
+        refreshing={refreshMut.isPending}
       />
       <RenewSslDialog
         cert={renewTarget}
@@ -1088,7 +1314,7 @@ function SslCertsPanel({ canEdit, canDelete }: { canEdit: boolean; canDelete: bo
         onSubmit={(pem) => renewMut.mutateAsync({ id: renewTarget!.id, pem })}
         pending={renewMut.isPending}
       />
-    </div>
+    </>
   );
 }
 
@@ -1110,7 +1336,7 @@ const SYNC_KIND: Record<SslRow["sync_kind"], { label: string; hint: string; cls:
     cls: "",
   },
   cloudflare: {
-    label: "Sincronizado · Cloudflare",
+    label: "Cloudflare",
     hint: "Certificado da borda da Cloudflare, servido nos hosts proxyados da zona. Revalidado automaticamente.",
     cls: "cf",
   },
@@ -1123,9 +1349,10 @@ const SYNC_KIND: Record<SslRow["sync_kind"], { label: string; hint: string; cls:
 
 function SyncKindTag({ kind }: { kind: SslRow["sync_kind"] }) {
   const k = SYNC_KIND[kind];
+  const Icon = kind === "imported" ? FileUp : kind === "cloudflare" ? Cloud : RefreshCw;
   return (
     <span className={`dssl-src ${k.cls}`} title={k.hint}>
-      {k.label}
+      <Icon size={13} /> {k.label}
     </span>
   );
 }
@@ -1162,10 +1389,10 @@ function RenewSslDialog({
 
   return (
     <Dialog open={!!cert} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+      <DialogContent style={{ background: "var(--v2-surface)", border: "1px solid var(--v2-line-strong)", borderRadius: 12, color: "var(--v2-fg)" }}>
         <DialogHeader>
           <DialogTitle
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+            style={{ fontFamily: "var(--font-ui)", fontSize: 16, fontWeight: 600, color: "var(--v2-fg)" }}
           >
             Renovar certificado
           </DialogTitle>
@@ -1287,8 +1514,6 @@ function EdgeHostsList({ edge }: { edge: SslEdgeInfo }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SSL CERT DETAILS SHEET — mesmo padrão do HostDetailsSheet (Shadow IT)
 // ══════════════════════════════════════════════════════════════════════════════
-const CERT_SHEET_MIN_WIDTH = 440;
-const CERT_SHEET_MAX_WIDTH = 1000;
 
 type BindingDraft = { key: number; url: string; description: string };
 
@@ -1298,12 +1523,16 @@ function SslCertDetailsSheet({
   canEdit,
   onRenew,
   onChanged,
+  onRefresh,
+  refreshing,
 }: {
   certId: string | null;
   onOpenChange: (v: boolean) => void;
   canEdit: boolean;
   onRenew: (c: SslRow) => void;
   onChanged: () => void;
+  onRefresh: (id: string) => void;
+  refreshing: boolean;
 }) {
   // Mantém o último id enquanto o Sheet anima a saída.
   const [lastId, setLastId] = React.useState<string | null>(certId);
@@ -1358,148 +1587,87 @@ function SslCertDetailsSheet({
     onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar"),
   });
 
-  // Largura customizada (arrastando a alça na borda esquerda).
-  const [width, setWidth] = React.useState<number | null>(null);
-  const draggingRef = React.useRef(false);
-  const handleResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    draggingRef.current = true;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    const onMove = (ev: MouseEvent) => {
-      if (!draggingRef.current) return;
-      const next = window.innerWidth - ev.clientX;
-      setWidth(Math.min(CERT_SHEET_MAX_WIDTH, window.innerWidth - 80, Math.max(CERT_SHEET_MIN_WIDTH, next)));
-    };
-    const onUp = () => {
-      draggingRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
-
   if (!id) return null;
   const d = q.data;
   const c = d?.cert;
   const days = c ? calcDaysToExpire(c.valid_to) : null;
 
   return (
-    <Sheet open={!!certId} onOpenChange={onOpenChange}>
-      <SheetContent
-        className="w-full sm:max-w-xl overflow-y-auto"
-        style={{
-          background: T.surface,
-          borderLeft: `1px solid ${T.borderHi}`,
-          color: T.textPrimary,
-          fontFamily: "'DM Sans',sans-serif",
-          ...(width ? { width, maxWidth: "none" } : {}),
-        }}
-      >
-        <div
-          onMouseDown={handleResizeStart}
-          className="absolute left-0 top-0 hidden h-full w-1.5 cursor-col-resize transition-colors hover:bg-primary/30 active:bg-primary/40 sm:block"
-        />
-        <SheetHeader className="space-y-1 pr-8">
-          <SheetTitle
-            style={{ color: T.textPrimary, fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700 }}
+    <DetailSheet
+      open={!!certId}
+      onOpenChange={onOpenChange}
+      width={560}
+      eyebrow={c ? `Certificado · vence em ${fmtDate(c.valid_to)}` : "Certificado"}
+      title={c?.domain_name ?? "Certificado"}
+      badges={
+        c && (
+          <>
+            <StatusBadge status={c.status} />
+            <DaysChip days={days} alertDays={c.alert_days ?? 30} />
+            <SyncKindTag kind={c.sync_kind} />
+          </>
+        )
+      }
+      footer={
+        c && canEdit && !editing ? (
+          <>
+            <button className="dssl-btn ghost" onClick={startEdit}>
+              <Pencil size={14} /> {d?.edge ? "Editar observações" : "Editar URLs e observações"}
+            </button>
+            {c.source === "imported" ? (
+              <button className="dssl-btn primary" onClick={() => onRenew(c)}>
+                <FileUp size={14} /> Renovar
+              </button>
+            ) : (
+              <button className="dssl-btn" onClick={() => onRefresh(c.id)} disabled={refreshing}>
+                <RefreshCw size={14} className={refreshing ? "dssl-spin" : ""} /> Revalidar agora
+              </button>
+            )}
+          </>
+        ) : null
+      }
+    >
+      {q.isError ? (
+        <div className="dssl-sh-empty">{(q.error as any)?.message ?? "Erro ao carregar o certificado."}</div>
+      ) : !d || !c ? (
+        <div className="dssl-loading">
+          <Loader2 size={14} className="dssl-spin" /> Carregando…
+        </div>
+      ) : (
+        <>
+          {/* Certificado */}
+          <DetailSection title="Certificado">
+            <DetailList
+              items={[
+                ["Emissor", c.issuer || "—"],
+                ["Emissão", fmtDate(c.valid_from), true],
+                ["Validade", fmtDate(c.valid_to), true],
+                ["Alerta", `${c.alert_days} dias antes`],
+                ...(c.subject_alt_names && c.subject_alt_names.length > 0
+                  ? ([["Nomes cobertos (SAN)", c.subject_alt_names.join(", "), true]] as Array<[string, string, boolean]>)
+                  : []),
+                ...(c.fingerprint_sha256
+                  ? ([["Fingerprint SHA-256", c.fingerprint_sha256, true]] as Array<[string, string, boolean]>)
+                  : []),
+                ...(c.serial_number
+                  ? ([["Número de série", c.serial_number, true]] as Array<[string, string, boolean]>)
+                  : []),
+              ]}
+            />
+            {c.source === "imported" && !c.fingerprint_sha256 && (
+              <p className="dssl-dlg-hint" style={{ margin: "8px 0 0" }}>
+                Importado antes do registro de fingerprint. Na próxima renovação, esses dados passam a ser gravados.
+              </p>
+            )}
+          </DetailSection>
+
+          {/* URLs vinculadas / hosts com proxy */}
+          <DetailSection
+            title={`${d.edge ? "Hosts com proxy (Cloudflare)" : "URLs vinculadas"} (${d.edge ? d.edge.hosts.length : d.bindings.length})`}
           >
-            {c?.domain_name ?? "Certificado"}
-          </SheetTitle>
-          {c && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <StatusBadge status={c.status} />
-              <DaysChip days={days} alertDays={c.alert_days ?? 30} />
-              <SyncKindTag kind={c.sync_kind} />
-            </div>
-          )}
-        </SheetHeader>
-
-        {q.isError ? (
-          <div className="dssl-empty">{(q.error as any)?.message ?? "Erro ao carregar o certificado."}</div>
-        ) : !d || !c ? (
-          <div className="dssl-loading">
-            <Loader2 size={13} className="dssl-spin" color={T.accent} /> Carregando…
-          </div>
-        ) : (
-          <div className="dssl-sh-wrap">
-            {/* Certificado */}
-            <div className="dssl-sh-section">
-              <div className="dssl-sh-hd">
-                <div className="dssl-sh-title">
-                  <Lock size={11} /> Certificado
-                </div>
-                {canEdit && c.source === "imported" && (
-                  <button className="dssl-btn success" onClick={() => onRenew(c)}>
-                    <FileUp size={12} /> Renovar
-                  </button>
-                )}
-              </div>
-              <div className="dssl-sh-grid">
-                <div>
-                  <div className="dssl-sh-k">Emissor</div>
-                  <div className="dssl-sh-v">{c.issuer || "—"}</div>
-                </div>
-                <div>
-                  <div className="dssl-sh-k">Alerta</div>
-                  <div className="dssl-sh-v">{c.alert_days} dias antes</div>
-                </div>
-                <div>
-                  <div className="dssl-sh-k">Emissão</div>
-                  <div className="dssl-sh-v mono">{fmtDate(c.valid_from)}</div>
-                </div>
-                <div>
-                  <div className="dssl-sh-k">Validade</div>
-                  <div className="dssl-sh-v mono">{fmtDate(c.valid_to)}</div>
-                </div>
-                {c.subject_alt_names && c.subject_alt_names.length > 0 && (
-                  <div className="dssl-sh-full">
-                    <div className="dssl-sh-k">Nomes cobertos (SAN)</div>
-                    <div className="dssl-sh-v mono">{c.subject_alt_names.join(", ")}</div>
-                  </div>
-                )}
-                {c.fingerprint_sha256 && (
-                  <div className="dssl-sh-full">
-                    <div className="dssl-sh-k">Fingerprint SHA-256</div>
-                    <div className="dssl-sh-v mono">{c.fingerprint_sha256}</div>
-                  </div>
-                )}
-                {c.serial_number && (
-                  <div className="dssl-sh-full">
-                    <div className="dssl-sh-k">Número de série</div>
-                    <div className="dssl-sh-v mono">{c.serial_number}</div>
-                  </div>
-                )}
-                {c.source === "imported" && !c.fingerprint_sha256 && (
-                  <div className="dssl-sh-full dssl-dlg-hint">
-                    Importado antes do registro de fingerprint. Na próxima renovação, esses dados passam a ser gravados.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Observações + URLs vinculadas */}
-            <div className="dssl-sh-section">
-              <div className="dssl-sh-hd">
-                <div className="dssl-sh-title">
-                  <Link2 size={11} /> {d.edge ? "Hosts proxyados (Cloudflare)" : "URLs vinculadas"}
-                  <span style={{ fontWeight: 400, color: T.neutral }}>
-                    ({d.edge ? d.edge.hosts.length : d.bindings.length})
-                  </span>
-                </div>
-                {canEdit && !editing && (
-                  <button className="dssl-btn outline" onClick={startEdit}>
-                    <Pencil size={12} /> {d.edge ? "Editar observações" : "Editar"}
-                  </button>
-                )}
-              </div>
-
-              {editing ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {!d.edge && (
+            {editing ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {!d.edge && (
                   <div className="dssl-dlg-field">
                     <span className="dssl-dlg-label">URLs / hosts onde o certificado está instalado</span>
                     {bindingsDraft.length === 0 && <span className="dssl-sh-empty">Nenhuma URL.</span>}
@@ -1510,6 +1678,7 @@ function SslCertDetailsSheet({
                           placeholder="https://app.dominio.com.br"
                           value={b.url}
                           maxLength={500}
+                          aria-label="URL"
                           onChange={(e) =>
                             setBindingsDraft((prev) =>
                               prev.map((x) => (x.key === b.key ? { ...x, url: e.target.value } : x)),
@@ -1522,6 +1691,7 @@ function SslCertDetailsSheet({
                           placeholder="Descrição (opcional)"
                           value={b.description}
                           maxLength={300}
+                          aria-label="Descrição"
                           onChange={(e) =>
                             setBindingsDraft((prev) =>
                               prev.map((x) => (x.key === b.key ? { ...x, description: e.target.value } : x)),
@@ -1530,124 +1700,106 @@ function SslCertDetailsSheet({
                           style={{ flex: 2 }}
                         />
                         <button
-                          className="dssl-btn danger icon-only"
+                          className="dssl-btn icon-only danger"
                           title="Remover URL"
+                          aria-label="Remover URL"
                           onClick={() => setBindingsDraft((prev) => prev.filter((x) => x.key !== b.key))}
                           style={{ marginTop: 3 }}
                         >
-                          <X size={12} />
+                          <X size={14} />
                         </button>
                       </div>
                     ))}
                     <button
-                      className="dssl-btn outline"
+                      className="dssl-btn"
                       style={{ alignSelf: "flex-start" }}
                       onClick={() =>
                         setBindingsDraft((prev) => [...prev, { key: keyRef.current++, url: "", description: "" }])
                       }
                     >
-                      <Plus size={12} /> Adicionar URL
+                      <Plus size={14} /> Adicionar URL
                     </button>
                   </div>
-                  )}
-                  <div className="dssl-dlg-field">
-                    <span className="dssl-dlg-label">Observações</span>
-                    <textarea
-                      className="dssl-dlg-input"
-                      rows={5}
-                      maxLength={5000}
-                      placeholder="Ex.: instalado no IIS do servidor X; responsável; onde renovar…"
-                      value={notesDraft}
-                      onChange={(e) => setNotesDraft(e.target.value)}
-                      style={{ fontFamily: "'DM Sans',sans-serif", resize: "vertical" }}
-                    />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                    <button className="dssl-btn outline" onClick={() => setEditing(false)} disabled={saveMut.isPending}>
-                      Cancelar
-                    </button>
-                    <button className="dssl-btn primary" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
-                      {saveMut.isPending && <Loader2 size={12} className="dssl-spin" />} Salvar
-                    </button>
-                  </div>
+                )}
+                <div className="dssl-dlg-field">
+                  <span className="dssl-dlg-label">Observações</span>
+                  <textarea
+                    className="dssl-dlg-input"
+                    rows={5}
+                    maxLength={5000}
+                    placeholder="Ex.: instalado no IIS do servidor X; responsável; onde renovar…"
+                    value={notesDraft}
+                    onChange={(e) => setNotesDraft(e.target.value)}
+                    style={{ resize: "vertical" }}
+                  />
                 </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {d.edge ? (
-                    <EdgeHostsList edge={d.edge} />
-                  ) : d.bindings.length === 0 ? (
-                    <div className="dssl-sh-empty">
-                      Nenhuma URL vinculada.{canEdit ? " Use Editar para informar onde este certificado está instalado." : ""}
-                    </div>
-                  ) : (
-                    <div className="dssl-sh-list">
-                      {d.bindings.map((b) => (
-                        <div key={b.id} className="dssl-sh-item">
-                          {/^https?:\/\//i.test(b.url) ? (
-                            <a href={b.url} target="_blank" rel="noopener noreferrer">
-                              {b.url}
-                            </a>
-                          ) : (
-                            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>{b.url}</span>
-                          )}
-                          {b.description && <span style={{ fontSize: 11.5, color: T.neutral }}>{b.description}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div>
-                    <div className="dssl-sh-k" style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <StickyNote size={10} /> Observações
-                    </div>
-                    {c.notes ? (
-                      <div className="dssl-sh-notes">{c.notes}</div>
-                    ) : (
-                      <div className="dssl-sh-empty">Sem observações.</div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Histórico */}
-            {d.history.length > 0 && (
-              <div className="dssl-sh-section">
-                <div className="dssl-sh-hd">
-                  <div className="dssl-sh-title">
-                    <History size={11} /> Histórico de renovações
-                  </div>
-                </div>
-                <div className="dssl-sh-list">
-                  {d.history.map((h) => (
-                    <div key={h.id} className="dssl-sh-item">
-                      <span style={{ fontSize: 12 }}>
-                        {h.issuer || "—"} · {fmtDate(h.valid_from)} até {fmtDate(h.valid_to)}
-                      </span>
-                      <span style={{ fontSize: 11, color: T.neutral }}>
-                        Substituído em {new Date(h.replaced_at).toLocaleString("pt-BR")}
-                        {h.replaced_by_name ? ` por ${h.replaced_by_name}` : ""}
-                      </span>
-                      {h.fingerprint_sha256 && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            color: T.neutral,
-                            fontFamily: "'IBM Plex Mono',monospace",
-                            wordBreak: "break-all",
-                          }}
-                        >
-                          {h.fingerprint_sha256}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <button className="dssl-btn ghost" onClick={() => setEditing(false)} disabled={saveMut.isPending}>
+                    Cancelar
+                  </button>
+                  <button className="dssl-btn primary" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+                    {saveMut.isPending && <Loader2 size={14} className="dssl-spin" />} Salvar
+                  </button>
                 </div>
               </div>
+            ) : d.edge ? (
+              <EdgeHostsList edge={d.edge} />
+            ) : d.bindings.length === 0 ? (
+              <div className="dssl-sh-empty">
+                Nenhuma URL vinculada.
+                {canEdit ? " Use Editar para informar onde este certificado está instalado." : ""}
+              </div>
+            ) : (
+              <div className="dssl-sh-list">
+                {d.bindings.map((b) => (
+                  <div key={b.id} className="dssl-sh-item">
+                    {/^https?:\/\//i.test(b.url) ? (
+                      <a href={b.url} target="_blank" rel="noopener noreferrer">
+                        {b.url}
+                      </a>
+                    ) : (
+                      <span className="mono">{b.url}</span>
+                    )}
+                    {b.description && <span className="dssl-dlg-hint">{b.description}</span>}
+                  </div>
+                ))}
+              </div>
             )}
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
+          </DetailSection>
+
+          {/* Observações */}
+          {!editing && (
+            <DetailSection title="Observações">
+              {c.notes ? (
+                <div className="dssl-sh-notes">{c.notes}</div>
+              ) : (
+                <div className="dssl-sh-empty">Sem observações.</div>
+              )}
+            </DetailSection>
+          )}
+
+          {/* Histórico */}
+          {d.history.length > 0 && (
+            <DetailSection title="Histórico de renovações">
+              <ul className="dssl-hist">
+                {d.history.map((h) => (
+                  <li key={h.id}>
+                    <div>
+                      {h.issuer || "—"} · {fmtDate(h.valid_from)} até {fmtDate(h.valid_to)}
+                      <small>
+                        Substituído em {new Date(h.replaced_at).toLocaleString("pt-BR")}
+                        {h.replaced_by_name ? ` por ${h.replaced_by_name}` : ""}
+                      </small>
+                      {h.fingerprint_sha256 && <code>{h.fingerprint_sha256}</code>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </DetailSection>
+          )}
+        </>
+      )}
+    </DetailSheet>
   );
 }
 
@@ -1747,14 +1899,14 @@ function ImportSslDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : reset())}>
       <DialogTrigger asChild>
-        <button className="dssl-btn success">
-          <Plus size={13} /> Importar certificado
+        <button className="dssl-btn primary">
+          <Plus size={14} /> Importar certificado
         </button>
       </DialogTrigger>
-      <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+      <DialogContent style={{ background: "var(--v2-surface)", border: "1px solid var(--v2-line-strong)", borderRadius: 12, color: "var(--v2-fg)" }}>
         <DialogHeader>
           <DialogTitle
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+            style={{ fontFamily: "var(--font-ui)", fontSize: 16, fontWeight: 600, color: "var(--v2-fg)" }}
           >
             Importar certificado SSL
           </DialogTitle>

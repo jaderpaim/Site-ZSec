@@ -5,14 +5,14 @@ import { BenchmarkDashboardTab } from "./benchmark/DashboardTab";
 import { BenchmarkOperationsTab } from "./benchmark/OperationsTab";
 
 const T = {
-  surface: "#0F1420",
-  border: "#1E2640",
+  surface: "var(--tl-0f1420, #0F1420)",
+  border: "var(--tl-1e2640, #1E2640)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   success: "#10B981",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-64748b, #64748B)",
 };
 
 const CSS = `
@@ -24,7 +24,7 @@ const CSS = `
   .bmk-tabs-group { display:flex; align-items:center; gap:4px; padding:4px; background:${T.surface}; border:1px solid ${T.border}; border-radius:8px; }
   .bmk-tab { display:inline-flex; align-items:center; gap:6px; padding:7px 16px; border-radius:6px; border:none; background:transparent;
     font-size:12px; font-weight:600; font-family:'DM Sans',sans-serif; color:${T.textMuted}; cursor:pointer; transition:all .15s; white-space:nowrap; }
-  .bmk-tab:hover:not(.active) { color:${T.textSecondary}; background:rgba(255,255,255,0.04); }
+  .bmk-tab:hover:not(.active) { color:${T.textSecondary}; background:rgba(var(--tl-ink, 255,255,255),0.04); }
   .bmk-tab.active { background:${T.accentGlow}; color:${T.accent}; border:1px solid rgba(59,130,246,0.25); }
   .bmk-meta { display:flex; align-items:center; gap:8px; font-size:10px; color:${T.textMuted};
     font-family:'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; }

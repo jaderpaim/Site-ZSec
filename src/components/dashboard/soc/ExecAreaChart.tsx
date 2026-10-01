@@ -11,11 +11,11 @@ import {
 
 const tooltipStyle = {
   contentStyle: {
-    background: "#0f1724",
-    border: "1px solid rgba(255,255,255,0.1)",
+    background: "var(--tl-0f1724, #0f1724)",
+    border: "1px solid rgba(var(--tl-ink, 255,255,255),0.1)",
     borderRadius: 8,
     fontSize: 12,
-    color: "#e6ebf2",
+    color: "var(--tl-e6ebf2, #e6ebf2)",
     fontFamily: "DM Sans, sans-serif",
     boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
   },
@@ -50,9 +50,9 @@ export function ExecAreaChart({
             <stop offset="100%" stopColor="#0066FF" stopOpacity={0.02} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-        <XAxis dataKey={xKey} tickLine={false} axisLine={false} tick={{ fill: "#e6ebf2", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
-        <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "#e6ebf2", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
+        <CartesianGrid stroke="rgba(var(--tl-ink, 255,255,255),0.04)" vertical={false} />
+        <XAxis dataKey={xKey} tickLine={false} axisLine={false} tick={{ fill: "var(--tl-e6ebf2, #e6ebf2)", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
+        <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "var(--tl-e6ebf2, #e6ebf2)", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
         <Tooltip {...tooltipStyle} />
         {referenceY !== undefined && (
           <ReferenceLine
@@ -69,7 +69,7 @@ export function ExecAreaChart({
           stroke="#00D4FF"
           strokeWidth={2}
           fill={`url(#${gradientId})`}
-          activeDot={{ r: 4, fill: "#00D4FF", stroke: "#0a0d14", strokeWidth: 2 }}
+          activeDot={{ r: 4, fill: "#00D4FF", stroke: "var(--tl-0a0d14, #0a0d14)", strokeWidth: 2 }}
           isAnimationActive
           animationDuration={900}
           animationEasing="ease-out"

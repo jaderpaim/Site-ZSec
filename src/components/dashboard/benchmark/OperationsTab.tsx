@@ -19,11 +19,11 @@ import {
 } from "@/lib/benchmark.functions";
 
 const T = {
-  surface: "#0F1420",
-  border: "#1E2640",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
+  surface: "var(--tl-0f1420, #0F1420)",
+  border: "var(--tl-1e2640, #1E2640)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-64748b, #64748B)",
 };
 
 const num = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));

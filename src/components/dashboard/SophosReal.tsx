@@ -66,11 +66,11 @@ interface DashboardBlock {
 
 // ── Design Tokens ─────────────────────────────────────────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
 
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
@@ -85,16 +85,16 @@ const T = {
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
   cyan: "#22D3EE",
-  neutral: "#6B7280",
+  neutral: "var(--tl-6b7280, #6B7280)",
 
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 // ── Pie chart palette ─────────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ const CSS = `
   .sp-resize-ctrl { display:flex;align-items:center;gap:2px;opacity:0;transition:opacity 0.15s; }
   .sp-block:hover .sp-resize-ctrl { opacity:1; }
   .sp-resize-btn { padding:2px;border:none;background:transparent;color:${T.textMuted};cursor:pointer;border-radius:3px;line-height:0;transition:color 0.15s,background 0.15s; }
-  .sp-resize-btn:hover { color:${T.textPrimary};background:rgba(255,255,255,0.07); }
+  .sp-resize-btn:hover { color:${T.textPrimary};background:rgba(var(--tl-ink, 255,255,255),0.07); }
 
   .sp-block-body { flex:1;padding:16px; }
 
@@ -275,7 +275,7 @@ const CSS = `
     background:${T.surface};border-bottom:1px solid ${T.border};white-space:nowrap;cursor:pointer;
   }
   .sp-table th:hover { color:${T.textSecondary}; }
-  .sp-table td { padding:9px 10px;border-bottom:1px solid rgba(30,38,64,0.4);font-size:12px;color:${T.textPrimary};vertical-align:middle; }
+  .sp-table td { padding:9px 10px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4);font-size:12px;color:${T.textPrimary};vertical-align:middle; }
   .sp-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
   .sp-table tbody tr:last-child td { border-bottom:none; }
   .sp-table .mono { font-family:'IBM Plex Mono',monospace;font-size:11px; }
@@ -1464,8 +1464,8 @@ export function SophosRealDashboard() {
                             {/* Criptografado */}
                             <div
                               style={{
-                                background: `${T.success}12`,
-                                border: `1px solid ${T.success}33`,
+                                background: `color-mix(in srgb, ${T.success} 7%, transparent)`,
+                                border: `1px solid color-mix(in srgb, ${T.success} 20%, transparent)`,
                                 borderRadius: 7,
                                 padding: "10px 12px",
                                 position: "relative",
@@ -1522,7 +1522,7 @@ export function SophosRealDashboard() {
                                 style={{
                                   height: 3,
                                   borderRadius: 2,
-                                  background: `${T.success}30`,
+                                  background: `color-mix(in srgb, ${T.success} 19%, transparent)`,
                                   marginTop: 7,
                                   overflow: "hidden",
                                 }}
@@ -1541,8 +1541,8 @@ export function SophosRealDashboard() {
                             {/* Sem cripto */}
                             <div
                               style={{
-                                background: `${T.danger}12`,
-                                border: `1px solid ${T.danger}33`,
+                                background: `color-mix(in srgb, ${T.danger} 7%, transparent)`,
+                                border: `1px solid color-mix(in srgb, ${T.danger} 20%, transparent)`,
                                 borderRadius: 7,
                                 padding: "10px 12px",
                                 position: "relative",
@@ -1599,7 +1599,7 @@ export function SophosRealDashboard() {
                                 style={{
                                   height: 3,
                                   borderRadius: 2,
-                                  background: `${T.danger}30`,
+                                  background: `color-mix(in srgb, ${T.danger} 19%, transparent)`,
                                   marginTop: 7,
                                   overflow: "hidden",
                                 }}
@@ -1981,7 +1981,7 @@ export function SophosRealDashboard() {
                               className="sp-user-bar"
                               style={{
                                 width: `${pct}%`,
-                                background: `linear-gradient(90deg,${colorByRank}88,${colorByRank})`,
+                                background: `linear-gradient(90deg,color-mix(in srgb, ${colorByRank} 53%, transparent),${colorByRank})`,
                               }}
                             />
                           </div>

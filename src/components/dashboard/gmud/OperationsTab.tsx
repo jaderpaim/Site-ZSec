@@ -22,10 +22,10 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -36,11 +36,11 @@ const T = {
   dangerBg: "rgba(239,68,68,0.10)",
   teal: "#14B8A6",
   orange: "#FB923C",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 const CSS = `
@@ -66,7 +66,7 @@ const CSS = `
   .got-pcount{font-size:11px;color:${T.textMuted};font-family:'IBM Plex Mono',monospace;}
   .got-table{width:100%;border-collapse:collapse;}
   .got-table th{padding:8px 12px;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${T.textMuted};font-family:'IBM Plex Mono',monospace;text-align:left;background:${T.surface};border-bottom:1px solid ${T.border};white-space:nowrap;}
-  .got-table td{padding:10px 12px;border-bottom:1px solid rgba(30,38,64,0.4);font-size:12px;color:${T.textPrimary};vertical-align:middle;}
+  .got-table td{padding:10px 12px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4);font-size:12px;color:${T.textPrimary};vertical-align:middle;}
   .got-table tbody tr{cursor:pointer;transition:background 0.1s;}
   .got-table tbody tr:hover td{background:rgba(59,130,246,0.045);}
   .got-table tbody tr:last-child td{border-bottom:none;}

@@ -16,16 +16,16 @@ import {
 } from "@/lib/sophos-excecoes.functions";
 
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   danger: "#EF4444",
   cyan: "#22D3EE",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textMuted: "#94A3B8",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-94a3b8, #94A3B8)",
 };
 
 const CSS = `
@@ -38,7 +38,7 @@ const CSS = `
   .se-table { width:100%; border-collapse:collapse; }
   .se-table th { padding:9px 14px; font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:${T.textMuted};
     font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .se-table td { padding:11px 14px; border-bottom:1px solid rgba(30,38,64,.4); font-size:13px; color:${T.textPrimary}; vertical-align:middle; }
+  .se-table td { padding:11px 14px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),.4); font-size:13px; color:${T.textPrimary}; vertical-align:middle; }
   .se-table tbody tr:last-child td { border-bottom:none; }
   .se-table tbody tr:hover td { background:rgba(59,130,246,.03); }
   .se-tag { display:inline-flex; align-items:center; padding:2px 8px; border-radius:5px; font-size:10px; font-weight:700;

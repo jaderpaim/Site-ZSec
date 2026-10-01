@@ -40,11 +40,11 @@ import { NaoConformidadeChamadoDialog } from "./nao-conformidade/NaoConformidade
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -57,11 +57,11 @@ const T = {
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
   cyan: "#22D3EE",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 const LICENSED_EPS = 2000;
@@ -137,7 +137,7 @@ const CSS = `
   .nc-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
   .nc-panel:hover .nc-resize-ctrl { opacity:1; }
   .nc-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; display:inline-flex; transition:color 0.15s,background 0.15s; }
-  .nc-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
+  .nc-resize-btn:hover { color:${T.textPrimary}; background:rgba(var(--tl-ink, 255,255,255),0.07); }
 
   .nc-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   @media (max-width:1100px){ .nc-grid-2 { grid-template-columns:1fr; } }
@@ -156,7 +156,7 @@ const CSS = `
   /* ── Ranking bars (RDP, indisp) ── */
   .nc-rank-row { display:flex; align-items:center; gap:11px; padding:6px 0; }
   .nc-rank-name { width:150px; flex-shrink:0; font-size:11px; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .nc-rank-track { flex:1; height:18px; background:rgba(30,38,64,0.5); border-radius:4px; overflow:hidden; min-width:0; position:relative; }
+  .nc-rank-track { flex:1; height:18px; background:rgba(var(--tl-line-rgb, 30,38,64),0.5); border-radius:4px; overflow:hidden; min-width:0; position:relative; }
   .nc-rank-fill { height:100%; border-radius:4px; transition:width 0.6s ease; display:flex; align-items:center; justify-content:flex-end; padding-right:7px; }
   .nc-rank-fill-val { font-size:10px; font-weight:700; color:rgba(255,255,255,0.92); font-family:'IBM Plex Mono',monospace; }
   .nc-rank-val-ext { width:48px; flex-shrink:0; text-align:right; font-size:12px; font-weight:700; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; }
@@ -179,7 +179,7 @@ const CSS = `
   .nc-enc-tile-label { display:flex; align-items:center; gap:6px; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; margin-bottom:8px; }
   .nc-enc-tile-num { font-size:28px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; line-height:1; }
   .nc-enc-tile-sub { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:4px; }
-  .nc-enc-bar { height:18px; border-radius:5px; overflow:hidden; display:flex; background:rgba(30,38,64,0.5); margin-top:12px; position:relative; }
+  .nc-enc-bar { height:18px; border-radius:5px; overflow:hidden; display:flex; background:rgba(var(--tl-line-rgb, 30,38,64),0.5); margin-top:12px; position:relative; }
   .nc-enc-bar-seg { display:flex; align-items:center; padding:0 8px; transition:width 0.6s ease; }
   .nc-enc-bar-val { font-size:10px; font-weight:700; color:rgba(255,255,255,0.95); font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
   .nc-enc-meta { display:flex; justify-content:space-between; margin-top:8px; font-size:10px; color:${T.textSubtle}; font-family:'IBM Plex Mono',monospace; }
@@ -187,7 +187,7 @@ const CSS = `
   /* ── Coverage bar (WSUS) ── */
   .nc-cov-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
   .nc-cov-label { font-size:11px; color:${T.textSecondary}; }
-  .nc-cov-bar { width:100%; height:18px; border-radius:5px; overflow:hidden; display:flex; background:rgba(30,38,64,0.5); }
+  .nc-cov-bar { width:100%; height:18px; border-radius:5px; overflow:hidden; display:flex; background:rgba(var(--tl-line-rgb, 30,38,64),0.5); }
   .nc-cov-seg { display:flex; align-items:center; padding:0 8px; transition:width 0.6s ease; }
   .nc-cov-val { font-size:10px; font-weight:700; color:rgba(255,255,255,0.95); font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
 
@@ -211,7 +211,7 @@ const CSS = `
   .nc-table { width:100%; border-collapse:collapse; }
   .nc-table thead { position:sticky; top:0; z-index:10; }
   .nc-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .nc-table td { padding:10px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
+  .nc-table td { padding:10px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
   .nc-table tbody tr:hover td { background:rgba(59,130,246,0.03); }
   .nc-table tbody tr:last-child td { border-bottom:none; }
   .nc-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
@@ -260,7 +260,7 @@ function RankBars({
                 className="nc-rank-fill"
                 style={{
                   width: `${Math.max(4, pct)}%`,
-                  background: `linear-gradient(90deg,${color}66,${color})`,
+                  background: `linear-gradient(90deg,color-mix(in srgb, ${color} 40%, transparent),${color})`,
                 }}
               >
                 {showInside ? <span className="nc-rank-fill-val">{d.value.toLocaleString("pt-BR")}</span> : null}
@@ -782,7 +782,7 @@ export function NaoConformidadeDashboard() {
                           style={{
                             width: "100%",
                             height: 6,
-                            background: "rgba(30,38,64,0.5)",
+                            background: "rgba(var(--tl-line-rgb, 30,38,64),0.5)",
                             borderRadius: 4,
                             overflow: "hidden",
                           }}

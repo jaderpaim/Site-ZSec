@@ -25,10 +25,10 @@ import {
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -43,11 +43,11 @@ const T = {
   orange: "#FB923C",
   orangeBg: "rgba(251,146,60,0.10)",
   purple: "#A78BFA",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 // ── Status styles ──────────────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ const CSS = `
   /* approvers table */
   .gds-apr-table { width:100%; border-collapse:collapse; }
   .gds-apr-table th { padding:7px 12px; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; }
-  .gds-apr-table td { padding:9px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
+  .gds-apr-table td { padding:9px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
   .gds-apr-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
   .gds-apr-table tbody tr:last-child td { border-bottom:none; }
   .gds-apr-table tbody tr.active-row td { background:rgba(59,130,246,0.06); }

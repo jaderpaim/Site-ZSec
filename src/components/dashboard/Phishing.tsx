@@ -39,10 +39,10 @@ import { CronHealthBadge } from "@/components/dashboard/CronHealthBadge";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -55,14 +55,14 @@ const T = {
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
   cyan: "#22D3EE",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  textSubtle: "#475569",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#334155",
-  chartTick: "#64748B",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-64748b, #64748B)",
+  textSubtle: "var(--tl-475569, #475569)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-334155, #334155)",
+  chartTick: "var(--tl-64748b, #64748B)",
 };
 
 const DEPT_PALETTE = [T.warning, T.danger, T.accent, T.purple, T.cyan, "#FB923C", T.success, "#F472B6"];
@@ -99,7 +99,7 @@ const CSS = `
   /* ── Tabs ── */
   .ph-tabs-bar { display:flex;align-items:center;gap:4px;padding:4px;background:${T.surface};border:1px solid ${T.border};border-radius:8px;width:fit-content; }
   .ph-tab { display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:6px;border:none;background:transparent;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;color:${T.textMuted};cursor:pointer;transition:all 0.15s;white-space:nowrap; }
-  .ph-tab:hover:not(.active) { color:${T.textSecondary};background:rgba(255,255,255,0.04); }
+  .ph-tab:hover:not(.active) { color:${T.textSecondary};background:rgba(var(--tl-ink, 255,255,255),0.04); }
   .ph-tab.active { background:${T.dangerBg};color:${T.danger};border:1px solid rgba(239,68,68,0.25); }
 
   /* ── KPI strip ── */
@@ -127,7 +127,7 @@ const CSS = `
   .ph-resize-ctrl { display:flex;align-items:center;gap:2px;opacity:0;transition:opacity 0.15s; }
   .ph-block:hover .ph-resize-ctrl { opacity:1; }
   .ph-resize-btn { padding:2px;border:none;background:transparent;color:${T.textMuted};cursor:pointer;border-radius:3px;line-height:0;transition:all 0.15s; }
-  .ph-resize-btn:hover { color:${T.textPrimary};background:rgba(255,255,255,0.07); }
+  .ph-resize-btn:hover { color:${T.textPrimary};background:rgba(var(--tl-ink, 255,255,255),0.07); }
   .ph-resize-btn:disabled { opacity:0.25;cursor:default; }
   .ph-block-body { flex:1;padding:16px; }
 
@@ -155,7 +155,7 @@ const CSS = `
   .ph-table thead { position:sticky;top:0;z-index:10; }
   .ph-table th { padding:8px 12px;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${T.textPrimary};font-family:'IBM Plex Mono',monospace;text-align:left;background:${T.surface};border-bottom:1px solid ${T.border};white-space:nowrap;cursor:pointer;user-select:none; }
   .ph-table th:hover { color:${T.textSecondary}; }
-  .ph-table td { padding:9px 12px;border-bottom:1px solid rgba(30,38,64,0.4);font-size:12px;color:${T.textPrimary};vertical-align:middle; }
+  .ph-table td { padding:9px 12px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4);font-size:12px;color:${T.textPrimary};vertical-align:middle; }
   .ph-table tbody tr:hover td { background:rgba(239,68,68,0.03); }
   .ph-table tbody tr:last-child td { border-bottom:none; }
   .ph-table .mono { font-family:'IBM Plex Mono',monospace;font-size:11px; }
@@ -201,20 +201,20 @@ const CSS = `
   .ph-funnel-row { display:flex;align-items:center;gap:10px;margin-bottom:10px; }
   .ph-funnel-row:last-child { margin-bottom:0; }
   .ph-funnel-label { font-size:12px;color:${T.textSecondary};width:130px;flex-shrink:0; }
-  .ph-funnel-track { flex:1;height:18px;background:rgba(30,38,64,0.5);border-radius:4px;overflow:hidden; }
+  .ph-funnel-track { flex:1;height:18px;background:rgba(var(--tl-line-rgb, 30,38,64),0.5);border-radius:4px;overflow:hidden; }
   .ph-funnel-fill  { height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px;transition:width 0.5s ease; }
   .ph-funnel-pct   { font-size:10px;font-weight:700;color:rgba(255,255,255,0.9);font-family:'IBM Plex Mono',monospace;white-space:nowrap; }
   .ph-funnel-count { font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;width:44px;text-align:right;flex-shrink:0; }
 
   /* ── Group drilldown ── */
-  .ph-group-row { display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid rgba(30,38,64,0.4);cursor:pointer;transition:background 0.1s; }
+  .ph-group-row { display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4);cursor:pointer;transition:background 0.1s; }
   .ph-group-row:hover { background:rgba(59,130,246,0.04); }
   .ph-group-row:last-child { border-bottom:none; }
   .ph-group-expand { color:${T.textMuted};flex-shrink:0; }
   .ph-group-name   { font-size:12px;font-weight:600;color:${T.textPrimary};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
   .ph-group-meta   { font-size:11px;font-family:'IBM Plex Mono',monospace;color:${T.textSecondary};flex-shrink:0;display:flex;align-items:center;gap:4px; }
-  .ph-group-body   { background:rgba(30,38,64,0.25);border-bottom:1px solid ${T.border};max-height:200px;overflow-y:auto; }
-  .ph-member-row   { display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid rgba(30,38,64,0.3);font-size:11px; }
+  .ph-group-body   { background:rgba(var(--tl-line-rgb, 30,38,64),0.25);border-bottom:1px solid ${T.border};max-height:200px;overflow-y:auto; }
+  .ph-member-row   { display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.3);font-size:11px; }
   .ph-member-row:last-child { border-bottom:none; }
 
   /* ── Empty ── */
@@ -783,7 +783,7 @@ function DashboardTab({ data, onSync, syncing }: { data: PhishingOverview; onSyn
               <div className="ph-funnel-track">
                 <div
                   className="ph-funnel-fill"
-                  style={{ width: `${pct}%`, background: `linear-gradient(90deg,${color}66,${color})` }}
+                  style={{ width: `${pct}%`, background: `linear-gradient(90deg,color-mix(in srgb, ${color} 40%, transparent),${color})` }}
                 >
                   {pct >= 8 && <span className="ph-funnel-pct">{pct}%</span>}
                 </div>
@@ -922,7 +922,7 @@ function DashboardTab({ data, onSync, syncing }: { data: PhishingOverview; onSyn
                         style={{
                           flex: 1,
                           height: 20,
-                          background: "rgba(30,38,64,0.5)",
+                          background: "rgba(var(--tl-line-rgb, 30,38,64),0.5)",
                           borderRadius: 4,
                           overflow: "hidden",
                         }}
@@ -931,7 +931,7 @@ function DashboardTab({ data, onSync, syncing }: { data: PhishingOverview; onSyn
                           style={{
                             width: `${barPct}%`,
                             height: "100%",
-                            background: `linear-gradient(90deg,${color}55,${color})`,
+                            background: `linear-gradient(90deg,color-mix(in srgb, ${color} 33%, transparent),${color})`,
                             borderRadius: 4,
                             display: "flex",
                             alignItems: "center",
@@ -1010,7 +1010,7 @@ function DashboardTab({ data, onSync, syncing }: { data: PhishingOverview; onSyn
                         style={{
                           flex: 1,
                           height: 20,
-                          background: "rgba(30,38,64,0.5)",
+                          background: "rgba(var(--tl-line-rgb, 30,38,64),0.5)",
                           borderRadius: 4,
                           overflow: "hidden",
                         }}
@@ -1019,7 +1019,7 @@ function DashboardTab({ data, onSync, syncing }: { data: PhishingOverview; onSyn
                           style={{
                             width: `${barPct}%`,
                             height: "100%",
-                            background: `linear-gradient(90deg,${color}55,${color})`,
+                            background: `linear-gradient(90deg,color-mix(in srgb, ${color} 33%, transparent),${color})`,
                             borderRadius: 4,
                             display: "flex",
                             alignItems: "center",

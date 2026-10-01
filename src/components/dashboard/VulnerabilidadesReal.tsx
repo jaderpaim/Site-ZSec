@@ -54,7 +54,6 @@ import {
   ClipboardCheck,
   Maximize2,
   Minimize2,
-  GripHorizontal,
   ShieldAlert,
   Activity,
   TrendingDown,
@@ -81,12 +80,12 @@ import { VulnDetailsSheet } from "./vulnerabilidades/VulnDetailsSheet";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  surfaceHi: "#161C2E",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  surfaceHi: "var(--tl-161c2e, #161C2E)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -99,14 +98,35 @@ const T = {
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
   cyan: "#22D3EE",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
+};
+
+// Tokens da interface v2 (moldura: cabeçalho, filtros, KPIs, tabela, diálogos).
+// Os gráficos (Severidade, Por Status, Evolução Mensal) continuam no T acima, sem mudança.
+const V = {
+  bg: "var(--v2-bg)",
+  surface: "var(--v2-surface)",
+  surface2: "var(--v2-surface-2)",
+  hover: "var(--v2-hover)",
+  line: "var(--v2-line)",
+  lineStrong: "var(--v2-line-strong)",
+  fg: "var(--v2-fg)",
+  fg2: "var(--v2-fg-2)",
+  fg3: "var(--v2-fg-3)",
+  accent: "var(--v2-accent)",
+  accentInk: "var(--v2-accent-ink)",
+  crit: "var(--v2-crit)",
+  med: "var(--v2-med)",
+  ok: "var(--v2-ok)",
+  font: "var(--font-ui)",
+  mono: "var(--font-data)",
 };
 
 const SEV_MAP: Record<string, { color: string; bg: string; border: string }> = {
@@ -124,190 +144,177 @@ const STATUS_MAP: Record<string, { color: string; bg: string; border: string }> 
 const SEV_CHART = { Crítica: T.danger, Alta: T.warning, Média: T.accent, Baixa: T.success };
 const STAT_CHART = { Aberta: T.danger, "Em tratamento": T.warning, Mitigada: T.accent, Fechada: T.success };
 const SLA_DAYS: Record<string, number> = { Crítica: 5, Alta: 8, Média: 30, Baixa: 60 };
+const KPI_FILTER_LABEL: Record<"open" | "treatment" | "mitigated" | "retest" | "discovered", string> = {
+  open: "Status: Abertas",
+  treatment: "Status: Em tratamento",
+  mitigated: "Status: Mitigadas / fechadas",
+  retest: "Em reteste",
+  discovered: "Descobertas no mês",
+};
 
 // ── Inline CSS ─────────────────────────────────────────────────────────────────
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-  .vr { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
+  .vr { font-family:var(--font-ui); color:var(--v2-fg); font-size:14px; }
   .vr * { box-sizing:border-box; }
+  .vr-stack { display:flex; flex-direction:column; gap:20px; }
 
   @keyframes vr-spin    { to{transform:rotate(360deg)} }
   @keyframes vr-fadeup  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-  @keyframes vr-pulse   { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)} 50%{box-shadow:0 0 0 6px rgba(239,68,68,0)} }
   .vr-fadeup { animation:vr-fadeup 0.3s ease forwards; }
   .vr-spin   { animation:vr-spin 0.75s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .vr-fadeup, .vr-spin { animation:none; } }
 
-  .vr ::-webkit-scrollbar       { width:4px; height:4px; }
+  .vr ::-webkit-scrollbar       { width:6px; height:6px; }
   .vr ::-webkit-scrollbar-track { background:transparent; }
-  .vr ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
-  .vr .recharts-cartesian-axis-tick-value { fill:${T.chartTick} !important; font-size:10px; font-family:'IBM Plex Mono',monospace; }
-  .vr .recharts-label { fill:${T.textPrimary} !important; }
-  .vr .recharts-text.recharts-label { fill:${T.textPrimary} !important; }
-  .vr .recharts-legend-item-text { color:${T.textSecondary} !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
+  .vr ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .vr :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
 
-  /* ── Header ── */
-  .vr-hdr {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:12px;
-    padding:16px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-  }
-  .vr-hdr-brand { display:flex; align-items:center; gap:12px; }
-  .vr-hdr-icon  { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:${T.dangerBg}; border:1px solid rgba(239,68,68,0.3); flex-shrink:0; }
-  .vr-hdr-title { font-size:15px; font-weight:700; color:${T.textPrimary}; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em; }
-  .vr-hdr-sub   { font-size:11px; color:${T.textMuted}; margin-top:2px; }
-
-  /* ── Tabs ── */
-  .vr-tabs-bar  { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .vr-tabs-group{ display:flex; align-items:center; gap:4px; padding:4px; background:${T.surface}; border:1px solid ${T.border}; border-radius:8px; }
-  .vr-tab {
-    display:inline-flex; align-items:center; gap:6px; padding:7px 16px; border-radius:6px;
-    border:none; background:transparent; font-size:12px; font-weight:600; font-family:'DM Sans',sans-serif;
-    color:${T.textMuted}; cursor:pointer; transition:all 0.15s; white-space:nowrap; letter-spacing:0.01em;
-  }
-  .vr-tab:hover:not(.active) { color:${T.textSecondary}; background:rgba(255,255,255,0.04); }
-  .vr-tab.active { background:${T.dangerBg}; color:${T.danger}; border:1px solid rgba(239,68,68,0.25); }
-  .vr-tab.ops.active { background:${T.accentSoft}; color:${T.accent}; border:1px solid rgba(59,130,246,0.25); }
-  .vr-pending-badge {
-    display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 4px;
-    border-radius:9px; background:${T.warningBg}; color:${T.warning}; font-size:10px; font-weight:700;
-    font-family:'IBM Plex Mono',monospace; border:1px solid rgba(245,158,11,0.25);
-  }
-
-  /* ── Filter bar ── */
-  .vr-filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:11px 16px; background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; }
-  .vr-filter-sep { font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .vr-filter-btn {
-    padding:5px 12px; border-radius:5px; font-size:11px; font-weight:600; border:1px solid ${T.border};
-    cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; color:${T.textMuted}; background:transparent;
-  }
-  .vr-filter-btn:hover:not(.active) { border-color:${T.borderHi}; color:${T.textSecondary}; }
-  .vr-filter-btn.active-all { background:${T.accentSoft}; border-color:rgba(59,130,246,0.4); color:${T.accent}; }
-
-  /* ── KPI strip ── */
-  .vr-kpi-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; }
-  .vr-kpi {
-    cursor:pointer; 
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:14px 16px; position:relative; overflow:hidden; cursor:pointer;
-    transition:border-color 0.2s, transform 0.15s, box-shadow 0.2s;
-  }
-  .vr-kpi:hover  { border-color:var(--kc,${T.borderHi}); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,0.3); }
-  .vr-kpi.sel    { box-shadow:0 0 0 2px var(--kc,${T.accent}); border-color:var(--kc,${T.accent}); background:color-mix(in srgb,var(--kc,${T.accent}) 8%,${T.surface}); }
-  .vr-kpi.sel .vr-kpi-label { color:var(--kc,${T.textMuted}); }
-  .vr-kpi::before{ content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kc,${T.accent}); }
-  .vr-kpi-icon   { position:absolute; top:10px; right:10px; width:40px; height:40px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:var(--ki-bg,rgba(59,130,246,0.18)); opacity:1; }
-  .vr-kpi-label  { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-bottom:5px; }
-  .vr-kpi-value  { font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; line-height:1; color:var(--kc,${T.textPrimary}); }
-  .vr-kpi-delta  { font-size:10px; font-family:'IBM Plex Mono',monospace; margin-top:5px; }
-  .vr-kpi-hint   { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:2px; }
-
-  /* ── Active filter chip ── */
-  .vr-active-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:5px; background:${T.accentSoft}; border:1px solid rgba(59,130,246,0.25); font-size:11px; color:${T.accent}; font-family:'DM Sans',sans-serif; }
-  .vr-chip-x { background:none; border:none; cursor:pointer; color:${T.textMuted}; display:inline-flex; align-items:center; }
-  .vr-chip-x:hover { color:${T.textPrimary}; }
-
-  /* ── Block card ── */
-  .vr-block {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    display:flex; flex-direction:column; min-height:200px; resize:vertical; overflow:auto;
-    transition:border-color 0.2s;
-  }
-  .vr-block:hover { border-color:${T.borderHi}; }
-  .vr-block-hdr {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:10px 16px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border};
-    cursor:grab; user-select:none; flex-shrink:0; border-radius:10px 10px 0 0;
-  }
-  .vr-block-hdr:active { cursor:grabbing; }
-  .vr-block-title { display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:${T.textPrimary}; text-transform:uppercase; letter-spacing:0.09em; font-family:'IBM Plex Mono',monospace; }
-  .vr-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
-  .vr-block:hover .vr-resize-ctrl { opacity:1; }
-  .vr-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:all 0.15s; }
-  .vr-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
-  .vr-resize-btn:disabled { opacity:0.25; cursor:default; }
-  .vr-block-body { flex:1; padding:16px; }
-
-  /* ── Tooltip ── */
-  .vr-tooltip { background:${T.surface}; border:1px solid ${T.borderHi}; border-radius:8px; padding:10px 14px; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
-  .vr-tooltip-label { font-size:10px; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
+  /* ── Gráficos (inalterado) ── */
+  .vr .recharts-cartesian-axis-tick-value { fill:var(--v2-fg-2) !important; font-size:10px; font-family:'IBM Plex Mono',monospace; }
+  .vr .recharts-label { fill:var(--v2-fg) !important; }
+  .vr .recharts-text.recharts-label { fill:var(--v2-fg) !important; }
+  .vr .recharts-label-list text { fill:var(--v2-fg) !important; }
+  .vr .recharts-cartesian-axis-line { stroke:var(--v2-line-strong) !important; }
+  .vr .recharts-cartesian-grid line { stroke:var(--v2-line) !important; }
+  .vr .recharts-line-dots circle, .vr .recharts-active-dot circle { stroke:var(--v2-surface) !important; }
+  .vr-arc-track { stroke:var(--v2-line); }
+  .vr .recharts-legend-item-text { color:var(--v2-fg-2) !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
+  .vr-tooltip { background:var(--v2-surface); border:1px solid var(--v2-line-strong); border-radius:8px; padding:10px 14px; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
+  .vr-tooltip-label { font-size:10px; font-family:'IBM Plex Mono',monospace; color:var(--v2-fg-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
   .vr-tooltip-row { display:flex; align-items:center; gap:6px; font-size:12px; margin-bottom:3px; }
   .vr-tooltip-dot { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
-  .vr-tooltip-name { color:${T.textSecondary}; font-size:11px; }
-  .vr-tooltip-val { color:${T.textPrimary}; font-weight:700; font-family:'IBM Plex Mono',monospace; margin-left:auto; }
+  .vr-tooltip-name { color:var(--v2-fg-2); font-size:11px; }
+  .vr-tooltip-val { color:var(--v2-fg); font-weight:700; font-family:'IBM Plex Mono',monospace; margin-left:auto; }
+
+  /* ── Cabeçalho da página ── */
+  .vr-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .vr-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; color:var(--v2-fg); }
+  .vr-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
+  .vr-ph-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+  /* ── Controle segmentado ── */
+  .vr-seg { display:inline-flex; padding:3px; gap:2px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:8px; flex-wrap:wrap; }
+  .vr-seg button { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; padding:4px 12px; border-radius:5px; font-size:13px; color:var(--v2-fg-2); cursor:pointer; font-family:inherit; }
+  .vr-seg button:hover { color:var(--v2-fg); }
+  .vr-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); font-weight:500; box-shadow:inset 0 0 0 1px var(--v2-line); }
+  .vr-sw { width:8px; height:8px; border-radius:2px; flex-shrink:0; display:inline-block; }
+  .vr-pending-badge {
+    display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px;
+    border-radius:99px; background:color-mix(in oklch, var(--v2-med) 18%, transparent); color:var(--v2-med);
+    font-size:11px; font-weight:500; font-family:var(--font-data);
+  }
+
+  /* ── Filtros ── */
+  .vr-filters { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .vr-filters-label { font-size:12.5px; color:var(--v2-fg-3); }
+  .vr-chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 8px 0 10px; border-radius:99px; border:0; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-fg); font-size:12.5px; cursor:pointer; font-family:inherit; }
+  .vr-chip svg { color:var(--v2-fg-3); }
+  .vr-chip:hover svg { color:var(--v2-fg); }
+
+  /* ── Faixa de KPIs ── */
+  .vr-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .vr-kpi { position:relative; text-align:left; border:0; background:transparent; padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); cursor:pointer; font-family:inherit; color:inherit; }
+  .vr-kpi:hover { background:var(--v2-hover); }
+  .vr-kpi[aria-pressed="true"] { background:color-mix(in oklch, var(--v2-accent) 14%, transparent); }
+  .vr-kpi[aria-pressed="true"]::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--v2-accent); }
+  .vr-kpi-label { font-size:12.5px; color:var(--v2-fg-2); }
+  .vr-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; color:var(--v2-fg); }
+  .vr-kpi-foot { font-size:12px; color:var(--v2-fg-3); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .vr-delta { font-family:var(--font-data); font-weight:500; font-size:12px; }
+  .vr-delta.bad { color:var(--v2-crit); }
+  .vr-delta.good { color:var(--v2-ok); }
+
+  /* ── Cartões dos gráficos (moldura) ── */
+  .vr-block { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; display:flex; flex-direction:column; min-height:200px; min-width:0; }
+  .vr-block-hdr { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px 4px; flex-shrink:0; }
+  .vr-block-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--v2-fg); }
+  .vr-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
+  .vr-block:hover .vr-resize-ctrl, .vr-resize-ctrl:focus-within { opacity:1; }
+  .vr-resize-btn { width:26px; height:26px; display:grid; place-items:center; border:none; background:transparent; color:var(--v2-fg-3); cursor:pointer; border-radius:5px; }
+  .vr-resize-btn:hover { color:var(--v2-fg); background:var(--v2-hover); }
+  .vr-resize-btn:disabled { opacity:0.3; cursor:default; }
+  .vr-block-body { flex:1; padding:12px 18px 18px; }
+
+  /* ── Barras horizontais (Top responsáveis) ── */
+  .vr-hbars { display:grid; gap:12px; }
+  .vr-hbar { display:grid; gap:5px; }
+  .vr-hbar-top { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--v2-fg); }
+  .vr-hbar-top span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .vr-hbar-top span:last-child { font-family:var(--font-data); font-size:12.5px; font-weight:500; color:var(--v2-fg-2); }
+  .vr-track { position:relative; height:8px; background:var(--v2-surface-2); border-radius:99px; overflow:hidden; }
+  .vr-fill { position:absolute; inset:0 auto 0 0; background:var(--v2-accent); border-radius:99px; }
 
   /* ── Badges ── */
-  .vr-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
+  .vr-badge { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; font-family:var(--font-ui); }
 
-  /* ── Panel / Table ── */
-  .vr-panel { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; overflow:hidden; }
-  .vr-panel-hdr { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:13px 20px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; }
-  .vr-panel-title { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
+  /* ── Painel / tabela ── */
+  .vr-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .vr-panel-hdr { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .vr-panel-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--v2-fg); }
 
-  .vr-table { width:100%; border-collapse:collapse; }
+  .vr-table { width:100%; border-collapse:collapse; font-size:13px; }
   .vr-table thead { position:sticky; top:0; z-index:10; }
-  .vr-table th { padding:8px 10px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; cursor:pointer; transition:color 0.15s; }
-  .vr-table th:hover { color:${T.accent}; }
-  .vr-table td { padding:9px 10px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
-  .vr-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
+  .vr-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; cursor:pointer; user-select:none; }
+  .vr-table th:hover { color:var(--v2-fg); }
+  .vr-table td { padding:8px 12px; height:44px; border-bottom:1px solid var(--v2-line); color:var(--v2-fg); vertical-align:middle; }
+  .vr-table tbody tr:hover td { background:var(--v2-hover); }
   .vr-table tbody tr:last-child td { border-bottom:none; }
-  .vr-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
-  .vr-table .dim  { color:${T.textMuted}; }
+  .vr-table .mono { font-family:var(--font-data); font-size:12.5px; }
+  .vr-table .dim  { color:var(--v2-fg-3); }
 
-  /* ── Search ── */
+  /* ── Prazo (SLA) ── */
+  .vr-sla { display:grid; gap:4px; min-width:110px; }
+  .vr-sla .vr-track { height:4px; }
+  .vr-sla small { font-size:11.5px; color:var(--v2-fg-3); white-space:nowrap; }
+
+  /* ── Busca ── */
   .vr-search-wrap { position:relative; display:inline-flex; align-items:center; }
-  .vr-search-icon { position:absolute; left:9px; pointer-events:none; color:${T.textMuted}; }
-  .vr-search { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:6px; padding:5px 10px 5px 29px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; outline:none; transition:border-color 0.15s; width:220px; }
-  .vr-search:focus { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
-  .vr-search::placeholder { color:${T.textSubtle}; }
+  .vr-search-icon { position:absolute; left:10px; pointer-events:none; color:var(--v2-fg-3); }
+  .vr-search { height:32px; background:var(--v2-bg); border:1px solid var(--v2-line); border-radius:8px; padding:0 10px 0 30px; font-size:13px; font-family:var(--font-ui); color:var(--v2-fg); outline:none; width:260px; max-width:100%; }
+  .vr-search:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .vr-search::placeholder { color:var(--v2-fg-3); }
 
-  /* ── Pagination ── */
-  .vr-pager { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-top:1px solid ${T.border}; }
-  .vr-pager-info { font-size:11px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
+  /* ── Paginação ── */
+  .vr-pager { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:10px 18px; border-top:1px solid var(--v2-line); }
+  .vr-pager-info { font-size:12.5px; color:var(--v2-fg-3); }
   .vr-pager-btns { display:flex; gap:8px; }
-  .vr-pager-btn { padding:5px 14px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid ${T.border}; background:transparent; color:${T.textSecondary}; cursor:pointer; transition:all 0.15s; font-family:'DM Sans',sans-serif; }
-  .vr-pager-btn:hover:not(:disabled) { border-color:${T.borderHi}; color:${T.textPrimary}; background:rgba(255,255,255,0.04); }
-  .vr-pager-btn:disabled { opacity:0.35; cursor:default; }
+  .vr-pager-btn { height:28px; padding:0 12px; border-radius:8px; font-size:12.5px; font-weight:500; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); cursor:pointer; font-family:inherit; }
+  .vr-pager-btn:hover:not(:disabled) { background:var(--v2-hover); border-color:var(--v2-line-strong); }
+  .vr-pager-btn:disabled { opacity:0.4; cursor:default; }
 
-  /* ── Kind tabs ── */
-  .vr-kind-tabs { display:flex; border-bottom:1px solid ${T.border}; background:${T.surfaceAlt}; }
-  .vr-kind-tab {
-    padding:9px 18px; font-size:12px; font-weight:600; border:none; background:transparent;
-    color:${T.textMuted}; cursor:pointer; border-bottom:2px solid transparent;
-    transition:all 0.15s; white-space:nowrap; font-family:'DM Sans',sans-serif;
-  }
-  .vr-kind-tab:hover  { color:${T.textSecondary}; }
-  .vr-kind-tab.active { color:${T.danger}; border-bottom-color:${T.danger}; background:${T.dangerBg}; }
-
-  /* ── Action buttons ── */
-  .vr-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; white-space:nowrap; }
+  /* ── Botões ── */
+  .vr-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); transition:background .15s, border-color .15s; }
   .vr-btn:disabled { opacity:0.45; cursor:not-allowed; }
-  .vr-btn.primary { background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.35); color:${T.accent}; }
-  .vr-btn.primary:hover:not(:disabled) { background:rgba(59,130,246,0.24); }
-  .vr-btn.success { background:${T.successBg}; border:1px solid rgba(16,185,129,0.35); color:${T.success}; }
-  .vr-btn.success:hover:not(:disabled) { background:rgba(16,185,129,0.2); }
-  .vr-btn.danger  { background:${T.dangerBg};  border:1px solid rgba(239,68,68,0.35);  color:${T.danger}; }
-  .vr-btn.danger:hover:not(:disabled)  { background:rgba(239,68,68,0.2); }
-  .vr-btn.ghost   { background:transparent; border:1px solid ${T.border}; color:${T.textSecondary}; }
-  .vr-btn.ghost:hover:not(:disabled)   { border-color:${T.borderHi}; color:${T.textPrimary}; }
+  .vr-btn.sm { height:28px; padding:0 10px; font-size:12.5px; }
+  .vr-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .vr-btn.primary:hover:not(:disabled) { filter:brightness(1.08); }
+  .vr-btn.success { background:color-mix(in oklch, var(--v2-ok) 16%, transparent); border-color:color-mix(in oklch, var(--v2-ok) 40%, transparent); color:var(--v2-ok); }
+  .vr-btn.success:hover:not(:disabled) { background:color-mix(in oklch, var(--v2-ok) 24%, transparent); }
+  .vr-btn.danger  { background:color-mix(in oklch, var(--v2-crit) 16%, transparent); border-color:color-mix(in oklch, var(--v2-crit) 40%, transparent); color:var(--v2-crit); }
+  .vr-btn.danger:hover:not(:disabled)  { background:color-mix(in oklch, var(--v2-crit) 24%, transparent); }
+  .vr-btn.ghost   { background:transparent; border-color:transparent; color:var(--v2-fg-2); }
+  .vr-btn.ghost:hover:not(:disabled)   { background:var(--v2-hover); color:var(--v2-fg); }
 
-  /* ── Empty ── */
-  .vr-empty { padding:40px; text-align:center; color:${T.textMuted}; font-size:13px; font-family:'DM Sans',sans-serif; }
+  /* ── Vazio ── */
+  .vr-empty { padding:40px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
 
-  /* ── Ops panel ── */
-  .vr-ops-empty { display:flex; flex-direction:column; align-items:center; gap:10px; padding:48px; color:${T.textMuted}; font-size:13px; }
-  .vr-ops-icon  { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:${T.successBg}; border:1px solid rgba(16,185,129,0.25); }
+  /* ── Operações ── */
+  .vr-ops-empty { display:flex; flex-direction:column; align-items:center; gap:10px; padding:48px; color:var(--v2-fg-3); font-size:13px; }
+  .vr-ops-icon  { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:color-mix(in oklch, var(--v2-ok) 14%, transparent); }
 
-  /* ── Dialog ── */
-  .vr-dlg-field { display:flex; flex-direction:column; gap:5px; }
-  .vr-dlg-label { font-size:9px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .vr-dlg-input { width:100%; padding:8px 11px; border:1px solid ${T.border}; border-radius:6px; background:${T.surfaceAlt}; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; font-size:12px; outline:none; transition:border-color 0.15s, box-shadow 0.15s; }
-  .vr-dlg-input:focus { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
-  .vr-dlg-input::placeholder { color:${T.textSubtle}; }
-  .vr .vr-dlg textarea { background:${T.surfaceAlt}!important; border-color:${T.border}!important; color:${T.textPrimary}!important; font-family:'DM Sans',sans-serif!important; font-size:13px!important; border-radius:6px!important; }
+  /* ── Diálogos ── */
+  .vr-dlg-field { display:flex; flex-direction:column; gap:6px; }
+  .vr-dlg-label { font-size:12.5px; font-weight:500; color:var(--v2-fg-2); font-family:var(--font-ui); }
+  .vr-dlg-input { width:100%; height:36px; padding:0 12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); color:var(--v2-fg); font-family:var(--font-ui); font-size:13px; outline:none; }
+  .vr-dlg-input:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .vr-dlg-input::placeholder { color:var(--v2-fg-3); }
+  .vr .vr-dlg textarea { background:var(--v2-surface-2)!important; border-color:var(--v2-line)!important; color:var(--v2-fg)!important; font-family:var(--font-ui)!important; font-size:13px!important; border-radius:8px!important; }
 
-  /* ── Restricted ── */
+  /* ── Acesso restrito ── */
   .vr-restricted { display:flex; flex-direction:column; align-items:center; gap:14px; padding:64px 24px; text-align:center; }
-  .vr-restricted-icon { width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; background:${T.dangerBg}; border:1px solid rgba(239,68,68,0.3); }
+  .vr-restricted-icon { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:color-mix(in oklch, var(--v2-crit) 14%, transparent); }
 `;
 
 // ── Back-end helpers — ALL UNCHANGED ──────────────────────────────────────────
@@ -471,6 +478,30 @@ function SlaBadge({ v }: { v: Vuln }) {
   );
 }
 
+// Prazo (SLA) na tabela: barra de consumo do prazo + texto. Mesma regra do slaStatus.
+function SlaCell({ v }: { v: Vuln }) {
+  const s = slaStatus(v);
+  if (s.muted || !v.identified_at) return <span style={{ fontSize: 12.5, color: V.fg3 }}>{s.label}</span>;
+  if (v.severity === "Baixa") return <span style={{ fontSize: 12.5, color: V.fg2 }}>{s.label}</span>;
+  const days = SLA_DAYS[v.severity] ?? 30;
+  const elapsed = Math.max(0, daysBetween(new Date(v.identified_at), new Date()));
+  const pct = Math.min(100, (elapsed / days) * 100);
+  const late = elapsed > days;
+  const color = late ? V.crit : pct > 70 ? V.med : V.ok;
+  const left = days - elapsed;
+  const text = late
+    ? `vencido há ${elapsed - days} ${elapsed - days === 1 ? "dia" : "dias"}`
+    : `${left} ${left === 1 ? "dia restante" : "dias restantes"}`;
+  return (
+    <div className="vr-sla" title={`Prazo de ${days} dias para severidade ${v.severity}`}>
+      <div className="vr-track">
+        <div className="vr-fill" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <small>{text}</small>
+    </div>
+  );
+}
+
 // ── Tooltip ────────────────────────────────────────────────────────────────────
 function ExecTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -491,6 +522,12 @@ function ExecTooltip({ active, payload, label }: any) {
 // ── Resizable block ────────────────────────────────────────────────────────────
 const COL_SIZES = ["col-span-1", "col-span-2", "col-span-3"] as const;
 type ColSize = (typeof COL_SIZES)[number];
+// No mobile o grid tem 1 coluna; o tamanho escolhido só vale a partir de lg.
+const LG_COL: Record<ColSize, string> = {
+  "col-span-1": "lg:col-span-1",
+  "col-span-2": "lg:col-span-2",
+  "col-span-3": "lg:col-span-3",
+};
 function Block({
   title,
   children,
@@ -504,26 +541,29 @@ function Block({
 }) {
   const [size, setSize] = React.useState<ColSize>(defaultSize);
   return (
-    <div className={`${size} vr-block`} style={{ minHeight: chartHeight + 52 }}>
+    <div className={`${LG_COL[size]} vr-block`} style={{ minHeight: chartHeight + 52 }}>
       <div className="vr-block-hdr">
         <div className="vr-block-title">
-          <GripHorizontal size={11} color={T.textMuted} />
           <span>{title}</span>
         </div>
         <div className="vr-resize-ctrl">
           <button
             className="vr-resize-btn"
+            aria-label="Diminuir cartão"
+            title="Diminuir"
             disabled={size === COL_SIZES[0]}
             onClick={() => setSize(COL_SIZES[Math.max(0, COL_SIZES.indexOf(size) - 1)])}
           >
-            <Minimize2 size={11} />
+            <Minimize2 size={13} />
           </button>
           <button
             className="vr-resize-btn"
+            aria-label="Aumentar cartão"
+            title="Aumentar"
             disabled={size === COL_SIZES[2]}
             onClick={() => setSize(COL_SIZES[Math.min(2, COL_SIZES.indexOf(size) + 1)])}
           >
-            <Maximize2 size={11} />
+            <Maximize2 size={13} />
           </button>
         </div>
       </div>
@@ -1339,7 +1379,7 @@ export function VulnerabilidadesRealDashboard() {
           justifyContent: "center",
           padding: "64px 0",
           gap: 8,
-          color: T.textMuted,
+          color: V.fg3,
           fontSize: 13,
           fontFamily: "'IBM Plex Mono',monospace",
         }}
@@ -1359,11 +1399,11 @@ export function VulnerabilidadesRealDashboard() {
             <Lock size={22} color={T.danger} />
           </div>
           <div
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+            style={{ fontFamily: V.font, fontSize: 15, fontWeight: 700, color: V.fg }}
           >
             Acesso restrito
           </div>
-          <div style={{ fontSize: 13, color: T.textMuted, maxWidth: 440, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13, color: V.fg3, maxWidth: 440, lineHeight: 1.6 }}>
             Seu usuário não possui departamento vinculado. Solicite ao administrador a associação a um departamento para
             visualizar vulnerabilidades.
           </div>
@@ -1373,268 +1413,150 @@ export function VulnerabilidadesRealDashboard() {
 
   const pendingItems = (vulns ?? []).filter((v) => v.pending_approval === true);
 
+  // ── KPIs (mesmos números de antes, agora no formato da faixa da interface v2) ──
+  const lastMonthCard = byMonthCards[byMonthCards.length - 1];
+  const prevMonthCard = byMonthCards[byMonthCards.length - 2];
+  const kpiDelta = (last: number, prev: number, prevMonth: string | undefined) => {
+    if (!prevMonth) return null;
+    const diff = last - prev;
+    const pct = prev > 0 ? Math.round(Math.abs(diff / prev) * 100) : null;
+    return (
+      <>
+        {pct !== null && diff !== 0 && (
+          <span className={`vr-delta ${diff > 0 ? "bad" : "good"}`}>
+            {diff > 0 ? "▲" : "▼"} {pct}%
+          </span>
+        )}
+        <span>
+          {prev.toLocaleString("pt-BR")} em {monthLabel(prevMonth)}
+        </span>
+      </>
+    );
+  };
+  const kpiItems: Array<{ key: typeof kpiFilter; label: string; value: number; title: string; foot?: React.ReactNode }> =
+    [
+      { key: "all", label: "Total", value: total, title: "Ver todas as vulnerabilidades" },
+      {
+        key: "open",
+        label: "Abertas",
+        value: open,
+        title: "Filtrar por abertas",
+        foot: kpiDelta(lastMonthCard?.abertas ?? 0, prevMonthCard?.abertas ?? 0, prevMonthCard?.m),
+      },
+      { key: "treatment", label: "Em tratamento", value: emTratamento, title: "Filtrar por em tratamento" },
+      { key: "mitigated", label: "Mitigadas / fechadas", value: mitigated, title: "Filtrar por mitigadas e fechadas" },
+      { key: "retest", label: "Em reteste", value: emRetest, title: "Filtrar por aguardando aprovação de reteste" },
+      {
+        key: "discovered",
+        label: "Descobertas no mês",
+        value: lastMonthCard?.descobertas ?? 0,
+        title: "Filtrar pelas descobertas do mês mais recente",
+        foot: kpiDelta(lastMonthCard?.descobertas ?? 0, prevMonthCard?.descobertas ?? 0, prevMonthCard?.m),
+      },
+    ];
+
   return (
-    <div className="vr" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="vr vr-stack">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Page header ──────────────────────────────────────────────── */}
-      <div className="vr-hdr">
-        <div className="vr-hdr-brand">
-          <div className="vr-hdr-icon">
-            <ShieldAlert size={18} color={T.danger} />
-          </div>
-          <div>
-            <div className="vr-hdr-title">Gestão de Vulnerabilidades</div>
-            <div className="vr-hdr-sub">
-              Monitoramento e tratamento — {kindFilter === "aplicacao" ? "Aplicações / FQDN" : "Internas"}
+      {/* ── Cabeçalho da página ─────────────────────────────────────── */}
+      <div className="vr-ph">
+        <div>
+          <h1 className="vr-ph-title">Gestão de Vulnerabilidades</h1>
+          <p className="vr-ph-sub">
+            Monitoramento e tratamento · {kindFilter === "aplicacao" ? "Externas / FQDN" : "Internas"}
+          </p>
+        </div>
+        <div className="vr-ph-actions">
+          {activeTab === "dashboard" && (
+            <div className="vr-seg" role="group" aria-label="Tipo de vulnerabilidade">
+              {(["aplicacao", "infraestrutura"] as const).map((k) => (
+                <button key={k} type="button" aria-pressed={kindFilter === k} onClick={() => setKindFilter(k)}>
+                  {k === "aplicacao" ? "Externas / FQDN" : "Internas"}
+                </button>
+              ))}
             </div>
-          </div>
-        </div>
-        {/* Summary pills */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {[
-            {
-              label: `${filtered.filter((v) => v.severity === "Crítica").length} Críticas`,
-              color: T.danger,
-              bg: T.dangerBg,
-              border: "rgba(239,68,68,0.25)",
-            },
-            { label: `${open} Abertas`, color: T.warning, bg: T.warningBg, border: "rgba(245,158,11,0.25)" },
-            { label: `${total} Total`, color: T.textMuted, bg: "rgba(107,114,128,0.08)", border: T.border },
-          ].map(({ label, color, bg, border }) => (
-            <span
-              key={label}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "4px 10px",
-                borderRadius: 5,
-                background: bg,
-                border: `1px solid ${border}`,
-                fontSize: 11,
-                fontFamily: "'IBM Plex Mono',monospace",
-                color,
-                fontWeight: 700,
-              }}
-            >
-              {label}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Tabs bar ─────────────────────────────────────────────────── */}
-      <div className="vr-tabs-bar">
-        <div className="vr-tabs-group">
-          <button
-            className={`vr-tab${activeTab === "dashboard" ? " active" : ""}`}
-            onClick={() => setActiveTab("dashboard")}
-          >
-            <LayoutDashboard size={13} /> Dashboard
-          </button>
+          )}
           {isVulnAdmin && (
-            <button
-              className={`vr-tab ops${activeTab === "operacoes" ? " active" : ""}`}
-              onClick={() => setActiveTab("operacoes")}
-            >
-              <Settings2 size={13} /> Operações
-              {pendingItems.length > 0 && <span className="vr-pending-badge">{pendingItems.length}</span>}
-            </button>
+            <div className="vr-seg" role="group" aria-label="Visão">
+              <button type="button" aria-pressed={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")}>
+                <LayoutDashboard size={14} /> Dashboard
+              </button>
+              <button type="button" aria-pressed={activeTab === "operacoes"} onClick={() => setActiveTab("operacoes")}>
+                <Settings2 size={14} /> Operações
+                {pendingItems.length > 0 && <span className="vr-pending-badge">{pendingItems.length}</span>}
+              </button>
+            </div>
           )}
         </div>
       </div>
 
       {/* ══ DASHBOARD TAB ════════════════════════════════════════════════ */}
       {activeTab === "dashboard" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }} className="vr-fadeup">
-          {/* ── Filter bar ───────────────────────────────────────────── */}
-          <div className="vr-filter-bar">
-            <span className="vr-filter-sep">Tipo</span>
-            {(["aplicacao", "infraestrutura"] as const).map((k) => (
+        <div className="vr-stack vr-fadeup">
+          {/* ── Faixa de KPIs (clique filtra gráficos e tabela) ─────────── */}
+          <div className="vr-kpis">
+            {kpiItems.map((k) => (
               <button
-                key={k}
-                className={`vr-filter-btn${kindFilter === k ? " active-all" : ""}`}
-                style={
-                  kindFilter === k
-                    ? { background: T.dangerBg, borderColor: "rgba(239,68,68,0.35)", color: T.danger }
-                    : {}
-                }
-                onClick={() => setKindFilter(k)}
+                key={k.key}
+                type="button"
+                className="vr-kpi"
+                aria-pressed={kpiFilter === k.key}
+                title={k.title}
+                onClick={() => setKpiFilter(k.key === "all" || kpiFilter === k.key ? "all" : k.key)}
               >
-                {k === "aplicacao" ? "Aplicação" : "Internas"}
+                <span className="vr-kpi-label">{k.label}</span>
+                <span className="vr-kpi-value">{k.value.toLocaleString("pt-BR")}</span>
+                {k.foot && <span className="vr-kpi-foot">{k.foot}</span>}
               </button>
             ))}
-            <div style={{ width: 1, height: 18, background: T.border, margin: "0 4px" }} />
-            <span className="vr-filter-sep">Severidade</span>
-            <button
-              className={`vr-filter-btn${sevFilter === "all" ? " active-all" : ""}`}
-              onClick={() => setSevFilter("all")}
-            >
-              Todas
-            </button>
-            {SEVS.map((s) => {
-              const m = SEV_MAP[s];
-              return (
+          </div>
+
+          {/* ── Filtros: severidade + filtro ativo do KPI ───────────────── */}
+          <div className="vr-filters">
+            <span className="vr-filters-label">Severidade</span>
+            <div className="vr-seg" role="group" aria-label="Filtrar por severidade">
+              <button type="button" aria-pressed={sevFilter === "all"} onClick={() => setSevFilter("all")}>
+                Todas
+              </button>
+              {SEVS.map((sv) => (
                 <button
-                  key={s}
-                  className={`vr-filter-btn${sevFilter === s ? " active-all" : ""}`}
-                  style={sevFilter === s ? { background: m.bg, borderColor: m.border, color: m.color } : {}}
-                  onClick={() => setSevFilter(s === sevFilter ? "all" : s)}
+                  key={sv}
+                  type="button"
+                  aria-pressed={sevFilter === sv}
+                  onClick={() => setSevFilter(sv === sevFilter ? "all" : sv)}
                 >
-                  {s}
+                  <span className="vr-sw" style={{ background: SEV_MAP[sv].color }} />
+                  {sv}
                 </button>
-              );
-            })}
+              ))}
+            </div>
+            {kpiFilter !== "all" && (
+              <button type="button" className="vr-chip" onClick={() => setKpiFilter("all")}>
+                {KPI_FILTER_LABEL[kpiFilter]}
+                <X size={14} aria-label="Remover filtro" />
+              </button>
+            )}
+            {(kpiFilter !== "all" || sevFilter !== "all") && (
+              <button
+                type="button"
+                className="vr-btn ghost sm"
+                onClick={() => {
+                  setKpiFilter("all");
+                  setSevFilter("all");
+                }}
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
-
-          {/* ── KPI strip ────────────────────────────────────────────── */}
-          <div className="vr-kpi-grid">
-            <div
-              className={`vr-kpi${kpiFilter === "all" ? " sel" : ""}`}
-              style={{ "--kc": T.accent } as React.CSSProperties}
-              onClick={() => setKpiFilter("all")}
-              title="Ver todas as vulnerabilidades"
-            >
-              <div className="vr-kpi-icon" style={{ "--ki-bg": "rgba(59,130,246,0.18)" } as React.CSSProperties}>
-                <BarChart2 size={22} color={T.accent} />
-              </div>
-              <div className="vr-kpi-label">Total</div>
-              <div className="vr-kpi-value">{total}</div>
-            </div>
-            {(() => {
-              const lastMonthA = byMonthCards[byMonthCards.length - 1];
-              const prevMonthA = byMonthCards[byMonthCards.length - 2];
-              const lastAbertas = lastMonthA?.abertas ?? 0;
-              const prevAbertas = prevMonthA?.abertas ?? 0;
-              const diffA = lastAbertas - prevAbertas;
-              const pctA = prevAbertas > 0 ? Math.round(Math.abs(diffA / prevAbertas) * 100) : null;
-              const upA = diffA > 0;
-              return (
-                <div
-                  className={`vr-kpi${kpiFilter === "open" ? " sel" : ""}`}
-                  style={{ "--kc": T.warning } as React.CSSProperties}
-                  onClick={() => setKpiFilter(kpiFilter === "open" ? "all" : "open")}
-                  title="Clique para filtrar por Abertas"
-                >
-                  <div className="vr-kpi-icon" style={{ "--ki-bg": "rgba(245,158,11,0.2)" } as React.CSSProperties}>
-                    <AlertTriangle size={22} color={T.warning} />
-                  </div>
-                  <div className="vr-kpi-label">Abertas</div>
-                  <div className="vr-kpi-value">{open}</div>
-                  {pctA !== null && (
-                    <div className="vr-kpi-delta" style={{ color: upA ? T.danger : T.success }}>
-                      {upA ? "▲" : "▼"} {pctA}% último mês
-                    </div>
-                  )}
-                  {prevMonthA && (
-                    <div className="vr-kpi-hint">
-                      {prevAbertas} em {prevMonthA.m}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-            <div
-              className={`vr-kpi${kpiFilter === "treatment" ? " sel" : ""}`}
-              style={{ "--kc": T.cyan } as React.CSSProperties}
-              onClick={() => setKpiFilter(kpiFilter === "treatment" ? "all" : "treatment")}
-              title="Clique para filtrar por Em Tratamento"
-            >
-              <div className="vr-kpi-icon" style={{ "--ki-bg": "rgba(34,211,238,0.18)" } as React.CSSProperties}>
-                <Wrench size={22} color={T.cyan} />
-              </div>
-              <div className="vr-kpi-label">Em Tratamento</div>
-              <div className="vr-kpi-value">{emTratamento}</div>
-            </div>
-            <div
-              className={`vr-kpi${kpiFilter === "mitigated" ? " sel" : ""}`}
-              style={{ "--kc": T.success } as React.CSSProperties}
-              onClick={() => setKpiFilter(kpiFilter === "mitigated" ? "all" : "mitigated")}
-              title="Clique para filtrar por Mitigadas / Fechadas"
-            >
-              <div className="vr-kpi-icon" style={{ "--ki-bg": "rgba(16,185,129,0.18)" } as React.CSSProperties}>
-                <CheckCircle2 size={22} color={T.success} />
-              </div>
-              <div className="vr-kpi-label">Mitigadas / Fechadas</div>
-              <div className="vr-kpi-value">{mitigated}</div>
-            </div>
-            <div
-              className={`vr-kpi${kpiFilter === "retest" ? " sel" : ""}`}
-              style={{ "--kc": T.danger } as React.CSSProperties}
-              onClick={() => setKpiFilter(kpiFilter === "retest" ? "all" : "retest")}
-              title="Clique para filtrar por Em Retest"
-            >
-              <div className="vr-kpi-icon" style={{ "--ki-bg": "rgba(239,68,68,0.18)" } as React.CSSProperties}>
-                <Activity size={22} color={T.danger} />
-              </div>
-              <div className="vr-kpi-label">Em Retest</div>
-              <div className="vr-kpi-value">{emRetest}</div>
-            </div>
-            {(() => {
-              const lastMonth = byMonthCards[byMonthCards.length - 1];
-              const prevMonth = byMonthCards[byMonthCards.length - 2];
-              const lastCount = lastMonth?.descobertas ?? 0;
-              const prevCount = prevMonth?.descobertas ?? 0;
-              const diff = lastCount - prevCount;
-              const pct = prevCount > 0 ? Math.round(Math.abs(diff / prevCount) * 100) : null;
-              const up = diff > 0;
-              return (
-                <div
-                  className={`vr-kpi${kpiFilter === "discovered" ? " sel" : ""}`}
-                  style={{ "--kc": T.accent } as React.CSSProperties}
-                  onClick={() => setKpiFilter(kpiFilter === "discovered" ? "all" : "discovered")}
-                  title="Clique para filtrar por Descobertas (mês mais recente)"
-                >
-                  <div className="vr-kpi-icon" style={{ "--ki-bg": "rgba(59,130,246,0.18)" } as React.CSSProperties}>
-                    <TrendingDown size={22} color={T.accent} />
-                  </div>
-                  <div className="vr-kpi-label">Descobertas</div>
-                  <div className="vr-kpi-value">{lastCount}</div>
-                  {pct !== null && (
-                    <div className="vr-kpi-delta" style={{ color: up ? T.danger : T.success }}>
-                      {up ? "▲" : "▼"} {pct}% último mês
-                    </div>
-                  )}
-                  {prevMonth && (
-                    <div className="vr-kpi-hint">
-                      {prevCount} em {prevMonth.m}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Active filter chip */}
-          {kpiFilter !== "all" && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
-                Filtro ativo:
-              </span>
-              <span className="vr-active-chip">
-                {kpiFilter === "open"
-                  ? "Filtro: Abertas"
-                  : kpiFilter === "treatment"
-                    ? "Filtro: Em Tratamento"
-                    : kpiFilter === "mitigated"
-                      ? "Filtro: Mitigadas / Fechadas"
-                      : kpiFilter === "discovered"
-                        ? "Filtro: Descobertas"
-                        : "Filtro: Em Retest"}
-                <button className="vr-chip-x" onClick={() => setKpiFilter("all")}>
-                  <XCircle size={12} />
-                </button>
-              </span>
-            </div>
-          )}
 
           {/* ── Charts grid ──────────────────────────────────────────── */}
-          <div className="grid grid-cols-3 gap-4" style={{ gridAutoFlow: "row dense" }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5" style={{ gridAutoFlow: "row dense" }}>
             {/* ── Severidade: arcos radiais ── */}
-            <div className="col-span-1 vr-block" style={{ minHeight: 260 }}>
+            <div className="lg:col-span-1 vr-block" style={{ minHeight: 260 }}>
               <div className="vr-block-hdr">
                 <div className="vr-block-title">
-                  <GripHorizontal size={11} color={T.textMuted} />
                   <span>Severidade</span>
                 </div>
               </div>
@@ -1668,6 +1590,7 @@ export function VulnerabilidadesRealDashboard() {
                       >
                         <svg width="108" height="62" viewBox="0 0 108 62" fill="none">
                           <path
+                            className="vr-arc-track"
                             d="M10,56 A44,44 0 0,1 98,56"
                             stroke={T.border}
                             strokeWidth={isActive ? 9 : 7}
@@ -1680,7 +1603,7 @@ export function VulnerabilidadesRealDashboard() {
                             strokeLinecap="round"
                             strokeDasharray={circ}
                             strokeDashoffset={offset}
-                            style={{ filter: isActive ? `drop-shadow(0 0 6px ${s.fill}99)` : "none" }}
+                            style={{ filter: isActive ? `drop-shadow(0 0 6px color-mix(in srgb, ${s.fill} 60%, transparent))` : "none" }}
                           />
                         </svg>
                         <span
@@ -1698,7 +1621,7 @@ export function VulnerabilidadesRealDashboard() {
                         <span
                           style={{
                             fontSize: 11,
-                            color: T.textPrimary,
+                            color: V.fg,
                             fontFamily: "'IBM Plex Mono',monospace",
                             letterSpacing: "0.04em",
                           }}
@@ -1713,11 +1636,10 @@ export function VulnerabilidadesRealDashboard() {
             </div>
 
             {/* ── Por Status: barras horizontais ── */}
-            <div className="col-span-1 vr-block" style={{ minHeight: 260 }}>
+            <div className="lg:col-span-1 vr-block" style={{ minHeight: 260 }}>
               <div className="vr-block-hdr">
                 <div className="vr-block-title">
-                  <GripHorizontal size={11} color={T.textMuted} />
-                  <span>Por Status</span>
+                  <span>Por status</span>
                 </div>
               </div>
               <div
@@ -1747,7 +1669,7 @@ export function VulnerabilidadesRealDashboard() {
                             <span
                               style={{
                                 fontSize: 12,
-                                color: T.textPrimary,
+                                color: V.fg,
                                 fontFamily: "'DM Sans',sans-serif",
                                 fontWeight: 500,
                               }}
@@ -1775,7 +1697,7 @@ export function VulnerabilidadesRealDashboard() {
                                 fontSize: 14,
                                 fontWeight: 700,
                                 fontFamily: "'Space Grotesk',sans-serif",
-                                color: T.textPrimary,
+                                color: V.fg,
                                 minWidth: 28,
                                 textAlign: "right",
                               }}
@@ -1787,10 +1709,10 @@ export function VulnerabilidadesRealDashboard() {
                         <div
                           style={{
                             height: 8,
-                            background: T.surfaceAlt,
+                            background: V.surface2,
                             borderRadius: 4,
                             overflow: "hidden",
-                            border: `1px solid ${T.border}`,
+                            border: `1px solid ${V.line}`,
                           }}
                         >
                           <div
@@ -1798,7 +1720,7 @@ export function VulnerabilidadesRealDashboard() {
                               width: `${barPct}%`,
                               height: "100%",
                               borderRadius: 4,
-                              background: `linear-gradient(90deg,${s.fill}88,${s.fill})`,
+                              background: `linear-gradient(90deg,color-mix(in srgb, ${s.fill} 53%, transparent),${s.fill})`,
                               transition: "width 0.5s ease",
                             }}
                           />
@@ -1810,49 +1732,47 @@ export function VulnerabilidadesRealDashboard() {
               </div>
             </div>
 
-            <Block title="Top Responsáveis" chartHeight={260}>
-              <BarChart data={byResp} layout="vertical" margin={{ top: 6, right: 36, left: 6, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="vrBarGrad" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor={T.accent} stopOpacity={0.4} />
-                    <stop offset="100%" stopColor={T.accent} stopOpacity={1} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} horizontal={false} />
-                <XAxis type="number" {...axisProps} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  stroke={T.chartAxis}
-                  fontSize={10}
-                  width={110}
-                  tick={{ fill: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip content={<ExecTooltip />} cursor={{ fill: "rgba(59,130,246,0.05)" }} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} fill="url(#vrBarGrad)">
-                  <LabelList
-                    dataKey="value"
-                    position="right"
-                    fill={T.textPrimary}
-                    fontSize={11}
-                    fontFamily="'IBM Plex Mono',monospace"
-                  />
-                </Bar>
-              </BarChart>
-            </Block>
+            {/* ── Top responsáveis: barras horizontais (interface v2) ── */}
+            <div className="lg:col-span-1 vr-block" style={{ minHeight: 260 }}>
+              <div className="vr-block-hdr">
+                <div className="vr-block-title">
+                  <span>Top responsáveis</span>
+                </div>
+              </div>
+              <div className="vr-block-body">
+                {byResp.length === 0 ? (
+                  <div className="vr-empty">Nenhum responsável no filtro atual.</div>
+                ) : (
+                  <div className="vr-hbars">
+                    {byResp.map((r) => {
+                      const maxResp = byResp[0]?.value || 1;
+                      return (
+                        <div key={r.name} className="vr-hbar" title={`${r.name}: ${r.value}`}>
+                          <div className="vr-hbar-top">
+                            <span>{r.name}</span>
+                            <span>{r.value}</span>
+                          </div>
+                          <div className="vr-track">
+                            <div className="vr-fill" style={{ width: `${(r.value / maxResp) * 100}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Block title="Evolução Mensal" chartHeight={300} defaultSize="col-span-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <Block title="Evolução mensal" chartHeight={300} defaultSize="col-span-3">
               <LineChart data={byMonth} margin={{ top: 16, right: 20, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} vertical={false} />
                 <XAxis dataKey="m" {...axisProps} />
                 <YAxis {...axisProps} axisLine={false} />
                 <Tooltip content={<ExecTooltip />} cursor={{ stroke: T.borderHi, strokeWidth: 1 }} />
                 <Legend
-                  wrapperStyle={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: T.textPrimary }}
+                  wrapperStyle={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: V.fg2 }}
                 />
                 {[
                   { key: "descobertas", name: "Descobertas", color: T.warning },
@@ -1884,19 +1804,8 @@ export function VulnerabilidadesRealDashboard() {
             </Block>
           </div>
 
-          {/* ── Kind tabs + detail table ──────────────────────────────── */}
+          {/* ── Tabela de detalhe ─────────────────────────────────────── */}
           <div className="vr-panel">
-            <div className="vr-kind-tabs">
-              {(["aplicacao", "infraestrutura"] as const).map((k) => (
-                <button
-                  key={k}
-                  className={`vr-kind-tab${kindFilter === k ? " active" : ""}`}
-                  onClick={() => setKindFilter(k)}
-                >
-                  {k === "aplicacao" ? "Externas / FQDN" : "Internas"}
-                </button>
-              ))}
-            </div>
             <DetailTable
               kind={kindFilter}
               rows={dedupedFilteredByKpi.filter((v) => (v.kind ?? "aplicacao") === kindFilter)}
@@ -1923,7 +1832,7 @@ export function VulnerabilidadesRealDashboard() {
 
       {/* ══ OPERAÇÕES TAB ════════════════════════════════════════════════ */}
       {activeTab === "operacoes" && isVulnAdmin && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }} className="vr-fadeup">
+        <div className="vr-stack vr-fadeup">
           <OperacoesPanel
             kind="aplicacao"
             rows={pendingItems.filter((v) => (v.kind ?? "aplicacao") === "aplicacao")}
@@ -2004,9 +1913,9 @@ function ExportControl({
 
   // Admin: pop-up para escolher escopo (todos ou um departamento) + formato
   const selectStyle = {
-    background: T.surfaceAlt,
-    borderColor: T.border,
-    color: T.textPrimary,
+    background: V.surface2,
+    borderColor: V.line,
+    color: V.fg,
     fontFamily: "'IBM Plex Mono',monospace",
     fontSize: 12,
   };
@@ -2019,26 +1928,24 @@ function ExportControl({
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12, maxWidth: 440 }}
+          style={{ background: V.surface, border: `1px solid ${V.lineStrong}`, borderRadius: 12, maxWidth: 440 }}
         >
           <DialogHeader>
             <DialogTitle
-              style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+              style={{ fontFamily: V.font, fontSize: 15, fontWeight: 700, color: V.fg }}
             >
               Exportar vulnerabilidades
             </DialogTitle>
-            <DialogDescription style={{ fontSize: 12, color: T.textMuted }}>
+            <DialogDescription style={{ fontSize: 12, color: V.fg3 }}>
               Escolha o escopo e o formato. As Externas/FQDN e Internas saem em abas separadas no Excel.
             </DialogDescription>
           </DialogHeader>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 0" }}>
             <span
               style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                color: T.textMuted,
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: V.fg3,
                 fontFamily: "'IBM Plex Mono',monospace",
               }}
             >
@@ -2237,20 +2144,20 @@ function DetailTable({
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   function SIcon({ k }: { k: SortKey }) {
-    if (sort.key !== k) return <ArrowUpDown size={9} style={{ display: "inline", marginLeft: 3, opacity: 0.4 }} />;
+    if (sort.key !== k) return <ArrowUpDown size={12} style={{ display: "inline", marginLeft: 4, opacity: 0.4 }} />;
     return sort.dir === "asc" ? (
-      <ArrowUp size={9} style={{ display: "inline", marginLeft: 3, color: T.accent }} />
+      <ArrowUp size={12} style={{ display: "inline", marginLeft: 4, color: V.accent }} />
     ) : (
-      <ArrowDown size={9} style={{ display: "inline", marginLeft: 3, color: T.accent }} />
+      <ArrowDown size={12} style={{ display: "inline", marginLeft: 4, color: V.accent }} />
     );
   }
 
   const selectStyle = {
-    background: T.surfaceAlt,
-    borderColor: T.border,
-    color: T.textPrimary,
-    fontFamily: "'IBM Plex Mono',monospace",
-    fontSize: 11,
+    background: V.surface,
+    borderColor: V.line,
+    color: V.fg,
+    fontFamily: V.font,
+    fontSize: 12.5,
   };
 
   return (
@@ -2258,12 +2165,13 @@ function DetailTable({
       <div className="vr-panel-hdr">
         <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <div className="vr-panel-title">
-            <ShieldAlert size={11} color={T.danger} />
-            {kind === "aplicacao" ? "Aplicação" : "Internas"}
-            <span style={{ fontWeight: 400, color: T.textSubtle }}>({processed.length} registros)</span>
+            {kind === "aplicacao" ? "Externas / FQDN" : "Internas"}
+            <span style={{ fontWeight: 400, fontSize: 13, color: V.fg3 }}>
+              {processed.length.toLocaleString("pt-BR")} {processed.length === 1 ? "registro" : "registros"}
+            </span>
           </div>
           <div className="vr-search-wrap">
-            <Search size={12} className="vr-search-icon" />
+            <Search size={14} className="vr-search-icon" />
             <input
               className="vr-search"
               placeholder="Buscar host ou resumo…"
@@ -2288,8 +2196,8 @@ function DetailTable({
                   ["severity", "Severidade"],
                   ["status", "Status"],
                   ["responsible", "Responsável"],
-                  ["age", "AGE"],
-                  ["sla", "SLA"],
+                  ["age", "Idade"],
+                  ["sla", "Prazo (SLA)"],
                   ["source", "Origem"],
                   ["identified_at", "Data"],
                 ] as Array<[SortKey, string]>
@@ -2307,7 +2215,7 @@ function DetailTable({
               const staleMonths = staleInfraMonths?.get(v.id);
               return (
                 <tr key={v.id} style={{ cursor: "pointer" }} onClick={() => setSelectedVuln(v)}>
-                  <td className="mono" style={{ paddingLeft: 18, color: T.textPrimary, fontWeight: 500 }}>
+                  <td className="mono" style={{ paddingLeft: 18, color: V.fg, fontWeight: 500 }}>
                     {v.fqdn}
                     {staleMonths && (
                       <div style={{ marginTop: 3 }}>
@@ -2391,10 +2299,9 @@ function DetailTable({
                       // Dept vem do módulo de Aplicações pelo FQDN — somente leitura
                       const fqdnKey = v.fqdn?.toLowerCase() ?? "";
                       const appDeptId = fqdnKey ? fqdnDeptMap.get(fqdnKey) : undefined;
-                      const mapSize = fqdnDeptMap.size;
                       const deptLabel = appDeptId
                         ? (depts.find((d) => d.id === appDeptId)?.name ?? appDeptId)
-                        : `Sem departamento (map:${mapSize})`;
+                        : "Sem departamento";
                       // Se tem match em Aplicações, exibe só o nome (sem Select)
                       if (appDeptId) {
                         return (
@@ -2404,7 +2311,7 @@ function DetailTable({
                               fontSize: 12,
                               padding: "4px 8px",
                               borderRadius: 6,
-                              border: `1px solid ${T.border}`,
+                              border: `1px solid ${V.line}`,
                               display: "inline-block",
                               opacity: 0.8,
                             }}
@@ -2415,7 +2322,7 @@ function DetailTable({
                       }
                       // Sem match: exibe debug info
                       return (
-                        <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'DM Sans',sans-serif" }}>
+                        <span style={{ fontSize: 12.5, color: V.fg3 }}>
                           {deptLabel}
                         </span>
                       );
@@ -2423,9 +2330,9 @@ function DetailTable({
                   </td>
                   <td className="mono dim">{age == null ? "—" : `${age}d`}</td>
                   <td>
-                    <SlaBadge v={v} />
+                    <SlaCell v={v} />
                   </td>
-                  <td className="dim" style={{ fontSize: 11 }}>
+                  <td className="dim" style={{ fontSize: 12.5 }}>
                     {v.source ?? "—"}
                   </td>
                   <td className="mono dim" onClick={(e) => e.stopPropagation()}>
@@ -2466,14 +2373,14 @@ function DetailTable({
       )}
 
       <Dialog open={!!pendingChange} onOpenChange={(o) => !o && !submitting && setPendingChange(null)}>
-        <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+        <DialogContent style={{ background: V.surface, border: `1px solid ${V.lineStrong}`, borderRadius: 12 }}>
           <DialogHeader>
             <DialogTitle
-              style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+              style={{ fontFamily: V.font, fontSize: 15, fontWeight: 700, color: V.fg }}
             >
               Solicitar mudança para "{pendingChange?.newStatus}"
             </DialogTitle>
-            <DialogDescription style={{ fontSize: 12, color: T.textMuted }}>
+            <DialogDescription style={{ fontSize: 12, color: V.fg3 }}>
               {pendingChange?.newStatus === "Mitigada"
                 ? "Descreva como esta vulnerabilidade foi mitigada. A solicitação aguardará aprovação do administrador."
                 : "Explique de forma resumida como esta vulnerabilidade foi solucionada. A solicitação aguardará aprovação do administrador."}
@@ -2481,16 +2388,16 @@ function DetailTable({
           </DialogHeader>
           {pendingChange && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 0" }}>
-              <div style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+              <div style={{ fontSize: 11, color: V.fg3, fontFamily: "'IBM Plex Mono',monospace" }}>
                 Host / FQDN
               </div>
               <div
                 style={{
                   fontFamily: "'IBM Plex Mono',monospace",
                   fontSize: 12,
-                  color: T.textPrimary,
-                  background: T.surfaceAlt,
-                  border: `1px solid ${T.border}`,
+                  color: V.fg,
+                  background: V.surface2,
+                  border: `1px solid ${V.line}`,
                   borderRadius: 6,
                   padding: "7px 10px",
                 }}
@@ -2500,11 +2407,9 @@ function DetailTable({
               <>
                 <div
                   style={{
-                    fontSize: 9,
-                    fontWeight: 700,
-                    letterSpacing: "0.13em",
-                    textTransform: "uppercase",
-                    color: T.textMuted,
+                    fontSize: 12.5,
+                    fontWeight: 500,
+                    color: V.fg3,
                     fontFamily: "'IBM Plex Mono',monospace",
                     marginTop: 8,
                   }}
@@ -2523,10 +2428,10 @@ function DetailTable({
                       : "Ex.: Vulnerabilidade corrigida via atualização do componente X, validado em retest…"
                   }
                   style={{
-                    background: T.surfaceAlt,
-                    borderColor: T.border,
-                    color: T.textPrimary,
-                    fontFamily: "'DM Sans',sans-serif",
+                    background: V.surface2,
+                    borderColor: V.line,
+                    color: V.fg,
+                    fontFamily: V.font,
                     fontSize: 13,
                     borderRadius: 6,
                   }}
@@ -2558,30 +2463,30 @@ function DetailTable({
 
       {/* Popup: data final do plano de ação ao mover para "Em tratamento" */}
       <Dialog open={!!treatmentChange} onOpenChange={(o) => !o && !submitting && setTreatmentChange(null)}>
-        <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+        <DialogContent style={{ background: V.surface, border: `1px solid ${V.lineStrong}`, borderRadius: 12 }}>
           <DialogHeader>
             <DialogTitle
-              style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+              style={{ fontFamily: V.font, fontSize: 15, fontWeight: 700, color: V.fg }}
             >
               Mover para "Em tratamento"
             </DialogTitle>
-            <DialogDescription style={{ fontSize: 12, color: T.textMuted }}>
+            <DialogDescription style={{ fontSize: 12, color: V.fg3 }}>
               Informe a <strong>data final do plano de ação</strong> — o prazo previsto para concluir o tratamento desta
               vulnerabilidade.
             </DialogDescription>
           </DialogHeader>
           {treatmentChange && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 0" }}>
-              <div style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+              <div style={{ fontSize: 11, color: V.fg3, fontFamily: "'IBM Plex Mono',monospace" }}>
                 Host / FQDN
               </div>
               <div
                 style={{
                   fontFamily: "'IBM Plex Mono',monospace",
                   fontSize: 12,
-                  color: T.textPrimary,
-                  background: T.surfaceAlt,
-                  border: `1px solid ${T.border}`,
+                  color: V.fg,
+                  background: V.surface2,
+                  border: `1px solid ${V.line}`,
                   borderRadius: 6,
                   padding: "7px 10px",
                 }}
@@ -2590,11 +2495,9 @@ function DetailTable({
               </div>
               <div
                 style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: "0.13em",
-                  textTransform: "uppercase",
-                  color: T.textMuted,
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: V.fg3,
                   fontFamily: "'IBM Plex Mono',monospace",
                   marginTop: 8,
                 }}
@@ -2606,9 +2509,9 @@ function DetailTable({
                 value={treatmentDate}
                 onChange={(e) => setTreatmentDate(e.target.value)}
                 style={{
-                  background: T.surfaceAlt,
-                  border: `1px solid ${T.border}`,
-                  color: T.textPrimary,
+                  background: V.surface2,
+                  border: `1px solid ${V.line}`,
+                  color: V.fg,
                   fontFamily: "'IBM Plex Mono',monospace",
                   fontSize: 13,
                   borderRadius: 6,
@@ -2657,14 +2560,14 @@ function DetailTable({
       />
 
       <Dialog open={!!pendingDelete} onOpenChange={(o) => !o && !deleting && setPendingDelete(null)}>
-        <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+        <DialogContent style={{ background: V.surface, border: `1px solid ${V.lineStrong}`, borderRadius: 12 }}>
           <DialogHeader>
             <DialogTitle
-              style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.danger }}
+              style={{ fontFamily: V.font, fontSize: 15, fontWeight: 700, color: T.danger }}
             >
               Excluir vulnerabilidade?
             </DialogTitle>
-            <DialogDescription style={{ fontSize: 12, color: T.textMuted }}>
+            <DialogDescription style={{ fontSize: 12, color: V.fg3 }}>
               Essa ação é definitiva e não pode ser desfeita.
               {pendingDelete && (
                 <div
@@ -2672,9 +2575,9 @@ function DetailTable({
                     marginTop: 10,
                     fontFamily: "'IBM Plex Mono',monospace",
                     fontSize: 12,
-                    color: T.textPrimary,
-                    background: T.surfaceAlt,
-                    border: `1px solid ${T.border}`,
+                    color: V.fg,
+                    background: V.surface2,
+                    border: `1px solid ${V.line}`,
                     borderRadius: 6,
                     padding: "7px 10px",
                   }}
@@ -2779,12 +2682,12 @@ function OperacoesPanel({
           <div className="vr-panel-title">
             <ClipboardCheck size={11} color={T.accent} />
             Aprovações pendentes — {kind === "aplicacao" ? "Aplicação" : "Internas"}
-            <span style={{ fontWeight: 400, color: T.textSubtle }}>
+            <span style={{ fontWeight: 400, color: V.fg3 }}>
               ({hasFilter ? `${visibleRows.length} de ${rows.length}` : rows.length})
             </span>
           </div>
           <div className="vr-search-wrap">
-            <Search size={12} className="vr-search-icon" />
+            <Search size={14} className="vr-search-icon" />
             <input
               className="vr-search"
               style={{ minWidth: 260 }}
@@ -2919,7 +2822,7 @@ function OperacoesPanel({
             </tbody>
           </table>
           {!isAdmin && (
-            <div style={{ fontSize: 11, color: T.textMuted, padding: "10px 16px" }}>
+            <div style={{ fontSize: 11, color: V.fg3, padding: "10px 16px" }}>
               Somente administradores do módulo podem aprovar ou rejeitar.
             </div>
           )}
@@ -2927,14 +2830,14 @@ function OperacoesPanel({
       )}
 
       <Dialog open={!!viewMitigation} onOpenChange={(o) => !o && setViewMitigation(null)}>
-        <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+        <DialogContent style={{ background: V.surface, border: `1px solid ${V.lineStrong}`, borderRadius: 12 }}>
           <DialogHeader>
             <DialogTitle
-              style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+              style={{ fontFamily: V.font, fontSize: 15, fontWeight: 700, color: V.fg }}
             >
               {viewMitigation?.pending_status === "Fechada" ? "Descrição da solução" : "Descrição da mitigação"}
             </DialogTitle>
-            <DialogDescription style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textMuted }}>
+            <DialogDescription style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: V.fg3 }}>
               {viewMitigation?.fqdn}
             </DialogDescription>
           </DialogHeader>
@@ -2942,11 +2845,11 @@ function OperacoesPanel({
             style={{
               whiteSpace: "pre-wrap",
               fontSize: 13,
-              background: T.surfaceAlt,
-              border: `1px solid ${T.border}`,
+              background: V.surface2,
+              border: `1px solid ${V.line}`,
               borderRadius: 8,
               padding: "12px 14px",
-              color: T.textSecondary,
+              color: V.fg2,
               lineHeight: 1.6,
             }}
           >
@@ -3059,10 +2962,10 @@ function CreateVulnDialog({
   };
 
   const selectStyle = {
-    background: T.surfaceAlt,
-    borderColor: T.border,
-    color: T.textPrimary,
-    fontFamily: "'DM Sans',sans-serif",
+    background: V.surface2,
+    borderColor: V.line,
+    color: V.fg,
+    fontFamily: V.font,
     fontSize: 13,
   };
 
@@ -3074,11 +2977,11 @@ function CreateVulnDialog({
         </button>
       </DialogTrigger>
       <DialogContent
-        style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12, maxWidth: 480 }}
+        style={{ background: V.surface, border: `1px solid ${V.lineStrong}`, borderRadius: 12, maxWidth: 480 }}
       >
         <DialogHeader>
           <DialogTitle
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+            style={{ fontFamily: V.font, fontSize: 15, fontWeight: 700, color: V.fg }}
           >
             Cadastrar — {kind === "aplicacao" ? "Aplicação" : "Internas"}
           </DialogTitle>
@@ -3087,11 +2990,9 @@ function CreateVulnDialog({
           <div style={{ gridColumn: "span 2" }}>
             <div
               style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                color: T.textMuted,
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: V.fg3,
                 fontFamily: "'IBM Plex Mono',monospace",
                 marginBottom: 5,
               }}
@@ -3112,11 +3013,9 @@ function CreateVulnDialog({
           <div style={{ gridColumn: "span 2" }}>
             <div
               style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                color: T.textMuted,
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: V.fg3,
                 fontFamily: "'IBM Plex Mono',monospace",
                 marginBottom: 5,
               }}
@@ -3140,11 +3039,9 @@ function CreateVulnDialog({
             <div key={field}>
               <div
                 style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: "0.13em",
-                  textTransform: "uppercase",
-                  color: T.textMuted,
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: V.fg3,
                   fontFamily: "'IBM Plex Mono',monospace",
                   marginBottom: 5,
                 }}
@@ -3168,11 +3065,9 @@ function CreateVulnDialog({
           <div style={{ gridColumn: "span 2" }}>
             <div
               style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                color: T.textMuted,
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: V.fg3,
                 fontFamily: "'IBM Plex Mono',monospace",
                 marginBottom: 5,
               }}
@@ -3194,12 +3089,12 @@ function CreateVulnDialog({
                       alignItems: "center",
                       padding: "0 12px",
                       borderRadius: 6,
-                      border: `1px solid ${T.border}`,
+                      border: `1px solid ${V.line}`,
                       opacity: 0.8,
                     }}
                   >
                     {deptLabel}
-                    <span style={{ marginLeft: 8, fontSize: 10, color: T.textMuted }}>(via Aplicações)</span>
+                    <span style={{ marginLeft: 8, fontSize: 10, color: V.fg3 }}>(via Aplicações)</span>
                   </div>
                 );
               }
@@ -3213,8 +3108,8 @@ function CreateVulnDialog({
                     alignItems: "center",
                     padding: "0 12px",
                     borderRadius: 6,
-                    border: `1px solid ${T.border}`,
-                    color: T.textMuted,
+                    border: `1px solid ${V.line}`,
+                    color: V.fg3,
                   }}
                 >
                   Sem departamento
@@ -3234,11 +3129,9 @@ function CreateVulnDialog({
             <div key={field}>
               <div
                 style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: "0.13em",
-                  textTransform: "uppercase",
-                  color: T.textMuted,
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: V.fg3,
                   fontFamily: "'IBM Plex Mono',monospace",
                   marginBottom: 5,
                 }}
@@ -3258,11 +3151,9 @@ function CreateVulnDialog({
           <div style={{ gridColumn: "span 2" }}>
             <div
               style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                color: T.textMuted,
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: V.fg3,
                 fontFamily: "'IBM Plex Mono',monospace",
                 marginBottom: 5,
               }}
@@ -3274,10 +3165,10 @@ function CreateVulnDialog({
               value={form.descricao}
               onChange={(e) => setForm({ ...form, descricao: e.target.value })}
               style={{
-                background: T.surfaceAlt,
-                borderColor: T.border,
-                color: T.textPrimary,
-                fontFamily: "'DM Sans',sans-serif",
+                background: V.surface2,
+                borderColor: V.line,
+                color: V.fg,
+                fontFamily: V.font,
                 fontSize: 13,
                 borderRadius: 6,
               }}
@@ -3286,11 +3177,9 @@ function CreateVulnDialog({
           <div style={{ gridColumn: "span 2" }}>
             <div
               style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "0.13em",
-                textTransform: "uppercase",
-                color: T.textMuted,
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: V.fg3,
                 fontFamily: "'IBM Plex Mono',monospace",
                 marginBottom: 5,
               }}
@@ -3303,10 +3192,10 @@ function CreateVulnDialog({
               placeholder="Links, plugin ID, etc."
               onChange={(e) => setForm({ ...form, referencias: e.target.value })}
               style={{
-                background: T.surfaceAlt,
-                borderColor: T.border,
-                color: T.textPrimary,
-                fontFamily: "'DM Sans',sans-serif",
+                background: V.surface2,
+                borderColor: V.line,
+                color: V.fg,
+                fontFamily: V.font,
                 fontSize: 13,
                 borderRadius: 6,
               }}
@@ -3422,10 +3311,10 @@ function EditVulnDialog({
   };
 
   const selectStyle = {
-    background: T.surfaceAlt,
-    borderColor: T.border,
-    color: T.textPrimary,
-    fontFamily: "'DM Sans',sans-serif",
+    background: V.surface2,
+    borderColor: V.line,
+    color: V.fg,
+    fontFamily: V.font,
     fontSize: 13,
   };
   const labelStyle = {
@@ -3433,7 +3322,7 @@ function EditVulnDialog({
     fontWeight: 700,
     letterSpacing: "0.13em",
     textTransform: "uppercase" as const,
-    color: T.textMuted,
+    color: V.fg3,
     fontFamily: "'IBM Plex Mono',monospace",
     marginBottom: 5,
   };
@@ -3449,8 +3338,8 @@ function EditVulnDialog({
     <Dialog open onOpenChange={(o) => !o && !saving && onClose()}>
       <DialogContent
         style={{
-          background: T.surface,
-          border: `1px solid ${T.borderHi}`,
+          background: V.surface,
+          border: `1px solid ${V.lineStrong}`,
           borderRadius: 12,
           maxWidth: 480,
           maxHeight: "85vh",
@@ -3459,7 +3348,7 @@ function EditVulnDialog({
       >
         <DialogHeader>
           <DialogTitle
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
+            style={{ fontFamily: V.font, fontSize: 15, fontWeight: 700, color: V.fg }}
           >
             Editar — {(vuln.kind ?? "aplicacao") === "aplicacao" ? "Aplicação" : "Internas"}
           </DialogTitle>
@@ -3520,12 +3409,12 @@ function EditVulnDialog({
                   alignItems: "center",
                   padding: "0 12px",
                   borderRadius: 6,
-                  border: `1px solid ${T.border}`,
+                  border: `1px solid ${V.line}`,
                   opacity: 0.8,
                 }}
               >
                 {deptLabel}
-                {appDeptId && <span style={{ marginLeft: 8, fontSize: 10, color: T.textMuted }}>(via Aplicações)</span>}
+                {appDeptId && <span style={{ marginLeft: 8, fontSize: 10, color: V.fg3 }}>(via Aplicações)</span>}
               </div>
             ) : (
               <div
@@ -3536,8 +3425,8 @@ function EditVulnDialog({
                   alignItems: "center",
                   padding: "0 12px",
                   borderRadius: 6,
-                  border: `1px solid ${T.border}`,
-                  color: T.textMuted,
+                  border: `1px solid ${V.line}`,
+                  color: V.fg3,
                 }}
               >
                 Sem departamento
@@ -3572,10 +3461,10 @@ function EditVulnDialog({
               value={form.descricao}
               onChange={(e) => setForm({ ...form, descricao: e.target.value })}
               style={{
-                background: T.surfaceAlt,
-                borderColor: T.border,
-                color: T.textPrimary,
-                fontFamily: "'DM Sans',sans-serif",
+                background: V.surface2,
+                borderColor: V.line,
+                color: V.fg,
+                fontFamily: V.font,
                 fontSize: 13,
                 borderRadius: 6,
               }}
@@ -3589,10 +3478,10 @@ function EditVulnDialog({
               placeholder="Links, plugin ID, etc."
               onChange={(e) => setForm({ ...form, referencias: e.target.value })}
               style={{
-                background: T.surfaceAlt,
-                borderColor: T.border,
-                color: T.textPrimary,
-                fontFamily: "'DM Sans',sans-serif",
+                background: V.surface2,
+                borderColor: V.line,
+                color: V.fg,
+                fontFamily: V.font,
                 fontSize: 13,
                 borderRadius: 6,
               }}

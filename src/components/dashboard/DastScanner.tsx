@@ -79,25 +79,25 @@
 
   // ── Design Tokens ──────────────────────────────────────────────────────────────
   const T = {
-    surface: "#0F1420",
-    surfaceAlt: "#131825",
-    border: "#1E2640",
-    borderHi: "#2A3560",
+    surface: "var(--tl-0f1420, #0F1420)",
+    surfaceAlt: "var(--tl-131825, #131825)",
+    border: "var(--tl-1e2640, #1E2640)",
+    borderHi: "var(--tl-2a3560, #2A3560)",
     accent: "#3B82F6",
     accentBg: "rgba(59,130,246,0.12)",
     critical: "#EF4444",
     high: "#F59E0B",
     medium: "#3B82F6",
     low: "#A78BFA",
-    info: "#6B7280",
+    info: "var(--tl-6b7280, #6B7280)",
     success: "#10B981",
-    textPrimary: "#F1F5F9",
-    textSecondary: "#94A3B8",
-    textMuted: "#64748B",
-    textSubtle: "#475569",
-    chartGrid: "rgba(30,38,64,0.7)",
-    chartAxis: "#334155",
-    chartTick: "#64748B",
+    textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+    textSecondary: "var(--tl-94a3b8, #94A3B8)",
+    textMuted: "var(--tl-64748b, #64748B)",
+    textSubtle: "var(--tl-475569, #475569)",
+    chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+    chartAxis: "var(--tl-334155, #334155)",
+    chartTick: "var(--tl-64748b, #64748B)",
   };
 
   const SEV_COLOR: Record<string, string> = {
@@ -169,7 +169,7 @@
     .dast-panel-title { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
     .dast-table { width:100%; border-collapse:collapse; }
     .dast-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-    .dast-table td { padding:10px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; }
+    .dast-table td { padding:10px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; }
     .dast-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
     .dast-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; }
     .dast-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; white-space:nowrap; border:1px solid transparent; }
@@ -198,7 +198,7 @@
     .dast-acc-hd { display:flex; align-items:center; gap:10px; padding:10px 12px; cursor:pointer; }
     .dast-acc-hd:hover { background:rgba(59,130,246,0.04); }
     .dast-acc-bd { padding:12px 14px; border-top:1px solid ${T.border}; font-size:12px; color:${T.textSecondary}; display:flex; flex-direction:column; gap:10px; }
-    .dast-code { background:#0A0D14; border:1px solid ${T.border}; border-radius:6px; padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:${T.textPrimary}; word-break:break-all; }
+    .dast-code { background:var(--tl-0a0d14, #0A0D14); border:1px solid ${T.border}; border-radius:6px; padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:${T.textPrimary}; word-break:break-all; }
     .dast-code.scroll { max-height:260px; overflow:auto; white-space:pre-wrap; margin:0; }
     .dast-alert { border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:10px; margin-bottom:8px; }
   `;
@@ -341,7 +341,7 @@ function SevBadge({ severity }: { severity: string | null }) {
     const s = severity ?? "info";
     const c = SEV_COLOR[s] ?? T.info;
     return (
-      <span className="dast-badge" style={{ background: `${c}22`, color: c, border: `1px solid ${c}55` }}>
+      <span className="dast-badge" style={{ background: `color-mix(in srgb, ${c} 13%, transparent)`, color: c, border: `1px solid color-mix(in srgb, ${c} 33%, transparent)` }}>
         {SEV_LABEL[s] ?? s}
       </span>
     );
@@ -748,7 +748,7 @@ function SevBadge({ severity }: { severity: string | null }) {
                             className="dast-badge"
                             style={{
                               flexShrink: 0,
-                              background: a.scope === "internal" ? `${T.low}22` : `${T.accent}22`,
+                              background: a.scope === "internal" ? `color-mix(in srgb, ${T.low} 13%, transparent)` : `color-mix(in srgb, ${T.accent} 13%, transparent)`,
                               color: a.scope === "internal" ? T.low : T.accent,
                             }}
                           >
@@ -866,7 +866,7 @@ function SevBadge({ severity }: { severity: string | null }) {
             <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11 }}>CVSS {Number(v.cvss_score)}</span>
           )}
           <span style={{ fontSize: 11, color: T.textMuted }}>{fmtRel(v.found_at)}</span>
-          <span className="dast-badge" style={{ background: `${T.textMuted}22`, color: T.textSecondary }}>
+          <span className="dast-badge" style={{ background: `color-mix(in srgb, ${T.textMuted} 13%, transparent)`, color: T.textSecondary }}>
             {v.status}
           </span>
         </div>
@@ -1214,7 +1214,7 @@ function SevBadge({ severity }: { severity: string | null }) {
                 >
                   <span
                     className="dast-badge"
-                    style={{ background: `${T.accent}22`, color: T.accent, animation: "dast-pulse 2s infinite" }}
+                    style={{ background: `color-mix(in srgb, ${T.accent} 13%, transparent)`, color: T.accent, animation: "dast-pulse 2s infinite" }}
                   >
                     {s.status}
                   </span>
@@ -1252,7 +1252,7 @@ function SevBadge({ severity }: { severity: string | null }) {
               alerts.data.alerts.map((a: any) => {
                 const c = SEV_COLOR[a.severity ?? "high"] ?? T.high;
                 return (
-                  <div key={a.id} className="dast-alert" style={{ background: `${c}14`, border: `1px solid ${c}44` }}>
+                  <div key={a.id} className="dast-alert" style={{ background: `color-mix(in srgb, ${c} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${c} 27%, transparent)` }}>
                     <SevBadge severity={a.severity} />
                     <span
                       style={{
@@ -1806,7 +1806,7 @@ function SevBadge({ severity }: { severity: string | null }) {
                       <span
                         className="dast-badge"
                         style={{
-                          background: s.active ? `${T.success}22` : `${T.textMuted}22`,
+                          background: s.active ? `color-mix(in srgb, ${T.success} 13%, transparent)` : `color-mix(in srgb, ${T.textMuted} 13%, transparent)`,
                           color: s.active ? T.success : T.textMuted,
                         }}
                       >
@@ -2682,7 +2682,7 @@ function SevBadge({ severity }: { severity: string | null }) {
                           <span
                             className="dast-badge"
                             style={{
-                              background: r.scope === "internal" ? `${T.low}22` : `${T.accent}22`,
+                              background: r.scope === "internal" ? `color-mix(in srgb, ${T.low} 13%, transparent)` : `color-mix(in srgb, ${T.accent} 13%, transparent)`,
                               color: r.scope === "internal" ? T.low : T.accent,
                             }}
                           >
@@ -2694,11 +2694,11 @@ function SevBadge({ severity }: { severity: string | null }) {
                         </td>
                         <td>
                           {r.in_applications ? (
-                            <span className="dast-badge" style={{ background: `${T.success}22`, color: T.success }}>
+                            <span className="dast-badge" style={{ background: `color-mix(in srgb, ${T.success} 13%, transparent)`, color: T.success }}>
                               Cadastrada
                             </span>
                           ) : (
-                            <span className="dast-badge" style={{ background: `${T.textMuted}22`, color: T.textMuted }}>
+                            <span className="dast-badge" style={{ background: `color-mix(in srgb, ${T.textMuted} 13%, transparent)`, color: T.textMuted }}>
                               Sem cadastro
                             </span>
                           )}
@@ -2757,7 +2757,7 @@ function SevBadge({ severity }: { severity: string | null }) {
                         <td>
                           <span
                             className="dast-badge"
-                            style={{ background: `${tone}22`, color: tone, border: `1px solid ${tone}55` }}
+                            style={{ background: `color-mix(in srgb, ${tone} 13%, transparent)`, color: tone, border: `1px solid color-mix(in srgb, ${tone} 33%, transparent)` }}
                           >
                             {s.status}
                           </span>
@@ -3120,7 +3120,7 @@ function SevBadge({ severity }: { severity: string | null }) {
                             <td>
                               <span
                                 className="dast-badge"
-                                style={{ background: `${tone}22`, color: tone, border: `1px solid ${tone}55` }}
+                                style={{ background: `color-mix(in srgb, ${tone} 13%, transparent)`, color: tone, border: `1px solid color-mix(in srgb, ${tone} 33%, transparent)` }}
                               >
                                 {s.status}
                               </span>

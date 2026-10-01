@@ -35,10 +35,10 @@ import {
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -49,14 +49,14 @@ const T = {
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#F1F5F9",
-  textSubtle: "#475569",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#334155",
-  chartTick: "#64748B",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-475569, #475569)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-334155, #334155)",
+  chartTick: "var(--tl-64748b, #64748B)",
 };
 
 // ── CSS ────────────────────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ const CSS = `
   .ws-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
   .ws-block:hover .ws-resize-ctrl { opacity:1; }
   .ws-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:all 0.15s; }
-  .ws-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
+  .ws-resize-btn:hover { color:${T.textPrimary}; background:rgba(var(--tl-ink, 255,255,255),0.07); }
   .ws-resize-btn:disabled { opacity:0.25; cursor:default; }
   .ws-block-body { flex:1; padding:16px; }
 
@@ -183,7 +183,7 @@ const CSS = `
   .ws-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
   .ws-table th.r { text-align:right; }
   .ws-table th.c { text-align:center; }
-  .ws-table td { padding:9px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
+  .ws-table td { padding:9px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
   .ws-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
   .ws-table tbody tr:last-child td { border-bottom:none; }
   .ws-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
@@ -326,17 +326,17 @@ function CoverageBar({ pct, covered, total }: { pct: number; covered: number; to
         <div className="ws-cov-track">
           {/* Zone backgrounds */}
           <div className="ws-cov-zones">
-            <div className="ws-cov-zone" style={{ width: "50%", background: `${T.danger}18` }} />
-            <div className="ws-cov-zone" style={{ width: "35%", background: `${T.warning}18` }} />
-            <div className="ws-cov-zone" style={{ width: "15%", background: `${T.success}18` }} />
+            <div className="ws-cov-zone" style={{ width: "50%", background: `color-mix(in srgb, ${T.danger} 9%, transparent)` }} />
+            <div className="ws-cov-zone" style={{ width: "35%", background: `color-mix(in srgb, ${T.warning} 9%, transparent)` }} />
+            <div className="ws-cov-zone" style={{ width: "15%", background: `color-mix(in srgb, ${T.success} 9%, transparent)` }} />
           </div>
           {/* Value fill */}
           <div
             className="ws-cov-fill"
             style={{
               width: `${Math.min(100, pct)}%`,
-              background: `linear-gradient(90deg,${color}88,${color})`,
-              boxShadow: `0 0 8px ${color}66`,
+              background: `linear-gradient(90deg,color-mix(in srgb, ${color} 53%, transparent),${color})`,
+              boxShadow: `0 0 8px color-mix(in srgb, ${color} 40%, transparent)`,
             }}
           />
         </div>

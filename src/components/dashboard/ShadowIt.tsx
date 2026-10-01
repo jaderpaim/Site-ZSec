@@ -43,19 +43,19 @@ import {
 // ── Design tokens — mesmos valores do DastScanner.tsx (T), pra manter o
 // módulo com a mesma identidade visual, mesmo sendo domínio separado.
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentBg: "rgba(59,130,246,0.12)",
   critical: "#EF4444",
   high: "#F59E0B",
   success: "#10B981",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  textSubtle: "#475569",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-64748b, #64748B)",
+  textSubtle: "var(--tl-475569, #475569)",
 };
 
 const STATUS_TONE: Record<string, string> = {
@@ -103,7 +103,7 @@ const CSS = `
   .swit-panel-title { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
   .swit-table { width:100%; border-collapse:collapse; }
   .swit-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; border-bottom:1px solid ${T.border}; white-space:nowrap; position:sticky; top:0; background:${T.surface}; z-index:1; }
-  .swit-table td { padding:10px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
+  .swit-table td { padding:10px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
   .swit-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
   .swit-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; }
   .swit-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap; border:1px solid transparent; }
@@ -490,7 +490,7 @@ function HttpCard({
         </div>
       </div>
       {statusCode && (
-        <span className="swit-status-pill" style={{ background: `${tone}22`, color: tone }}>
+        <span className="swit-status-pill" style={{ background: `color-mix(in srgb, ${tone} 13%, transparent)`, color: tone }}>
           {statusCode}
         </span>
       )}
@@ -542,18 +542,18 @@ function HostRow({
       </>
     ),
     cmdb: host.in_cmdb ? (
-      <span className="swit-badge" style={{ background: `${T.success}22`, color: T.success }}>
+      <span className="swit-badge" style={{ background: `color-mix(in srgb, ${T.success} 13%, transparent)`, color: T.success }}>
         No CMDB
       </span>
     ) : (
-      <span className="swit-badge" style={{ background: `${T.critical}22`, color: T.critical }}>
+      <span className="swit-badge" style={{ background: `color-mix(in srgb, ${T.critical} 13%, transparent)`, color: T.critical }}>
         Fora do CMDB
       </span>
     ),
     services: (
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {services.map((s) => (
-          <span key={s} className="swit-badge" style={{ background: `${T.accent}1a`, color: T.accent }}>
+          <span key={s} className="swit-badge" style={{ background: `color-mix(in srgb, ${T.accent} 10%, transparent)`, color: T.accent }}>
             {s}
           </span>
         ))}
@@ -561,7 +561,7 @@ function HostRow({
           <span
             className="swit-badge"
             style={{
-              background: worst ? `${CLASS_TONE[worst].color}22` : `${T.success}22`,
+              background: worst ? `color-mix(in srgb, ${CLASS_TONE[worst].color} 13%, transparent)` : `color-mix(in srgb, ${T.success} 13%, transparent)`,
               color: worst ? CLASS_TONE[worst].color : T.success,
             }}
           >
@@ -759,7 +759,7 @@ function HostDetailsSheet({
                           {f.permission ?? "—"}
                         </span>
                         {tone && (
-                          <span className="swit-badge" style={{ background: `${tone.color}22`, color: tone.color }}>
+                          <span className="swit-badge" style={{ background: `color-mix(in srgb, ${tone.color} 13%, transparent)`, color: tone.color }}>
                             {tone.label}
                           </span>
                         )}
@@ -1110,7 +1110,7 @@ export function ShadowItDashboard() {
                         <td>
                           <span
                             className="swit-badge"
-                            style={{ background: `${tone}22`, color: tone, border: `1px solid ${tone}55` }}
+                            style={{ background: `color-mix(in srgb, ${tone} 13%, transparent)`, color: tone, border: `1px solid color-mix(in srgb, ${tone} 33%, transparent)` }}
                           >
                             {s.status}
                           </span>

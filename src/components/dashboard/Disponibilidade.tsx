@@ -19,11 +19,11 @@ import { getCronHealth } from "./CronHealthBadge";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -35,14 +35,14 @@ const T = {
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
   cyan: "#22D3EE",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  textSubtle: "#475569",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#334155",
-  chartTick: "#64748B",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-64748b, #64748B)",
+  textSubtle: "var(--tl-475569, #475569)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-334155, #334155)",
+  chartTick: "var(--tl-64748b, #64748B)",
 };
 
 // ── CSS ────────────────────────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ const CSS = `
   /* ── Stacked category bars ── */
   .dp-cat-row { display:flex; align-items:center; gap:12px; padding:7px 0; }
   .dp-cat-name { width:96px; flex-shrink:0; font-size:11px; color:${T.textSecondary}; font-family:'IBM Plex Mono',monospace; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .dp-cat-track { flex:1; height:22px; border-radius:5px; overflow:hidden; display:flex; background:rgba(30,38,64,0.5); min-width:0; }
+  .dp-cat-track { flex:1; height:22px; border-radius:5px; overflow:hidden; display:flex; background:rgba(var(--tl-line-rgb, 30,38,64),0.5); min-width:0; }
   .dp-cat-seg { display:flex; align-items:center; justify-content:flex-start; padding-left:7px; transition:width 0.6s ease; overflow:hidden; }
   .dp-cat-seg-val { font-size:10px; font-weight:700; color:rgba(255,255,255,0.92); font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
   .dp-cat-total { width:38px; flex-shrink:0; text-align:right; font-size:12px; font-weight:700; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; }
@@ -116,7 +116,7 @@ const CSS = `
   .dp-table { width:100%; border-collapse:collapse; }
   .dp-table thead { position:sticky; top:0; z-index:10; }
   .dp-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .dp-table td { padding:10px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
+  .dp-table td { padding:10px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
   .dp-table tbody tr:hover td { background:rgba(239,68,68,0.03); }
   .dp-table tbody tr:last-child td { border-bottom:none; }
   .dp-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }

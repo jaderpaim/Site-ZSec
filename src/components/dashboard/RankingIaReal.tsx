@@ -42,11 +42,11 @@ import { usePermissions } from "@/lib/use-permissions";
 
 // ── Design Tokens — mesma paleta dos outros dashboards ────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
 
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
@@ -60,29 +60,29 @@ const T = {
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
-  neutral: "#6B7280",
+  neutral: "var(--tl-6b7280, #6B7280)",
 
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 // Gradientes por posição no ranking
 const RANK_GRADIENTS = [
   { id: "rank-gold", from: "#F59E0B", to: "#FBBF24" }, // 1º — ouro
-  { id: "rank-silver", from: "#94A3B8", to: "#CBD5E1" }, // 2º — prata
+  { id: "rank-silver", from: "var(--tl-94a3b8, #94A3B8)", to: "var(--tl-cbd5e1, #CBD5E1)" }, // 2º — prata
   { id: "rank-bronze", from: "#FB923C", to: "#FDBA74" }, // 3º — bronze
   { id: "rank-accent", from: "#3B82F6", to: "#60A5FA" }, // demais
 ];
 
 // Cores de texto por posição
 const rankColor = (pos: number) =>
-  pos === 1 ? T.warning : pos === 2 ? "#CBD5E1" : pos === 3 ? "#FDBA74" : T.textSecondary;
+  pos === 1 ? T.warning : pos === 2 ? "var(--tl-cbd5e1, #CBD5E1)" : pos === 3 ? "#FDBA74" : T.textSecondary;
 
 // ── Inline CSS ─────────────────────────────────────────────────────────────────
 const CSS = `
@@ -97,7 +97,7 @@ const CSS = `
   .ia-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
   .ia-panel:hover .ia-resize-ctrl { opacity:1; }
   .ia-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:color 0.15s,background 0.15s; }
-  .ia-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
+  .ia-resize-btn:hover { color:${T.textPrimary}; background:rgba(var(--tl-ink, 255,255,255),0.07); }
   .ia-panel-title { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
   .ia-panel-meta { font-size:11px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
 
@@ -115,7 +115,7 @@ const CSS = `
   .ia-table thead tr { border-bottom:1px solid ${T.border}; position:sticky; top:0; z-index:10; }
   .ia-table th { padding:8px 14px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; white-space:nowrap; }
   .ia-table th.right { text-align:right; }
-  .ia-table td { padding:10px 14px; border-bottom:1px solid rgba(30,38,64,0.4); vertical-align:middle; }
+  .ia-table td { padding:10px 14px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); vertical-align:middle; }
   .ia-table tbody tr:last-child td { border-bottom:none; }
   .ia-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
   .ia-table tbody tr.top3 td { background:rgba(59,130,246,0.03); }
@@ -123,7 +123,7 @@ const CSS = `
   /* ── Rank badge ── */
   .ia-rank-badge { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:5px; font-size:11px; font-weight:700; font-family:'Space Grotesk',sans-serif; flex-shrink:0; }
   .ia-rank-1 { background:rgba(245,158,11,0.15); color:${T.warning}; border:1px solid rgba(245,158,11,0.25); }
-  .ia-rank-2 { background:rgba(148,163,184,0.12); color:#CBD5E1; border:1px solid rgba(148,163,184,0.2); }
+  .ia-rank-2 { background:rgba(148,163,184,0.12); color:var(--tl-cbd5e1, #CBD5E1); border:1px solid rgba(148,163,184,0.2); }
   .ia-rank-3 { background:rgba(251,146,60,0.12); color:#FDBA74; border:1px solid rgba(251,146,60,0.2); }
   .ia-rank-n { background:rgba(59,130,246,0.06); color:${T.textMuted}; border:1px solid rgba(59,130,246,0.1); }
 
@@ -135,7 +135,7 @@ const CSS = `
 
   /* ── Podium top3 row accent ── */
   .ia-table tbody tr.rank-1 td { border-left:2px solid ${T.warning}; }
-  .ia-table tbody tr.rank-2 td { border-left:2px solid #CBD5E1; }
+  .ia-table tbody tr.rank-2 td { border-left:2px solid var(--tl-cbd5e1, #CBD5E1); }
   .ia-table tbody tr.rank-3 td { border-left:2px solid #FDBA74; }
   .ia-table tbody tr.rank-1 td:not(:first-child),
   .ia-table tbody tr.rank-2 td:not(:first-child),
@@ -488,8 +488,8 @@ export function RankingIAChart({
                       <stop offset="100%" stopColor={T.warning} stopOpacity={1} />
                     </linearGradient>
                     <linearGradient id="bar-2nd" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#94A3B8" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#CBD5E1" stopOpacity={1} />
+                      <stop offset="0%" stopColor="var(--tl-94a3b8, #94A3B8)" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="var(--tl-cbd5e1, #CBD5E1)" stopOpacity={1} />
                     </linearGradient>
                     <linearGradient id="bar-3rd" x1="0" y1="0" x2="1" y2="0">
                       <stop offset="0%" stopColor="#FB923C" stopOpacity={0.4} />
@@ -564,10 +564,10 @@ export function RankingIAChart({
 // ══════════════════════════════════════════════════════════════════════════════
 
 const T_IA = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -578,14 +578,14 @@ const T_IA = {
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 const IA_CSS = `
@@ -616,7 +616,7 @@ const IA_CSS = `
     background:transparent; border:1px solid ${T_IA.border}; border-radius:6px;
     font-size:11px; font-weight:600; color:${T_IA.textPrimary}; cursor:pointer;
     font-family:'DM Sans',sans-serif; transition:all 0.15s; }
-  .iad-export-btn:hover:not(:disabled) { border-color:${T_IA.borderHi}; background:rgba(255,255,255,0.04); }
+  .iad-export-btn:hover:not(:disabled) { border-color:${T_IA.borderHi}; background:rgba(var(--tl-ink, 255,255,255),0.04); }
   .iad-export-btn:disabled { opacity:0.5; cursor:not-allowed; }
   .iad-export-opt { display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px;
     background:transparent; border:none; border-radius:5px; font-size:12px; font-weight:500;
@@ -689,7 +689,7 @@ const IA_CSS = `
   .iad-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
   .iad-block:hover .iad-resize-ctrl { opacity:1; }
   .iad-resize-btn { padding:2px; border:none; background:transparent; color:${T_IA.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:color 0.15s,background 0.15s; }
-  .iad-resize-btn:hover { color:${T_IA.textPrimary}; background:rgba(255,255,255,0.07); }
+  .iad-resize-btn:hover { color:${T_IA.textPrimary}; background:rgba(var(--tl-ink, 255,255,255),0.07); }
   .iad-resize-btn:disabled { opacity:0.25; cursor:default; }
 `;
 

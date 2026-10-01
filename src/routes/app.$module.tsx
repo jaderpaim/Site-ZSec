@@ -80,8 +80,10 @@ function ModulePage() {
         hideDepartment={hideDepartment}
         hideExport={hideExport}
       />
-      <div className="p-8 max-w-[1600px] w-full mx-auto">
-        <Dash />
+      <div className="flex-1 bg-v2-bg">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+          <Dash />
+        </div>
       </div>
     </>
   );

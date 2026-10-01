@@ -11,11 +11,11 @@ import {
 
 const tooltipStyle = {
   contentStyle: {
-    background: "#0f1724",
-    border: "1px solid rgba(255,255,255,0.1)",
+    background: "var(--tl-0f1724, #0f1724)",
+    border: "1px solid rgba(var(--tl-ink, 255,255,255),0.1)",
     borderRadius: 8,
     fontSize: 12,
-    color: "#e6ebf2",
+    color: "var(--tl-e6ebf2, #e6ebf2)",
     fontFamily: "DM Sans, sans-serif",
     boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
   },
@@ -67,19 +67,19 @@ export function ExecBarChart({
           </linearGradient>
         </defs>
         <CartesianGrid
-          stroke="rgba(255,255,255,0.04)"
+          stroke="rgba(var(--tl-ink, 255,255,255),0.04)"
           horizontal={layout === "horizontal"}
           vertical={layout === "vertical"}
         />
         {layout === "horizontal" ? (
           <>
-            <XAxis dataKey={xKey} tickLine={false} axisLine={false} interval={0} tick={{ fill: "#e6ebf2", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
-            <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "#e6ebf2", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
+            <XAxis dataKey={xKey} tickLine={false} axisLine={false} interval={0} tick={{ fill: "var(--tl-e6ebf2, #e6ebf2)", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
+            <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "var(--tl-e6ebf2, #e6ebf2)", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
           </>
         ) : (
           <>
-            <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: "#e6ebf2", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
-            <YAxis type="category" dataKey={xKey} tickLine={false} axisLine={false} width={yAxisWidth} interval={0} tick={{ fill: "#e6ebf2", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
+            <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: "var(--tl-e6ebf2, #e6ebf2)", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
+            <YAxis type="category" dataKey={xKey} tickLine={false} axisLine={false} width={yAxisWidth} interval={0} tick={{ fill: "var(--tl-e6ebf2, #e6ebf2)", fontSize: 11, fontFamily: "DM Sans, sans-serif" }} />
           </>
         )}
         <Tooltip
@@ -99,7 +99,7 @@ export function ExecBarChart({
               dataKey={yKey}
               position={layout === "vertical" ? "right" : "top"}
               formatter={(v: number) => `${valueFormatter ? valueFormatter(v) : v}${labelSuffix}`}
-              style={{ fill: "#e6ebf2", fontSize: 11, fontFamily: "DM Sans, sans-serif", fontWeight: 500 }}
+              style={{ fill: "var(--tl-e6ebf2, #e6ebf2)", fontSize: 11, fontFamily: "DM Sans, sans-serif", fontWeight: 500 }}
             />
           )}
         </Bar>

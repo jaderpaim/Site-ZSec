@@ -55,11 +55,11 @@ type QradarSyncManualResult = {
 // ── Design Tokens — Executive Dark Intelligence Theme ──────────────────────────
 const T = {
   // Core palette
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
 
   // Accent brand
   accent: "#3B82F6", // electric blue
@@ -73,23 +73,23 @@ const T = {
   warningBg: "rgba(245,158,11,0.10)",
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
-  neutral: "#6B7280",
+  neutral: "var(--tl-6b7280, #6B7280)",
 
   // Text
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
 
   // Chart fills
-  chartGrid: "rgba(30,38,64,0.8)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.8)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 // Tooltip executivo
 const execTooltip = {
   contentStyle: {
-    background: "#0F1420",
+    background: "var(--tl-0f1420, #0F1420)",
     border: `1px solid ${T.borderHi}`,
     borderRadius: 8,
     fontSize: 12,
@@ -266,7 +266,7 @@ const inlineStyles = `
   .exec-table th:hover { color: ${T.textSecondary}; }
   .exec-table td {
     padding: 10px 12px;
-    border-bottom: 1px solid rgba(30,38,64,0.5);
+    border-bottom: 1px solid rgba(var(--tl-line-rgb, 30,38,64),0.5);
     font-family: 'DM Sans', sans-serif;
     color: ${T.textPrimary};
     vertical-align: middle;
@@ -418,7 +418,7 @@ const inlineStyles = `
     line-height: 0;
     transition: color 0.15s, background 0.15s;
   }
-  .resize-btn:hover { color: ${T.textPrimary}; background: rgba(255,255,255,0.07); }
+  .resize-btn:hover { color: ${T.textPrimary}; background: rgba(var(--tl-ink, 255,255,255),0.07); }
   .resize-btn:disabled { opacity: 0.25; cursor: default; }
 
   /* Scrollbar */
@@ -2071,7 +2071,7 @@ export function SocRealDashboard() {
                                       gap: 12,
                                       padding: "14px 24px",
                                       background: T.surfaceAlt,
-                                      borderBottom: "1px solid rgba(30,38,64,0.5)",
+                                      borderBottom: "1px solid rgba(var(--tl-line-rgb, 30,38,64),0.5)",
                                     }}
                                   >
                                     <DetailField label="QID" value={e.qid ?? "—"} />
@@ -2682,7 +2682,7 @@ export function SocRealDashboard() {
                                       gap: 12,
                                       padding: "14px 24px",
                                       background: T.surfaceAlt,
-                                      borderBottom: "1px solid rgba(30,38,64,0.5)",
+                                      borderBottom: "1px solid rgba(var(--tl-line-rgb, 30,38,64),0.5)",
                                     }}
                                   >
                                     <DetailField label="Atualizado" value={fmtDate(o.last_updated_time)} />

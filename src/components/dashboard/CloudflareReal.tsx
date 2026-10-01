@@ -21,10 +21,10 @@ import {
   syncCloudflareZone,
 } from "@/lib/cloudflare.functions";
 import {
-  GripHorizontal,
   Maximize2,
   Minimize2,
   RotateCcw,
+  Save,
   Check,
   ChevronsUpDown,
   Globe,
@@ -46,12 +46,47 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OperationsTab } from "@/components/dashboard/cloudflare/OperationsTab";
 import { AnalyticsTab } from "@/components/dashboard/cloudflare/AnalyticsTab";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/use-permissions";
 import { CronHealthBadge } from "@/components/dashboard/CronHealthBadge";
 
 const STORAGE_KEY = "cloudflare_dashboard_layout_densegrid_final_v7";
+const DAYS_STORAGE_KEY = "cloudflare_dashboard_days";
+
+const DEFAULT_BLOCKS: DashboardBlock[] = [
+  { id: "kpis", title: "Métricas Gerais (KPIs)", size: "col-span-1 md:col-span-2 lg:col-span-6" },
+  { id: "proxy", title: "Proxy Cloudflare", size: "col-span-1 md:col-span-1 lg:col-span-2" },
+  { id: "hosts", title: "Top 10 Hosts", size: "col-span-1 md:col-span-1 lg:col-span-2" },
+  { id: "security", title: "Top 10 Security Actions", size: "col-span-1 md:col-span-1 lg:col-span-2" },
+  { id: "countries", title: "Países de Origem", size: "col-span-1 md:col-span-2 lg:col-span-3" },
+  { id: "urls", title: "URLs mais Requisitadas", size: "col-span-1 md:col-span-2 lg:col-span-3" },
+  { id: "ips", title: "Top IPs de origem", size: "col-span-1 md:col-span-1 lg:col-span-2" },
+  { id: "traffic", title: "Traffic Analyser — evolução", size: "col-span-1 md:col-span-1 lg:col-span-2" },
+  { id: "attack", title: "Attack Analyser — evolução", size: "col-span-1 md:col-span-1 lg:col-span-2" },
+  { id: "skip", title: "Requisições em Skip — evolução", size: "col-span-1 md:col-span-2 lg:col-span-3" },
+  { id: "skip-hosts", title: "Top Hosts em Skip", size: "col-span-1 md:col-span-2 lg:col-span-3" },
+  { id: "history", title: "Histórico Local", size: "col-span-1 md:col-span-2 lg:col-span-3" },
+  { id: "logs", title: "Sample Logs (Firewall)", size: "col-span-1 md:col-span-2 lg:col-span-3" },
+];
+
+// Layout salvo no navegador (ordem e tamanho). Lido já no estado inicial — e não num
+// efeito depois do primeiro render — para o layout salvo valer desde a abertura do módulo.
+// Blocos novos (que não existiam quando o layout foi salvo) entram no fim.
+function loadSavedBlocks(): DashboardBlock[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const saved = raw ? (JSON.parse(raw) as DashboardBlock[]) : null;
+    if (!Array.isArray(saved) || saved.length === 0) return DEFAULT_BLOCKS;
+    const known = new Map(DEFAULT_BLOCKS.map((b) => [b.id, b]));
+    const kept = saved.filter((b) => b && known.has(b.id)).map((b) => ({ ...known.get(b.id)!, size: b.size }));
+    const ids = new Set(kept.map((b) => b.id));
+    return [...kept, ...DEFAULT_BLOCKS.filter((b) => !ids.has(b.id))];
+  } catch {
+    return DEFAULT_BLOCKS;
+  }
+}
 
 interface DashboardBlock {
   id: string;
@@ -61,12 +96,12 @@ interface DashboardBlock {
 
 // ── Design Tokens — Executive Dark Intelligence ────────────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  surfaceHover: "#161C2E",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  surfaceHover: "var(--tl-161c2e, #161C2E)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
 
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
@@ -80,15 +115,74 @@ const T = {
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
-  neutral: "#6B7280",
+  neutral: "var(--tl-6b7280, #6B7280)",
 
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
 
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
+};
+
+// Tokens da interface v2 (moldura). Os gráficos continuam no T acima.
+const V = {
+  surface: "var(--v2-surface)",
+  surface2: "var(--v2-surface-2)",
+  line: "var(--v2-line)",
+  lineStrong: "var(--v2-line-strong)",
+  fg: "var(--v2-fg)",
+  fg2: "var(--v2-fg-2)",
+  fg3: "var(--v2-fg-3)",
+  accent: "var(--v2-accent)",
+  crit: "var(--v2-crit)",
+  ok: "var(--v2-ok)",
+  font: "var(--font-ui)",
+  mono: "var(--font-data)",
+};
+
+// Títulos dos blocos (o layout salvo no navegador guarda o título antigo; o título
+// exibido vem daqui, pelo id, para não depender do que está salvo).
+const BLOCK_TITLES: Record<string, string> = {
+  kpis: "Métricas gerais",
+  proxy: "Proxy Cloudflare",
+  hosts: "Hosts mais acessados",
+  security: "Ações de segurança",
+  countries: "Países de origem",
+  urls: "URLs mais requisitadas",
+  ips: "IPs de origem",
+  traffic: "Tráfego",
+  attack: "Ataques mitigados",
+  skip: "Requisições em skip",
+  "skip-hosts": "Hosts com mais skip",
+  history: "Histórico local",
+  logs: "Eventos do firewall",
+};
+
+const ACTION_LABEL: Record<string, string> = {
+  block: "Bloqueio",
+  challenge: "Desafio",
+  managed_challenge: "Desafio gerenciado",
+  jschallenge: "Desafio JS",
+  js_challenge: "Desafio JS",
+  log: "Registro",
+  skip: "Skip",
+  allow: "Permitido",
+};
+
+// Evento do firewall (mesmo formato de sampleLogs em getCloudflareAnalytics)
+type SampleLog = {
+  datetime: string;
+  action: string;
+  clientIP: string;
+  country: string;
+  host: string;
+  path: string;
+  method: string;
+  userAgent: string;
+  ruleId: string;
+  rayId: string;
 };
 
 // ── Action palette ─────────────────────────────────────────────────────────────
@@ -134,123 +228,130 @@ const COUNTRY_ISO: Record<string, string> = {
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-  .cf-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
+  .cf-root { font-family:var(--font-ui); color:var(--v2-fg); font-size:14px; }
   .cf-root * { box-sizing:border-box; }
+  .cf-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .cf-stack { display:flex; flex-direction:column; gap:20px; }
 
-  /* ── Tabs ── */
-  .cf-tabs-bar { display:flex; align-items:center; gap:2px; padding:4px; background:${T.surface}; border:1px solid ${T.border}; border-radius:8px; width:fit-content; }
-  .cf-tab-btn { padding:6px 16px; border-radius:6px; font-size:12px; font-weight:600; border:none; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; color:${T.textMuted}; background:transparent; }
-  .cf-tab-btn.active { background:${T.accentGlow}; color:${T.accent}; border:1px solid rgba(59,130,246,0.25); }
-  .cf-tab-btn:hover:not(.active) { color:${T.textSecondary}; background:rgba(255,255,255,0.04); }
+  /* ── Cabeçalho da página ── */
+  .cf-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .cf-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; color:var(--v2-fg); }
+  .cf-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .cf-ph-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .cf-live { display:inline-flex; align-items:center; gap:6px; }
+  .cf-live::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--v2-ok); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-ok) 25%, transparent); }
 
-  /* ── Toolbar ── */
-  .cf-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:14px 20px; background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; }
-  .cf-toolbar-group { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  /* ── Controle segmentado (abas e período) ── */
+  .cf-seg { display:inline-flex; padding:3px; gap:2px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:8px; }
+  .cf-seg button { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; padding:4px 12px; border-radius:5px; font-size:13px; color:var(--v2-fg-2); cursor:pointer; font-family:inherit; }
+  .cf-seg button:hover { color:var(--v2-fg); }
+  .cf-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); font-weight:500; box-shadow:inset 0 0 0 1px var(--v2-line); }
 
-  .cf-day-btn { padding:5px 14px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid ${T.border}; cursor:pointer; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; color:${T.textMuted}; background:transparent; letter-spacing:0.04em; }
-  .cf-day-btn.active { background:${T.accentGlow}; border-color:rgba(59,130,246,0.4); color:${T.accent}; }
-  .cf-day-btn:hover:not(.active) { border-color:${T.borderHi}; color:${T.textSecondary}; }
+  /* ── Botões ── */
+  .cf-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; border:1px solid var(--v2-line); background:var(--v2-surface); font-size:13px; font-weight:500; color:var(--v2-fg); cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .cf-btn:hover:not(:disabled) { background:var(--v2-hover); border-color:var(--v2-line-strong); }
+  .cf-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .cf-btn.ghost { background:transparent; border-color:transparent; color:var(--v2-fg-2); }
+  .cf-btn.ghost:hover:not(:disabled) { background:var(--v2-hover); color:var(--v2-fg); }
+  .cf-btn.sm { height:28px; padding:0 10px; font-size:12.5px; }
 
-  .cf-sync-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.35); border-radius:6px; font-size:11px; font-weight:600; color:${T.accent}; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
-  .cf-sync-btn:hover:not(:disabled) { background:rgba(59,130,246,0.2); box-shadow:0 0 16px rgba(59,130,246,0.12); }
-  .cf-sync-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .cf-zone-btn { display:inline-flex; align-items:center; justify-content:space-between; gap:8px; height:34px; padding:0 10px 0 12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface); font-size:12.5px; font-family:var(--font-data); color:var(--v2-fg); cursor:pointer; min-width:210px; }
+  .cf-zone-btn:hover { background:var(--v2-hover); }
 
-  .cf-reset-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; background:transparent; border:1px solid rgba(239,68,68,0.25); border-radius:6px; font-size:11px; font-weight:600; color:${T.danger}; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
-  .cf-reset-btn:hover { background:${T.dangerBg}; }
+  /* ── Filtros ativos ── */
+  .cf-filters { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .cf-filters-label { font-size:12.5px; color:var(--v2-fg-3); }
+  .cf-filter-chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 8px 0 10px; border-radius:99px; border:0; cursor:pointer; font-size:12.5px; font-family:inherit; color:var(--v2-fg); background:color-mix(in oklch, var(--v2-accent) 14%, transparent); }
+  .cf-filter-chip .close { color:var(--v2-fg-3); }
+  .cf-filter-chip:hover .close { color:var(--v2-fg); }
 
-  .cf-filter-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:5px; font-size:11px; font-weight:500; border:1px solid ${T.borderHi}; cursor:pointer; font-family:'IBM Plex Mono',monospace; color:${T.warning}; background:${T.warningBg}; transition:all 0.15s; }
-  .cf-filter-chip:hover { border-color:${T.warning}; }
-  .cf-filter-chip .close { opacity:0.6; }
-  .cf-filter-chip:hover .close { opacity:1; }
-
-  .cf-zone-btn { display:inline-flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 12px; border:1px solid ${T.border}; border-radius:6px; background:${T.surfaceAlt}; font-size:11px; color:${T.textPrimary}; cursor:pointer; min-width:200px; font-family:'DM Sans',sans-serif; transition:border-color 0.15s; }
-  .cf-zone-btn:hover { border-color:${T.borderHi}; }
-  .cf-zone-live { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; background:${T.accentSoft}; color:${T.accent}; border:1px solid rgba(59,130,246,0.25); }
-
-  /* ── Block card ── */
-  .cf-block { background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; display:flex; flex-direction:column; min-width:200px; min-height:140px; resize:vertical; overflow:auto; transition:border-color 0.2s,box-shadow 0.2s; }
-  .cf-block:hover { border-color:${T.borderHi}; }
-  .cf-block.dragging { opacity:0.2; border:1px dashed ${T.accent}; }
-
-  .cf-block-header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; cursor:grab; user-select:none; flex-shrink:0; border-radius:10px 10px 0 0; }
+  /* ── Cartões (blocos arrastáveis) ── */
+  .cf-block { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; display:flex; flex-direction:column; min-width:0; min-height:140px; resize:vertical; overflow:auto; }
+  .cf-block.bare { background:transparent; border:0; min-height:0; resize:none; overflow:visible; }
+  .cf-block.dragging { opacity:0.35; border:1px dashed var(--v2-accent); }
+  .cf-block-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px 6px; cursor:grab; user-select:none; flex-shrink:0; }
   .cf-block-header:active { cursor:grabbing; }
-  .cf-block-title { display:flex; align-items:center; gap:7px; font-size:11px; font-weight:600; color:${T.textPrimary}; text-transform:uppercase; letter-spacing:0.09em; font-family:'IBM Plex Mono',monospace; }
-  .cf-block-title-icon { color:${T.textMuted}; opacity:0.5; }
-
+  .cf-block-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--v2-fg); }
   .cf-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
-  .cf-block:hover .cf-resize-ctrl { opacity:1; }
-  .cf-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:color 0.15s,background 0.15s; }
-  .cf-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
-
-  .cf-block-body { flex:1; padding:16px; display:flex; flex-direction:column; }
+  .cf-block:hover .cf-resize-ctrl, .cf-resize-ctrl:focus-within { opacity:1; }
+  .cf-resize-btn { width:26px; height:26px; display:grid; place-items:center; border:none; background:transparent; color:var(--v2-fg-3); cursor:pointer; border-radius:5px; }
+  .cf-resize-btn:hover { color:var(--v2-fg); background:var(--v2-hover); }
+  .cf-block-body { flex:1; padding:8px 18px 18px; display:flex; flex-direction:column; }
   .cf-block-body-scroll { flex:1; overflow:auto; max-height:240px; }
 
-  /* ── KPI row ── */
-  .cf-kpi-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; width:100%; }
-  .cf-kpi { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:8px; padding:16px 18px; display:flex; flex-direction:column; gap:5px; position:relative; overflow:hidden; }
-  .cf-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kc,${T.accent}); }
-  .cf-kpi-label { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:center;}
-  .cf-kpi-value { font-size:24px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; line-height:1; color:var(--kc,${T.textPrimary}); text-align:center;}
+  /* ── Faixa de KPIs ── */
+  .cf-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); width:100%; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .cf-kpi { padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); }
+  .cf-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .cf-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; color:var(--v2-fg); }
+  .cf-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .cf-sw { width:8px; height:8px; border-radius:2px; flex-shrink:0; display:inline-block; }
 
-  /* ── Table ── */
-  .cf-table { width:100%; border-collapse:collapse; }
-  .cf-table th { padding:6px 10px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; border-bottom:1px solid ${T.border}; }
-  .cf-table td { padding:8px 10px; border-bottom:1px solid rgba(30,38,64,0.45); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
-  .cf-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
+  /* ── Tabelas ── */
+  .cf-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .cf-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; border-bottom:1px solid var(--v2-line); background:var(--v2-surface); white-space:nowrap; }
+  .cf-table td { padding:8px 12px; height:40px; border-bottom:1px solid var(--v2-line); color:var(--v2-fg); vertical-align:middle; }
+  .cf-table tbody tr:hover td { background:var(--v2-hover); }
   .cf-table tbody tr:last-child td { border-bottom:none; }
-  .cf-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
-  .cf-table .dim { color:${T.textPrimary}; }
-  .cf-table .right { text-align:right; }
+  .cf-table .mono { font-family:var(--font-data); font-size:12.5px; }
+  .cf-table .dim { color:var(--v2-fg-2); }
+  .cf-table .right { text-align:right; font-variant-numeric:tabular-nums; }
   .cf-table .clickrow { cursor:pointer; }
-  .cf-table .selected td { background:rgba(59,130,246,0.07); }
+  .cf-table .selected td { background:color-mix(in oklch, var(--v2-accent) 12%, transparent); }
+  .cf-table td:first-child, .cf-table th:first-child { padding-left:18px; }
+  .cf-table td:last-child, .cf-table th:last-child { padding-right:18px; }
 
-  /* ── Badge ── */
-  .cf-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
-  .cf-badge-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+  /* ── Pílulas de ação ── */
+  .cf-badge { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; }
+  .cf-badge-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
 
-  /* ── Proxy bar ── */
-  .cf-proxy-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-  .cf-proxy-label { font-size:11px; color:${T.textPrimary}; }
-  .cf-proxy-val { font-size:13px; font-weight:600; font-family:'IBM Plex Mono',monospace; }
-  .cf-progress-track { height:5px; background:rgba(59,130,246,0.08); border-radius:3px; overflow:hidden; margin-bottom:14px; }
-  .cf-progress-fill { height:100%; border-radius:3px; transition:width 0.6s ease; }
+  /* ── Barras horizontais ── */
+  .cf-hbars { display:grid; gap:12px; }
+  .cf-hbar { display:grid; gap:5px; }
+  .cf-hbar-top { display:flex; justify-content:space-between; gap:8px; font-size:13px; }
+  .cf-hbar-top span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--font-data); font-size:12.5px; }
+  .cf-hbar-top span:last-child { font-family:var(--font-data); font-size:12.5px; font-weight:500; color:var(--v2-fg-2); }
+  .cf-track { position:relative; height:8px; background:var(--v2-surface-2); border-radius:99px; overflow:hidden; }
+  .cf-fill { position:absolute; inset:0 auto 0 0; background:var(--v2-accent); border-radius:99px; }
 
-  /* ── Loading / Error states ── */
-  .cf-state-box { padding:32px 24px; background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; }
-  .cf-state-icon { width:40px; height:40px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+  /* ── Proxy ── */
+  .cf-proxy-big { font-size:34px; font-weight:600; letter-spacing:-0.02em; line-height:1.1; font-variant-numeric:tabular-nums; margin-bottom:10px; }
+  .cf-proxy-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px; font-size:13px; color:var(--v2-fg-2); }
+  .cf-proxy-val { font-family:var(--font-data); font-size:13px; font-weight:500; color:var(--v2-fg); }
+  .cf-progress-track { height:8px; background:var(--v2-surface-2); border-radius:99px; overflow:hidden; }
+  .cf-progress-fill { height:100%; border-radius:99px; transition:width 0.6s ease; }
 
-  /* ── Pulse ── */
-  @keyframes pulse-ring { 0%{box-shadow:0 0 0 0 rgba(16,185,129,0.5)} 70%{box-shadow:0 0 0 6px rgba(16,185,129,0)} 100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} }
-  .live-dot { width:6px; height:6px; border-radius:50%; background:${T.success}; animation:pulse-ring 2s infinite; flex-shrink:0; }
+  /* ── Estados ── */
+  .cf-state-box { padding:40px 24px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; }
+  .cf-state-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+  .cf-empty { padding:28px 16px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
 
-  /* ── Spin ── */
   @keyframes exec-spin { to{transform:rotate(360deg)} }
   .exec-spin { animation:exec-spin 0.8s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .exec-spin { animation:none; } }
 
-  /* ── Scrollbar ── */
-  .cf-root ::-webkit-scrollbar { width:4px; height:4px; }
+  .cf-root ::-webkit-scrollbar { width:6px; height:6px; }
   .cf-root ::-webkit-scrollbar-track { background:transparent; }
-  .cf-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
+  .cf-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
 
-  /* ── Tooltip ── */
-  .cf-tip { background:${T.surface}; border:1px solid ${T.borderHi}; border-radius:8px; padding:10px 14px; font-family:'DM Sans',sans-serif; box-shadow:0 20px 40px rgba(0,0,0,0.5); min-width:150px; }
-  .cf-tip-label { font-size:10px; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
+  /* ── Tooltip dos gráficos ── */
+  .cf-tip { background:var(--v2-surface); border:1px solid var(--v2-line-strong); border-radius:8px; padding:10px 14px; font-family:var(--font-ui); box-shadow:0 12px 32px rgba(0,0,0,0.35); min-width:150px; }
+  .cf-tip-label { font-size:12px; font-weight:600; color:var(--v2-fg); margin-bottom:6px; }
   .cf-tip-row { display:flex; align-items:center; gap:6px; font-size:12px; margin-bottom:3px; }
   .cf-tip-dot { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
-  .cf-tip-name { color:${T.textSecondary}; font-size:11px; }
-  .cf-tip-val { color:${T.textPrimary}; font-weight:600; font-family:'IBM Plex Mono',monospace; margin-left:auto; }
-  .cf-tip-divider { border-top:1px solid ${T.border}; margin:7px 0; }
-  .cf-tip-sub { font-size:10px; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; margin-bottom:5px; }
+  .cf-tip-name { color:var(--v2-fg-2); font-size:12px; }
+  .cf-tip-val { color:var(--v2-fg); font-weight:500; font-family:var(--font-data); margin-left:auto; }
+  .cf-tip-divider { border-top:1px solid var(--v2-line); margin:7px 0; }
+  .cf-tip-sub { font-size:11.5px; color:var(--v2-fg-3); margin-bottom:5px; }
 
-  /* ── Section label ── */
-  .cf-section-header { padding:0 0 16px 0; display:flex; align-items:center; gap:8px; }
-  .cf-section-title { font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-
-  /* ── Chart legend ── */
-  .recharts-legend-item-text { color:${T.textSecondary} !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
-  .recharts-cartesian-axis-tick-value { fill:${T.chartTick} !important; font-size:10px; font-family:'IBM Plex Mono',monospace; }
-  .recharts-text { fill:${T.chartTick} !important; }
-  .recharts-label { fill:${T.textSecondary} !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
+  /* ── Gráficos: só a "tinta" segue o tema; as cores dos dados não mudam ── */
+  .cf-root .recharts-legend-item-text { color:var(--v2-fg-2) !important; font-size:12px; font-family:var(--font-ui); }
+  .cf-root .recharts-cartesian-axis-tick-value { fill:var(--v2-fg-3) !important; font-size:11px; font-family:var(--font-data); }
+  .cf-root .recharts-text { fill:var(--v2-fg-3) !important; }
+  .cf-root .recharts-label { fill:var(--v2-fg-2) !important; font-size:11px; font-family:var(--font-data); }
+  .cf-root .recharts-cartesian-axis-line { stroke:var(--v2-line-strong) !important; }
+  .cf-root .recharts-cartesian-grid line { stroke:var(--v2-line) !important; }
+  .cf-root .recharts-active-dot circle { stroke:var(--v2-surface) !important; }
 `;
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
@@ -302,9 +403,9 @@ function ExecBadge({ action }: { action: string }) {
   const tone = ACTION_TONE[(action || "").toLowerCase()] ?? "accent";
   const col = ACTION_COLOR[tone];
   return (
-    <span className="cf-badge" style={{ background: col.bg, color: col.color, border: `1px solid ${col.border}` }}>
+    <span className="cf-badge" style={{ background: col.bg, color: col.color }} title={action || "log"}>
       <span className="cf-badge-dot" style={{ background: col.color }} />
-      {action || "LOG"}
+      {ACTION_LABEL[(action || "log").toLowerCase()] ?? action}
     </span>
   );
 }
@@ -385,18 +486,16 @@ function BlockHeader({
 }) {
   return (
     <div className="cf-block-header">
-      <div className="cf-block-title">
-        <GripHorizontal size={11} color={T.textMuted} />
-        {Icon && <Icon size={12} color={T.textMuted} />}
+      <div className="cf-block-title" title="Arraste para reorganizar">
         <span>{title}</span>
       </div>
       {showResize && (
         <div className="cf-resize-ctrl">
-          <button className="cf-resize-btn" onClick={onShrink} title="Diminuir">
-            <Minimize2 size={11} />
+          <button className="cf-resize-btn" onClick={onShrink} title="Diminuir" aria-label="Diminuir cartão">
+            <Minimize2 size={13} />
           </button>
-          <button className="cf-resize-btn" onClick={onGrow} title="Aumentar">
-            <Maximize2 size={11} />
+          <button className="cf-resize-btn" onClick={onGrow} title="Aumentar" aria-label="Aumentar cartão">
+            <Maximize2 size={13} />
           </button>
         </div>
       )}
@@ -406,17 +505,25 @@ function BlockHeader({
 
 // ── Empty micro state ──────────────────────────────────────────────────────────
 function EmptyRow({ message }: { message: string }) {
+  return <div className="cf-empty">{message}</div>;
+}
+
+// Barras horizontais (Hosts mais acessados, Hosts com mais skip)
+function HBars({ rows, color }: { rows: Array<{ label: string; value: number }>; color?: string }) {
+  const max = rows[0]?.value || 1;
   return (
-    <div
-      style={{
-        padding: "28px 16px",
-        textAlign: "center",
-        color: T.textMuted,
-        fontSize: 12,
-        fontFamily: "'DM Sans',sans-serif",
-      }}
-    >
-      {message}
+    <div className="cf-hbars">
+      {rows.map((r) => (
+        <div key={r.label} className="cf-hbar" title={`${r.label}: ${r.value.toLocaleString("pt-BR")}`}>
+          <div className="cf-hbar-top">
+            <span>{r.label}</span>
+            <span>{fmtNum(r.value)}</span>
+          </div>
+          <div className="cf-track">
+            <div className="cf-fill" style={{ width: `${(r.value / max) * 100}%`, ...(color ? { background: color } : {}) }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -433,7 +540,15 @@ export function CloudflareDashboardReal() {
   const canAnalyticsSecurity =
     isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view_analytics_security");
   const canAnalytics = canAnalyticsHttp || canAnalyticsSecurity;
-  const [days, setDays] = React.useState(3);
+  // Período salvo pelo botão Salvar (junto com o layout); padrão: 3 dias
+  const [days, setDays] = React.useState<number>(() => {
+    try {
+      const v = Number(localStorage.getItem(DAYS_STORAGE_KEY));
+      return [1, 2, 3].includes(v) ? v : 3;
+    } catch {
+      return 3;
+    }
+  });
   const [selectedCountry, setSelectedCountry] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = React.useState<string>(() => {
     try {
@@ -460,6 +575,8 @@ export function CloudflareDashboardReal() {
   }, [permLoading, canManageCf, canViewCf, canAnalytics]);
 
   const [selectedAction, setSelectedAction] = React.useState<string | null>(null);
+  // Evento do firewall aberto no painel lateral
+  const [selectedLog, setSelectedLog] = React.useState<SampleLog | null>(null);
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
   const [syncing, setSyncing] = React.useState(false);
   const [selectedZoneId, setSelectedZoneId] = React.useState<string | null>(() => {
@@ -515,21 +632,7 @@ export function CloudflareDashboardReal() {
     }
   }
 
-  const [blocks, setBlocks] = React.useState<DashboardBlock[]>([
-    { id: "kpis", title: "Métricas Gerais (KPIs)", size: "col-span-1 md:col-span-2 lg:col-span-6" },
-    { id: "proxy", title: "Proxy Cloudflare", size: "col-span-1 md:col-span-1 lg:col-span-2" },
-    { id: "hosts", title: "Top 10 Hosts", size: "col-span-1 md:col-span-1 lg:col-span-2" },
-    { id: "security", title: "Top 10 Security Actions", size: "col-span-1 md:col-span-1 lg:col-span-2" },
-    { id: "countries", title: "Países de Origem", size: "col-span-1 md:col-span-2 lg:col-span-3" },
-    { id: "urls", title: "URLs mais Requisitadas", size: "col-span-1 md:col-span-2 lg:col-span-3" },
-    { id: "ips", title: "Top IPs de origem", size: "col-span-1 md:col-span-1 lg:col-span-2" },
-    { id: "traffic", title: "Traffic Analyser — evolução", size: "col-span-1 md:col-span-1 lg:col-span-2" },
-    { id: "attack", title: "Attack Analyser — evolução", size: "col-span-1 md:col-span-1 lg:col-span-2" },
-    { id: "skip", title: "Requisições em Skip — evolução", size: "col-span-1 md:col-span-2 lg:col-span-3" },
-    { id: "skip-hosts", title: "Top Hosts em Skip", size: "col-span-1 md:col-span-2 lg:col-span-3" },
-    { id: "history", title: "Histórico Local", size: "col-span-1 md:col-span-2 lg:col-span-3" },
-    { id: "logs", title: "Sample Logs (Firewall)", size: "col-span-1 md:col-span-2 lg:col-span-3" },
-  ]);
+  const [blocks, setBlocks] = React.useState<DashboardBlock[]>(loadSavedBlocks);
 
   const fetchAnalytics = useServerFn(getCloudflareAnalytics);
   const triggerSync = useServerFn(triggerCloudflareSync);
@@ -556,24 +659,24 @@ export function CloudflareDashboardReal() {
     }
   }
 
-  React.useEffect(() => {
-    const savedLayout = localStorage.getItem(STORAGE_KEY);
-    if (savedLayout) {
-      try {
-        const saved = JSON.parse(savedLayout) as DashboardBlock[];
-        setBlocks((prev) => {
-          const savedIds = new Set(saved.map((b) => b.id));
-          const missing = prev.filter((b) => !savedIds.has(b.id));
-          return [...saved, ...missing];
-        });
-      } catch {
-        console.error("Layout resetado.");
-      }
+  // Arrastar/redimensionar e trocar o período só alteram a tela; o botão Salvar
+  // grava o layout e o período (aplicados de novo ao abrir o módulo).
+  const [layoutDirty, setLayoutDirty] = React.useState(false);
+  const [savedDays, setSavedDays] = React.useState(days);
+  const unsaved = layoutDirty || days !== savedDays;
+  const saveLayout = () => {
+    try {
+      const payload = JSON.stringify(blocks.map(({ id, size }) => ({ id, size })));
+      localStorage.setItem(STORAGE_KEY, payload);
+      localStorage.setItem(DAYS_STORAGE_KEY, String(days));
+      // Confere a gravação: só confirma se o navegador devolveu o que foi salvo
+      if (localStorage.getItem(STORAGE_KEY) !== payload) throw new Error("conferência falhou");
+      setLayoutDirty(false);
+      setSavedDays(days);
+      toast.success(`Layout e período (${days === 1 ? "24 h" : `${days} dias`}) salvos`);
+    } catch {
+      toast.error("Não foi possível salvar. O navegador pode estar bloqueando o armazenamento local.");
     }
-  }, []);
-
-  const saveLayout = (currentBlocks = blocks) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentBlocks));
   };
 
   const resetLayout = () => {
@@ -595,7 +698,7 @@ export function CloudflareDashboardReal() {
       return { ...b, size };
     });
     setBlocks(nextBlocks);
-    saveLayout(nextBlocks);
+    setLayoutDirty(true);
   };
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -620,7 +723,7 @@ export function CloudflareDashboardReal() {
     const [removed] = newBlocks.splice(currentIdx, 1);
     newBlocks.splice(targetIdx, 0, removed);
     setBlocks(newBlocks);
-    saveLayout(newBlocks);
+    setLayoutDirty(true);
   };
 
   // ── BLOCK ICON MAP ─────────────────────────────────────────────────────────
@@ -653,49 +756,98 @@ export function CloudflareDashboardReal() {
   return (
     <div className="cf-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* ── Tabs ─────────────────────────────────────────────────────────── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div className="cf-tabs-bar">
-            {canViewCf && (
-              <button
-                className={`cf-tab-btn${activeTab === "dashboard" ? " active" : ""}`}
-                onClick={() => handleTabChange("dashboard")}
-              >
-                Dashboard
-              </button>
-            )}
-            {canAnalytics && (
-              <button
-                className={`cf-tab-btn${activeTab === "analytics" ? " active" : ""}`}
-                onClick={() => handleTabChange("analytics")}
-              >
-                Analytics
-              </button>
-            )}
-            {canManageCf && (
-              <button
-                className={`cf-tab-btn${activeTab === "operations" ? " active" : ""}`}
-                onClick={() => handleTabChange("operations")}
-              >
-                Operações
-              </button>
-            )}
+      <div className="cf-stack">
+        {/* ── Cabeçalho da página ──────────────────────────────────────────── */}
+        <div className="cf-ph">
+          <div>
+            <h1 className="cf-ph-title">Cloudflare WAF</h1>
+            <p className="cf-ph-sub">
+              <span className="cf-live">{isFetching ? "Atualizando…" : "Ao vivo"}</span>
+              <span>·</span>
+              <span>
+                {activeTab === "analytics"
+                  ? "Análise de tráfego e segurança"
+                  : activeTab === "operations"
+                    ? "DNS, cache e regras"
+                    : "Visão geral da zona"}
+              </span>
+            </p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div className="live-dot" />
-            <span
-              style={{
-                fontSize: 10,
-                color: T.success,
-                fontFamily: "'IBM Plex Mono',monospace",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              Live
-            </span>
-          </div>
+          {canViewCf && activeTab === "dashboard" && (
+            <div className="cf-ph-actions">
+              {/* Zona */}
+              <Popover open={zonePopoverOpen} onOpenChange={setZonePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button className="cf-zone-btn" role="combobox" aria-expanded={zonePopoverOpen} aria-label="Trocar zona">
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <Globe size={14} color={V.fg3} />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {selectedZone ? selectedZone.name : "bernoulli.com.br"}
+                      </span>
+                    </span>
+                    <ChevronsUpDown size={13} color={V.fg3} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="end">
+                  <Command>
+                    <CommandInput placeholder="Buscar zona…" />
+                    <CommandList>
+                      <CommandEmpty>Nenhuma zona encontrada.</CommandEmpty>
+                      <CommandGroup>
+                        {zones.map((z) => (
+                          <CommandItem key={z.id} value={z.name} onSelect={() => handleZoneSelect(z.id)}>
+                            <Check size={14} style={{ opacity: selectedZoneId === z.id ? 1 : 0, color: V.ok }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", fontFamily: V.mono, fontSize: 12.5 }}>
+                              {z.name}
+                            </span>
+                            {z.status && (
+                              <span style={{ marginLeft: "auto", fontSize: 11.5, color: V.fg3 }}>{z.status}</span>
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {/* Período */}
+              <div className="cf-seg" role="group" aria-label="Período">
+                {[1, 2, 3].map((n) => (
+                  <button key={n} type="button" aria-pressed={days === n} onClick={() => setDays(n)}>
+                    {n === 1 ? "24 h" : `${n} dias`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sync — restrito a admin global ou admin do módulo */}
+              {canSyncCf && (
+                <button className="cf-btn" onClick={handleSync} disabled={syncing || isFetching}>
+                  <RefreshCw size={14} className={syncing ? "exec-spin" : ""} />
+                  {syncing ? "Sincronizando…" : "Sincronizar"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Abas ─────────────────────────────────────────────────────────── */}
+        <div className="cf-seg" role="tablist" aria-label="Visão" style={{ alignSelf: "flex-start" }}>
+          {canViewCf && (
+            <button type="button" aria-pressed={activeTab === "dashboard"} onClick={() => handleTabChange("dashboard")}>
+              Dashboard
+            </button>
+          )}
+          {canAnalytics && (
+            <button type="button" aria-pressed={activeTab === "analytics"} onClick={() => handleTabChange("analytics")}>
+              Analytics
+            </button>
+          )}
+          {canManageCf && (
+            <button type="button" aria-pressed={activeTab === "operations"} onClick={() => handleTabChange("operations")}>
+              Operações
+            </button>
+          )}
         </div>
 
         {/* ── Analytics Tab content ────────────────────────────────────────── */}
@@ -715,7 +867,7 @@ export function CloudflareDashboardReal() {
                 >
                   <RefreshCw size={18} color={T.accent} className="exec-spin" />
                 </div>
-                <span style={{ fontSize: 13, color: T.textSecondary, fontFamily: "'DM Sans',sans-serif" }}>
+                <span style={{ fontSize: 13, color: V.fg2, fontFamily: V.font }}>
                   Sincronizando dados Bernoulli com a Cloudflare…
                 </span>
               </div>
@@ -730,140 +882,60 @@ export function CloudflareDashboardReal() {
                 <span style={{ fontSize: 13, fontWeight: 600, color: T.danger }}>
                   Erro crítico na comunicação com a API Cloudflare
                 </span>
-                <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+                <span style={{ fontSize: 11, color: V.fg3, fontFamily: "'IBM Plex Mono',monospace" }}>
                   {d && !d.ok ? d.error : ((error as Error)?.message ?? "Erro desconhecido")}
                 </span>
               </div>
             ) : (
               <>
-                {/* Toolbar */}
-                <div className="cf-toolbar">
-                  <div className="cf-toolbar-group">
-                    {/* Day selector */}
-                    {[1, 2, 3].map((n) => (
-                      <button key={n} className={`cf-day-btn${days === n ? " active" : ""}`} onClick={() => setDays(n)}>
-                        {n === 1 ? "24h" : `${n}d`}
-                      </button>
-                    ))}
-
-                    {/* Sync — restrito a admin global ou admin do módulo */}
-                    {canSyncCf && (
-                      <button className="cf-sync-btn" onClick={handleSync} disabled={syncing || isFetching}>
-                        <RefreshCw size={12} className={syncing ? "exec-spin" : ""} />
-                        {syncing ? "Sincronizando…" : "Sincronizar Agora"}
-                      </button>
-                    )}
-
-                    <CronHealthBadge jobName="cloudflare-daily-sync" moduleSlug="cloudflare-waf" />
-
-                    {/* Zone picker */}
-                    <Popover open={zonePopoverOpen} onOpenChange={setZonePopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <button className="cf-zone-btn" role="combobox" aria-expanded={zonePopoverOpen}>
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {selectedZone ? selectedZone.name : "bernoulli.com.br"}
-                          </span>
-                          <ChevronsUpDown size={12} color={T.textMuted} />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        style={{
-                          width: 300,
-                          padding: 0,
-                          background: T.surface,
-                          border: `1px solid ${T.borderHi}`,
-                          borderRadius: 8,
-                          boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
-                        }}
-                        align="start"
-                      >
-                        <Command style={{ background: "transparent" }}>
-                          <CommandInput
-                            placeholder="Buscar zona…"
-                            style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}
-                          />
-                          <CommandList>
-                            <CommandEmpty style={{ color: T.textMuted, fontSize: 12, padding: 12 }}>
-                              Nenhuma zona encontrada.
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {zones.map((z) => (
-                                <CommandItem
-                                  key={z.id}
-                                  value={z.name}
-                                  onSelect={() => handleZoneSelect(z.id)}
-                                  style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: T.textPrimary }}
-                                >
-                                  <Check
-                                    size={14}
-                                    style={{ opacity: selectedZoneId === z.id ? 1 : 0, color: T.success }}
-                                  />
-                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{z.name}</span>
-                                  {z.status && (
-                                    <span
-                                      style={{
-                                        marginLeft: "auto",
-                                        fontSize: 10,
-                                        color: T.textMuted,
-                                        fontFamily: "'IBM Plex Mono',monospace",
-                                      }}
-                                    >
-                                      {z.status}
-                                    </span>
-                                  )}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-
-                    {/* Live zone badge */}
-                    {selectedZone && (
-                      <span className="cf-zone-live">
-                        <div className="live-dot" style={{ width: 5, height: 5 }} />
-                        {selectedZone.name}
-                      </span>
-                    )}
-
-                    {/* Active filters */}
-                    {selectedCountry && (
-                      <button className="cf-filter-chip" onClick={() => setSelectedCountry(null)}>
-                        <Flag name={selectedCountry} />
-                        {selectedCountry}
-                        <X size={10} className="close" />
-                      </button>
-                    )}
-                    {selectedAction && (
-                      <button className="cf-filter-chip" onClick={() => setSelectedAction(null)}>
-                        <Filter size={10} />
-                        {selectedAction}
-                        <X size={10} className="close" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Reset layout */}
-                  <button className="cf-reset-btn" onClick={resetLayout}>
-                    <RotateCcw size={12} />
-                    Restaurar Layout
-                  </button>
+                {/* Filtros ativos, saúde do sync e layout */}
+                <div className="cf-filters">
+                  <CronHealthBadge jobName="cloudflare-daily-sync" moduleSlug="cloudflare-waf" />
+                  {(selectedCountry || selectedAction) && <span className="cf-filters-label">Filtrando por</span>}
+                  {selectedCountry && (
+                    <button className="cf-filter-chip" onClick={() => setSelectedCountry(null)}>
+                      <Flag name={selectedCountry} />
+                      {selectedCountry}
+                      <X size={14} className="close" aria-label="Remover filtro" />
+                    </button>
+                  )}
+                  {selectedAction && (
+                    <button className="cf-filter-chip" onClick={() => setSelectedAction(null)}>
+                      Ação: {ACTION_LABEL[selectedAction.toLowerCase()] ?? selectedAction}
+                      <X size={14} className="close" aria-label="Remover filtro" />
+                    </button>
+                  )}
+                  <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    {unsaved && <span className="cf-filters-label">Alterações não salvas</span>}
+                    <button className="cf-btn ghost sm" onClick={resetLayout}>
+                      <RotateCcw size={13} />
+                      Restaurar layout
+                    </button>
+                    <button
+                      className="cf-btn sm"
+                      onClick={saveLayout}
+                      title="Salvar layout e período"
+                      aria-label="Salvar layout e período"
+                      style={{ width: 28, padding: 0, justifyContent: "center" }}
+                    >
+                      <Save size={14} />
+                    </button>
+                  </span>
                 </div>
 
                 {/* ── Grid ─────────────────────────────────────────────────────── */}
                 <div
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-5"
                   style={{ gridAutoFlow: "row dense" }}
                 >
                   {blocks.map((block: DashboardBlock) => {
                     const BlockIcon = BLOCK_ICONS[block.id] ?? Activity;
                     const isDragging = draggedId === block.id;
-                    const blockCls = `${block.size} cf-block${isDragging ? " dragging" : ""}`;
+                    const blockCls = `${block.size} cf-block${block.id === "kpis" ? " bare" : ""}${isDragging ? " dragging" : ""}`;
                     const header = (showResize = true) => (
                       <BlockHeader
                         id={block.id}
-                        title={block.title}
+                        title={BLOCK_TITLES[block.id] ?? block.title}
                         icon={BlockIcon}
                         showResize={showResize}
                         onGrow={() => changeBlockSize(block.id, "grow")}
@@ -880,24 +952,43 @@ export function CloudflareDashboardReal() {
                     /* ── KPIs ─────────────────────────────────────────────────── */
                     if (block.id === "kpis" && d?.totals) {
                       return (
-                        <div key={block.id} {...dragProps} className={blockCls}>
-                          {header(false)}
-                          <div className="cf-block-body">
-                            <div className="cf-kpi-grid">
-                              {[
-                                { label: "Domínios", value: String(d.domains?.zones || 0), color: T.accent },
-                                { label: "Subdomínios", value: String(d.domains?.subdomains || 0), color: T.accent },
-                                { label: "Requisições", value: fmtNum(d.totals.requests), color: T.accent },
-                                { label: "Cacheadas", value: fmtNum(d.totals.cached), color: T.success },
-                                { label: "Mitigadas", value: fmtNum(d.totals.mitigated), color: T.danger },
-                                { label: "Taxa Mitigação", value: `${mitigationRate.toFixed(2)}%`, color: T.warning },
-                              ].map(({ label, value, color }) => (
-                                <div key={label} className="cf-kpi" style={{ "--kc": color } as React.CSSProperties}>
-                                  <span className="cf-kpi-label">{label}</span>
-                                  <span className="cf-kpi-value">{value}</span>
-                                </div>
-                              ))}
-                            </div>
+                        <div key={block.id} {...dragProps} className={blockCls} title="Arraste para reorganizar">
+                          <div className="cf-kpi-grid">
+                            {[
+                              {
+                                label: "Requisições",
+                                value: fmtNum(d.totals.requests),
+                                foot: `${fmtNum(d.totals?.uniqueIps || 0)} IPs únicos`,
+                              },
+                              {
+                                label: "Servidas do cache",
+                                value: fmtNum(d.totals.cached),
+                                foot:
+                                  d.totals.requests > 0
+                                    ? `${((d.totals.cached / d.totals.requests) * 100).toFixed(1).replace(".", ",")}% das requisições`
+                                    : "—",
+                              },
+                              { label: "Mitigadas", value: fmtNum(d.totals.mitigated), foot: "bloqueios e desafios", sw: T.danger },
+                              {
+                                label: "Taxa de mitigação",
+                                value: `${mitigationRate.toFixed(2).replace(".", ",")}%`,
+                                foot: "das requisições",
+                              },
+                              {
+                                label: "Domínios",
+                                value: String(d.domains?.zones || 0),
+                                foot: `${d.domains?.subdomains || 0} subdomínios`,
+                              },
+                            ].map(({ label, value, foot, sw }) => (
+                              <div key={label} className="cf-kpi">
+                                <span className="cf-kpi-label">
+                                  {sw && <span className="cf-sw" style={{ background: sw }} />}
+                                  {label}
+                                </span>
+                                <span className="cf-kpi-value">{value}</span>
+                                <span className="cf-kpi-foot">{foot}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       );
@@ -908,37 +999,23 @@ export function CloudflareDashboardReal() {
                       return (
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
-                          <div className="cf-block-body" style={{ justifyContent: "center", gap: 2, minHeight: 140 }}>
-                            <div className="cf-proxy-row">
-                              <span className="cf-proxy-label">Proxy Ativo</span>
-                              <span className="cf-proxy-val" style={{ color: T.success }}>
-                                {fmtNum(d.proxy.proxied)}{" "}
-                                <span style={{ color: T.textMuted, fontSize: 11 }}>({proxyRate.toFixed(1)}%)</span>
-                              </span>
-                            </div>
+                          <div className="cf-block-body" style={{ minHeight: 140 }}>
+                            <div className="cf-proxy-big">{proxyRate.toFixed(1).replace(".", ",")}%</div>
                             <div className="cf-progress-track">
-                              <div
-                                className="cf-progress-fill"
-                                style={{ width: `${proxyRate}%`, background: T.success }}
-                              />
+                              <div className="cf-progress-fill" style={{ width: `${proxyRate}%`, background: T.success }} />
                             </div>
                             <div className="cf-proxy-row">
-                              <span className="cf-proxy-label">Direto / Desativado</span>
-                              <span className="cf-proxy-val" style={{ color: T.textMuted }}>
-                                {fmtNum(d.proxy.unproxied)}
-                              </span>
+                              <span>Com proxy</span>
+                              <span className="cf-proxy-val">{fmtNum(d.proxy.proxied)}</span>
                             </div>
-                            <p
-                              style={{
-                                fontSize: 11,
-                                color: T.textMuted,
-                                marginTop: 8,
-                                fontFamily: "'DM Sans',sans-serif",
-                              }}
-                            >
-                              IPs únicos:{" "}
-                              <strong style={{ color: T.textPrimary }}>{fmtNum(d.totals?.uniqueIps || 0)}</strong>
-                            </p>
+                            <div className="cf-proxy-row">
+                              <span>Direto (sem proxy)</span>
+                              <span className="cf-proxy-val">{fmtNum(d.proxy.unproxied)}</span>
+                            </div>
+                            <div className="cf-proxy-row">
+                              <span>IPs únicos de origem</span>
+                              <span className="cf-proxy-val">{fmtNum(d.totals?.uniqueIps || 0)}</span>
+                            </div>
                           </div>
                         </div>
                       );
@@ -949,27 +1026,8 @@ export function CloudflareDashboardReal() {
                       return (
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
-                          <div style={{ flex: 1, overflow: "auto", maxHeight: 220 }}>
-                            <table className="cf-table">
-                              <tbody>
-                                {d.topHosts.slice(0, 10).map((r: any, i: number) => (
-                                  <tr key={i}>
-                                    <td
-                                      className="mono dim"
-                                      style={{
-                                        maxWidth: 150,
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      {r.host}
-                                    </td>
-                                    <td className="mono right">{fmtNum(r.requests)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          <div className="cf-block-body" style={{ overflow: "auto", maxHeight: 320 }}>
+                            <HBars rows={d.topHosts.slice(0, 10).map((r: any) => ({ label: r.host, value: r.requests }))} />
                           </div>
                         </div>
                       );
@@ -992,7 +1050,7 @@ export function CloudflareDashboardReal() {
                                     <td>
                                       <ExecBadge action={a.action} />
                                     </td>
-                                    <td className="mono right" style={{ color: T.textSecondary }}>
+                                    <td className="mono right" style={{ color: V.fg2 }}>
                                       {fmtNum(a.count)}
                                     </td>
                                   </tr>
@@ -1013,7 +1071,11 @@ export function CloudflareDashboardReal() {
                             <table className="cf-table">
                               <tbody>
                                 {d.topCountries.map((c: any, i: number) => (
-                                  <tr key={i} className="clickrow" onClick={() => setSelectedCountry(c.country)}>
+                                  <tr
+                                    key={i}
+                                    className={`clickrow${selectedCountry === c.country ? " selected" : ""}`}
+                                    onClick={() => setSelectedCountry(selectedCountry === c.country ? null : c.country)}
+                                  >
                                     <td style={{ display: "flex", alignItems: "center" }}>
                                       <Flag name={c.country} />
                                       <span
@@ -1022,7 +1084,7 @@ export function CloudflareDashboardReal() {
                                         {c.country}
                                       </span>
                                     </td>
-                                    <td className="mono right" style={{ color: T.textSecondary }}>
+                                    <td className="mono right" style={{ color: V.fg2 }}>
                                       {fmtNum(c.requests)}
                                     </td>
                                   </tr>
@@ -1073,7 +1135,7 @@ export function CloudflareDashboardReal() {
                                     >
                                       {r.path}
                                     </td>
-                                    <td className="mono right" style={{ color: T.textSecondary }}>
+                                    <td className="mono right" style={{ color: V.fg2 }}>
                                       {fmtNum(r.requests)}
                                     </td>
                                   </tr>
@@ -1102,7 +1164,7 @@ export function CloudflareDashboardReal() {
                               <tbody>
                                 {filteredIps.map((r: any, i: number) => (
                                   <tr key={i}>
-                                    <td className="mono" style={{ color: T.textSecondary }}>
+                                    <td className="mono" style={{ color: V.fg2 }}>
                                       {r.ip}
                                     </td>
                                     <td style={{ display: "flex", alignItems: "center" }}>
@@ -1118,7 +1180,7 @@ export function CloudflareDashboardReal() {
                                         {r.country}
                                       </span>
                                     </td>
-                                    <td className="mono right" style={{ color: T.textMuted }}>
+                                    <td className="mono right" style={{ color: V.fg3 }}>
                                       {fmtNum(r.requests)}
                                     </td>
                                   </tr>
@@ -1274,32 +1336,11 @@ export function CloudflareDashboardReal() {
                       return (
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
-                          <div style={{ flex: 1, overflow: "auto", maxHeight: 340 }}>
+                          <div className="cf-block-body" style={{ overflow: "auto", maxHeight: 340 }}>
                             {rows.length === 0 ? (
-                              <EmptyRow message="Sem hosts em Skip no período." />
+                              <EmptyRow message="Sem hosts em skip no período." />
                             ) : (
-                              <table className="cf-table">
-                                <tbody>
-                                  {rows.map((r, i) => (
-                                    <tr key={i}>
-                                      <td
-                                        className="mono dim"
-                                        style={{
-                                          maxWidth: 260,
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                        }}
-                                      >
-                                        {r.host}
-                                      </td>
-                                      <td className="mono right" style={{ color: T.success }}>
-                                        {fmtNum(r.count)}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                              <HBars rows={rows.map((r) => ({ label: r.host, value: r.count }))} color={T.success} />
                             )}
                           </div>
                         </div>
@@ -1373,30 +1414,47 @@ export function CloudflareDashboardReal() {
                             <table className="cf-table" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                               <thead style={{ position: "sticky", top: 0, zIndex: 20 }}>
                                 <tr>
-                                  <th style={{ background: T.surface, paddingLeft: 16 }}>Data</th>
-                                  <th style={{ background: T.surface }}>Action</th>
-                                  <th style={{ background: T.surface }}>Path</th>
+                                  <th>Quando</th>
+                                  <th>Ação</th>
+                                  <th>IP de origem</th>
+                                  <th>País</th>
+                                  <th>Host e caminho</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {filteredLogs.map((l: any, i: number) => (
-                                  <tr key={i}>
-                                    <td className="mono dim" style={{ paddingLeft: 16, whiteSpace: "nowrap" }}>
+                                {filteredLogs.length === 0 && (
+                                  <tr>
+                                    <td colSpan={5}>
+                                      <EmptyRow message="Nenhum evento no período ou com esses filtros." />
+                                    </td>
+                                  </tr>
+                                )}
+                                {filteredLogs.map((l: SampleLog, i: number) => (
+                                  <tr
+                                    key={i}
+                                    className="clickrow"
+                                    tabIndex={0}
+                                    onClick={() => setSelectedLog(l)}
+                                    onKeyDown={(e) => e.key === "Enter" && setSelectedLog(l)}
+                                  >
+                                    <td className="mono dim" style={{ whiteSpace: "nowrap" }}>
                                       {SafeHourDateTime(l.datetime, "full")}
                                     </td>
                                     <td>
                                       <ExecBadge action={l.action} />
                                     </td>
+                                    <td className="mono">{l.clientIP}</td>
+                                    <td style={{ whiteSpace: "nowrap" }}>
+                                      <Flag name={l.country} />
+                                      <span style={{ fontSize: 12.5 }}>{l.country}</span>
+                                    </td>
                                     <td
-                                      className="mono dim"
-                                      style={{
-                                        maxWidth: 150,
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                      }}
+                                      className="mono"
+                                      style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                                      title={`${l.host}${l.path}`}
                                     >
-                                      {l.path}
+                                      {l.host}
+                                      <span style={{ color: V.fg3 }}>{l.path}</span>
                                     </td>
                                   </tr>
                                 ))}
@@ -1415,6 +1473,78 @@ export function CloudflareDashboardReal() {
           </>
         )}
       </div>
+
+      {/* ── Painel lateral: detalhe do evento do firewall ──────────────────── */}
+      <DetailSheet
+        open={!!selectedLog}
+        onOpenChange={(o) => !o && setSelectedLog(null)}
+        eyebrow={selectedLog ? `${SafeHourDateTime(selectedLog.datetime, "full")} · Ray ${selectedLog.rayId}` : null}
+        title={selectedLog ? `${selectedLog.method} ${selectedLog.host}` : ""}
+        badges={selectedLog && <ExecBadge action={selectedLog.action} />}
+        footer={
+          selectedLog && (
+            <>
+              <button
+                className="cf-btn ghost"
+                onClick={() => {
+                  setSelectedCountry(selectedLog.country);
+                  setSelectedLog(null);
+                }}
+              >
+                Filtrar por este país
+              </button>
+              <button
+                className="cf-btn"
+                onClick={() => {
+                  setSelectedAction(selectedLog.action);
+                  setSelectedLog(null);
+                }}
+              >
+                Filtrar por esta ação
+              </button>
+            </>
+          )
+        }
+      >
+        {selectedLog && (
+          <>
+            <DetailList
+              items={[
+                ["IP de origem", selectedLog.clientIP, true],
+                [
+                  "País",
+                  <span key="pais" style={{ display: "inline-flex", alignItems: "center" }}>
+                    <Flag name={selectedLog.country} />
+                    {selectedLog.country}
+                  </span>,
+                ],
+                ["Host", selectedLog.host, true],
+                ["Caminho", selectedLog.path, true],
+                ["Método", selectedLog.method, true],
+                ["Regra", selectedLog.ruleId, true],
+                ["Ray ID", selectedLog.rayId, true],
+              ]}
+            />
+            {selectedLog.userAgent && (
+              <DetailSection title="Agente do usuário">
+                <div
+                  style={{
+                    font: "400 12px/1.5 var(--font-data)",
+                    background: V.surface2,
+                    border: `1px solid ${V.line}`,
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    color: V.fg2,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {selectedLog.userAgent}
+                </div>
+              </DetailSection>
+            )}
+          </>
+        )}
+      </DetailSheet>
     </div>
   );
 }

@@ -26,10 +26,10 @@ import { listPilulas, upsertPilula, deletePilula, getPilulasOverview, type Pilul
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -41,14 +41,14 @@ const T = {
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  textSubtle: "#475569",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#334155",
-  chartTick: "#64748B",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-64748b, #64748B)",
+  textSubtle: "var(--tl-475569, #475569)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-334155, #334155)",
+  chartTick: "var(--tl-64748b, #64748B)",
 };
 
 // ── CSS ────────────────────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ const CSS = `
   .ps-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
   .ps-block:hover .ps-resize-ctrl { opacity:1; }
   .ps-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:all 0.15s; }
-  .ps-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
+  .ps-resize-btn:hover { color:${T.textPrimary}; background:rgba(var(--tl-ink, 255,255,255),0.07); }
   .ps-resize-btn:disabled { opacity:0.25; cursor:default; }
   .ps-block-body { flex:1; padding:16px; }
 
@@ -119,7 +119,7 @@ const CSS = `
   .ps-table { width:100%; border-collapse:collapse; }
   .ps-table thead { position:sticky; top:0; z-index:10; }
   .ps-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .ps-table td { padding:10px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:top; }
+  .ps-table td { padding:10px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; vertical-align:top; }
   .ps-table tbody tr:hover td { background:rgba(167,139,250,0.04); }
   .ps-table tbody tr:last-child td { border-bottom:none; }
   .ps-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }

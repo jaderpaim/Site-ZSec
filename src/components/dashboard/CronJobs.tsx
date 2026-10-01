@@ -23,11 +23,11 @@ import {
 
 // ─── Design Tokens (espelho do módulo Logs) ────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  surfaceHover: "#161C2E",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  surfaceHover: "var(--tl-161c2e, #161C2E)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -37,11 +37,11 @@ const T = {
   warningBg: "rgba(245,158,11,0.10)",
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 const CSS = `
@@ -176,7 +176,7 @@ const CSS = `
 
   /* ── Job name chip ── */
   .cj-jobname {
-    font-size:10px; color:#6B7280;
+    font-size:10px; color:var(--tl-6b7280, #6B7280);
     font-family:'IBM Plex Mono',monospace;
     background:${T.surfaceAlt}; border-radius:5px; padding:4px 6px 4px 8px;
     border:1px solid ${T.border};
@@ -228,7 +228,7 @@ const CSS = `
     z-index:9999; padding:16px;
   }
   .cj-modal {
-    background:#0D1117; border:1px solid ${T.border}; border-radius:12px;
+    background:var(--tl-0d1117, #0D1117); border:1px solid ${T.border}; border-radius:12px;
     width:100%; max-width:540px; display:flex; flex-direction:column; gap:0;
     box-shadow:0 24px 48px rgba(0,0,0,0.5);
   }

@@ -27,8 +27,8 @@ const Robot = React.memo(function Robot() {
           width: 28,
           height: 28,
           borderRadius: "50%",
-          background: "radial-gradient(circle at 38% 32%, #60a5fa, #1d4ed8 60%, #1e3a8a)",
-          boxShadow: "0 0 12px 4px rgba(59,130,246,0.7), inset 0 2px 4px rgba(255,255,255,0.3)",
+          background: "radial-gradient(circle at 38% 32%, #60a5fa, #1d4ed8 60%, var(--tl-1e3a8a, #1e3a8a))",
+          boxShadow: "0 0 12px 4px rgba(59,130,246,0.7), inset 0 2px 4px rgba(var(--tl-ink, 255,255,255),0.3)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -48,9 +48,9 @@ const Robot = React.memo(function Robot() {
           height: 165,
           borderRadius: "50%",
           background:
-            "radial-gradient(ellipse at 36% 26%, #d0d8e4 0%, #9aa8bc 28%, #6e7e94 55%, #4a5568 80%, #2d3748 100%)",
+            "radial-gradient(ellipse at 36% 26%, var(--tl-d0d8e4, #d0d8e4) 0%, var(--tl-9aa8bc, #9aa8bc) 28%, var(--tl-6e7e94, #6e7e94) 55%, var(--tl-4a5568, #4a5568) 80%, var(--tl-2d3748, #2d3748) 100%)",
           boxShadow:
-            "inset -8px -10px 24px rgba(0,0,0,0.2), inset 6px 8px 18px rgba(255,255,255,0.45), 0 16px 40px rgba(0,0,0,0.25)",
+            "inset -8px -10px 24px rgba(0,0,0,0.2), inset 6px 8px 18px rgba(var(--tl-ink, 255,255,255),0.45), 0 16px 40px rgba(0,0,0,0.25)",
         }}
       >
         {/* Forehead shine */}
@@ -62,7 +62,7 @@ const Robot = React.memo(function Robot() {
             width: 118,
             height: 46,
             borderRadius: "50%",
-            background: "radial-gradient(ellipse, rgba(255,255,255,0.5) 0%, transparent 70%)",
+            background: "radial-gradient(ellipse, rgba(var(--tl-ink, 255,255,255),0.5) 0%, transparent 70%)",
             transform: "rotate(-10deg)",
             pointerEvents: "none",
           }}
@@ -74,8 +74,8 @@ const Robot = React.memo(function Robot() {
             width: 158,
             height: 106,
             borderRadius: "46% 46% 44% 44%",
-            background: "radial-gradient(ellipse at 44% 34%, #1ab8c0, #065060 60%, #021a1a)",
-            boxShadow: "inset 0 4px 12px rgba(0,210,220,0.2), 0 0 0 3px rgba(255,255,255,0.22)",
+            background: "radial-gradient(ellipse at 44% 34%, #1ab8c0, var(--tl-065060, #065060) 60%, var(--tl-021a1a, #021a1a))",
+            boxShadow: "inset 0 4px 12px rgba(0,210,220,0.2), 0 0 0 3px rgba(var(--tl-ink, 255,255,255),0.22)",
             position: "relative",
             overflow: "hidden",
           }}
@@ -89,7 +89,7 @@ const Robot = React.memo(function Robot() {
               width: 128,
               height: 36,
               borderRadius: "50%",
-              background: "radial-gradient(ellipse, rgba(255,255,255,0.16) 0%, transparent 70%)",
+              background: "radial-gradient(ellipse, rgba(var(--tl-ink, 255,255,255),0.16) 0%, transparent 70%)",
               pointerEvents: "none",
             }}
           />
@@ -116,7 +116,7 @@ const Robot = React.memo(function Robot() {
                   height: 38,
                   borderRadius: "50%",
                   background:
-                    "radial-gradient(ellipse at 38% 30%, #b4f8ff 0%, #40d8f0 28%, #00a8cc 55%, #006a94 85%, #002d45 100%)",
+                    "radial-gradient(ellipse at 38% 30%, #b4f8ff 0%, #40d8f0 28%, #00a8cc 55%, #006a94 85%, var(--tl-002d45, #002d45) 100%)",
                   position: "relative",
                 }}
               >
@@ -128,7 +128,7 @@ const Robot = React.memo(function Robot() {
                     width: 13,
                     height: 9,
                     borderRadius: "50%",
-                    background: "rgba(255,255,255,0.72)",
+                    background: "rgba(var(--tl-ink, 255,255,255),0.72)",
                     transform: "rotate(-20deg)",
                   }}
                 />
@@ -140,7 +140,7 @@ const Robot = React.memo(function Robot() {
                     width: 5,
                     height: 4,
                     borderRadius: "50%",
-                    background: "rgba(255,255,255,0.32)",
+                    background: "rgba(var(--tl-ink, 255,255,255),0.32)",
                   }}
                 />
               </div>
@@ -162,9 +162,9 @@ const Robot = React.memo(function Robot() {
               borderRadius: "50%",
               background:
                 side < 0
-                  ? "radial-gradient(ellipse at 65% 28%, #c8d4e0, #7a8a9c 50%, #4a5568)"
-                  : "radial-gradient(ellipse at 35% 28%, #c8d4e0, #7a8a9c 50%, #4a5568)",
-              boxShadow: "inset -2px -3px 6px rgba(0,0,0,0.2), inset 1px 2px 5px rgba(255,255,255,0.5)",
+                  ? "radial-gradient(ellipse at 65% 28%, var(--tl-c8d4e0, #c8d4e0), var(--tl-7a8a9c, #7a8a9c) 50%, var(--tl-4a5568, #4a5568))"
+                  : "radial-gradient(ellipse at 35% 28%, var(--tl-c8d4e0, #c8d4e0), var(--tl-7a8a9c, #7a8a9c) 50%, var(--tl-4a5568, #4a5568))",
+              boxShadow: "inset -2px -3px 6px rgba(0,0,0,0.2), inset 1px 2px 5px rgba(var(--tl-ink, 255,255,255),0.5)",
             }}
           >
             {/* Ear detail dot */}
@@ -191,7 +191,7 @@ const Robot = React.memo(function Robot() {
           width: 42,
           height: 20,
           marginTop: -3,
-          background: "linear-gradient(to bottom, #8a9aac, #5a6a7c)",
+          background: "linear-gradient(to bottom, var(--tl-8a9aac, #8a9aac), var(--tl-5a6a7c, #5a6a7c))",
           clipPath: "polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%)",
           boxShadow: "inset -2px 0 5px rgba(0,0,0,0.2)",
         }}
@@ -211,9 +211,9 @@ const Robot = React.memo(function Robot() {
           height: 144,
           borderRadius: "40% 40% 38% 38% / 36% 36% 42% 42%",
           background:
-            "radial-gradient(ellipse at 35% 24%, #d0d8e4 0%, #9aa8bc 22%, #6e7e94 52%, #4a5568 78%, #2d3748 100%)",
+            "radial-gradient(ellipse at 35% 24%, var(--tl-d0d8e4, #d0d8e4) 0%, var(--tl-9aa8bc, #9aa8bc) 22%, var(--tl-6e7e94, #6e7e94) 52%, var(--tl-4a5568, #4a5568) 78%, var(--tl-2d3748, #2d3748) 100%)",
           boxShadow:
-            "inset -10px -14px 28px rgba(0,0,0,0.22), inset 8px 10px 22px rgba(255,255,255,0.6), 0 16px 50px rgba(0,0,0,0.28)",
+            "inset -10px -14px 28px rgba(0,0,0,0.22), inset 8px 10px 22px rgba(var(--tl-ink, 255,255,255),0.6), 0 16px 50px rgba(0,0,0,0.28)",
           marginTop: 2,
         }}
       >
@@ -226,7 +226,7 @@ const Robot = React.memo(function Robot() {
             width: 96,
             height: 38,
             borderRadius: "50%",
-            background: "radial-gradient(ellipse, rgba(255,255,255,0.42) 0%, transparent 70%)",
+            background: "radial-gradient(ellipse, rgba(var(--tl-ink, 255,255,255),0.42) 0%, transparent 70%)",
             transform: "rotate(-8deg)",
             pointerEvents: "none",
           }}
@@ -301,8 +301,8 @@ const Robot = React.memo(function Robot() {
             width: 30,
             height: 120,
             borderRadius: "40% 40% 45% 45%",
-            background: "radial-gradient(ellipse at 62% 18%, #c8d4e0, #6a7a8c 55%, #3a4a5c 100%)",
-            boxShadow: "inset -4px -6px 14px rgba(0,0,0,0.28), inset 3px 4px 10px rgba(255,255,255,0.4)",
+            background: "radial-gradient(ellipse at 62% 18%, var(--tl-c8d4e0, #c8d4e0), var(--tl-6a7a8c, #6a7a8c) 55%, var(--tl-3a4a5c, #3a4a5c) 100%)",
+            boxShadow: "inset -4px -6px 14px rgba(0,0,0,0.28), inset 3px 4px 10px rgba(var(--tl-ink, 255,255,255),0.4)",
             transform: "rotate(10deg)",
           }}
         />
@@ -315,8 +315,8 @@ const Robot = React.memo(function Robot() {
             width: 30,
             height: 120,
             borderRadius: "40% 40% 45% 45%",
-            background: "radial-gradient(ellipse at 38% 18%, #c8d4e0, #6a7a8c 55%, #3a4a5c 100%)",
-            boxShadow: "inset 4px -6px 14px rgba(0,0,0,0.28), inset -3px 4px 10px rgba(255,255,255,0.4)",
+            background: "radial-gradient(ellipse at 38% 18%, var(--tl-c8d4e0, #c8d4e0), var(--tl-6a7a8c, #6a7a8c) 55%, var(--tl-3a4a5c, #3a4a5c) 100%)",
+            boxShadow: "inset 4px -6px 14px rgba(0,0,0,0.28), inset -3px 4px 10px rgba(var(--tl-ink, 255,255,255),0.4)",
             transform: "rotate(-10deg)",
           }}
         />

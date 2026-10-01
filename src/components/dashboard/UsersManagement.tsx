@@ -74,11 +74,11 @@ type ModuleSlug = string;
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  surfaceHover: "#161C2E",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  surfaceHover: "var(--tl-161c2e, #161C2E)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -90,11 +90,11 @@ const T = {
   dangerBg: "rgba(239,68,68,0.10)",
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#F1F5F9",
-  textSubtle: "#475569",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-475569, #475569)",
 };
 
 // ── Avatar palette – colour derived from first char ────────────────────────────
@@ -174,7 +174,7 @@ const CSS = `
   /* table */
   .um-table { width:100%;border-collapse:collapse; }
   .um-table th { padding:9px 14px;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${T.textMuted};font-family:'IBM Plex Mono',monospace;text-align:left;background:${T.surface};border-bottom:1px solid ${T.border};white-space:nowrap; }
-  .um-table td { padding:11px 14px;border-bottom:1px solid rgba(30,38,64,0.4);vertical-align:middle; }
+  .um-table td { padding:11px 14px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4);vertical-align:middle; }
   .um-table tbody tr { cursor:pointer;transition:background 0.1s; }
   .um-table tbody tr:hover td { background:rgba(59,130,246,0.045); }
   .um-table tbody tr:last-child td { border-bottom:none; }
@@ -211,7 +211,7 @@ const CSS = `
 
   /* action buttons */
   .um-act-btn { padding:5px 6px;border-radius:5px;border:1px solid ${T.border};background:transparent;color:${T.textMuted};cursor:pointer;transition:all 0.15s;display:inline-flex;align-items:center;line-height:0; }
-  .um-act-btn:hover     { border-color:${T.borderHi};color:${T.textPrimary};background:rgba(255,255,255,0.05); }
+  .um-act-btn:hover     { border-color:${T.borderHi};color:${T.textPrimary};background:rgba(var(--tl-ink, 255,255,255),0.05); }
   .um-act-btn.del:hover { border-color:rgba(239,68,68,0.4);color:${T.danger};background:${T.dangerBg}; }
   .um-manage-btn { display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:5px;font-size:11px;font-weight:700;color:${T.accent};font-family:'IBM Plex Mono',monospace;background:${T.accentSoft};border:1px solid rgba(59,130,246,0.2);cursor:pointer;transition:all 0.15s;white-space:nowrap; }
   .um-manage-btn:hover { background:${T.accentGlow};border-color:rgba(59,130,246,0.4); }

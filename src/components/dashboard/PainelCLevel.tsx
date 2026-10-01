@@ -21,13 +21,13 @@ import { getCLevelOverview, upsertCLevelContexto } from "@/lib/clevel.functions"
 // ───────────────────────────────────────────────────────────────────────────────
 
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  text: "#F1F5F9",
-  muted: "#A9B4C7",
-  subtle: "#64748B",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  text: "var(--tl-f1f5f9, #F1F5F9)",
+  muted: "var(--tl-a9b4c7, #A9B4C7)",
+  subtle: "var(--tl-64748b, #64748B)",
   success: "#10B981",
   successBg: "rgba(16,185,129,0.10)",
   warning: "#F59E0B",
@@ -73,7 +73,7 @@ const CSS = `
   .cl-hero-top { display:flex; gap:30px; align-items:center; flex-wrap:wrap; }
   .cl-dot { width:64px; height:64px; border-radius:999px; flex-shrink:0; }
   /* Etiqueta de procedência — aparece em todo número da tela */
-  .cl-fonte { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#818FA6; display:flex; align-items:center; gap:5px; margin-top:8px; }
+  .cl-fonte { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--tl-818fa6, #818FA6); display:flex; align-items:center; gap:5px; margin-top:8px; }
   .cl-vazio { border:1px dashed ${T.border}; border-radius:14px; padding:18px 20px; background:${T.surfaceAlt}; }
   /* Pilares do movimento 1 — o que sustenta o veredito de saúde. São três
      afirmações estruturais, não indicadores do dia: o detalhe operacional
@@ -129,7 +129,7 @@ const CSS = `
      fundo e contorno próprios, um pouco maior. Continua secundária à frase,
      mas agora se lê. */
   .cl-linha-nota { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:${T.muted};
-    background:rgba(255,255,255,0.045); border:1px solid ${T.border}; border-radius:7px;
+    background:rgba(var(--tl-ink, 255,255,255),0.045); border:1px solid ${T.border}; border-radius:7px;
     padding:4px 9px; white-space:nowrap; justify-self:end; }
   @media (max-width:820px){ .cl-linha-nota { white-space:normal; justify-self:start; } }
   /* Marcador de tempo dos 3 cards de custo — numera a história, não decora:
@@ -139,7 +139,7 @@ const CSS = `
   .cl-beat-n { width:18px; height:18px; border-radius:5px; background:${T.accentBg}; color:#93C5FD;
     display:flex; align-items:center; justify-content:center; font-size:10px; flex-shrink:0; }
   /* Memória de cálculo: deixa a divisão à vista para o número não parecer erro de escala */
-  .cl-mono-calc { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#8A97AD; margin-top:8px;
+  .cl-mono-calc { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--tl-8a97ad, #8A97AD); margin-top:8px;
     padding-top:8px; border-top:1px dashed ${T.border}; line-height:1.5; }
   /* Fecho do movimento de custo: costura os três cards. Corpo maior que a
      ressalva, porque é conclusão e não nota de pé de página. */
@@ -165,7 +165,7 @@ const CSS = `
   .cl-tabs { display:inline-flex; align-items:center; gap:4px; padding:4px; background:${T.surface}; border:1px solid ${T.border}; border-radius:8px; }
   .cl-tab { padding:7px 16px; border-radius:6px; border:none; background:transparent; font-size:12px; font-weight:600;
     font-family:'DM Sans',sans-serif; color:${T.subtle}; cursor:pointer; transition:all .15s; }
-  .cl-tab:hover:not(.active) { color:${T.muted}; background:rgba(255,255,255,0.04); }
+  .cl-tab:hover:not(.active) { color:${T.muted}; background:rgba(var(--tl-ink, 255,255,255),0.04); }
   .cl-tab.active { background:${T.accentBg}; color:#93C5FD; border:1px solid rgba(59,130,246,0.25); }
   @media (max-width:1100px){ .cl-wrap{ padding:20px 16px; } }
 `;
@@ -394,14 +394,14 @@ function MomentoAtual({ d }: { d: any }) {
   return (
     <section>
       <Step n={1}>O momento</Step>
-      <div className="cl-hero" style={{ background: s.bg, border: `1px solid ${s.cor}44` }}>
+      <div className="cl-hero" style={{ background: s.bg, border: `1px solid color-mix(in srgb, ${s.cor} 27%, transparent)` }}>
         {/* Farol + manchete ficam numa faixa própria; pilares, legenda e a faixa
             de contexto passaram a ocupar a LARGURA TOTAL do herói (antes ficavam
             recuados na coluna do texto, o que apequenava os números). */}
         <div className="cl-hero-top">
           <div
             className="cl-dot"
-            style={{ background: s.cor, boxShadow: `0 0 0 10px ${s.cor}22, 0 0 40px ${s.cor}55` }}
+            style={{ background: s.cor, boxShadow: `0 0 0 10px color-mix(in srgb, ${s.cor} 13%, transparent), 0 0 40px color-mix(in srgb, ${s.cor} 33%, transparent)` }}
           />
           <div style={{ flex: 1, minWidth: 320 }}>
             <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.15 }}>{titulo}</div>
@@ -623,7 +623,7 @@ function ComoEstamos({ d }: { d: any }) {
           >
             <div className="cl-linha-dim">
               <div style={{ fontSize: 13.5, fontWeight: 700 }}>{l.dim}</div>
-              <span className="cl-veredito" style={{ background: `${cor[l.nivel]}1A`, color: cor[l.nivel] }}>
+              <span className="cl-veredito" style={{ background: `color-mix(in srgb, ${cor[l.nivel]} 10%, transparent)`, color: cor[l.nivel] }}>
                 {l.veredito}
               </span>
             </div>
@@ -722,7 +722,7 @@ function BlocoCusto({ d }: { d: any }) {
       <Step n={4}>Quanto custa proteger</Step>
       <div className="cl-grid" style={{ gridTemplateColumns: "minmax(300px,5fr) 7fr" }}>
         {/* 1 — HOJE */}
-        <div className="cl-card" style={{ borderColor: abaixoDoPiso ? `${T.warning}55` : `${T.success}44` }}>
+        <div className="cl-card" style={{ borderColor: abaixoDoPiso ? `color-mix(in srgb, ${T.warning} 33%, transparent)` : `color-mix(in srgb, ${T.success} 27%, transparent)` }}>
           <Tempo n="1">Hoje</Tempo>
           <div className="cl-num" style={{ fontSize: 52, marginTop: 12, color: abaixoDoPiso ? T.warning : T.success }}>
             {porAluno != null ? brl.format(porAluno) : "n/d"}
@@ -773,7 +773,7 @@ function BlocoCusto({ d }: { d: any }) {
             <div
               className="cl-card"
               style={{
-                borderColor: `${T.warning}55`,
+                borderColor: `color-mix(in srgb, ${T.warning} 33%, transparent)`,
                 background: `linear-gradient(180deg, ${T.surface}, ${T.surfaceAlt})`,
               }}
             >

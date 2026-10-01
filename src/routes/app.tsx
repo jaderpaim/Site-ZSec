@@ -2,7 +2,9 @@ import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/
 import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
-import { AppSidebar } from "@/components/layout/AppSidebar";
+import { AppSidebar, BrandMark } from "@/components/layout/AppSidebar";
+import { CommandMenu } from "@/components/layout/CommandMenu";
+import { ShellStateProvider } from "@/components/layout/shell-state";
 import { FiltersProvider } from "@/lib/filters-context";
 import { consumePendingRedirect } from "@/lib/sso.functions";
 
@@ -55,17 +57,23 @@ function AppLayout() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">Carregando...</div>
+      <div className="font-ui min-h-screen flex flex-col items-center justify-center gap-3 bg-v2-bg text-v2-fg-3 text-[13px]">
+        <BrandMark className="w-8 h-9 animate-pulse motion-reduce:animate-none" />
+        Carregando…
+      </div>
     );
   }
   return (
     <FiltersProvider>
-      <div className="flex min-h-screen bg-background">
-        <AppSidebar />
-        <main className="flex-1 min-w-0 flex flex-col">
-          <Outlet />
-        </main>
-      </div>
+      <ShellStateProvider>
+        <div className="flex min-h-screen bg-v2-bg">
+          <AppSidebar />
+          <main className="flex-1 min-w-0 flex flex-col">
+            <Outlet />
+          </main>
+        </div>
+        <CommandMenu />
+      </ShellStateProvider>
     </FiltersProvider>
   );
 }

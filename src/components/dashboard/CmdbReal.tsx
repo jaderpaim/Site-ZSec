@@ -57,10 +57,10 @@ const TIPOS_KPI = [
 
 // ── Design Tokens (mesma paleta dos outros dashboards) ──────────────────────────
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -70,11 +70,11 @@ const T = {
   warningBg: "rgba(245,158,11,0.10)",
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#F1F5F9",
-  textSubtle: "#475569",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-94a3b8, #94A3B8)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-475569, #475569)",
 };
 
 const CRIT_COLOR: Record<Criticidade, string> = {
@@ -168,7 +168,7 @@ const CSS = `
   .cm-btn.outline { background:${T.accentSoft}; border:1px solid rgba(59,130,246,0.35); color:${T.accent}; }
   .cm-btn.outline:hover:not(:disabled) { background:rgba(59,130,246,0.2); }
   .cm-btn.ghost { background:transparent; border:1px solid transparent; color:${T.textSecondary}; }
-  .cm-btn.ghost:hover:not(:disabled) { background:rgba(255,255,255,0.06); color:${T.textPrimary}; }
+  .cm-btn.ghost:hover:not(:disabled) { background:rgba(var(--tl-ink, 255,255,255),0.06); color:${T.textPrimary}; }
 
   /* ── Filters row ── */
   .cm-filters { margin-bottom:14px; }
@@ -184,7 +184,7 @@ const CSS = `
   .cm-fdot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
   .cm-fmenu { display:flex; flex-direction:column; font-family:'DM Sans',sans-serif; }
   .cm-fopt { display:flex; align-items:center; gap:8px; width:100%; padding:7px 9px; border:none; background:transparent; color:${T.textPrimary}; font-size:12.5px; border-radius:6px; cursor:pointer; text-align:left; }
-  .cm-fopt:hover, .cm-fopt:focus-visible { background:rgba(255,255,255,0.06); outline:none; }
+  .cm-fopt:hover, .cm-fopt:focus-visible { background:rgba(var(--tl-ink, 255,255,255),0.06); outline:none; }
   .cm-fopt-chk { width:14px; height:14px; border-radius:4px; border:1px solid ${T.borderHi}; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .cm-fopt.on .cm-fopt-chk { background:${T.accent}; border-color:${T.accent}; color:#fff; }
   .cm-fopt-hint { display:block; font-size:10.5px; color:${T.textSubtle}; font-family:'IBM Plex Mono',monospace; }
@@ -199,7 +199,7 @@ const CSS = `
   .cm-fchip { display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 9px; border-radius:5px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:${T.textPrimary}; border:1px solid ${T.border}; background:${T.surfaceAlt}; }
   .cm-fchip b { color:${T.textSecondary}; font-weight:600; }
   .cm-fchip button { border:none; background:transparent; color:${T.textSecondary}; cursor:pointer; line-height:0; padding:3px; border-radius:3px; }
-  .cm-fchip button:hover { background:rgba(255,255,255,0.08); color:${T.textPrimary}; }
+  .cm-fchip button:hover { background:rgba(var(--tl-ink, 255,255,255),0.08); color:${T.textPrimary}; }
 
   /* ── Tabs ── */
   .cm-tabs-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
@@ -218,7 +218,7 @@ const CSS = `
   .cm-table { width:100%; border-collapse:collapse; }
   .cm-table thead { position:sticky; top:0; z-index:10; }
   .cm-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .cm-table td { padding:9px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
+  .cm-table td { padding:9px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
   .cm-table tbody tr { cursor:pointer; transition:background 0.1s; }
   .cm-table tbody tr:hover td { background:rgba(59,130,246,0.05); }
   .cm-table tbody tr:last-child td { border-bottom:none; }
@@ -226,14 +226,14 @@ const CSS = `
   .cm-table .dim  { color:${T.textMuted}; }
   .cm-row-actions { display:flex; justify-content:flex-end; gap:2px; }
   .cm-icon-btn { padding:5px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:5px; line-height:0; transition:all 0.15s; }
-  .cm-icon-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
+  .cm-icon-btn:hover { color:${T.textPrimary}; background:rgba(var(--tl-ink, 255,255,255),0.07); }
   .cm-icon-btn.danger:hover { color:${T.danger}; background:${T.dangerBg}; }
 
   /* ── Cards por criticidade ── */
   .cm-crit-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
   .cm-crit-col { border-radius:10px; border:1px solid ${T.border}; background:${T.surfaceAlt}; overflow:hidden; display:flex; flex-direction:column; }
   .cm-crit-hdr { padding:10px 14px; display:flex; align-items:center; justify-content:space-between; font-size:13.5px; font-weight:700; font-family:'Space Grotesk',sans-serif; border-bottom:1px solid ${T.border}; }
-  .cm-crit-count { font-size:13px; font-weight:700; font-family:'IBM Plex Mono',monospace; background:rgba(255,255,255,0.1); border-radius:999px; padding:2px 11px; }
+  .cm-crit-count { font-size:13px; font-weight:700; font-family:'IBM Plex Mono',monospace; background:rgba(var(--tl-ink, 255,255,255),0.1); border-radius:999px; padding:2px 11px; }
   .cm-crit-body { padding:8px; display:flex; flex-direction:column; gap:8px; max-height:65vh; overflow-y:auto; }
   .cm-crit-empty { font-size:11px; color:${T.textMuted}; text-align:center; padding:24px 0; }
   .cm-crit-item { width:100%; text-align:left; padding:11px 12px; border-radius:8px; border:1px solid ${T.border}; border-left:3px solid var(--cc,${T.accent}); background:${T.surface}; cursor:pointer; transition:all 0.15s; }
