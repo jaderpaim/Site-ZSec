@@ -71,14 +71,9 @@ import {
   Database,
   ChevronDown,
   Check,
-  GripHorizontal,
-  Maximize2,
-  Minimize2,
-  RotateCcw,
   Pencil,
   Power,
   Shield,
-  Route,
   ArrowUp,
   ArrowDown,
   Info,
@@ -92,11 +87,11 @@ import { usePermissions } from "@/lib/use-permissions";
 
 // ── Design Tokens (same as CloudflareReal) ────────────────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -112,54 +107,86 @@ const T = {
   cyanBg: "rgba(34,211,238,0.10)",
   orange: "#FB923C",
   orangeBg: "rgba(251,146,60,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
+};
+
+// Moldura da interface v2 (mesmos nomes do T; os gráficos continuam no T)
+const V2 = {
+  surfaceAlt: "var(--v2-surface-2)",
+  surface: "var(--v2-surface)",
+  borderHi: "var(--v2-line-strong)",
+  border: "var(--v2-line)",
+  textPrimary: "var(--v2-fg)",
+  textSecondary: "var(--v2-fg-2)",
+  textMuted: "var(--v2-fg-3)",
+  textSubtle: "var(--v2-fg-3)",
+  textDim: "var(--v2-fg-3)",
 };
 
 // ── Inline CSS ─────────────────────────────────────────────────────────────────
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-  .ops-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
+  .ops-root { font-family:var(--font-ui); color:var(--v2-fg); }
   .ops-root * { box-sizing:border-box; }
 
   /* ── Block card ── */
-  .ops-block { background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; display:flex; flex-direction:column; min-width:220px; min-height:160px; resize:vertical; overflow:auto; transition:border-color 0.2s; }
-  .ops-block:hover { border-color:${T.borderHi}; }
+  .ops-block { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:10px; display:flex; flex-direction:column; min-width:220px; min-height:160px; resize:vertical; overflow:auto; transition:border-color 0.2s; }
+  .ops-block:hover { border-color:var(--v2-line-strong); }
   .ops-block.dragging { opacity:0.2; border:1px dashed ${T.accent}; }
 
-  .ops-block-header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; cursor:grab; user-select:none; flex-shrink:0; border-radius:10px 10px 0 0; }
+  .ops-block-header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:var(--v2-surface-2); border-bottom:1px solid var(--v2-line); cursor:grab; user-select:none; flex-shrink:0; border-radius:10px 10px 0 0; }
   .ops-block-header:active { cursor:grabbing; }
-  .ops-block-title { display:flex; align-items:center; gap:7px; font-size:11px; font-weight:600; color:${T.textPrimary}; text-transform:uppercase; letter-spacing:0.09em; font-family:'IBM Plex Mono',monospace; }
+  .ops-block-title { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:500; color:var(--v2-fg);   font-family:var(--font-ui); }
 
   .ops-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
   .ops-block:hover .ops-resize-ctrl { opacity:1; }
-  .ops-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:color 0.15s,background 0.15s; }
-  .ops-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
+  .ops-resize-btn { padding:2px; border:none; background:transparent; color:var(--v2-fg-3); cursor:pointer; border-radius:3px; line-height:0; transition:color 0.15s,background 0.15s; }
+  .ops-resize-btn:hover { color:var(--v2-fg); background:rgba(var(--tl-ink, 255,255,255),0.07); }
 
   .ops-block-body { flex:1; padding:16px 20px; display:flex; flex-direction:column; gap:14px; overflow:auto; }
 
   /* ── Section title inside block ── */
-  .ops-section-title { display:flex; align-items:center; gap:8px; padding-bottom:10px; border-bottom:1px solid ${T.border}; margin-bottom:2px; }
-  .ops-section-title-text { font-size:13px; font-weight:600; color:${T.textPrimary}; font-family:'DM Sans',sans-serif; }
+  .ops-subnav { display:flex; align-items:center; gap:2px; padding:4px; background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; width:fit-content; flex-wrap:wrap; }
+  .ops-subnav-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:6px; font-size:13px; font-weight:500; border:1px solid transparent; cursor:pointer; font-family:var(--font-ui); color:var(--v2-fg-3); background:transparent; }
+  .ops-subnav-btn:hover:not(.active):not(:disabled) { color:var(--v2-fg); background:var(--v2-hover); }
+  .ops-subnav-btn.active { background:var(--v2-surface); color:var(--v2-fg); border-color:var(--v2-line); }
+  .ops-subnav-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .ops-cards { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:20px; }
+  .ops-cards.one { grid-template-columns:minmax(0, 1fr); }
+  @media (max-width: 1100px) { .ops-cards { grid-template-columns:minmax(0, 1fr); } }
+  .ops-card { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; display:flex; flex-direction:column; min-width:0; }
+  .ops-card-h { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:14px 18px 6px; }
+  .ops-card-title { font-size:14px; font-weight:600; color:var(--v2-fg); margin:0; }
+  .ops-card-desc { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .ops-card-body { padding:8px 18px 18px; flex:1; min-width:0; }
+  /* O título interno de cada ferramenta vira o título do cartão */
+  .ops-card .ops-section-title { display:none; }
+  .ops-card-btn { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:8px; font-size:13px; font-weight:500; font-family:var(--font-ui); cursor:pointer; white-space:nowrap; border:1px solid var(--v2-accent); background:var(--v2-accent); color:var(--v2-accent-ink); }
+  .ops-card-btn:hover { filter:brightness(1.08); }
+  .ops-zone-bar { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; padding:14px 18px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; }
+  .ops-zone-bar > div { min-width:260px; flex:0 1 360px; }
+  .ops-section-title { display:flex; align-items:center; gap:8px; padding-bottom:10px; border-bottom:1px solid var(--v2-line); margin-bottom:2px; }
+  .ops-section-title-text { font-size:13px; font-weight:600; color:var(--v2-fg); font-family:var(--font-ui); }
 
   /* ── Toolbar ── */
-  .ops-toolbar { display:flex; align-items:center; justify-content:flex-end; padding:10px 16px; background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; }
-  .ops-reset-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; background:transparent; border:1px solid rgba(239,68,68,0.25); border-radius:6px; font-size:11px; font-weight:600; color:${T.danger}; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
+  .ops-toolbar { display:flex; align-items:center; justify-content:flex-end; padding:10px 16px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:10px; }
+  .ops-reset-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; background:transparent; border:1px solid rgba(239,68,68,0.25); border-radius:6px; font-size:11px; font-weight:600; color:${T.danger}; cursor:pointer; font-family:var(--font-ui); transition:all 0.15s; }
   .ops-reset-btn:hover { background:${T.dangerBg}; }
 
   /* ── Form field ── */
   .ops-field { display:flex; flex-direction:column; gap:5px; }
-  .ops-label { font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
+  .ops-label { font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); }
 
   /* ── Input override ── */
   .ops-root input, .ops-root textarea, .ops-root select {
-    background:${T.surfaceAlt} !important;
-    border-color:${T.border} !important;
-    color:${T.textPrimary} !important;
+    background:var(--v2-surface-2) !important;
+    border-color:var(--v2-line) !important;
+    color:var(--v2-fg) !important;
     font-family:'IBM Plex Mono',monospace !important;
     font-size:12px !important;
     border-radius:6px !important;
@@ -169,48 +196,48 @@ const CSS = `
     outline:none !important;
     box-shadow:0 0 0 2px rgba(59,130,246,0.1) !important;
   }
-  .ops-root input::placeholder, .ops-root textarea::placeholder { color:${T.textSubtle} !important; }
+  .ops-root input::placeholder, .ops-root textarea::placeholder { color:var(--v2-fg-3) !important; }
 
   /* ── SearchableSelect trigger ── */
-  .ops-select-trigger { display:flex; width:100%; align-items:center; justify-content:space-between; border-radius:6px; border:1px solid ${T.border}; background:${T.surfaceAlt}; padding:7px 10px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; cursor:pointer; transition:border-color 0.15s; }
-  .ops-select-trigger:hover:not(:disabled) { border-color:${T.borderHi}; }
+  .ops-select-trigger { display:flex; width:100%; align-items:center; justify-content:space-between; border-radius:6px; border:1px solid var(--v2-line); background:var(--v2-surface-2); padding:7px 10px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--v2-fg); cursor:pointer; transition:border-color 0.15s; }
+  .ops-select-trigger:hover:not(:disabled) { border-color:var(--v2-line-strong); }
   .ops-select-trigger:disabled { opacity:0.45; cursor:not-allowed; }
   .ops-select-trigger.open { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
 
-  .ops-select-popover { background:${T.surface}; border:1px solid ${T.borderHi}; border-radius:8px; box-shadow:0 20px 40px rgba(0,0,0,0.5); overflow:hidden; }
-  .ops-select-search { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid ${T.border}; background:${T.surfaceAlt}; }
-  .ops-select-search input { background:transparent !important; border:none !important; box-shadow:none !important; font-size:12px; color:${T.textPrimary}; outline:none; width:100%; }
+  .ops-select-popover { background:var(--v2-surface); border:1px solid var(--v2-line-strong); border-radius:8px; box-shadow:0 20px 40px rgba(0,0,0,0.5); overflow:hidden; }
+  .ops-select-search { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--v2-line); background:var(--v2-surface-2); }
+  .ops-select-search input { background:transparent !important; border:none !important; box-shadow:none !important; font-size:12px; color:var(--v2-fg); outline:none; width:100%; }
   .ops-select-list { max-height:220px; overflow-y:auto; }
-  .ops-select-opt { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; cursor:pointer; transition:background 0.1s; }
-  .ops-select-opt:hover { background:rgba(59,130,246,0.06); color:${T.textPrimary}; }
+  .ops-select-opt { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--v2-fg); cursor:pointer; transition:background 0.1s; }
+  .ops-select-opt:hover { background:rgba(59,130,246,0.06); color:var(--v2-fg); }
   .ops-select-opt.selected { background:rgba(59,130,246,0.08); color:${T.accent}; font-weight:600; }
-  .ops-select-footer { padding:5px 12px; border-top:1px solid ${T.border}; background:${T.surfaceAlt}; font-size:10px; color:${T.textSubtle}; font-family:'IBM Plex Mono',monospace; }
-  .ops-select-empty { padding:20px; text-align:center; font-size:12px; color:${T.textPrimary}; font-family:'DM Sans',sans-serif; }
+  .ops-select-footer { padding:5px 12px; border-top:1px solid var(--v2-line); background:var(--v2-surface-2); font-size:10px; color:var(--v2-fg-3); font-family:'IBM Plex Mono',monospace; }
+  .ops-select-empty { padding:20px; text-align:center; font-size:12px; color:var(--v2-fg); font-family:var(--font-ui); }
 
   /* ── Day selector ── */
-  .ops-day-btn { padding:5px 14px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid ${T.border}; cursor:pointer; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; color:${T.textMuted}; background:transparent; }
+  .ops-day-btn { padding:5px 14px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid var(--v2-line); cursor:pointer; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; color:var(--v2-fg-3); background:transparent; }
   .ops-day-btn.active { background:${T.accentGlow}; border-color:rgba(59,130,246,0.4); color:${T.accent}; }
-  .ops-day-btn:hover:not(.active) { border-color:${T.borderHi}; color:${T.textSecondary}; }
+  .ops-day-btn:hover:not(.active) { border-color:var(--v2-line-strong); color:var(--v2-fg-2); }
 
   /* ── Rules submenu (Overview / Page Rules) ── */
-  .ops-subtabs { display:flex; align-items:center; gap:2px; border-bottom:1px solid ${T.border}; padding-bottom:0; }
-  .ops-subtab { padding:7px 14px; border-radius:6px 6px 0 0; font-size:11px; font-weight:600; border:1px solid transparent; cursor:pointer; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; background:transparent; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:-1px; }
-  .ops-subtab.active { color:${T.accent}; border-color:${T.border}; border-bottom-color:${T.surface}; background:${T.surfaceAlt}; }
-  .ops-subtab:hover:not(.active) { color:${T.textSecondary}; }
+  .ops-subtabs { display:flex; align-items:center; gap:2px; border-bottom:1px solid var(--v2-line); padding-bottom:0; }
+  .ops-subtab { padding:7px 14px; border-radius:6px 6px 0 0; font-size:12px; font-weight:500; border:1px solid transparent; cursor:pointer; font-family:var(--font-ui); color:var(--v2-fg-3); background:transparent;   margin-bottom:-1px; }
+  .ops-subtab.active { color:${T.accent}; border-color:var(--v2-line); border-bottom-color:var(--v2-surface); background:var(--v2-surface-2); }
+  .ops-subtab:hover:not(.active) { color:var(--v2-fg-2); }
   .ops-subtab:disabled { opacity:0.4; cursor:not-allowed; }
-  .ops-subtab:disabled:hover { color:${T.textMuted}; }
+  .ops-subtab:disabled:hover { color:var(--v2-fg-3); }
 
   /* ── Rule category card (Rules → Overview) ── */
-  .ops-rule-cat { border:1px solid ${T.border}; border-radius:8px; overflow:hidden; }
-  .ops-rule-cat-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; gap:10px; flex-wrap:wrap; }
-  .ops-rule-cat-title { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:${T.textPrimary}; font-family:'DM Sans',sans-serif; }
+  .ops-rule-cat { border:1px solid var(--v2-line); border-radius:8px; overflow:hidden; }
+  .ops-rule-cat-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--v2-surface-2); border-bottom:1px solid var(--v2-line); gap:10px; flex-wrap:wrap; }
+  .ops-rule-cat-title { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--v2-fg); font-family:var(--font-ui); }
   .ops-rule-cat-count { font-size:10px; font-weight:700; color:${T.success}; font-family:'IBM Plex Mono',monospace; }
   .ops-rule-status-active { display:inline-flex; align-items:center; gap:4px; color:${T.success}; font-size:11px; font-weight:600; }
   .ops-rule-status-active::before { content:''; width:6px; height:6px; border-radius:50%; background:${T.success}; }
-  .ops-rule-status-disabled { color:${T.textMuted}; font-size:11px; }
+  .ops-rule-status-disabled { color:var(--v2-fg-3); font-size:11px; }
 
   /* ── Exec button ── */
-  .ops-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; border:none; white-space:nowrap; }
+  .ops-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font-ui); transition:all 0.15s; border:none; white-space:nowrap; }
   .ops-btn:disabled { opacity:0.45; cursor:not-allowed; }
   .ops-btn.primary { background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.4); color:${T.accent}; }
   .ops-btn.primary:hover:not(:disabled) { background:rgba(59,130,246,0.22); }
@@ -218,32 +245,32 @@ const CSS = `
   .ops-btn.success:hover:not(:disabled) { background:rgba(16,185,129,0.2); }
   .ops-btn.danger { background:${T.dangerBg}; border:1px solid rgba(239,68,68,0.35); color:${T.danger}; }
   .ops-btn.danger:hover:not(:disabled) { background:rgba(239,68,68,0.2); }
-  .ops-btn.outline { background:transparent; border:1px solid ${T.border}; color:${T.textPrimary}; }
-  .ops-btn.outline:hover:not(:disabled) { border-color:${T.borderHi}; color:${T.textPrimary}; }
+  .ops-btn.outline { background:transparent; border:1px solid var(--v2-line); color:var(--v2-fg); }
+  .ops-btn.outline:hover:not(:disabled) { border-color:var(--v2-line-strong); color:var(--v2-fg); }
   .ops-btn.full { width:100%; }
   .ops-btn.sm { padding:5px 10px; font-size:11px; }
-  .ops-btn.ghost { background:transparent; border:none; color:${T.textMuted}; padding:4px 6px; border-radius:4px; }
-  .ops-btn.ghost:hover { background:rgba(255,255,255,0.06); color:${T.textPrimary}; }
+  .ops-btn.ghost { background:transparent; border:none; color:var(--v2-fg-3); padding:4px 6px; border-radius:4px; }
+  .ops-btn.ghost:hover { background:rgba(var(--tl-ink, 255,255,255),0.06); color:var(--v2-fg); }
 
   /* ── Table ── */
-  .ops-table-wrap { border:1px solid ${T.border}; border-radius:8px; overflow:auto; max-height:360px; }
+  .ops-table-wrap { border:1px solid var(--v2-line); border-radius:8px; overflow:auto; max-height:360px; }
   .ops-table { width:100%; border-collapse:separate; border-spacing:0; font-size:12px; }
   .ops-table thead { position:sticky; top:0; z-index:20; }
-  .ops-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .ops-table td { padding:9px 12px; border-bottom:1px solid rgba(30,38,64,0.45); color:${T.textPrimary}; vertical-align:middle; }
+  .ops-table th { padding:8px 12px; font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .ops-table td { padding:9px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.45); color:var(--v2-fg); vertical-align:middle; }
   .ops-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
   .ops-table tbody tr:last-child td { border-bottom:none; }
   .ops-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
-  .ops-table .dim { color:${T.textPrimary}; }
+  .ops-table .dim { color:var(--v2-fg); }
   .ops-table .trunc { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ops-table .right { text-align:right; }
 
   /* ── DNS Result badge (Proxy) ── */
   .ops-proxy-yes { color:${T.warning}; font-weight:600; font-size:11px; font-family:'IBM Plex Mono',monospace; }
-  .ops-proxy-no  { color:${T.textMuted}; font-size:11px; font-family:'IBM Plex Mono',monospace; }
+  .ops-proxy-no  { color:var(--v2-fg-3); font-size:11px; font-family:'IBM Plex Mono',monospace; }
 
   /* ── Badge ── */
-  .ops-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
+  .ops-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:500;   font-family:var(--font-ui); white-space:nowrap; }
 
   /* ── Hostname chips ── */
   .ops-chip-list { display:flex; flex-wrap:wrap; gap:6px; }
@@ -254,16 +281,16 @@ const CSS = `
   /* ── Cache metrics grid ── */
   .ops-cache-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
   @media(min-width:640px) { .ops-cache-grid { grid-template-columns:repeat(4,1fr); } }
-  .ops-cache-card { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:3px; }
+  .ops-cache-card { background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:3px; }
   .ops-cache-card-label { display:flex; align-items:center; gap:5px; }
   .ops-cache-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-  .ops-cache-value { font-size:18px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; line-height:1; }
-  .ops-cache-pct { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
+  .ops-cache-value { font-size:18px; font-weight:700; font-family:var(--font-ui); letter-spacing:-0.02em; line-height:1; }
+  .ops-cache-pct { font-size:10px; color:var(--v2-fg-3); font-family:'IBM Plex Mono',monospace; }
 
   /* ── Cache total card ── */
-  .ops-cache-total { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:8px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; }
-  .ops-cache-total-label { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; margin-bottom:4px; }
-  .ops-cache-total-val { font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; color:${T.textPrimary}; }
+  .ops-cache-total { background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; }
+  .ops-cache-total-label { font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); margin-bottom:4px; }
+  .ops-cache-total-val { font-size:26px; font-weight:700; font-family:var(--font-ui); letter-spacing:-0.02em; color:var(--v2-fg); }
 
   /* ── WAF action badge ── */
   .ops-action-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; background:rgba(107,114,128,0.1); border:1px solid rgba(107,114,128,0.2); color:${T.neutral}; }
@@ -271,26 +298,26 @@ const CSS = `
   /* ── Status indicator ── */
   .ops-status-active { color:${T.success}; font-weight:600; font-size:12px; display:flex; align-items:center; gap:4px; }
   .ops-status-active::before { content:''; width:6px; height:6px; border-radius:50%; background:${T.success}; box-shadow:0 0 6px ${T.success}; flex-shrink:0; }
-  .ops-status-disabled { color:${T.textMuted}; font-size:12px; }
+  .ops-status-disabled { color:var(--v2-fg-3); font-size:12px; }
 
   /* ── Empty state ── */
-  .ops-empty { padding:32px; text-align:center; color:${T.textMuted}; font-size:12px; font-family:'DM Sans',sans-serif; }
+  .ops-empty { padding:32px; text-align:center; color:var(--v2-fg-3); font-size:12px; font-family:var(--font-ui); }
 
   /* ── Scrollbar ── */
   .ops-root ::-webkit-scrollbar { width:4px; height:4px; }
   .ops-root ::-webkit-scrollbar-track { background:transparent; }
-  .ops-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
+  .ops-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:2px; }
 
   /* ── Spin ── */
   @keyframes ops-spin { to{transform:rotate(360deg)} }
   .ops-spin { animation:ops-spin 0.8s linear infinite; }
 
   /* ── Dialog override ── */
-  .ops-dialog-content { background:${T.surface} !important; border:1px solid ${T.borderHi} !important; border-radius:12px !important; color:${T.textPrimary} !important; }
-  .ops-dialog-title { color:${T.textPrimary} !important; font-family:'Space Grotesk',sans-serif !important; font-weight:700 !important; font-size:15px !important; }
+  .ops-dialog-content { background:var(--v2-surface) !important; border:1px solid var(--v2-line-strong) !important; border-radius:12px !important; color:var(--v2-fg) !important; }
+  .ops-dialog-title { color:var(--v2-fg) !important; font-family:var(--font-ui); font-weight:700 !important; font-size:15px !important; }
 
   /* ── Helper hint ── */
-  .ops-hint { font-size:10px; color:${T.textSubtle}; font-family:'IBM Plex Mono',monospace; margin-top:3px; }
+  .ops-hint { font-size:10px; color:var(--v2-fg-3); font-family:'IBM Plex Mono',monospace; margin-top:3px; }
 
   /* ── Grid form ── */
   .ops-form-grid { display:grid; grid-template-columns:1fr; gap:12px; }
@@ -299,7 +326,7 @@ const CSS = `
 
   /* ── Checkbox row ── */
   .ops-check-row { display:flex; align-items:center; gap:8px; }
-  .ops-check-label { font-size:12px; color:${T.textPrimary}; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .ops-check-label { font-size:12px; color:var(--v2-fg); cursor:pointer; font-family:var(--font-ui); }
 `;
 
 // ── Cache color palette (hex equivalents) ─────────────────────────────────────
@@ -366,17 +393,11 @@ interface CRZone {
   status?: string | null;
   account_name?: string | null;
 }
-interface OpsBlock {
-  id: string;
-  title: string;
-  size: string;
-}
 interface SearchableOption {
   value: string;
   label: string;
 }
 
-const OPS_STORAGE_KEY = "cloudflare_operations_layout_v1";
 const BLOCK_PERMISSION: Record<string, string> = {
   "dns-lookup": "manage_buscar_dns",
   "purge-cache": "manage_purge_cache",
@@ -385,14 +406,16 @@ const BLOCK_PERMISSION: Record<string, string> = {
   "custom-rules": "manage_custom_rules",
   rules: "manage_rules",
 };
-const DEFAULT_BLOCKS: OpsBlock[] = [
-  { id: "dns-lookup", title: "Busca de DNS", size: "col-span-1 md:col-span-2 lg:col-span-6" },
-  { id: "purge-cache", title: "Purge de Cache", size: "col-span-1 md:col-span-1 lg:col-span-3" },
-  { id: "cache-status", title: "Cache Performance", size: "col-span-1 md:col-span-1 lg:col-span-3" },
-  { id: "create-dns", title: "Adicionar DNS", size: "col-span-1 md:col-span-2 lg:col-span-6" },
-  { id: "custom-rules", title: "Custom Rules (WAF)", size: "col-span-1 md:col-span-2 lg:col-span-6" },
-  { id: "rules", title: "Rules", size: "col-span-1 md:col-span-2 lg:col-span-6" },
+// Submenu de Operações (mesmo padrão do Analytics). Cada seção aparece se o
+// usuário tiver permissão para pelo menos uma das ferramentas dela.
+type OpsSection = "dns" | "cache" | "security" | "rules";
+const OPS_SECTIONS: Array<{ id: OpsSection; label: string; blocks: string[] }> = [
+  { id: "dns", label: "Registros DNS", blocks: ["dns-lookup", "create-dns"] },
+  { id: "cache", label: "Cache", blocks: ["cache-status", "purge-cache"] },
+  { id: "security", label: "Security", blocks: ["custom-rules"] },
+  { id: "rules", label: "Regras", blocks: ["rules"] },
 ];
+const OPS_SECTION_KEY = "cloudflare_operations_section";
 
 // ── fmtNum ─────────────────────────────────────────────────────────────────────
 function fmtNum(n: number) {
@@ -488,11 +511,11 @@ function PrefixInput({
           display: "flex",
           alignItems: "center",
           padding: "0 8px",
-          border: `1px solid ${T.border}`,
+          border: `1px solid ${V2.border}`,
           borderRight: "none",
           borderRadius: "6px 0 0 6px",
-          background: T.surfaceAlt,
-          color: T.textSubtle,
+          background: V2.surfaceAlt,
+          color: V2.textSubtle,
           fontSize: 13,
         }}
       >
@@ -557,7 +580,7 @@ function PreserveRewriteField({
           style={{ marginTop: 3 }}
         />
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Preserve</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Preserve</div>
           <div className="ops-hint">{preserveHint}</div>
         </div>
       </label>
@@ -570,7 +593,7 @@ function PreserveRewriteField({
           style={{ marginTop: 3 }}
         />
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>{rewriteLabel}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>{rewriteLabel}</div>
           <div className="ops-hint">{rewriteHint}</div>
         </div>
       </label>
@@ -658,14 +681,14 @@ function SearchableSelect({
         <button type="button" disabled={disabled} className={`ops-select-trigger${open ? " open" : ""}`}>
           <span
             style={{
-              color: selectedLabel ? T.textPrimary : T.textPrimary,
+              color: selectedLabel ? V2.textPrimary : V2.textPrimary,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
             }}
           >
             {loading ? (
-              <span style={{ display: "flex", alignItems: "center", gap: 6, color: T.textPrimary }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, color: V2.textPrimary }}>
                 <Loader2 size={12} className="ops-spin" /> Carregando…
               </span>
             ) : (
@@ -704,7 +727,7 @@ function SearchableSelect({
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                color: T.textPrimary,
+                color: V2.textPrimary,
                 display: "flex",
                 alignItems: "center",
               }}
@@ -741,33 +764,29 @@ function SearchableSelect({
   );
 }
 
-// ── Block Header ───────────────────────────────────────────────────────────────
-function OpsBlockHeader({
-  id,
+// ── Cartão de ferramenta ─────────────────────────────────────────────────────
+function OpsCard({
   title,
-  onGrow,
-  onShrink,
+  description,
+  action,
+  children,
 }: {
-  id: string;
   title: string;
-  onGrow: () => void;
-  onShrink: () => void;
+  description?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="ops-block-header">
-      <div className="ops-block-title">
-        <GripHorizontal size={11} color={T.textPrimary} />
-        <span>{title}</span>
+    <section className="ops-card">
+      <div className="ops-card-h">
+        <div>
+          <h3 className="ops-card-title">{title}</h3>
+          {description && <p className="ops-card-desc">{description}</p>}
+        </div>
+        {action}
       </div>
-      <div className="ops-resize-ctrl">
-        <button className="ops-resize-btn" onClick={onShrink} title="Diminuir">
-          <Minimize2 size={11} />
-        </button>
-        <button className="ops-resize-btn" onClick={onGrow} title="Aumentar">
-          <Maximize2 size={11} />
-        </button>
-      </div>
-    </div>
+      <div className="ops-card-body">{children}</div>
+    </section>
   );
 }
 
@@ -777,24 +796,39 @@ function OpsBlockHeader({
 export function OperationsTab() {
   const { can } = usePermissions();
 
-  // UNCHANGED logic ────────────────────────────────────────────────────────────
+  // Mesma regra de antes: cada ferramenta exige a sua permissão manage_*
   const visibleKey = Object.entries(BLOCK_PERMISSION)
     .filter(([, perm]) => can("cloudflare-waf", perm))
     .map(([id]) => id)
     .sort()
     .join(",");
   const visibleIds = React.useMemo(() => new Set(visibleKey ? visibleKey.split(",") : []), [visibleKey]);
-  const allowedDefaults = React.useMemo(() => {
-    const bothHalf = visibleIds.has("purge-cache") && visibleIds.has("cache-status");
-    return DEFAULT_BLOCKS.filter((b) => visibleIds.has(b.id)).map((b) => {
-      if ((b.id === "purge-cache" || b.id === "cache-status") && !bothHalf) {
-        return { ...b, size: "col-span-1 md:col-span-2 lg:col-span-6" };
-      }
-      return b;
-    });
-  }, [visibleIds]);
-  const [blocks, setBlocks] = React.useState<OpsBlock[]>(allowedDefaults);
-  const [draggedId, setDraggedId] = React.useState<string | null>(null);
+  const sectionAllowed = (sec: (typeof OPS_SECTIONS)[number]) => sec.blocks.some((b) => visibleIds.has(b));
+
+  const [section, setSection] = React.useState<OpsSection>(() => {
+    try {
+      return (localStorage.getItem(OPS_SECTION_KEY) as OpsSection) || "dns";
+    } catch {
+      return "dns";
+    }
+  });
+  // Se a seção salva não estiver liberada para o usuário, vai para a primeira que estiver
+  React.useEffect(() => {
+    const current = OPS_SECTIONS.find((x) => x.id === section);
+    if (current && sectionAllowed(current)) return;
+    const first = OPS_SECTIONS.find(sectionAllowed);
+    if (first) setSection(first.id);
+  }, [visibleKey]);
+  function changeSection(id: OpsSection) {
+    setSection(id);
+    try {
+      localStorage.setItem(OPS_SECTION_KEY, id);
+    } catch {
+      /* storage indisponível */
+    }
+  }
+
+  const [createDnsOpen, setCreateDnsOpen] = React.useState(false);
 
   const fetchZones = useServerFn(listCloudflareZones);
   const { data: zonesData } = useQuery({
@@ -803,152 +837,93 @@ export function OperationsTab() {
   });
   const zones: Zone[] = zonesData?.ok ? zonesData.zones : [];
 
-  React.useEffect(() => {
-    const saved = localStorage.getItem(OPS_STORAGE_KEY);
-    if (saved) {
-      try {
-        const arr = (JSON.parse(saved) as OpsBlock[])
-          .filter((b) => visibleIds.has(b.id))
-          .map((savedBlock) => {
-            const def = allowedDefaults.find((d) => d.id === savedBlock.id);
-            return def ? { ...savedBlock, size: def.size } : savedBlock;
-          });
-        const ids = new Set(arr.map((b) => b.id));
-        const missing = allowedDefaults.filter((b) => !ids.has(b.id));
-        setBlocks([...arr, ...missing]);
-        return;
-      } catch {
-        /* ignore */
-      }
-    }
-    setBlocks(allowedDefaults);
-  }, [visibleKey]);
-
-  function saveLayout(current: OpsBlock[]) {
-    localStorage.setItem(OPS_STORAGE_KEY, JSON.stringify(current));
-  }
-  function resetLayout() {
-    localStorage.removeItem(OPS_STORAGE_KEY);
-    setBlocks(allowedDefaults);
-  }
-  function changeBlockSize(id: string, action: "grow" | "shrink") {
-    const next = blocks.map((b) => {
-      if (b.id !== id) return b;
-      let size = b.size;
-      if (action === "grow") {
-        if (size.includes("lg:col-span-2")) size = "col-span-1 md:col-span-2 lg:col-span-3";
-        else if (size.includes("lg:col-span-3")) size = "col-span-1 md:col-span-2 lg:col-span-6";
-      } else {
-        if (size.includes("lg:col-span-6")) size = "col-span-1 md:col-span-2 lg:col-span-3";
-        else if (size.includes("lg:col-span-3")) size = "col-span-1 md:col-span-1 lg:col-span-2";
-      }
-      return { ...b, size };
-    });
-    setBlocks(next);
-    saveLayout(next);
-  }
-  function handleDragOver(e: React.DragEvent, targetId: string) {
-    e.preventDefault();
-    if (!draggedId || draggedId === targetId) return;
-    const from = blocks.findIndex((b) => b.id === draggedId);
-    const to = blocks.findIndex((b) => b.id === targetId);
-    const next = [...blocks];
-    const [removed] = next.splice(from, 1);
-    next.splice(to, 0, removed);
-    setBlocks(next);
-    saveLayout(next);
-  }
-  // ────────────────────────────────────────────────────────────────────────────
+  const has = (id: string) => visibleIds.has(id);
+  const newDnsButton = has("create-dns") ? (
+    <button type="button" className="ops-card-btn" onClick={() => setCreateDnsOpen(true)}>
+      <Plus size={14} /> Novo registro
+    </button>
+  ) : null;
 
   return (
-    <div className="ops-root" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="ops-root" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* Toolbar */}
-      <div className="ops-toolbar">
-        <button className="ops-reset-btn" onClick={resetLayout}>
-          <RotateCcw size={12} /> Restaurar Padrão Layout
-        </button>
-      </div>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4" style={{ gridAutoFlow: "row dense" }}>
-        {blocks.map((block) => {
-          const isDragging = draggedId === block.id;
-          const wrapperProps = {
-            key: block.id,
-            draggable: true,
-            onDragStart: () => setDraggedId(block.id),
-            onDragOver: (e: React.DragEvent) => handleDragOver(e, block.id),
-            onDragEnd: () => setDraggedId(null),
-            className: `${block.size} ops-block${isDragging ? " dragging" : ""}`,
-          };
-          const header = (
-            <OpsBlockHeader
-              id={block.id}
-              title={block.title}
-              onGrow={() => changeBlockSize(block.id, "grow")}
-              onShrink={() => changeBlockSize(block.id, "shrink")}
-            />
+      {/* ── Submenu ─────────────────────────────────────────────────────────── */}
+      <div className="ops-subnav" role="tablist" aria-label="Operações">
+        {OPS_SECTIONS.map((sec) => {
+          const allowed = sectionAllowed(sec);
+          return (
+            <button
+              key={sec.id}
+              type="button"
+              role="tab"
+              aria-selected={section === sec.id}
+              className={`ops-subnav-btn${section === sec.id ? " active" : ""}`}
+              disabled={!allowed}
+              onClick={() => allowed && changeSection(sec.id)}
+              title={allowed ? undefined : "Você não tem permissão para ver esta seção"}
+            >
+              {sec.label}
+              {!allowed && <Lock size={11} />}
+            </button>
           );
-
-          if (block.id === "dns-lookup")
-            return (
-              <div {...wrapperProps}>
-                {header}
-                <div className="ops-block-body">
-                  <DnsLookupInner zones={zones} />
-                </div>
-              </div>
-            );
-          if (block.id === "purge-cache")
-            return (
-              <div {...wrapperProps}>
-                {header}
-                <div className="ops-block-body">
-                  <PurgeCacheInner zones={zones} />
-                </div>
-              </div>
-            );
-          if (block.id === "cache-status")
-            return (
-              <div {...wrapperProps}>
-                {header}
-                <div className="ops-block-body">
-                  <CacheStatusInner zones={zones} />
-                </div>
-              </div>
-            );
-          if (block.id === "create-dns")
-            return (
-              <div {...wrapperProps}>
-                {header}
-                <div className="ops-block-body">
-                  <CreateDnsInner zones={zones} />
-                </div>
-              </div>
-            );
-          if (block.id === "custom-rules")
-            return (
-              <div {...wrapperProps}>
-                {header}
-                <div className="ops-block-body">
-                  <CustomRulesInner zones={zones} />
-                </div>
-              </div>
-            );
-          if (block.id === "rules")
-            return (
-              <div {...wrapperProps}>
-                {header}
-                <div className="ops-block-body">
-                  <RulesInner zones={zones} />
-                </div>
-              </div>
-            );
-          return null;
         })}
       </div>
+
+      {/* ── Registros DNS ───────────────────────────────────────────────────── */}
+      {section === "dns" && (
+        <div className="ops-cards one">
+          {has("dns-lookup") ? (
+            <OpsCard title="Buscar registros DNS" description="Busca em uma zona ou em todas" action={newDnsButton}>
+              <DnsLookupInner zones={zones} />
+            </OpsCard>
+          ) : has("create-dns") ? (
+            <OpsCard title="Novo registro DNS" description="Na zona escolhida">
+              <CreateDnsInner zones={zones} />
+            </OpsCard>
+          ) : null}
+        </div>
+      )}
+
+      {/* ── Cache ───────────────────────────────────────────────────────────── */}
+      {section === "cache" && (
+        <div className={`ops-cards${has("cache-status") && has("purge-cache") ? "" : " one"}`}>
+          {has("cache-status") && (
+            <OpsCard title="Performance de cache" description="Verifica se uma URL está sendo servida do cache">
+              <CacheStatusInner zones={zones} />
+            </OpsCard>
+          )}
+          {has("purge-cache") && (
+            <OpsCard title="Limpar cache (purge)" description="Remove arquivos do cache da Cloudflare">
+              <PurgeCacheInner zones={zones} />
+            </OpsCard>
+          )}
+        </div>
+      )}
+
+      {/* ── Security ────────────────────────────────────────────────────────── */}
+      {section === "security" && has("custom-rules") && (
+        <div className="ops-cards one">
+          <OpsCard title="Regras personalizadas (WAF)" description="Regras criadas na zona e criação de novas regras">
+            <CustomRulesInner zones={zones} />
+          </OpsCard>
+        </div>
+      )}
+
+      {/* ── Regras ──────────────────────────────────────────────────────────── */}
+      {section === "rules" && has("rules") && <RulesInner zones={zones} />}
+
+      {/* Novo registro DNS: o formulário que era um bloco agora abre em janela */}
+      <Dialog open={createDnsOpen} onOpenChange={setCreateDnsOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Novo registro DNS</DialogTitle>
+          </DialogHeader>
+          <div className="ops-root ops-card" style={{ border: 0, background: "transparent" }}>
+            <CreateDnsInner zones={zones} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1137,7 +1112,7 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
                     {r.proxied ? <span className="ops-proxy-yes">Sim</span> : <span className="ops-proxy-no">Não</span>}
                   </td>
                   <td className="mono dim">{r.ttl === 1 ? "Auto" : r.ttl}</td>
-                  <td style={{ color: T.textPrimary, fontSize: 11 }}>{r.zone_name}</td>
+                  <td style={{ color: V2.textPrimary, fontSize: 11 }}>{r.zone_name}</td>
                   {canEdit && (
                     <td style={{ textAlign: "right" }}>
                       <button className="ops-btn ghost sm" onClick={() => openEdit(r)} title="Editar">
@@ -1451,7 +1426,7 @@ function DnsExportDialog({
               {availableTypes.map((t) => (
                 <label
                   key={t}
-                  style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textPrimary, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: V2.textPrimary, cursor: "pointer" }}
                 >
                   <Checkbox checked={typeFilter.includes(t)} onCheckedChange={() => toggleType(t)} />
                   {t}
@@ -1465,7 +1440,7 @@ function DnsExportDialog({
               {DNS_EXPORT_COLUMNS.map((c) => (
                 <label
                   key={c.key}
-                  style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: T.textPrimary, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: V2.textPrimary, cursor: "pointer" }}
                 >
                   <Checkbox checked={selectedCols.includes(c.key)} onCheckedChange={() => toggleCol(c.key)} />
                   {c.label}
@@ -1854,7 +1829,7 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
             <span
               style={{
                 fontSize: 11,
-                color: T.textPrimary,
+                color: V2.textPrimary,
                 fontFamily: "'IBM Plex Mono',monospace",
                 maxWidth: "55%",
                 textAlign: "right",
@@ -1920,7 +1895,7 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
                 </>
               ) : (
                 <>
-                  <div className="ops-cache-value" style={{ color: T.textPrimary }}>
+                  <div className="ops-cache-value" style={{ color: V2.textPrimary }}>
                     —
                   </div>
                   <div className="ops-cache-pct">não disponível</div>
@@ -1935,13 +1910,13 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
         <p
           style={{
             fontSize: 11,
-            color: T.textPrimary,
+            color: V2.textPrimary,
             textAlign: "center",
             padding: "12px 0",
-            fontFamily: "'DM Sans',sans-serif",
+            fontFamily: "var(--font-ui)",
           }}
         >
-          Clique em <strong style={{ color: T.textPrimary }}>Verificar Cache</strong> para consultar{" "}
+          Clique em <strong style={{ color: V2.textPrimary }}>Verificar Cache</strong> para consultar{" "}
           <span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{selectedSubdomain}</span>.
         </p>
       )}
@@ -1949,10 +1924,10 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
         <p
           style={{
             fontSize: 11,
-            color: T.textPrimary,
+            color: V2.textPrimary,
             textAlign: "center",
             padding: "24px 0",
-            fontFamily: "'DM Sans',sans-serif",
+            fontFamily: "var(--font-ui)",
           }}
         >
           Selecione uma zona para começar.
@@ -2335,7 +2310,7 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
                         onClick={() => handleToggle(r)}
                         title={r.enabled ? "Desabilitar" : "Habilitar"}
                       >
-                        <Power size={13} color={r.enabled ? T.success : T.textMuted} />
+                        <Power size={13} color={r.enabled ? T.success : V2.textMuted} />
                       </button>
                     </div>
                   </td>
@@ -2472,8 +2447,8 @@ function AccessRestrictedCard({ text }: { text?: string }) {
   return (
     <div
       style={{
-        border: `1px solid ${T.border}`,
-        background: T.surface,
+        border: `1px solid ${V2.border}`,
+        background: V2.surface,
         borderRadius: 8,
         padding: 32,
         display: "flex",
@@ -2484,8 +2459,8 @@ function AccessRestrictedCard({ text }: { text?: string }) {
       }}
     >
       <Lock size={28} color={T.textMuted} />
-      <div style={{ fontSize: 14, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Acesso restrito</div>
-      <div style={{ fontSize: 12, color: T.textMuted, maxWidth: 360 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Acesso restrito</div>
+      <div style={{ fontSize: 12, color: V2.textMuted, maxWidth: 360 }}>
         {text ?? "Você não tem permissão para visualizar esta seção. Solicite acesso ao administrador."}
       </div>
     </div>
@@ -2497,72 +2472,50 @@ function RulesInner({ zones }: { zones: CRZone[] }) {
   const cfCan = useCfWafCan();
   const canOverview = cfCan("manage_rules_overview");
   const canPageRules = cfCan("manage_rules_page_rules");
-  const [tab, setTab] = React.useState<"overview" | "page-rules">(canOverview ? "overview" : "page-rules");
-
-  // Se a permissão mudar (ex.: admin concedeu agora) e a aba ativa ficar
-  // inacessível, pula pra outra que o usuário realmente tem.
-  React.useEffect(() => {
-    if (tab === "overview" && !canOverview && canPageRules) setTab("page-rules");
-    else if (tab === "page-rules" && !canPageRules && canOverview) setTab("overview");
-  }, [canOverview, canPageRules]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div className="ops-section-title">
-        <Route size={14} color={T.accent} />
-        <span className="ops-section-title-text">Rules</span>
-      </div>
-
-      <div className="ops-field">
-        <ExecLabel>Domínio (zona)</ExecLabel>
-        <SearchableSelect
-          options={zones.map((z) => ({ value: z.id, label: z.name }))}
-          value={zoneId}
-          onValueChange={setZoneId}
-          placeholder="Selecione uma zona…"
-          searchPlaceholder="Buscar por domínio…"
-        />
-      </div>
-
-      <div className="ops-subtabs">
-        <button
-          className={`ops-subtab${tab === "overview" ? " active" : ""}`}
-          onClick={() => canOverview && setTab("overview")}
-          disabled={!canOverview}
-          title={canOverview ? undefined : "Você não tem permissão pra ver esta seção"}
-        >
-          Overview {!canOverview && <Lock size={10} style={{ marginLeft: 4, verticalAlign: -1 }} />}
-        </button>
-        <button
-          className={`ops-subtab${tab === "page-rules" ? " active" : ""}`}
-          onClick={() => canPageRules && setTab("page-rules")}
-          disabled={!canPageRules}
-          title={canPageRules ? undefined : "Você não tem permissão pra ver esta seção"}
-        >
-          Page Rules {!canPageRules && <Lock size={10} style={{ marginLeft: 4, verticalAlign: -1 }} />}
-        </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Zona compartilhada pelos dois cartões */}
+      <div className="ops-zone-bar">
+        <div className="ops-field">
+          <ExecLabel>Domínio (zona)</ExecLabel>
+          <SearchableSelect
+            options={zones.map((z) => ({ value: z.id, label: z.name }))}
+            value={zoneId}
+            onValueChange={setZoneId}
+            placeholder="Selecione uma zona…"
+            searchPlaceholder="Buscar por domínio…"
+          />
+        </div>
       </div>
 
       {!canOverview && !canPageRules ? (
         <AccessRestrictedCard text="Você não tem permissão pra ver Overview nem Page Rules. Solicite acesso ao administrador." />
-      ) : !zoneId ? (
-        <p
-          style={{
-            fontSize: 11,
-            color: T.textPrimary,
-            textAlign: "center",
-            padding: "24px 0",
-            fontFamily: "'DM Sans',sans-serif",
-          }}
-        >
-          Selecione uma zona para começar.
-        </p>
-      ) : tab === "overview" ? (
-        canOverview ? <RulesOverviewSection zoneId={zoneId} /> : <AccessRestrictedCard />
-      ) : canPageRules ? (
-        <PageRulesSection zoneId={zoneId} />
       ) : (
-        <AccessRestrictedCard />
+        <div className="ops-cards one">
+          {canOverview && (
+            <OpsCard title="Visão geral das regras" description="Todas as regras da zona por categoria">
+              {zoneId ? (
+                <RulesOverviewSection zoneId={zoneId} />
+              ) : (
+                <p className="ops-card-desc" style={{ textAlign: "center", padding: "20px 0" }}>
+                  Selecione uma zona para ver as regras.
+                </p>
+              )}
+            </OpsCard>
+          )}
+          {canPageRules && (
+            <OpsCard title="Page Rules" description="Regras por URL (modelo antigo da Cloudflare)">
+              {zoneId ? (
+                <PageRulesSection zoneId={zoneId} />
+              ) : (
+                <p className="ops-card-desc" style={{ textAlign: "center", padding: "20px 0" }}>
+                  Selecione uma zona para ver as Page Rules.
+                </p>
+              )}
+            </OpsCard>
+          )}
+        </div>
       )}
     </div>
   );
@@ -3214,7 +3167,7 @@ function RuleCategoryCard({
                             ) : !canManage ? (
                               <Lock size={12} color={T.textMuted} />
                             ) : (
-                              <Power size={13} color={r.enabled ? T.success : T.textMuted} />
+                              <Power size={13} color={r.enabled ? T.success : V2.textMuted} />
                             )}
                           </button>
                         )}
@@ -3231,7 +3184,7 @@ function RuleCategoryCard({
                                   : "Contate alguém de SI para Excluir esta regra"
                             }
                           >
-                            <Trash2 size={13} color={canDelete ? T.danger : T.textMuted} />
+                            <Trash2 size={13} color={canDelete ? T.danger : V2.textMuted} />
                           </button>
                         )}
                       </div>
@@ -3472,7 +3425,7 @@ function RedirectRuleDialog({
             <Input placeholder="Ex.: Redirect to www" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
-          <div style={{ height: 1, background: T.border }} />
+          <div style={{ height: 1, background: V2.border }} />
 
           <div className="ops-field">
             <ExecLabel>Se a requisição bater com…</ExecLabel>
@@ -3480,21 +3433,21 @@ function RedirectRuleDialog({
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "wildcard"} onChange={() => setMatchMode("wildcard")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Padrão wildcard</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Padrão wildcard</div>
                   <div className="ops-hint">Só aplica a regra em requisições que baterem com o padrão.</div>
                 </div>
               </label>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "expression"} onChange={() => setMatchMode("expression")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Expressão customizada</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Expressão customizada</div>
                   <div className="ops-hint">Só aplica a regra em requisições que baterem com a expressão.</div>
                 </div>
               </label>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "all"} onChange={() => setMatchMode("all")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Todas as requisições</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Todas as requisições</div>
                   <div className="ops-hint">Aplica a regra em toda requisição, sem filtro.</div>
                 </div>
               </label>
@@ -3538,11 +3491,9 @@ function RedirectRuleDialog({
                         {idx > 0 && (
                           <div
                             style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              letterSpacing: "0.08em",
-                              textTransform: "uppercase",
-                              color: T.textMuted,
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: V2.textMuted,
                               fontFamily: "'IBM Plex Mono',monospace",
                               margin: "6px 0",
                             }}
@@ -3655,11 +3606,9 @@ function RedirectRuleDialog({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span
                       style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: T.textMuted,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: V2.textMuted,
                         fontFamily: "'IBM Plex Mono',monospace",
                       }}
                     >
@@ -3672,16 +3621,16 @@ function RedirectRuleDialog({
                   <div
                     style={{
                       marginTop: 6,
-                      border: `1px solid ${T.border}`,
+                      border: `1px solid ${V2.border}`,
                       borderRadius: 6,
-                      background: T.surfaceAlt,
+                      background: V2.surfaceAlt,
                       padding: "10px 12px",
                     }}
                   >
-                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textPrimary, wordBreak: "break-all" }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: V2.textPrimary, wordBreak: "break-all" }}>
                       {expression || "—"}
                     </div>
-                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: T.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
+                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: V2.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
                       {expression.length} / 4000 characters
                     </div>
                   </div>
@@ -3689,10 +3638,10 @@ function RedirectRuleDialog({
               </div>
             ))}
 
-          <div style={{ height: 1, background: T.border }} />
+          <div style={{ height: 1, background: V2.border }} />
 
           <div className="ops-field" style={{ gap: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
               {matchMode === "wildcard" ? "Then…" : "URL redirect"}
             </div>
             <p className="ops-hint">
@@ -3759,8 +3708,8 @@ function RedirectRuleDialog({
               }}
             >
               <Info size={14} color={T.accent} style={{ flexShrink: 0, marginTop: 2 }} />
-              <div style={{ fontSize: 11, color: T.textMuted, fontFamily: "'DM Sans',sans-serif" }}>
-                <strong style={{ color: T.textPrimary }}>Redirect POST requests?</strong> Pra evitar que o método da requisição vire GET,
+              <div style={{ fontSize: 11, color: V2.textMuted, fontFamily: "var(--font-ui)" }}>
+                <strong style={{ color: V2.textPrimary }}>Redirect POST requests?</strong> Pra evitar que o método da requisição vire GET,
                 use um redirect 307/308.
               </div>
             </div>
@@ -3768,9 +3717,9 @@ function RedirectRuleDialog({
 
           {!editing && (
             <>
-              <div style={{ height: 1, background: T.border }} />
+              <div style={{ height: 1, background: V2.border }} />
               <div className="ops-field" style={{ alignSelf: "flex-start", width: 220 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif", marginBottom: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)", marginBottom: 6 }}>
                   Place at
                 </div>
                 <span className="ops-hint" style={{ display: "block", marginBottom: 4 }}>
@@ -3998,11 +3947,11 @@ function CacheAddableSetting({
   children?: React.ReactNode;
 }) {
   return (
-    <div style={{ padding: "14px 0", borderTop: `1px solid ${T.border}` }}>
+    <div style={{ padding: "14px 0", borderTop: `1px solid ${V2.border}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
-            {label} {optional !== false && <span style={{ color: T.textSubtle, fontWeight: 400 }}>(optional)</span>}
+          <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
+            {label} {optional !== false && <span style={{ color: V2.textSubtle, fontWeight: 400 }}>(optional)</span>}
           </div>
           <p className="ops-hint" style={{ marginTop: 4, maxWidth: 560 }}>
             {description}
@@ -4042,7 +3991,7 @@ function TtlModeRadios({
       {(["bypass_by_default", "respect_origin", "override_origin"] as const).map((m) => (
         <label key={m} style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
           <input type="radio" checked={mode === m} onChange={() => onModeChange(m)} style={{ marginTop: 3 }} />
-          <div style={{ fontSize: 12, fontWeight: mode === m ? 600 : 400, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+          <div style={{ fontSize: 12, fontWeight: mode === m ? 600 : 400, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
             {labels[m]}
           </div>
         </label>
@@ -4420,7 +4369,7 @@ function CacheRuleDialog({
             <Input placeholder="Ex.: Bypass de cache — portal-blue" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
-          <div style={{ height: 1, background: T.border }} />
+          <div style={{ height: 1, background: V2.border }} />
 
           <div className="ops-field">
             <ExecLabel>Se a requisição bater com…</ExecLabel>
@@ -4428,14 +4377,14 @@ function CacheRuleDialog({
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "expression"} onChange={() => setMatchMode("expression")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Expressão customizada</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Expressão customizada</div>
                   <div className="ops-hint">Só aplica a regra em requisições que baterem com a expressão.</div>
                 </div>
               </label>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "all"} onChange={() => setMatchMode("all")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Todas as requisições</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Todas as requisições</div>
                   <div className="ops-hint">Aplica a regra em toda requisição, sem filtro.</div>
                 </div>
               </label>
@@ -4471,11 +4420,9 @@ function CacheRuleDialog({
                         {idx > 0 && (
                           <div
                             style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              letterSpacing: "0.08em",
-                              textTransform: "uppercase",
-                              color: T.textMuted,
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: V2.textMuted,
                               fontFamily: "'IBM Plex Mono',monospace",
                               margin: "6px 0",
                             }}
@@ -4588,11 +4535,9 @@ function CacheRuleDialog({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span
                       style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: T.textMuted,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: V2.textMuted,
                         fontFamily: "'IBM Plex Mono',monospace",
                       }}
                     >
@@ -4605,16 +4550,16 @@ function CacheRuleDialog({
                   <div
                     style={{
                       marginTop: 6,
-                      border: `1px solid ${T.border}`,
+                      border: `1px solid ${V2.border}`,
                       borderRadius: 6,
-                      background: T.surfaceAlt,
+                      background: V2.surfaceAlt,
                       padding: "10px 12px",
                     }}
                   >
-                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textPrimary, wordBreak: "break-all" }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: V2.textPrimary, wordBreak: "break-all" }}>
                       {expression || "—"}
                     </div>
-                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: T.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
+                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: V2.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
                       {expression.length} / 4000 characters
                     </div>
                   </div>
@@ -4622,14 +4567,14 @@ function CacheRuleDialog({
               </div>
             ))}
 
-          <div style={{ height: 1, background: T.border }} />
+          <div style={{ height: 1, background: V2.border }} />
 
           <div className="ops-field">
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Then…</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Then…</div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
-                  Cache eligibility <span style={{ color: T.textSubtle, fontWeight: 400 }}>(required)</span>
+                <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
+                  Cache eligibility <span style={{ color: V2.textSubtle, fontWeight: 400 }}>(required)</span>
                 </div>
               </div>
               <p className="ops-hint" style={{ marginTop: 4 }}>
@@ -4639,13 +4584,13 @@ function CacheRuleDialog({
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
                   <input type="radio" checked={!cacheEligible} onChange={() => setCacheEligible(false)} />
-                  <span style={{ fontSize: 12, fontWeight: !cacheEligible ? 600 : 400, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+                  <span style={{ fontSize: 12, fontWeight: !cacheEligible ? 600 : 400, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
                     Bypass cache
                   </span>
                 </label>
                 <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
                   <input type="radio" checked={cacheEligible} onChange={() => setCacheEligible(true)} />
-                  <span style={{ fontSize: 12, fontWeight: cacheEligible ? 600 : 400, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+                  <span style={{ fontSize: 12, fontWeight: cacheEligible ? 600 : 400, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
                     Eligible for cache
                   </span>
                 </label>
@@ -4670,7 +4615,7 @@ function CacheRuleDialog({
                   labels={TTL_MODE_LABELS_EDGE}
                 />
                 <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Status code TTL</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Status code TTL</div>
                   <p className="ops-hint" style={{ marginTop: 2 }}>
                     Specify how long Cloudflare should cache the response based on the status code from the origin.
                   </p>
@@ -4817,17 +4762,17 @@ function CacheRuleDialog({
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Cache deception armor</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Cache deception armor</div>
                     <p className="ops-hint">Protect from web cache deception attacks while allowing static assets to be cached.</p>
                     <Switch checked={cacheDeceptionArmor} onCheckedChange={setCacheDeceptionArmor} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Cache by device type</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Cache by device type</div>
                     <p className="ops-hint">Separate cached content based on the visitor's device type.</p>
                     <Switch checked={cacheByDeviceType} onCheckedChange={setCacheByDeviceType} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Sort query string</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Sort query string</div>
                     <p className="ops-hint">Treat requests with the same query parameters the same, regardless of the order those query parameters are in.</p>
                     <Switch checked={ignoreQueryStringsOrder} onCheckedChange={setIgnoreQueryStringsOrder} />
                   </div>
@@ -4842,7 +4787,7 @@ function CacheRuleDialog({
                     }}
                   >
                     <Info size={14} color={T.accent} style={{ flexShrink: 0, marginTop: 2 }} />
-                    <div style={{ fontSize: 11, color: T.textMuted, fontFamily: "'DM Sans',sans-serif" }}>
+                    <div style={{ fontSize: 11, color: V2.textMuted, fontFamily: "var(--font-ui)" }}>
                       Changing the below settings will modify the cache key, effectively purging cache for matching URLs.
                     </div>
                   </div>
@@ -4856,7 +4801,7 @@ function CacheRuleDialog({
                         <div style={{ display: "flex", flexDirection: "column", gap: 14, opacity: 0.5, cursor: "not-allowed" }}>
                           <div>
                             <ExecLabel>
-                              Query string <span style={{ color: T.textSubtle, fontWeight: 400 }}>(opcional)</span>
+                              Query string <span style={{ color: V2.textSubtle, fontWeight: 400 }}>(opcional)</span>
                             </ExecLabel>
                             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
                               {(
@@ -4869,14 +4814,14 @@ function CacheRuleDialog({
                               ).map(([val, label]) => (
                                 <label key={val} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                   <input type="radio" checked={val === "all"} disabled />
-                                  <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>{label}</span>
+                                  <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>{label}</span>
                                 </label>
                               ))}
                             </div>
                           </div>
                           <div>
                             <ExecLabel>
-                              Headers <span style={{ color: T.textSubtle, fontWeight: 400 }}>(opcional)</span>
+                              Headers <span style={{ color: V2.textSubtle, fontWeight: 400 }}>(opcional)</span>
                             </ExecLabel>
                             <p className="ops-hint">Define which headers will go into the Cache Key.</p>
                             <Input disabled placeholder="custom-header" style={{ marginTop: 6 }} />
@@ -4893,7 +4838,7 @@ function CacheRuleDialog({
                           </div>
                           <div>
                             <ExecLabel>
-                              Cookie <span style={{ color: T.textSubtle, fontWeight: 400 }}>(opcional)</span>
+                              Cookie <span style={{ color: V2.textSubtle, fontWeight: 400 }}>(opcional)</span>
                             </ExecLabel>
                             <p className="ops-hint">Include these cookie names and their values in the cache key.</p>
                             <Input disabled placeholder="Enter cookie names" style={{ marginTop: 4 }} />
@@ -4907,17 +4852,17 @@ function CacheRuleDialog({
                             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
                               <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                 <input type="radio" checked disabled />
-                                <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Use original host</span>
+                                <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Use original host</span>
                               </label>
                               <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                 <input type="radio" checked={false} disabled />
-                                <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Resolved host</span>
+                                <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Resolved host</span>
                               </label>
                             </div>
                           </div>
                           <div>
                             <ExecLabel>
-                              User <span style={{ color: T.textSubtle, fontWeight: 400 }}>(opcional)</span>
+                              User <span style={{ color: V2.textSubtle, fontWeight: 400 }}>(opcional)</span>
                             </ExecLabel>
                             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
                               <div className="ops-check-row">
@@ -4965,12 +4910,12 @@ function CacheRuleDialog({
                   ).map(([val, label]) => (
                     <label key={val} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
                       <input type="radio" checked={varyDefaultAction === val} onChange={() => setVaryDefaultAction(val)} />
-                      <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>{label}</span>
+                      <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>{label}</span>
                     </label>
                   ))}
                 </div>
                 <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Per header configuration</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Per header configuration</div>
                   <p className="ops-hint" style={{ marginTop: 2 }}>
                     Determine whether we normalize, use raw value, or bypass cache for specific request headers.
                   </p>
@@ -5030,7 +4975,7 @@ function CacheRuleDialog({
               onAdd={() => setServeStaleAdded(true)}
               onRemove={() => setServeStaleAdded(false)}
             >
-              <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
                 Do not serve stale content while updating
               </div>
               <p className="ops-hint">If on, Cloudflare will not serve stale content while getting the latest content from the origin.</p>
@@ -5044,7 +4989,7 @@ function CacheRuleDialog({
               onAdd={() => setRespectStrongEtagsAdded(true)}
               onRemove={() => setRespectStrongEtagsAdded(false)}
             >
-              <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Use strong ETag headers</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Use strong ETag headers</div>
               <p className="ops-hint">When off, Cloudflare converts strong ETag headers to weak ETag headers.</p>
               <Switch checked={useStrongEtags} onCheckedChange={setUseStrongEtags} />
             </CacheAddableSetting>
@@ -5056,7 +5001,7 @@ function CacheRuleDialog({
               onAdd={() => setOriginErrorPageAdded(true)}
               onRemove={() => setOriginErrorPageAdded(false)}
             >
-              <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Use Origin error page pass-thru</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Use Origin error page pass-thru</div>
               <p className="ops-hint">When enabled, HTTP error pages will be issued from the origin server instead of Cloudflare.</p>
               <Switch checked={originErrorPagePassthru} onCheckedChange={setOriginErrorPagePassthru} />
             </CacheAddableSetting>
@@ -5065,9 +5010,9 @@ function CacheRuleDialog({
 
           {!editing && (
             <>
-              <div style={{ height: 1, background: T.border }} />
+              <div style={{ height: 1, background: V2.border }} />
               <div className="ops-field" style={{ alignSelf: "flex-start", width: 220 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif", marginBottom: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)", marginBottom: 6 }}>
                   Place at
                 </div>
                 <span className="ops-hint" style={{ display: "block", marginBottom: 4 }}>
@@ -5461,7 +5406,7 @@ function ConfigurationRuleDialog({
             <Input placeholder="Ex.: Configuração — portal-blue" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
-          <div style={{ height: 1, background: T.border }} />
+          <div style={{ height: 1, background: V2.border }} />
 
           <div className="ops-field">
             <ExecLabel>Se a requisição bater com…</ExecLabel>
@@ -5469,14 +5414,14 @@ function ConfigurationRuleDialog({
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "expression"} onChange={() => setMatchMode("expression")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Expressão customizada</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Expressão customizada</div>
                   <div className="ops-hint">Só aplica a regra em requisições que baterem com a expressão.</div>
                 </div>
               </label>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "all"} onChange={() => setMatchMode("all")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Todas as requisições</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Todas as requisições</div>
                   <div className="ops-hint">Aplica a regra em toda requisição, sem filtro.</div>
                 </div>
               </label>
@@ -5512,11 +5457,9 @@ function ConfigurationRuleDialog({
                         {idx > 0 && (
                           <div
                             style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              letterSpacing: "0.08em",
-                              textTransform: "uppercase",
-                              color: T.textMuted,
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: V2.textMuted,
                               fontFamily: "'IBM Plex Mono',monospace",
                               margin: "6px 0",
                             }}
@@ -5629,11 +5572,9 @@ function ConfigurationRuleDialog({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span
                       style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: T.textMuted,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: V2.textMuted,
                         fontFamily: "'IBM Plex Mono',monospace",
                       }}
                     >
@@ -5646,16 +5587,16 @@ function ConfigurationRuleDialog({
                   <div
                     style={{
                       marginTop: 6,
-                      border: `1px solid ${T.border}`,
+                      border: `1px solid ${V2.border}`,
                       borderRadius: 6,
-                      background: T.surfaceAlt,
+                      background: V2.surfaceAlt,
                       padding: "10px 12px",
                     }}
                   >
-                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textPrimary, wordBreak: "break-all" }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: V2.textPrimary, wordBreak: "break-all" }}>
                       {expression || "—"}
                     </div>
-                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: T.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
+                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: V2.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
                       {expression.length} / 4000 characters
                     </div>
                   </div>
@@ -5663,20 +5604,20 @@ function ConfigurationRuleDialog({
               </div>
             ))}
 
-          <div style={{ height: 1, background: T.border }} />
+          <div style={{ height: 1, background: V2.border }} />
 
           <div className="ops-field" style={{ gap: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif", marginBottom: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)", marginBottom: 4 }}>
               Then the settings are…
             </div>
             {CONFIG_RULE_SETTINGS.map((def, idx) => {
               const isAdded = addedSettings.includes(def.id);
               return (
-                <div key={def.id} style={{ borderTop: idx > 0 ? `1px solid ${T.border}` : "none", padding: "14px 0" }}>
+                <div key={def.id} style={{ borderTop: idx > 0 ? `1px solid ${V2.border}` : "none", padding: "14px 0" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
-                        {def.label} <span style={{ color: T.textSubtle, fontWeight: 400 }}>(optional)</span>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
+                        {def.label} <span style={{ color: V2.textSubtle, fontWeight: 400 }}>(optional)</span>
                       </div>
                       <p className="ops-hint" style={{ marginTop: 4, maxWidth: 560 }}>
                         {def.description}
@@ -5725,9 +5666,9 @@ function ConfigurationRuleDialog({
 
           {!editing && (
             <>
-              <div style={{ height: 1, background: T.border }} />
+              <div style={{ height: 1, background: V2.border }} />
               <div className="ops-field" style={{ alignSelf: "flex-start", width: 220 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif", marginBottom: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)", marginBottom: 6 }}>
                   Place at
                 </div>
                 <span className="ops-hint" style={{ display: "block", marginBottom: 4 }}>
@@ -6103,7 +6044,7 @@ function CacheResponseRuleDialog({
             <Input placeholder="Ex.: Cache tags — portal-blue" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
-          <div style={{ height: 1, background: T.border }} />
+          <div style={{ height: 1, background: V2.border }} />
 
           <div className="ops-field">
             <ExecLabel>Se a requisição bater com…</ExecLabel>
@@ -6111,14 +6052,14 @@ function CacheResponseRuleDialog({
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "expression"} onChange={() => setMatchMode("expression")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Expressão customizada</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Expressão customizada</div>
                   <div className="ops-hint">Só aplica a regra em requisições que baterem com a expressão.</div>
                 </div>
               </label>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "all"} onChange={() => setMatchMode("all")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Todas as requisições</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Todas as requisições</div>
                   <div className="ops-hint">Aplica a regra em toda requisição, sem filtro.</div>
                 </div>
               </label>
@@ -6154,11 +6095,9 @@ function CacheResponseRuleDialog({
                         {idx > 0 && (
                           <div
                             style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              letterSpacing: "0.08em",
-                              textTransform: "uppercase",
-                              color: T.textMuted,
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: V2.textMuted,
                               fontFamily: "'IBM Plex Mono',monospace",
                               margin: "6px 0",
                             }}
@@ -6271,11 +6210,9 @@ function CacheResponseRuleDialog({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span
                       style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: T.textMuted,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: V2.textMuted,
                         fontFamily: "'IBM Plex Mono',monospace",
                       }}
                     >
@@ -6288,16 +6225,16 @@ function CacheResponseRuleDialog({
                   <div
                     style={{
                       marginTop: 6,
-                      border: `1px solid ${T.border}`,
+                      border: `1px solid ${V2.border}`,
                       borderRadius: 6,
-                      background: T.surfaceAlt,
+                      background: V2.surfaceAlt,
                       padding: "10px 12px",
                     }}
                   >
-                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textPrimary, wordBreak: "break-all" }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: V2.textPrimary, wordBreak: "break-all" }}>
                       {expression || "—"}
                     </div>
-                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: T.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
+                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: V2.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
                       {expression.length} / 4000 characters
                     </div>
                   </div>
@@ -6305,10 +6242,10 @@ function CacheResponseRuleDialog({
               </div>
             ))}
 
-          <div style={{ height: 1, background: T.border }} />
+          <div style={{ height: 1, background: V2.border }} />
 
           <div className="ops-field">
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Then…</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Then…</div>
             <p className="ops-hint">
               Select how to transform the cached response.
             </p>
@@ -6316,14 +6253,14 @@ function CacheResponseRuleDialog({
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={responseAction === "cache_control"} onChange={() => setResponseAction("cache_control")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Modify cache-control directives</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Modify cache-control directives</div>
                   <div className="ops-hint">Set or remove directives sent by your origin.</div>
                 </div>
               </label>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={responseAction === "cache_tags"} onChange={() => setResponseAction("cache_tags")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Modify cache tags</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Modify cache tags</div>
                   <div className="ops-hint">
                     Add to an existing set of tags, override the current set of tags with new tags, or specify which tags to remove
                     from the current set of tags.
@@ -6333,7 +6270,7 @@ function CacheResponseRuleDialog({
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={responseAction === "strip_headers"} onChange={() => setResponseAction("strip_headers")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Strip headers</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Strip headers</div>
                   <div className="ops-hint">Strip last-modified, Etag or Set-Cookie headers before Cloudflare evaluates these responses for caching.</div>
                 </div>
               </label>
@@ -6341,7 +6278,7 @@ function CacheResponseRuleDialog({
 
             {responseAction === "cache_control" && (
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Cache-control directives</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Cache-control directives</div>
                 <p className="ops-hint">Set or remove cache-control directives sent by your origin.</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
                   {directiveRows.map((row, idx) => (
@@ -6390,7 +6327,7 @@ function CacheResponseRuleDialog({
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                                <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'DM Sans',sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "var(--font-ui)", display: "flex", alignItems: "center", gap: 4 }}>
                                   Cloudflare only <Info size={11} />
                                 </span>
                                 <Switch checked={row.cloudflareOnly} onCheckedChange={(v) => updateDirectiveRow(idx, { cloudflareOnly: v })} />
@@ -6416,7 +6353,7 @@ function CacheResponseRuleDialog({
 
             {responseAction === "cache_tags" && (
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Cache tags</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Cache tags</div>
                 <p className="ops-hint">
                   Add to an existing set of tags, override the current set of tags with new tags, or specify which tags to remove
                   from the current set of tags.
@@ -6426,11 +6363,11 @@ function CacheResponseRuleDialog({
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
                     <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
                       <input type="radio" checked={tagSource === "manual"} onChange={() => setTagSource("manual")} />
-                      <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Specify tags manually</span>
+                      <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Specify tags manually</span>
                     </label>
                     <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
                       <input type="radio" checked={tagSource === "header"} onChange={() => setTagSource("header")} />
-                      <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Parse from response header</span>
+                      <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Parse from response header</span>
                     </label>
                   </div>
                 </div>
@@ -6460,15 +6397,15 @@ function CacheResponseRuleDialog({
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
                     <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
                       <input type="radio" checked={tagAction === "add"} onChange={() => setTagAction("add")} />
-                      <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Add to existing tags</span>
+                      <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Add to existing tags</span>
                     </label>
                     <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
                       <input type="radio" checked={tagAction === "remove"} onChange={() => setTagAction("remove")} />
-                      <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Remove from existing tags</span>
+                      <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Remove from existing tags</span>
                     </label>
                     <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
                       <input type="radio" checked={tagAction === "set"} onChange={() => setTagAction("set")} />
-                      <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Override existing tags</span>
+                      <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Override existing tags</span>
                     </label>
                   </div>
                 </div>
@@ -6477,7 +6414,7 @@ function CacheResponseRuleDialog({
 
             {responseAction === "strip_headers" && (
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Strip headers</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Strip headers</div>
                 <p className="ops-hint">
                   Strip last-modified, Etag or Set-Cookie headers before Cloudflare evaluates these responses for caching.
                 </p>
@@ -6536,9 +6473,9 @@ function CacheResponseRuleDialog({
 
           {!editing && (
             <>
-              <div style={{ height: 1, background: T.border }} />
+              <div style={{ height: 1, background: V2.border }} />
               <div className="ops-field" style={{ alignSelf: "flex-start", width: 220 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif", marginBottom: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)", marginBottom: 6 }}>
                   Place at
                 </div>
                 <span className="ops-hint" style={{ display: "block", marginBottom: 4 }}>
@@ -7258,7 +7195,7 @@ function OverviewRuleDialog({
                 <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                   <input type="radio" checked={matchMode === "wildcard"} onChange={() => setMatchMode("wildcard")} style={{ marginTop: 3 }} />
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Padrão wildcard</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Padrão wildcard</div>
                     <div className="ops-hint">Só aplica a regra em requisições que baterem com o padrão.</div>
                   </div>
                 </label>
@@ -7266,14 +7203,14 @@ function OverviewRuleDialog({
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "expression"} onChange={() => setMatchMode("expression")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Expressão customizada</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Expressão customizada</div>
                   <div className="ops-hint">Só aplica a regra em requisições que baterem com a expressão.</div>
                 </div>
               </label>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                 <input type="radio" checked={matchMode === "all"} onChange={() => setMatchMode("all")} style={{ marginTop: 3 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Todas as requisições</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Todas as requisições</div>
                   <div className="ops-hint">Aplica a regra em toda requisição, sem filtro.</div>
                 </div>
               </label>
@@ -7315,11 +7252,9 @@ function OverviewRuleDialog({
                         {idx > 0 && (
                           <div
                             style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              letterSpacing: "0.08em",
-                              textTransform: "uppercase",
-                              color: T.textMuted,
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: V2.textMuted,
                               fontFamily: "'IBM Plex Mono',monospace",
                               margin: "6px 0",
                             }}
@@ -7432,11 +7367,9 @@ function OverviewRuleDialog({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span
                       style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: T.textMuted,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: V2.textMuted,
                         fontFamily: "'IBM Plex Mono',monospace",
                       }}
                     >
@@ -7449,16 +7382,16 @@ function OverviewRuleDialog({
                   <div
                     style={{
                       marginTop: 6,
-                      border: `1px solid ${T.border}`,
+                      border: `1px solid ${V2.border}`,
                       borderRadius: 6,
-                      background: T.surfaceAlt,
+                      background: V2.surfaceAlt,
                       padding: "10px 12px",
                     }}
                   >
-                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textPrimary, wordBreak: "break-all" }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: V2.textPrimary, wordBreak: "break-all" }}>
                       {expression || "—"}
                     </div>
-                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: T.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
+                    <div style={{ marginTop: 6, textAlign: "right", fontSize: 10, color: V2.textSubtle, fontFamily: "'IBM Plex Mono',monospace" }}>
                       {expression.length} / 4000 characters
                     </div>
                   </div>
@@ -7468,8 +7401,8 @@ function OverviewRuleDialog({
 
           {categoryKey === "url_rewrite" && matchMode === "wildcard" && (
             <>
-              <div style={{ height: 1, background: T.border }} />
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+              <div style={{ height: 1, background: V2.border }} />
+              <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
                 Then rewrite the path and/or query…
               </div>
               <p className="ops-hint" style={{ marginTop: -6 }}>
@@ -7504,8 +7437,8 @@ function OverviewRuleDialog({
           )}
           {categoryKey === "url_rewrite" && matchMode !== "wildcard" && (
             <>
-              <div style={{ height: 1, background: T.border }} />
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+              <div style={{ height: 1, background: V2.border }} />
+              <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
                 Then… Set Rewrite parameters
               </div>
               <div className="ops-field">
@@ -7514,14 +7447,14 @@ function OverviewRuleDialog({
                   <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                     <input type="radio" checked={pathMode === "preserve"} onChange={() => setPathMode("preserve")} style={{ marginTop: 3 }} />
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Preserve</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Preserve</div>
                       <div className="ops-hint">Maintains the path from the original request.</div>
                     </div>
                   </label>
                   <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                     <input type="radio" checked={pathMode === "rewrite"} onChange={() => setPathMode("rewrite")} style={{ marginTop: 3 }} />
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Rewrite to…</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Rewrite to…</div>
                       <div className="ops-hint">Ex.: content/images/thumbnails</div>
                     </div>
                   </label>
@@ -7558,14 +7491,14 @@ function OverviewRuleDialog({
                   <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                     <input type="radio" checked={queryMode === "preserve"} onChange={() => setQueryMode("preserve")} style={{ marginTop: 3 }} />
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Preserve</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Preserve</div>
                       <div className="ops-hint">Maintains the query from the original request.</div>
                     </div>
                   </label>
                   <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
                     <input type="radio" checked={queryMode === "rewrite"} onChange={() => setQueryMode("rewrite")} style={{ marginTop: 3 }} />
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Rewrite to…</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Rewrite to…</div>
                       <div className="ops-hint">Ex.: page=1234</div>
                     </div>
                   </label>
@@ -7597,8 +7530,8 @@ function OverviewRuleDialog({
 
           {categoryKey === "origin" && (
             <>
-              <div style={{ height: 1, background: T.border }} />
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+              <div style={{ height: 1, background: V2.border }} />
+              <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
                 Then… Set origin parameters
               </div>
               <PreserveRewriteField
@@ -7651,10 +7584,10 @@ function OverviewRuleDialog({
 
           {(categoryKey === "request_header_transform" || categoryKey === "response_header_transform") && (
             <>
-              <div style={{ height: 1, background: T.border }} />
+              <div style={{ height: 1, background: V2.border }} />
               <div className="ops-field">
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
                     Modify {categoryKey === "request_header_transform" ? "request" : "response"} header
                   </div>
                   <TooltipProvider delayDuration={150}>
@@ -7703,7 +7636,7 @@ function OverviewRuleDialog({
                       </div>
                       {row.op !== "remove" && (
                         <>
-                          <span style={{ color: T.textSubtle, fontSize: 12 }}>=</span>
+                          <span style={{ color: V2.textSubtle, fontSize: 12 }}>=</span>
                           <div style={{ flex: 1 }}>
                             <Input
                               placeholder={row.op.endsWith("_dynamic") ? 'concat("Bearer ", http.request.headers["x-token"][0])' : "valor"}
@@ -7728,9 +7661,9 @@ function OverviewRuleDialog({
 
           {categoryKey === "custom_error" && (
             <>
-              <div style={{ height: 1, background: T.border }} />
+              <div style={{ height: 1, background: V2.border }} />
               <div className="ops-field">
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Then…</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Then…</div>
                 <p className="ops-hint">Deliver a custom error response.</p>
                 <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
                   <div className="ops-field" style={{ flex: 1 }}>
@@ -7750,7 +7683,7 @@ function OverviewRuleDialog({
                   </div>
                   <div className="ops-field" style={{ flex: "0 0 200px" }}>
                     <ExecLabel>
-                      Response code <span style={{ color: T.textSubtle, fontWeight: 400 }}>(Optional)</span>
+                      Response code <span style={{ color: V2.textSubtle, fontWeight: 400 }}>(Optional)</span>
                     </ExecLabel>
                     <Input type="number" min={400} max={599} placeholder="Mantém o status original" value={statusCode} onChange={(e) => setStatusCode(e.target.value)} />
                   </div>
@@ -7789,9 +7722,9 @@ function OverviewRuleDialog({
 
           {!editing && (
             <>
-              <div style={{ height: 1, background: T.border }} />
+              <div style={{ height: 1, background: V2.border }} />
               <div className="ops-field" style={{ alignSelf: "flex-start", width: 200 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif", marginBottom: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: V2.textPrimary, fontFamily: "var(--font-ui)", marginBottom: 6 }}>
                   Place at
                 </div>
                 <span className="ops-hint" style={{ display: "block", marginBottom: 4 }}>
@@ -7843,7 +7776,7 @@ function OverviewRuleDialog({
             }}
           >
             <AlertTriangle size={13} color={T.danger} style={{ marginTop: 1, flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: T.danger, fontFamily: "'DM Sans',sans-serif" }}>{blockedReason}</span>
+            <span style={{ fontSize: 12, color: T.danger, fontFamily: "var(--font-ui)" }}>{blockedReason}</span>
           </div>
         )}
         <DialogFooter>
@@ -7982,7 +7915,7 @@ function PageRulesSection({ zoneId }: { zoneId: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
+        <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
           {rules.length} de 50 Page Rules disponíveis
         </span>
         <div style={{ display: "flex", gap: 8 }}>
@@ -8056,7 +7989,7 @@ function PageRulesSection({ zoneId }: { zoneId: string }) {
                         {togglingId === r.id ? (
                           <Loader2 size={13} className="ops-spin" />
                         ) : (
-                          <Power size={13} color={r.status === "active" ? T.success : T.textMuted} />
+                          <Power size={13} color={r.status === "active" ? T.success : V2.textMuted} />
                         )}
                       </button>
                       <button
@@ -8065,7 +7998,7 @@ function PageRulesSection({ zoneId }: { zoneId: string }) {
                         disabled={!isAdmin}
                         title={isAdmin ? "Excluir" : "Excluir regras exige perfil admin ou super admin"}
                       >
-                        <Trash2 size={13} color={isAdmin ? T.danger : T.textMuted} />
+                        <Trash2 size={13} color={isAdmin ? T.danger : V2.textMuted} />
                       </button>
                     </div>
                   </td>
@@ -8162,7 +8095,7 @@ function SettingValueEditor({
     const isOn = value !== "off";
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <span style={{ fontSize: 12, color: T.textPrimary, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 600 }}>
+        <span style={{ fontSize: 12, color: V2.textPrimary, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 600 }}>
           {isOn ? "On" : "Off"}
         </span>
         <Switch checked={isOn} onCheckedChange={(checked) => onChange(checked ? "on" : "off")} />
@@ -8354,7 +8287,7 @@ function PageRuleDialog({
             <p className="ops-hint">Suporta * como coringa, igual ao Page Rules nativo.</p>
           </div>
 
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>
             Then the settings are:
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -8365,7 +8298,7 @@ function PageRuleDialog({
                 <div
                   key={idx}
                   style={{
-                    border: `1px solid ${T.border}`,
+                    border: `1px solid ${V2.border}`,
                     borderRadius: 8,
                     padding: 10,
                     display: "flex",
@@ -8405,7 +8338,7 @@ function PageRuleDialog({
             </button>
           </div>
 
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: T.textPrimary, fontFamily: "'DM Sans',sans-serif" }}>Order:</div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Order:</div>
           <div style={{ display: "flex", gap: 12 }}>
             <div className="ops-field" style={{ flex: "0 0 200px" }}>
               <ExecLabel>Posição</ExecLabel>

@@ -1,135 +1,218 @@
+import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { MODULES } from "@/lib/modules";
 import { useAuth } from "@/lib/auth-context";
-import { usePermissions } from "@/lib/use-permissions";
-import { LogOut } from "lucide-react";
+import { MODULE_GROUPS, useVisibleModules } from "@/lib/use-visible-modules";
+import { useShellState } from "@/components/layout/shell-state";
+import {
+  useNavIndicators,
+  type NavIndicator,
+  type NavIndicatorTone,
+} from "@/lib/use-nav-indicators";
+import { ChevronDown, LogOut } from "lucide-react";
+
+const COLLAPSED_KEY = "bsec.sidebar.collapsed";
+
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: "Super admin",
+  admin: "Administrador",
+  analista: "Analista",
+  visualizador: "Visualizador",
+  personalizado: "Personalizado",
+};
+
+const TONE_CLASS: Record<NavIndicatorTone, string> = {
+  crit: "bg-v2-crit/15 text-v2-crit",
+  warn: "bg-v2-med/15 text-v2-med",
+  info: "bg-v2-accent/15 text-v2-accent",
+};
+
+function IndicatorBadge({ ind }: { ind: NavIndicator }) {
+  return (
+    <span
+      className={`ml-auto shrink-0 min-w-[20px] h-[18px] px-1.5 rounded-full grid place-items-center font-data text-[11px] font-medium tabular-nums ${TONE_CLASS[ind.tone]}`}
+      title={ind.label}
+    >
+      <span aria-hidden="true">{ind.count > 99 ? "99+" : ind.count}</span>
+      <span className="sr-only">{ind.label}</span>
+    </span>
+  );
+}
+
+function readCollapsed(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function BrandMark({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 54" className={className} aria-hidden="true">
+      <path
+        d="M24 2L4 10v14c0 13 8.5 23.5 20 27 11.5-3.5 20-14 20-27V10L24 2Z"
+        fill="var(--v2-accent)"
+      />
+      {/* "Z" do Z-Sec */}
+      <path
+        d="M15.5 19.5H32.5L15.5 35.5H32.5"
+        stroke="var(--v2-accent-ink)"
+        strokeWidth="3.8"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { user, role, signOut } = useAuth();
-  const { isAdmin, isDastAllowed, can } = usePermissions();
+  const visibleModules = useVisibleModules();
+  const indicators = useNavIndicators(visibleModules);
+  const { navOpen, setNavOpen } = useShellState();
 
-  // role vem do useAuth — disponível imediatamente sem delay de query
-  const globalAdmin = role === "admin" || role === "super_admin" || isAdmin;
+  // Grupos recolhidos ficam salvos por navegador
+  const [collapsed, setCollapsed] = React.useState<string[]>([]);
+  React.useEffect(() => setCollapsed(readCollapsed()), []);
+  const toggleGroup = (g: string) => {
+    setCollapsed((prev) => {
+      const next = prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g];
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        /* storage indisponível: só não persiste */
+      }
+      return next;
+    });
+  };
 
-  // Benchmark e Painel Executivo são módulos exclusivos (ver
-  // src/lib/exclusive-modules.ts): só super_admin tem bypass automático —
-  // admin (e demais) exige concessão explícita em module_admins/
-  // user_module_permissions. Painel Executivo tem um detalhe a mais: quem já
-  // tinha `view` concedido antes de virar exclusivo manteve o acesso (ver
-  // migration 20260827120000_painel_executivo_exclusive.sql) — só passou a
-  // faltar bypass automático pra admin e default novo pra papéis recém-criados.
-  const canSeeBenchmark = can("benchmark", "view") || can("benchmark", "manage");
-  const canSeePainelExecutivo = can("painel-executivo", "view");
-  const canSeePainelCLevel = can("painel-c-level", "view");
+  // Fecha o menu do mobile ao navegar
+  React.useEffect(() => setNavOpen(false), [pathname, setNavOpen]);
 
-  const groups = ["Executivo", "Monitoramento", "Governança", "Operações", "Cadastros", "Configurações"] as const;
-
-  // Regras de visibilidade da sidebar (instantâneas via role):
-  // - Grupo "Configurações": somente admin global
-  // - "usuarios": admin global ou admin de qualquer módulo
-  // - Demais módulos: visíveis para todos; o acesso é gated na rota/backend
-  //   pela permissão de view (RBAC).
-  const visibleModules = MODULES.filter((m) => {
-    if (m.slug === "dast-scanner" || m.slug === "shadow-it") return isDastAllowed; // admin + depto Segurança da Informação -- Shadow IT reaproveita o mesmo gate do DAST
-    if (m.slug === "benchmark") return canSeeBenchmark; // exige flag explícita, mesmo pra admin
-    if (m.slug === "painel-executivo") return canSeePainelExecutivo; // idem
-    if (m.slug === "painel-c-level") return canSeePainelCLevel; // idem
-    if (m.group === "Configurações") return globalAdmin;
-    if (m.slug === "usuarios") return globalAdmin; // somente admin global
-    if (m.slug === "sso-ldap") return globalAdmin; // somente admin global
-    return true;
-  });
+  const email = user?.email ?? "";
+  const displayName = email.split("@")[0].replace(/[._]/g, " ");
 
   return (
-    <aside className="w-64 shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col h-screen sticky top-0">
-      <div className="p-5 flex items-center gap-3 border-b border-sidebar-border">
-        <div className="shrink-0 flex items-center justify-center">
-          <svg width="32" height="36" viewBox="0 0 48 54" fill="none">
-            <path d="M24 2L4 10v14c0 13 8.5 23.5 20 27 11.5-3.5 20-14 20-27V10L24 2Z" fill="oklch(0.78 0.13 220)" />
-            <path d="M24 2L4 10v14c0 13 8.5 23.5 20 27 11.5-3.5 20-14 20-27V10L24 2Z" fill="url(#sShine)" />
-            <path
-              d="M24 2L4 10v14c0 13 8.5 23.5 20 27 11.5-3.5 20-14 20-27V10L24 2Z"
-              stroke="oklch(0.88 0.13 220)"
-              strokeWidth="0.8"
-              fill="none"
-            />
-            <path
-              d="M24 27 C24 27 20 21 15 21 C10 21 7 23.5 7 27 C7 30.5 10 33 15 33 C20 33 24 27 24 27 C24 27 28 21 33 21 C38 21 41 23.5 41 27 C41 30.5 38 33 33 33 C28 33 24 27 24 27 Z"
-              stroke="oklch(0.16 0.03 250)"
-              strokeWidth="2.8"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeOpacity="0.9"
-            />
-            <defs>
-              <linearGradient id="sShine" x1="12" y1="2" x2="12" y2="28" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="white" stopOpacity="0.18" />
-                <stop offset="100%" stopColor="white" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-          </svg>
+    <>
+      {navOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`font-ui w-[248px] shrink-0 bg-v2-surface border-r border-v2-line flex flex-col h-screen
+          fixed inset-y-0 left-0 z-50 transition-transform duration-200 lg:sticky lg:top-0 lg:translate-x-0
+          ${navOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}
+        aria-label="Navegação principal"
+      >
+        <div className="flex items-center gap-2.5 px-4 pt-4 pb-3.5">
+          <BrandMark className="w-7 h-8 shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[15px] font-bold tracking-[-0.03em] leading-tight text-v2-fg">Z-Sec</div>
+            <div className="font-data text-[10px] uppercase tracking-[0.14em] text-v2-accent">Security Suite</div>
+          </div>
         </div>
-        <div>
-          <div className="font-semibold tracking-tight text-foreground text-sm">B-Security</div>
-          <div className="text-mono-xs text-muted-foreground">Bernoulli Security Suite</div>
-        </div>
-      </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {groups.map((g) => {
-          const groupModules = visibleModules
-            .filter((m) => m.group === g)
-            .sort((a, b) => a.short.localeCompare(b.short, "pt-BR"));
-          if (groupModules.length === 0) return null;
-          return (
-            <div key={g}>
-              <div className="text-mono-xs text-muted-foreground px-3 mb-2 font-semibold">{g}</div>
-              <div className="space-y-0.5">
-                {groupModules.map((m) => {
-                  const active = pathname.startsWith(`/app/${m.slug}`);
-                  const Icon = m.icon;
-                  return (
-                    <Link
-                      key={m.slug}
-                      to="/app/$module"
-                      params={{ module: m.slug }}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                        active
-                          ? "bg-primary/15 text-primary border-l-2 border-primary"
-                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      }`}
-                    >
-                      <Icon className="size-4 shrink-0" />
-                      <span className="truncate">{m.short}</span>
-                    </Link>
-                  );
-                })}
+        <nav className="flex-1 overflow-y-auto px-2 pb-3">
+          {MODULE_GROUPS.map((g) => {
+            const groupModules = visibleModules
+              .filter((m) => m.group === g)
+              .sort((a, b) => a.short.localeCompare(b.short, "pt-BR"));
+            if (groupModules.length === 0) return null;
+            const isCollapsed = collapsed.includes(g);
+            const hasActive = groupModules.some((m) => pathname.startsWith(`/app/${m.slug}`));
+            // Grupo recolhido: mostra o total de pendências dos módulos dele, no tom mais grave
+            const groupInds = groupModules
+              .map((m) => indicators[m.slug])
+              .filter(Boolean) as NavIndicator[];
+            const groupTotal: NavIndicator | null = groupInds.length
+              ? {
+                  count: groupInds.reduce((sum, i) => sum + i.count, 0),
+                  tone: groupInds.some((i) => i.tone === "crit") ? "crit" : groupInds[0].tone,
+                  label: groupInds.map((i) => i.label).join(" · "),
+                }
+              : null;
+            return (
+              <div key={g} className="mt-2.5">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g)}
+                  aria-expanded={!isCollapsed}
+                  className="w-full flex items-center justify-between px-2 py-1.5 rounded-[5px] text-[11px] font-semibold uppercase tracking-[0.08em] text-v2-fg-3 hover:text-v2-fg-2"
+                >
+                  <span className="flex items-center gap-2">
+                    {g}
+                    {isCollapsed && hasActive && (
+                      <span className="size-1.5 rounded-full bg-v2-accent" />
+                    )}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    {isCollapsed && groupTotal && <IndicatorBadge ind={groupTotal} />}
+                    <ChevronDown
+                      className={`size-3.5 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                    />
+                  </span>
+                </button>
+                {!isCollapsed && (
+                  <ul className="grid gap-px">
+                    {groupModules.map((m) => {
+                      const active = pathname.startsWith(`/app/${m.slug}`);
+                      const Icon = m.icon;
+                      return (
+                        <li key={m.slug}>
+                          <Link
+                            to="/app/$module"
+                            params={{ module: m.slug }}
+                            aria-current={active ? "page" : undefined}
+                            className={`group flex items-center gap-2.5 px-2 py-1.5 rounded-[5px] text-[13.5px] transition-colors ${
+                              active
+                                ? "bg-v2-accent/15 text-v2-fg font-medium"
+                                : "text-v2-fg-2 hover:bg-v2-hover hover:text-v2-fg"
+                            }`}
+                          >
+                            <Icon
+                              className={`size-4 shrink-0 ${active ? "text-v2-accent" : "text-v2-fg-3 group-hover:text-v2-fg-2"}`}
+                            />
+                            <span className="truncate">{m.short}</span>
+                            {indicators[m.slug] && <IndicatorBadge ind={indicators[m.slug]} />}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
-            </div>
-          );
-        })}
-      </nav>
+            );
+          })}
+        </nav>
 
-      <div className="p-3 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 px-2 py-2">
-          <div className="size-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-foreground">
-            {user?.email?.[0]?.toUpperCase() ?? "U"}
+        <div className="flex items-center gap-2.5 px-4 py-3 border-t border-v2-line">
+          <div className="size-[30px] shrink-0 rounded-full grid place-items-center bg-v2-surface-2 border border-v2-line text-xs font-semibold text-v2-fg">
+            {email[0]?.toUpperCase() ?? "U"}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium text-foreground truncate">{user?.email}</div>
-            <div className="text-mono-xs text-muted-foreground">{role ?? "—"}</div>
+            <div className="text-[12.5px] font-medium text-v2-fg truncate capitalize" title={email}>
+              {displayName || "—"}
+            </div>
+            <div className="text-[11px] text-v2-fg-3">
+              {role ? (ROLE_LABEL[role] ?? role) : "—"}
+            </div>
           </div>
           <button
+            type="button"
             onClick={() => signOut()}
-            className="text-muted-foreground hover:text-foreground p-1.5 rounded hover:bg-accent transition-colors"
+            className="size-8 grid place-items-center rounded-lg text-v2-fg-3 hover:text-v2-fg hover:bg-v2-hover transition-colors"
+            aria-label="Sair"
             title="Sair"
           >
             <LogOut className="size-4" />
           </button>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

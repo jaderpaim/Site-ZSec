@@ -96,109 +96,53 @@ type AprRow = {
 /**
  * Agrupa aprovadores em "grupos de decisão": qualquer aprovação dentro do
  * grupo libera o grupo inteiro (os demais membros ficam "Dispensado"). Um
- * grupo é a união (union-find) de duas regras:
- *  (a) papel consecutivo na ordem entrelaçada, mesmo entre departamentos
- *      diferentes — ex: SI(1,Analista) + Infra(1,Analista), lado a lado pelo
- *      entrelaçamento por rank, decidem juntos antes de avançar.
- *  (b) MESMO departamento + MESMO papel, em qualquer posição — ex:
- *      Jader(SI,1,Analista) e Diego(SI,3,Analista) continuam no mesmo grupo
- *      mesmo com Cleber(Infra,2,papel diferente) intercalado entre eles pelo
- *      entrelaçamento por rank. Só aplica quando department_id está
- *      preenchido — linhas antigas sem a coluna nunca entram nessa regra.
+ * grupo é formado SÓ por aprovadores do MESMO departamento com o MESMO papel
+ * (ex: Juliana(SI,1,Analista) e Paulo(SI,3,Analista) — o Paulo é backup da
+ * Juliana). Papel igual em departamentos diferentes NÃO forma grupo: cada
+ * departamento aprova pelo seu escopo, em sequência (ex: SI(1,Analista) e
+ * depois Infra(1,Analista)). Linhas antigas sem department_id ficam sozinhas.
  * O número de grupos é o total de decisões REALMENTE necessárias (ex: "2/2"
  * mesmo que existam 3 linhas, se duas formarem um grupo).
  */
-function computeDecisionGroups(rows: AprRow[]): AprRow[][] {
+function computeDecisionGroups<T extends AprRow>(rows: T[]): T[][] {
   const sorted = [...rows].sort((a, b) => a.ordem - b.ordem);
-  const parent = new Map<string, string>();
-  function find(x: string): string {
-    if (!parent.has(x)) parent.set(x, x);
-    let root = x;
-    while (parent.get(root) !== root) root = parent.get(root)!;
-    parent.set(x, root);
-    return root;
-  }
-  function union(a: string, b: string) {
-    const ra = find(a);
-    const rb = find(b);
-    if (ra !== rb) parent.set(ra, rb);
-  }
-  for (const r of sorted) find(r.id);
-
-  // (a) papel consecutivo na sequência entrelaçada.
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].papel === sorted[i - 1].papel) union(sorted[i].id, sorted[i - 1].id);
-  }
-  // (b) mesmo departamento + mesmo papel, em qualquer posição.
-  const byDeptPapel = new Map<string, string[]>();
+  const groups = new Map<string, T[]>();
   for (const r of sorted) {
-    if (!r.department_id || !r.papel) continue;
-    const key = `${r.department_id}|${r.papel}`;
-    const ids = byDeptPapel.get(key) ?? [];
-    ids.push(r.id);
-    byDeptPapel.set(key, ids);
-  }
-  for (const ids of byDeptPapel.values()) {
-    for (let i = 1; i < ids.length; i++) union(ids[0], ids[i]);
-  }
-
-  const groups = new Map<string, AprRow[]>();
-  for (const r of sorted) {
-    const root = find(r.id);
-    const arr = groups.get(root) ?? [];
+    const key = r.department_id && r.papel ? `${r.department_id}|${r.papel}` : `solo|${r.id}`;
+    const arr = groups.get(key) ?? [];
     arr.push(r);
-    groups.set(root, arr);
+    groups.set(key, arr);
   }
-  return [...groups.values()].sort((a, b) => Math.min(...a.map((x) => x.ordem)) - Math.min(...b.map((x) => x.ordem)));
+  return [...groups.values()].sort((a, b) => a[0].ordem - b[0].ordem);
+}
+
+/** Primeiro grupo de decisão ainda sem aprovação e com alguém pendente. */
+function currentDecisionGroup<T extends AprRow>(rows: T[]): T[] | undefined {
+  return computeDecisionGroups(rows).find(
+    (g) =>
+      !g.some((m) => m.status_aprovacao === "Aprovado") &&
+      g.some((m) => m.status_aprovacao === "Pendente"),
+  );
 }
 
 /**
- * Sequências consecutivas (na ordem entrelaçada) com o mesmo papel — a base
- * da onda "paralela" de verdade (qualquer um decide por todos, ativos desde
- * já), independente de departamento. Usado só dentro de getActiveWaveIds
- * para distinguir isso do backup "sequencial" por departamento (que só fica
- * ativo quando o escalonamento de fato chama o backup).
- */
-function buildAdjacentClusters<T extends AprRow>(rows: T[]): T[][] {
-  const sorted = [...rows].sort((a, b) => a.ordem - b.ordem);
-  const clusters: T[][] = [];
-  for (const r of sorted) {
-    const last = clusters[clusters.length - 1];
-    if (last && last[0].papel === r.papel) last.push(r);
-    else clusters.push([r]);
-  }
-  return clusters;
-}
-
-/**
- * IDs dos aprovadores que podem decidir agora. Dentro do primeiro grupo de
- * decisão ainda sem ninguém "Aprovado": o de menor ordem está sempre ativo,
- * junto com quem for seu vizinho consecutivo de mesmo papel (onda paralela
- * entre departamentos diferentes, ex: Nata+Diego no mesmo rank). Um backup
- * do MESMO departamento mas não-vizinho (ex: Jader→Cleber→Diego, mesmo
- * departamento do Jader) só entra depois que o escalonamento por inatividade
- * realmente notificá-lo — antes disso, fica escondido (é só um backup, não
- * decide em paralelo). Retorna vazio se não há grupo em aberto.
+ * IDs dos aprovadores que podem decidir agora: só quem foi notificado (recebeu
+ * o e-mail) dentro do grupo da vez. O backup do mesmo departamento+papel só
+ * entra quando o escalonamento por inatividade o notifica — e aí quem ficou
+ * parado é dispensado, perdendo a vez. Se a notificação inicial falhou
+ * (ninguém com notificado_em), o primeiro pendente do grupo fica ativo.
+ * Retorna vazio se não há grupo em aberto.
  */
 function getActiveWaveIds(rows: AprRow[]): Set<string> {
-  const groups = computeDecisionGroups(rows);
-  const current = groups.find(
-    (g) => !g.some((m) => m.status_aprovacao === "Aprovado") && g.some((m) => m.status_aprovacao === "Pendente"),
-  );
+  const current = currentDecisionGroup(rows);
   if (!current) return new Set();
   const pendentes = current.filter((m) => m.status_aprovacao === "Pendente");
   if (pendentes.length === 0) return new Set();
-
-  const lowest = [...pendentes].sort((a, b) => a.ordem - b.ordem)[0];
-  const clusters = buildAdjacentClusters(rows);
-  const lowestCluster = clusters.find((c) => c.some((m) => m.id === lowest.id)) ?? [lowest];
-  const lowestClusterIds = new Set(lowestCluster.map((m) => m.id));
-
-  const activeIds = new Set<string>();
-  for (const m of pendentes) {
-    if (lowestClusterIds.has(m.id) || m.notificado_em) activeIds.add(m.id);
-  }
-  return activeIds;
+  const notificados = pendentes.filter((m) => m.notificado_em);
+  const ativos = notificados.length
+    ? notificados
+    : [[...pendentes].sort((a, b) => a.ordem - b.ordem)[0]];
+  return new Set(ativos.map((m) => m.id));
 }
 
 /**
@@ -212,24 +156,40 @@ function getActiveWaveIds(rows: AprRow[]): Set<string> {
 async function isGmudAdmin(sb: ReturnType<typeof admin>, userId: string): Promise<boolean> {
   const [roleRes, moduleAdminRes] = await Promise.all([
     sb.rpc("has_role", { _user_id: userId, _role: "admin" as any }),
-    sb.from("module_admins").select("user_id").eq("user_id", userId).eq("module_slug", "gmud").maybeSingle(),
+    sb
+      .from("module_admins")
+      .select("user_id")
+      .eq("user_id", userId)
+      .eq("module_slug", "gmud")
+      .maybeSingle(),
   ]);
   return roleRes.data === true || !!moduleAdminRes.data;
 }
 
-function visibleAprovadores<T extends AprRow>(rows: T[], activeIds: Set<string>): Array<T & { ativo: boolean }> {
+function visibleAprovadores<T extends AprRow>(
+  rows: T[],
+  activeIds: Set<string>,
+): Array<T & { ativo: boolean }> {
   return rows
-    .filter((a) => a.status_aprovacao === "Aprovado" || a.status_aprovacao === "Rejeitado" || activeIds.has(a.id))
+    .filter(
+      (a) =>
+        a.status_aprovacao === "Aprovado" ||
+        a.status_aprovacao === "Rejeitado" ||
+        activeIds.has(a.id),
+    )
     .map((a) => ({ ...a, ativo: activeIds.has(a.id) }));
 }
 
 /**
  * Retorna os IDs de GMUD em que `email` é membro da onda ativa no momento —
- * ou seja, faz parte do primeiro grupo (mesmo papel, ordem consecutiva) que
+ * ou seja, foi notificado no grupo da vez (mesmo departamento + papel) que
  * ainda não tem ninguém aprovado. Membros de ondas futuras (ainda não
  * alcançadas) não contam.
  */
-async function findActiveApprovalGmudIds(sb: ReturnType<typeof admin>, email: string): Promise<string[]> {
+async function findActiveApprovalGmudIds(
+  sb: ReturnType<typeof admin>,
+  email: string,
+): Promise<string[]> {
   const { data: pendingRows } = await sb
     .from("gmud_aprovadores")
     .select("gmud_id, email_aprovador")
@@ -254,7 +214,9 @@ async function findActiveApprovalGmudIds(sb: ReturnType<typeof admin>, email: st
 
   const { data: allRows } = await sb
     .from("gmud_aprovadores")
-    .select("id, gmud_id, ordem, papel, department_id, status_aprovacao, email_aprovador, notificado_em")
+    .select(
+      "id, gmud_id, ordem, papel, department_id, status_aprovacao, email_aprovador, notificado_em",
+    )
     .in("gmud_id", openIds);
   const byGmud = new Map<string, AprRow[]>();
   for (const r of allRows ?? []) {
@@ -277,7 +239,9 @@ export const listGmuds = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator(
     (
-      input: { status?: string | null; tipo?: string | null; from?: string | null; to?: string | null } | undefined,
+      input:
+        | { status?: string | null; tipo?: string | null; from?: string | null; to?: string | null }
+        | undefined,
     ) => ({
       status: input?.status ?? null,
       tipo: input?.tipo ?? null,
@@ -298,7 +262,8 @@ export const listGmuds = createServerFn({ method: "POST" })
 
       const callerEmail = ((context as any).claims?.email ?? "").toString().toLowerCase();
       if (callerEmail) {
-        for (const gmudId of await findActiveApprovalGmudIds(sb, callerEmail)) ownOrActiveIds.add(gmudId);
+        for (const gmudId of await findActiveApprovalGmudIds(sb, callerEmail))
+          ownOrActiveIds.add(gmudId);
       }
 
       allowedIds = [...ownOrActiveIds];
@@ -326,7 +291,9 @@ export const listGmuds = createServerFn({ method: "POST" })
       byGmud.get(a.gmud_id)!.push(a);
     }
 
-    const creatorIds = [...new Set((gmuds ?? []).map((g) => g.criado_por).filter(Boolean))] as string[];
+    const creatorIds = [
+      ...new Set((gmuds ?? []).map((g) => g.criado_por).filter(Boolean)),
+    ] as string[];
     const creatorById = await fetchProfilesById(sb, creatorIds);
     // Admin global/do módulo vê a cadência completa (oversight/auditoria);
     // todo mundo mais só vê o que já foi decidido + a onda ativa.
@@ -335,7 +302,8 @@ export const listGmuds = createServerFn({ method: "POST" })
     return (gmuds ?? []).map((g) => {
       const creator = g.criado_por ? creatorById.get(g.criado_por) : undefined;
       const aprovadoresList = byGmud.get(g.id) ?? [];
-      const activeIds = g.status_geral === "Em Aprovação" ? getActiveWaveIds(aprovadoresList) : new Set<string>();
+      const activeIds =
+        g.status_geral === "Em Aprovação" ? getActiveWaveIds(aprovadoresList) : new Set<string>();
       return {
         ...g,
         aprovadores: fullVisibility
@@ -370,13 +338,19 @@ export const getGmud = createServerFn({ method: "POST" })
     // demais precisam da permissão do módulo.
     const isCreator = g.criado_por === context.userId;
     const callerEmail = ((context as any).claims?.email ?? "").toString().toLowerCase();
-    const activeIds = g.status_geral === "Em Aprovação" ? getActiveWaveIds(aprovadores) : new Set<string>();
+    const activeIds =
+      g.status_geral === "Em Aprovação" ? getActiveWaveIds(aprovadores) : new Set<string>();
     const isActiveApprover =
-      !!callerEmail && aprovadores.some((a) => activeIds.has(a.id) && a.email_aprovador?.toLowerCase() === callerEmail);
+      !!callerEmail &&
+      aprovadores.some(
+        (a) => activeIds.has(a.id) && a.email_aprovador?.toLowerCase() === callerEmail,
+      );
     if (!isCreator && !isActiveApprover) {
       await requirePermission(context.supabase, context.userId, "gmud", "view");
     }
-    const creator = g.criado_por ? (await fetchProfilesById(sb, [g.criado_por])).get(g.criado_por) : undefined;
+    const creator = g.criado_por
+      ? (await fetchProfilesById(sb, [g.criado_por])).get(g.criado_por)
+      : undefined;
     // Admin global/do módulo vê a cadência completa (oversight/auditoria);
     // todo mundo mais só vê o que já foi decidido + a onda ativa.
     const fullVisibility = await isGmudAdmin(sb, context.userId);
@@ -409,7 +383,9 @@ export const createGmud = createServerFn({ method: "POST" })
     // (departamento adicional escolhido pelo usuário, Gerência de TI por
     // último quando obrigatória). Cada departamento busca seus próprios
     // aprovadores ordenados por "ordem".
-    const deptOrder = [...new Set([data.department_id, ...(data.extra_department_ids ?? []).filter(Boolean)])];
+    const deptOrder = [
+      ...new Set([data.department_id, ...(data.extra_department_ids ?? []).filter(Boolean)]),
+    ];
     type AprCandidate = {
       nome: string;
       email: string;
@@ -443,13 +419,13 @@ export const createGmud = createServerFn({ method: "POST" })
 
     // Entrelaça por "ordem" ENTRE departamentos, não em blocos: todos os
     // aprovadores de ordem 1 primeiro (na ordem em que os departamentos foram
-    // selecionados), depois todos os de ordem 2, etc. Isso forma, na inserção
-    // sequencial abaixo, "ondas" de mesmo papel entre departamentos diferentes
-    // (ver computeDecisionGroups/decideGmudApproval) — ex: SI(1,Analista) e
-    // Infra(1,Analista) ficam lado a lado antes de SI(2,Coordenador).
-    const allOrdens = [...new Set(deptOrder.flatMap((id) => (aprByDept.get(id) ?? []).map((r) => r.ordem)))].sort(
-      (a, b) => a - b,
-    );
+    // selecionados), depois todos os de ordem 2, etc. Cada departamento aprova
+    // na sua vez, em sequência — ex: SI(1,Analista) → Infra(1,Analista) →
+    // SI(2,Coordenador). Só mesmo departamento + papel forma grupo (backup),
+    // ver computeDecisionGroups.
+    const allOrdens = [
+      ...new Set(deptOrder.flatMap((id) => (aprByDept.get(id) ?? []).map((r) => r.ordem))),
+    ].sort((a, b) => a - b);
     const interleaved: AprCandidate[] = [];
     for (const ord of allOrdens) {
       for (const deptId of deptOrder) {
@@ -556,14 +532,21 @@ async function notifyApproverByOrdem(gmudId: string, ordem: number, fromUser: st
 
   // Nome do criador via profiles
   if (g.criado_por) {
-    const { data: prof } = await sb.from("profiles").select("full_name, email").eq("id", g.criado_por).maybeSingle();
+    const { data: prof } = await sb
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", g.criado_por)
+      .maybeSingle();
     g.criado_por_nome = prof?.full_name || prof?.email || g.criado_por_email || "—";
   } else {
     g.criado_por_nome = g.criado_por_email || "—";
   }
 
   await sendApprovalEmailToOne(g, a, fromUser);
-  await sb.from("gmud_aprovadores").update({ notificado_em: new Date().toISOString() }).eq("id", a.id);
+  await sb
+    .from("gmud_aprovadores")
+    .update({ notificado_em: new Date().toISOString() })
+    .eq("id", a.id);
 }
 
 /**
@@ -590,14 +573,21 @@ async function sendReminderEmail(gmudId: string, ordem: number) {
   a.total_etapas = groups.length;
 
   if (g.criado_por) {
-    const { data: prof } = await sb.from("profiles").select("full_name, email").eq("id", g.criado_por).maybeSingle();
+    const { data: prof } = await sb
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", g.criado_por)
+      .maybeSingle();
     g.criado_por_nome = prof?.full_name || prof?.email || g.criado_por_email || "—";
   } else {
     g.criado_por_nome = g.criado_por_email || "—";
   }
 
   await sendApprovalEmailToOne(g, a, null, { reminder: true });
-  await sb.from("gmud_aprovadores").update({ lembrado_em: new Date().toISOString() }).eq("id", a.id);
+  await sb
+    .from("gmud_aprovadores")
+    .update({ lembrado_em: new Date().toISOString() })
+    .eq("id", a.id);
 }
 
 async function sendApprovedEmail(gmudId: string) {
@@ -605,7 +595,11 @@ async function sendApprovedEmail(gmudId: string) {
   const { data: g } = await sb.from("gmuds").select("*").eq("id", gmudId).maybeSingle();
   if (!g || !g.criado_por) return;
   // Busca email do criador via profiles
-  const { data: profile } = await sb.from("profiles").select("email").eq("id", g.criado_por).maybeSingle();
+  const { data: profile } = await sb
+    .from("profiles")
+    .select("email")
+    .eq("id", g.criado_por)
+    .maybeSingle();
   const toEmail = profile?.email;
   if (!toEmail) return;
 
@@ -688,7 +682,11 @@ async function sendRejectedEmail(gmudId: string, rejectedByName: string, motivo:
   const { data: g } = await sb.from("gmuds").select("*").eq("id", gmudId).maybeSingle();
   if (!g || !g.criado_por) return;
   // Busca email do criador via profiles
-  const { data: profile } = await sb.from("profiles").select("email").eq("id", g.criado_por).maybeSingle();
+  const { data: profile } = await sb
+    .from("profiles")
+    .select("email")
+    .eq("id", g.criado_por)
+    .maybeSingle();
   const toEmail = profile?.email;
   if (!toEmail) return;
 
@@ -768,7 +766,12 @@ async function sendRejectedEmail(gmudId: string, rejectedByName: string, motivo:
   }
 }
 
-async function sendApprovalEmailToOne(g: any, a: any, fromUser: string | null, opts?: { reminder?: boolean }) {
+async function sendApprovalEmailToOne(
+  g: any,
+  a: any,
+  fromUser: string | null,
+  opts?: { reminder?: boolean },
+) {
   const isReminder = !!opts?.reminder;
   const sb = admin();
   const { data: cfg } = await sb.from("smtp_config").select("*").limit(1).maybeSingle();
@@ -902,7 +905,11 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
     // tocadas (ficam "Pendente" para sempre, já que o fluxo nunca as alcança),
     // então só checar a linha do aprovador não basta — sem isso, alguém com
     // ordem maior que o rejeitador ainda conseguiria decidir depois.
-    const { data: gmudRow } = await sb.from("gmuds").select("titulo, status_geral").eq("id", data.gmudId).maybeSingle();
+    const { data: gmudRow } = await sb
+      .from("gmuds")
+      .select("titulo, status_geral")
+      .eq("id", data.gmudId)
+      .maybeSingle();
     if (!gmudRow) throw new Error("GMUD não encontrada");
     if (gmudRow.status_geral !== "Em Aprovação") {
       throw new Error(
@@ -933,8 +940,8 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
       throw new Error("Acesso negado: você não é este aprovador");
     }
 
-    // Hierarquia por onda: o aprovador precisa ser membro da onda atual
-    // (sequência consecutiva de mesmo papel ainda sem ninguém aprovado).
+    // Hierarquia: o aprovador precisa ter sido notificado no grupo da vez
+    // (mesmo departamento + papel ainda sem ninguém aprovado).
     const activeIds = getActiveWaveIds(list);
     if (!activeIds.has(target.id)) {
       throw new Error("Não é sua vez de aprovar — aguardando aprovadores anteriores");
@@ -1014,7 +1021,15 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
       detalhes: { aprovador_id: data.aprovadorId, ordem: target.ordem },
     });
 
-    const next = list.find((a) => a.ordem > target.ordem && a.status_aprovacao === "Pendente");
+    // Próximo = primeiro pendente do próximo grupo em aberto (não "a próxima
+    // linha por ordem": se quem aprovou foi um backup, linhas de outros grupos
+    // com ordem menor que a dele ainda não foram chamadas).
+    const nextGroup = currentDecisionGroup(list);
+    const next = nextGroup
+      ? [...nextGroup]
+          .filter((a) => a.status_aprovacao === "Pendente")
+          .sort((a, b) => a.ordem - b.ordem)[0]
+      : undefined;
     if (next) {
       try {
         await notifyApproverByOrdem(data.gmudId, next.ordem, null);
@@ -1043,14 +1058,13 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
   });
 
 /**
- * Escalonamento por inatividade: NUNCA aprova automaticamente. Para a onda
- * ativa (mesmo papel, ordem consecutiva) de cada GMUD "Em Aprovação", se o
+ * Escalonamento por inatividade: NUNCA aprova automaticamente. Para o grupo
+ * da vez (mesmo departamento + papel) de cada GMUD "Em Aprovação", se o
  * membro mais recentemente notificado está parado há mais tempo que o prazo
  * (N dias no caso normal, 24h fixas para Emergencial/Crítico), apenas
- * notifica o PRÓXIMO membro da MESMA onda (mesmo papel) — quem ficou para
- * trás continua "Pendente" e ainda pode decidir tarde. Se a onda inteira já
- * foi notificada e ninguém decidiu, fica parada — requer intervenção manual
- * (admin troca o status na tela de detalhes). O cron roda 1x/dia, então o
+ * notifica o backup do MESMO grupo (mesmo departamento + papel) e dispensa
+ * quem ficou parado, que perde a vez. Sem backup, o grupo é dispensado por
+ * inatividade e a GMUD segue para o próximo grupo. O cron roda 1x/dia, então o
  * prazo de 24h de Emergencial/Crítico é, na prática, detectado em até ~48h
  * (a checagem mais próxima do estouro real). Idempotente.
  */
@@ -1066,7 +1080,10 @@ export async function _runEscalateInactiveApprovals(days = 5) {
   const cutoffUrgente = Date.now() - 24 * 3600000;
   const reminderCutoff = Date.now() - 24 * 3600000; // no máximo 1 lembrete por dia
 
-  const { data: gmuds } = await sb.from("gmuds").select("id, tipo, impacto").eq("status_geral", "Em Aprovação");
+  const { data: gmuds } = await sb
+    .from("gmuds")
+    .select("id, tipo, impacto")
+    .eq("status_geral", "Em Aprovação");
   let escalated = 0;
   let reminded = 0;
   for (const g of gmuds ?? []) {
@@ -1078,16 +1095,15 @@ export async function _runEscalateInactiveApprovals(days = 5) {
       .eq("gmud_id", g.id)
       .order("ordem", { ascending: true });
     const list = (aprs as AprRow[]) ?? [];
-    const groups = computeDecisionGroups(list);
-    const wave = groups.find(
-      (w) => !w.some((m) => m.status_aprovacao === "Aprovado") && w.some((m) => m.status_aprovacao === "Pendente"),
-    );
+    const wave = currentDecisionGroup(list);
     if (!wave) continue;
     const pendentes = wave.filter((m) => m.status_aprovacao === "Pendente");
     if (pendentes.length === 0) continue;
 
     // Quem está "na vez" agora: o último membro pendente já notificado.
-    const notificados = pendentes.filter((m: any) => m.notificado_em).sort((a: any, b: any) => b.ordem - a.ordem);
+    const notificados = pendentes
+      .filter((m: any) => m.notificado_em)
+      .sort((a: any, b: any) => b.ordem - a.ordem);
     const atual = notificados[0];
 
     // Notificação inicial não chegou (notificado_em=null para todos): reenvia pro primeiro da onda.
@@ -1112,6 +1128,32 @@ export async function _runEscalateInactiveApprovals(days = 5) {
       // (lembrete diário próprio, escalando de novo se também ficar inativo).
       const proximo = pendentes.find((m: any) => m.ordem > atual.ordem && !m.notificado_em);
       if (proximo) {
+        // Quem ficou parado perde a vez: dispensado por inatividade, o backup
+        // (mesmo departamento + papel) passa a ser o único que pode decidir.
+        const { error: dispenseAtualError } = await sb
+          .from("gmud_aprovadores")
+          .update({
+            status_aprovacao: "Dispensado",
+            data_acao: new Date().toISOString(),
+            observacoes: `Dispensado automaticamente por inatividade — prazo de ${isUrgente ? "24h" : `${d} dias`} expirado; repassado para ${(proximo as any).nome_aprovador}.`,
+          })
+          .eq("id", atual.id)
+          .eq("status_aprovacao", "Pendente");
+        if (dispenseAtualError) {
+          console.error(dispenseAtualError);
+          continue;
+        }
+        await logGmud(sb, {
+          gmud_id: g.id,
+          gmud_titulo: null,
+          tipo_evento: "mudanca_status",
+          descricao: `${(atual as any).nome_aprovador} dispensado por inatividade. Aprovação repassada ao backup ${(proximo as any).nome_aprovador}.`,
+          status: "info",
+          detalhes: {
+            dispensado: (atual as any).email_aprovador,
+            backup: (proximo as any).email_aprovador,
+          },
+        });
         try {
           await notifyApproverByOrdem(g.id, (proximo as any).ordem, null);
           escalated++;
@@ -1203,14 +1245,17 @@ export const gmudMetrics = createServerFn({ method: "POST" })
     const sb = admin();
     const since = new Date(Date.now() - data.days * 86400000).toISOString();
 
-    const { data: all } = await sb.from("gmuds").select("id, tipo, status_geral, created_at, updated_at");
+    const { data: all } = await sb
+      .from("gmuds")
+      .select("id, tipo, status_geral, created_at, updated_at");
     const list = all ?? [];
     const inRange = list.filter((g) => g.created_at >= since);
 
     const concluidas = inRange.filter((g) => g.status_geral === "Concluída").length;
     const rollback = inRange.filter((g) => g.status_geral === "Rollback").length;
     const rejeitadas = inRange.filter((g) => g.status_geral === "Rejeitada").length;
-    const taxaSucesso = concluidas + rollback > 0 ? Math.round((concluidas / (concluidas + rollback)) * 100) : 0;
+    const taxaSucesso =
+      concluidas + rollback > 0 ? Math.round((concluidas / (concluidas + rollback)) * 100) : 0;
     const emExecucao = list.filter((g) => g.status_geral === "Em Execução").length;
 
     // distribuição por tipo
@@ -1238,9 +1283,13 @@ export const gmudMetrics = createServerFn({ method: "POST" })
         return t >= start && t < end;
       };
       const count = inRange.filter(inBucket).length;
-      const nConcluida = inRange.filter((g) => inBucket(g) && g.status_geral === "Concluída").length;
+      const nConcluida = inRange.filter(
+        (g) => inBucket(g) && g.status_geral === "Concluída",
+      ).length;
       const nRollback = inRange.filter((g) => inBucket(g) && g.status_geral === "Rollback").length;
-      const nRejeitada = inRange.filter((g) => inBucket(g) && g.status_geral === "Rejeitada").length;
+      const nRejeitada = inRange.filter(
+        (g) => inBucket(g) && g.status_geral === "Rejeitada",
+      ).length;
       const d = new Date(end);
       buckets.push({
         label:
@@ -1273,7 +1322,10 @@ export const gmudMetrics = createServerFn({ method: "POST" })
       // gargalos: aprovadores pendentes com tempo > 24h
       const now2 = Date.now();
       const pend = aprList.filter((a) => a.status_aprovacao === "Pendente");
-      const byEmail = new Map<string, { nome: string; email: string; pendentes: number; tempoTotal: number }>();
+      const byEmail = new Map<
+        string,
+        { nome: string; email: string; pendentes: number; tempoTotal: number }
+      >();
       for (const a of pend) {
         const g = inRange.find((x) => x.id === a.gmud_id);
         if (!g) continue;
@@ -1346,7 +1398,10 @@ export const updateGmudStatus = createServerFn({ method: "POST" })
     if (!gmudInfo || gmudInfo.criado_por !== context.userId) {
       await requirePermission(context.supabase, context.userId, "gmud", "execute");
     }
-    const { error } = await sb.from("gmuds").update({ status_geral: data.status }).eq("id", data.id);
+    const { error } = await sb
+      .from("gmuds")
+      .update({ status_geral: data.status })
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     await logGmud(sb, {
       gmud_id: data.id,
@@ -1456,12 +1511,19 @@ export const deleteGmud = createServerFn({ method: "POST" })
         throw new Error("Acesso negado: você só pode excluir GMUDs que você mesmo criou");
       }
       if (gmudRow.status_geral !== "Em Aprovação") {
-        throw new Error("Esta GMUD já foi decidida — a partir daqui só admin/analista podem excluí-la");
+        throw new Error(
+          "Esta GMUD já foi decidida — a partir daqui só admin/analista podem excluí-la",
+        );
       }
-      const { data: aprs } = await sb.from("gmud_aprovadores").select("status_aprovacao").eq("gmud_id", data.id);
+      const { data: aprs } = await sb
+        .from("gmud_aprovadores")
+        .select("status_aprovacao")
+        .eq("gmud_id", data.id);
       const anyDecided = (aprs ?? []).some((a) => a.status_aprovacao !== "Pendente");
       if (anyDecided) {
-        throw new Error("O primeiro aprovador já decidiu — a partir daqui só admin/analista podem excluí-la");
+        throw new Error(
+          "O primeiro aprovador já decidiu — a partir daqui só admin/analista podem excluí-la",
+        );
       }
     }
 

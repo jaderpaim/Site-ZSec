@@ -1,383 +1,145 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
 import { getWsusOverview, deleteWsusServers, type WsusDetailRow } from "@/lib/wsus.functions";
 import { usePermissions } from "@/lib/use-permissions";
 import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "sonner";
 import {
-  Server,
-  AlertTriangle,
-  ShieldCheck,
-  Activity,
-  RefreshCw,
-  Trash2,
-  Search,
-  GripHorizontal,
-  Minimize2,
-  Maximize2,
-  CheckCircle2,
-  XCircle,
-  Clock,
-} from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { Loader2, Search, Server, Trash2, Upload, X } from "lucide-react";
 
-// ── Design Tokens ──────────────────────────────────────────────────────────────
-const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
-  accent: "#3B82F6",
-  accentGlow: "rgba(59,130,246,0.15)",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  purple: "#A78BFA",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#F1F5F9",
-  textSubtle: "#475569",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#334155",
-  chartTick: "#64748B",
+const META = 85;
+type KpiFilter = "all" | "ok" | "failures" | "pending" | "alerts";
+const KPI_LABEL: Record<Exclude<KpiFilter, "all">, string> = {
+  ok: "Com patches aplicados",
+  pending: "Com updates pendentes",
+  failures: "Com falhas",
+  alerts: "Com alertas",
 };
 
-// ── CSS ────────────────────────────────────────────────────────────────────────
+// Mesma regra do card "Servidores com patches aplicados" de antes
+const isPatched = (r: WsusDetailRow) => r.installed_or_na > 0 && r.failed === 0 && !r.has_alert;
+
+// Situação resumida por servidor (pior estado primeiro)
+function situation(r: WsusDetailRow): { label: string; color: string } {
+  if (r.failed > 0) return { label: "Falhou", color: "var(--v2-crit)" };
+  if (r.has_alert) return { label: "Alerta", color: "var(--v2-high)" };
+  if (r.needed > 0) return { label: "Pendente", color: "var(--v2-med)" };
+  return { label: "Em dia", color: "var(--v2-ok)" };
+}
+
+const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR") : "—");
+
+// ── CSS (interface v2) ─────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .ws-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; display:flex; flex-direction:column; gap:16px; }
+  .ws-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
   .ws-root * { box-sizing:border-box; }
+  .ws-root ::-webkit-scrollbar { width:6px; height:6px; }
+  .ws-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .ws-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .ws-mono { font-family:var(--font-data); font-size:12.5px; }
+  .ws-dim { color:var(--v2-fg-3); }
 
-  @keyframes ws-spin  { to{transform:rotate(360deg)} }
-  @keyframes ws-fadeup{ from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-  .ws-spin    { animation:ws-spin 0.75s linear infinite; }
-  .ws-fadeup  { animation:ws-fadeup 0.3s ease forwards; }
-
-  .ws-root ::-webkit-scrollbar       { width:4px; height:4px; }
-  .ws-root ::-webkit-scrollbar-track { background:transparent; }
-  .ws-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
-
-  /* recharts */
-  .ws-root .recharts-cartesian-axis-tick-value { fill:${T.chartTick} !important; font-size:10px; font-family:'IBM Plex Mono',monospace; }
-  .ws-root .recharts-text { fill:${T.chartTick} !important; }
-  .ws-root .recharts-label { fill:${T.textPrimary} !important; }
-  .ws-root .recharts-text.recharts-label { fill:${T.textPrimary} !important; }
-  .ws-root .recharts-legend-item-text { color:${T.textSecondary} !important; font-size:11px; }
-  /* Nomes dos servidores (eixo Y do Top 15) — em branco */
-  .ws-root .ws-server-axis .recharts-text { fill:${T.textPrimary} !important; }
-
-  /* ── Page header ── */
-  .ws-hdr {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:12px;
-    padding:16px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-  }
-  .ws-hdr-brand { display:flex; align-items:center; gap:12px; }
-  .ws-hdr-icon  { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.3); flex-shrink:0; }
-  .ws-hdr-title { font-size:15px; font-weight:700; color:${T.textPrimary}; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em; }
-  .ws-hdr-sub   { font-size:11px; color:${T.textMuted}; margin-top:2px; }
-
-  /* ── KPI strip ── */
-  .ws-kpi-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
-  .ws-kpi {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:14px 18px; position:relative; overflow:hidden; transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  .ws-kpi:hover { border-color:${T.borderHi}; box-shadow:0 8px 24px rgba(0,0,0,0.2); }
-  .ws-kpi.clickable { cursor:pointer; }
-  .ws-kpi.clickable:hover { transform:translateY(-2px); }
-  .ws-kpi.sel { box-shadow:0 0 0 2px var(--kc,${T.accent}); border-color:var(--kc,${T.accent}); background:color-mix(in srgb, var(--kc,${T.accent}) 8%, ${T.surface}); }
-  /* ── Active filter chip ── */
-  .ws-filter-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:5px; font-size:10px; font-weight:700; letter-spacing:0.04em; cursor:pointer; font-family:'IBM Plex Mono',monospace; border:1px solid var(--cc,${T.accent}); color:var(--cc,${T.accent}); background:color-mix(in srgb, var(--cc,${T.accent}) 12%, transparent); }
-  .ws-filter-chip:hover { background:color-mix(in srgb, var(--cc,${T.accent}) 22%, transparent); }
-  .ws-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kc,${T.accent}); }
-  .ws-kpi-icon  { position:absolute; top:10px; right:10px; width:40px; height:40px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:var(--ki-bg,${T.accentGlow}); }
-  .ws-kpi-label { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-bottom:5px; }
-  .ws-kpi-value { font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; line-height:1; color:var(--kc,${T.textPrimary}); }
-  .ws-kpi-hint  { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:5px; }
-
-  /* ── Block cards ── */
-  .ws-block {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    display:flex; flex-direction:column; min-height:200px; resize:vertical; overflow:auto;
-    transition:border-color 0.2s;
-  }
-  .ws-block:hover { border-color:${T.borderHi}; }
-  .ws-block-hdr {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:10px 16px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border};
-    cursor:grab; user-select:none; flex-shrink:0; border-radius:10px 10px 0 0;
-  }
-  .ws-block-hdr:active { cursor:grabbing; }
-  .ws-block-title { display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; color:${T.textPrimary}; text-transform:uppercase; letter-spacing:0.09em; font-family:'IBM Plex Mono',monospace; }
-  .ws-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
-  .ws-block:hover .ws-resize-ctrl { opacity:1; }
-  .ws-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:all 0.15s; }
-  .ws-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
-  .ws-resize-btn:disabled { opacity:0.25; cursor:default; }
-  .ws-block-body { flex:1; padding:16px; }
-
-  /* ── Tooltip ── */
-  .ws-tooltip { background:${T.surface}; border:1px solid ${T.borderHi}; border-radius:8px; padding:10px 14px; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
-  .ws-tooltip-label { font-size:10px; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
-  .ws-tooltip-row { display:flex; align-items:center; gap:6px; font-size:12px; margin-bottom:3px; }
-  .ws-tooltip-dot { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
-  .ws-tooltip-name { color:${T.textSecondary}; font-size:11px; }
-  .ws-tooltip-val  { color:${T.textPrimary}; font-weight:700; font-family:'IBM Plex Mono',monospace; margin-left:auto; }
-
-  /* ── Coverage bar ── */
-  .ws-cov-root { display:flex; flex-direction:column; gap:14px; width:100%; height:100%; justify-content:center; }
-  .ws-cov-top  { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
-  .ws-cov-num  { font-size:48px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.03em; line-height:1; }
-  .ws-cov-status { font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; letter-spacing:0.1em; text-transform:uppercase; margin-top:5px; }
-  .ws-cov-desc { font-size:11px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:3px; }
-  .ws-cov-meta { display:flex; flex-direction:column; align-items:flex-end; gap:5px; padding-top:4px; }
-  .ws-cov-meta-row { font-size:11px; font-family:'IBM Plex Mono',monospace; color:${T.textSecondary}; }
-  .ws-cov-meta-row span { color:${T.textPrimary}; font-weight:700; }
-  .ws-cov-bar-wrap { position:relative; }
-  .ws-cov-track { height:16px; background:${T.surfaceAlt}; border-radius:8px; overflow:hidden; border:1px solid ${T.border}; position:relative; }
-  .ws-cov-zones { position:absolute; inset:0; display:flex; }
-  .ws-cov-zone  { height:100%; }
-  .ws-cov-fill  { height:100%; border-radius:8px; position:relative; z-index:1; transition:width 0.6s ease; }
-  .ws-cov-markers { position:relative; height:22px; margin-top:3px; }
-  .ws-cov-marker { position:absolute; display:flex; flex-direction:column; align-items:center; transform:translateX(-50%); }
-  .ws-cov-marker-line { width:1px; height:6px; }
-  .ws-cov-marker-label { font-size:9px; font-family:'IBM Plex Mono',monospace; font-weight:700; margin-top:1px; white-space:nowrap; }
-  .ws-cov-legend { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-top:4px; border-top:1px solid ${T.border}; }
-  .ws-cov-leg-item { display:flex; align-items:center; gap:5px; font-size:11px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .ws-cov-leg-dot { width:10px; height:4px; border-radius:2px; flex-shrink:0; }
-
-  /* ── Panel ── */
-  .ws-panel { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; overflow:hidden; }
-  .ws-panel-hdr { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:13px 20px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; }
-  .ws-panel-title { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
-
-  /* ── Toolbar ── */
-  .ws-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
-  .ws-search-wrap { position:relative; display:inline-flex; align-items:center; }
-  .ws-search-icon { position:absolute; left:9px; pointer-events:none; color:${T.textMuted}; }
-  .ws-search { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:6px; padding:5px 10px 5px 29px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; outline:none; transition:border-color 0.15s; width:240px; }
-  .ws-search:focus { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
-  .ws-search::placeholder { color:${T.textSubtle}; }
-
-  /* ── Table ── */
-  .ws-table { width:100%; border-collapse:collapse; }
-  .ws-table thead { position:sticky; top:0; z-index:10; }
-  .ws-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; }
-  .ws-table th.r { text-align:right; }
-  .ws-table th.c { text-align:center; }
-  .ws-table td { padding:9px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
-  .ws-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
-  .ws-table tbody tr:last-child td { border-bottom:none; }
-  .ws-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
-  .ws-table .dim  { color:${T.textMuted}; }
-
-  /* ── Badges ── */
-  .ws-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
-  .ws-badge.ok      { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.22); }
-  .ws-badge.warn    { background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.22); }
-  .ws-badge.danger  { background:${T.dangerBg};  color:${T.danger};  border:1px solid rgba(239,68,68,0.22); }
-  .ws-badge.neutral { background:rgba(107,114,128,0.08); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2); }
-
-  /* ── Buttons ── */
-  .ws-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; white-space:nowrap; }
+  .ws-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .ws-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .ws-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); display:flex; gap:6px; flex-wrap:wrap; }
+  .ws-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); text-decoration:none; }
   .ws-btn:disabled { opacity:0.45; cursor:not-allowed; }
-  .ws-btn.danger  { background:${T.dangerBg};  border:1px solid rgba(239,68,68,0.35);  color:${T.danger}; }
-  .ws-btn.danger:hover:not(:disabled)  { background:rgba(239,68,68,0.2); }
+  .ws-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .ws-btn.sm { height:30px; padding:0 10px; }
+  .ws-btn.ghost { background:transparent; border-color:transparent; color:var(--v2-fg-2); }
+  .ws-btn.danger { background:var(--v2-crit); border-color:var(--v2-crit); color:#fff; }
+  .ws-btn.danger-ghost { color:var(--v2-crit); }
+  .ws-link { border:0; background:none; color:var(--v2-accent); font:500 12.5px var(--font-ui); cursor:pointer; padding:0; }
+  .ws-state { display:flex; flex-direction:column; align-items:center; gap:10px; padding:48px 24px; text-align:center; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; }
 
-  /* ── Empty ── */
-  .ws-empty { padding:40px; text-align:center; color:${T.textMuted}; font-size:13px; }
+  .ws-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .ws-kpi { position:relative; text-align:left; border:0; background:transparent; padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); color:inherit; font-family:inherit; min-width:0; cursor:pointer; }
+  .ws-kpi:hover, .ws-kpi[aria-pressed="true"] { background:var(--v2-hover); }
+  .ws-kpi[aria-pressed="true"]::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--v2-accent); }
+  .ws-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .ws-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .ws-kpi-value small { font-size:15px; font-weight:500; color:var(--v2-fg-3); margin-left:4px; }
+  .ws-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .ws-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
+  .ws-meter { height:6px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; margin:8px 0 4px; }
+  .ws-meter i { display:block; height:100%; border-radius:99px; }
 
-  /* ── Coverage number ── */
-  .ws-cov-num { font-size:44px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.03em; line-height:1; }
-  .ws-cov-label { font-size:12px; font-weight:600; font-family:'IBM Plex Mono',monospace; letter-spacing:0.06em; text-transform:uppercase; margin-top:4px; }
-  .ws-cov-sub { font-size:11px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:6px; }
+  .ws-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; align-items:stretch; }
+  .ws-span-2 { grid-column:span 2; }
+  @media (max-width: 1100px) { .ws-grid { grid-template-columns:minmax(0, 1fr); } .ws-span-2 { grid-column:auto; } }
+  .ws-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; min-width:0; }
+  .ws-panel-hdr { padding:14px 18px 4px; }
+  .ws-panel-title { font-size:14px; font-weight:600; margin:0; }
+  .ws-panel-sub { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .ws-panel-body { padding:12px 18px 16px; }
+  .ws-empty { padding:32px 16px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
+
+  .ws-cov-num { font-size:40px; font-weight:600; letter-spacing:-0.03em; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .ws-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .ws-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+  .ws-cov-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .ws-cov-desc { font-size:13px; color:var(--v2-fg-2); margin:6px 0 16px; }
+  .ws-scale { position:relative; height:14px; border-radius:4px; background:var(--v2-surface-2); }
+  .ws-scale i { display:block; height:100%; border-radius:4px; }
+  .ws-scale .mk { position:absolute; top:-4px; bottom:-4px; border-left:1.5px dashed var(--v2-fg-3); }
+  .ws-scale-l { position:relative; height:18px; margin-top:6px; font:400 11.5px var(--font-data); color:var(--v2-fg-3); }
+  .ws-scale-l span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
+  .ws-scale-l span:first-child { transform:none; }
+  .ws-scale-l span:last-child { transform:translateX(-100%); }
+  .ws-dl { display:grid; grid-template-columns:1fr auto; gap:8px 12px; margin:16px 0 0; padding-top:14px; border-top:1px solid var(--v2-line); font-size:13px; }
+  .ws-dl dt { color:var(--v2-fg-3); }
+  .ws-dl dd { margin:0; font:500 13px var(--font-data); text-align:right; }
+  .ws-h4 { margin:18px 0 8px; font-size:12px; font-weight:500; color:var(--v2-fg-3); }
+  .ws-stack { display:flex; height:10px; gap:2px; border-radius:99px; overflow:hidden; background:var(--v2-surface-2); }
+  .ws-stack i { display:block; height:100%; }
+  .ws-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:12.5px; color:var(--v2-fg-2); }
+  .ws-legend span { display:inline-flex; align-items:center; gap:6px; }
+  .ws-legend b { font:500 12.5px var(--font-data); }
+
+  .ws-hb { display:grid; gap:6px; }
+  .ws-hb > div { display:grid; grid-template-columns:minmax(0, 170px) minmax(0, 1fr) 40px; gap:12px; align-items:center; font-size:12.5px; padding:2px 6px; margin:0 -6px; border-radius:5px; }
+  .ws-hb > div:hover { background:var(--v2-hover); }
+  .ws-hb .nm { font-family:var(--font-data); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ws-hb .tr { height:10px; border-radius:3px; background:var(--v2-surface-2); overflow:hidden; }
+  .ws-hb .tr i { display:block; height:100%; border-radius:3px; }
+  .ws-hb .v { font:500 12.5px var(--font-data); text-align:right; }
+
+  .ws-tbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .ws-tbar > b { font-size:14px; font-weight:600; margin-right:4px; }
+  .ws-tbar > b span { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
+  .ws-chip { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 4px 0 9px; border-radius:5px; font-size:12.5px; background:color-mix(in oklch, var(--v2-accent) 12%, transparent); color:var(--v2-fg); }
+  .ws-chip button { border:0; background:none; color:var(--v2-fg-3); cursor:pointer; display:grid; place-items:center; width:20px; height:20px; border-radius:4px; }
+  .ws-chip button:hover { background:var(--v2-hover); color:var(--v2-fg); }
+  .ws-search { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg-3); width:240px; max-width:100%; margin-left:auto; }
+  .ws-search input { flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--v2-fg); font-size:13px; font-family:inherit; }
+  .ws-selbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:10px 18px; border-bottom:1px solid var(--v2-line); background:color-mix(in oklch, var(--v2-accent) 10%, transparent); font-size:13px; }
+  .ws-scroll { overflow:auto; max-height:560px; }
+  .ws-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .ws-table thead { position:sticky; top:0; z-index:1; }
+  .ws-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .ws-table th.r, .ws-table td.r { text-align:right; }
+  .ws-table td { padding:8px 12px; height:46px; border-bottom:1px solid var(--v2-line); vertical-align:middle; }
+  .ws-table th:first-child, .ws-table td:first-child { padding-left:18px; }
+  .ws-table th:last-child, .ws-table td:last-child { padding-right:18px; }
+  .ws-table tbody tr:hover td { background:var(--v2-hover); }
+  .ws-table tbody tr.sel td { background:color-mix(in oklch, var(--v2-accent) 8%, transparent); }
+  .ws-table tbody tr:last-child td { border-bottom:none; }
+  .ws-num { font:500 12.5px var(--font-data); }
+  .ws-num.z { color:var(--v2-fg-3); font-weight:400; }
+  .ws-num.ok { color:color-mix(in oklch, var(--v2-ok) 80%, var(--v2-fg)); }
+  .ws-num.warn { color:color-mix(in oklch, var(--v2-med) 80%, var(--v2-fg)); }
+  .ws-num.bad { color:var(--v2-crit); font-weight:600; }
 `;
 
-// ── Tooltip ────────────────────────────────────────────────────────────────────
-function ExecTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="ws-tooltip">
-      <div className="ws-tooltip-label">{label}</div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} className="ws-tooltip-row">
-          <div className="ws-tooltip-dot" style={{ background: p.color || p.fill }} />
-          <span className="ws-tooltip-name">{p.name}</span>
-          <span className="ws-tooltip-val">{p.value?.toLocaleString("pt-BR")}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Resizable block ────────────────────────────────────────────────────────────
-const COL_SIZES = ["col-span-1", "col-span-2", "col-span-3"] as const;
-type ColSize = (typeof COL_SIZES)[number];
-function Block({
-  title,
-  children,
-  chartHeight = 280,
-  defaultSize = "col-span-1" as ColSize,
-}: {
-  title: React.ReactNode;
-  children: React.ReactNode;
-  chartHeight?: number;
-  defaultSize?: ColSize;
-}) {
-  const [size, setSize] = React.useState<ColSize>(defaultSize);
-  return (
-    <div className={`${size} ws-block`} style={{ minHeight: chartHeight + 52 }}>
-      <div className="ws-block-hdr">
-        <div className="ws-block-title">
-          <GripHorizontal size={11} color={T.textMuted} />
-          <span>{title}</span>
-        </div>
-        <div className="ws-resize-ctrl">
-          <button
-            className="ws-resize-btn"
-            disabled={size === COL_SIZES[0]}
-            onClick={() => setSize(COL_SIZES[Math.max(0, COL_SIZES.indexOf(size) - 1)])}
-          >
-            <Minimize2 size={11} />
-          </button>
-          <button
-            className="ws-resize-btn"
-            disabled={size === COL_SIZES[2]}
-            onClick={() => setSize(COL_SIZES[Math.min(2, COL_SIZES.indexOf(size) + 1)])}
-          >
-            <Maximize2 size={11} />
-          </button>
-        </div>
-      </div>
-      <div className="ws-block-body" style={{ height: chartHeight }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-const axisProps = {
-  stroke: T.chartAxis,
-  fontSize: 10,
-  tick: { fill: T.chartTick, fontFamily: "'IBM Plex Mono',monospace" },
-  tickLine: false,
-  axisLine: { stroke: T.chartAxis },
-};
-
-// ── Coverage Gauge SVG ─────────────────────────────────────────────────────────
-function CoverageBar({ pct, covered, total }: { pct: number; covered: number; total: number }) {
-  const color = pct < 50 ? T.danger : pct < 85 ? T.warning : T.success;
-  const status = pct < 50 ? "Crítico" : pct < 85 ? "Atenção" : "Meta atingida";
-  const missing = Math.max(0, Math.round(total * 0.85) - covered);
-
-  return (
-    <div className="ws-cov-root">
-      {/* Top row: big number + meta info */}
-      <div className="ws-cov-top">
-        <div>
-          <div className="ws-cov-num" style={{ color }}>
-            {pct.toFixed(1)}%
-          </div>
-          <div className="ws-cov-status" style={{ color }}>
-            {status}
-          </div>
-          <div className="ws-cov-desc">
-            {covered} de {total} servidores Windows do CMDB cobertos
-          </div>
-        </div>
-        <div className="ws-cov-meta">
-          <div className="ws-cov-meta-row">
-            Meta: <span>85%</span>
-          </div>
-          <div className="ws-cov-meta-row">
-            Cobertos: <span>{covered}</span>
-          </div>
-          <div className="ws-cov-meta-row">
-            Total CMDB: <span>{total}</span>
-          </div>
-          {missing > 0 && (
-            <div className="ws-cov-meta-row" style={{ color: T.danger }}>
-              Faltam: <span style={{ color: T.danger }}>{missing}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="ws-cov-bar-wrap">
-        <div className="ws-cov-track">
-          {/* Zone backgrounds */}
-          <div className="ws-cov-zones">
-            <div className="ws-cov-zone" style={{ width: "50%", background: `${T.danger}18` }} />
-            <div className="ws-cov-zone" style={{ width: "35%", background: `${T.warning}18` }} />
-            <div className="ws-cov-zone" style={{ width: "15%", background: `${T.success}18` }} />
-          </div>
-          {/* Value fill */}
-          <div
-            className="ws-cov-fill"
-            style={{
-              width: `${Math.min(100, pct)}%`,
-              background: `linear-gradient(90deg,${color}88,${color})`,
-              boxShadow: `0 0 8px ${color}66`,
-            }}
-          />
-        </div>
-        {/* Markers */}
-        <div className="ws-cov-markers">
-          {[
-            { p: 0, label: "0%", color: T.textMuted },
-            { p: 50, label: "50%", color: T.danger },
-            { p: 85, label: "85% ★", color: T.success },
-            { p: 100, label: "100%", color: T.textMuted },
-          ].map((m) => (
-            <div key={m.p} className="ws-cov-marker" style={{ left: `${m.p}%` }}>
-              <div className="ws-cov-marker-line" style={{ background: m.color }} />
-              <span className="ws-cov-marker-label" style={{ color: m.color }}>
-                {m.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="ws-cov-legend">
-        {[
-          { color: T.danger, label: "Crítico (<50%)" },
-          { color: T.warning, label: "Atenção (50–85%)" },
-          { color: T.success, label: "Meta (≥85%)" },
-        ].map(({ color: c, label }) => (
-          <span key={label} className="ws-cov-leg-item">
-            <span className="ws-cov-leg-dot" style={{ background: c }} />
-            {label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// MAIN
-// ══════════════════════════════════════════════════════════════════════════════
 export function WsusDashboard() {
   // ── back-end UNCHANGED ─────────────────────────────────────────────────────
   const fetchOverview = useServerFn(getWsusOverview);
@@ -388,13 +150,13 @@ export function WsusDashboard() {
     queryKey: ["wsus-overview"],
     queryFn: () => fetchOverview(),
   });
-
   const [search, setSearch] = React.useState("");
-  const [kpiFilter, setKpiFilter] = React.useState<"all" | "failures" | "pending" | "alerts">("all");
+  const [kpiFilter, setKpiFilter] = React.useState<KpiFilter>("all");
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [deleting, setDeleting] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
-  // Cada card-KPI vira um filtro do restante do módulo (tabela + Top 15).
+  // Cada KPI vira um filtro do restante do módulo (tabela + Top 15).
   const matchesKpi = React.useCallback(
     (r: WsusDetailRow) =>
       kpiFilter === "failures"
@@ -403,11 +165,13 @@ export function WsusDashboard() {
           ? r.needed > 0
           : kpiFilter === "alerts"
             ? r.has_alert === true
-            : true,
+            : kpiFilter === "ok"
+              ? isPatched(r)
+              : true,
     [kpiFilter],
   );
-
-  const filteredDetails = (data?.details ?? []).filter((r: WsusDetailRow) => {
+  const details = React.useMemo(() => data?.details ?? [], [data]);
+  const filteredDetails = details.filter((r) => {
     if (!matchesKpi(r)) return false;
     return search ? r.computer_name.toLowerCase().includes(search.toLowerCase()) : true;
   });
@@ -415,416 +179,456 @@ export function WsusDashboard() {
   const toggleOne = (name: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
       return next;
     });
   };
-  const allSelected = filteredDetails.length > 0 && filteredDetails.every((r) => selected.has(r.computer_name));
+  const allSelected =
+    filteredDetails.length > 0 && filteredDetails.every((r) => selected.has(r.computer_name));
   const toggleAll = () => {
     setSelected((prev) => {
-      if (allSelected) {
-        const next = new Set(prev);
-        filteredDetails.forEach((r) => next.delete(r.computer_name));
-        return next;
-      }
       const next = new Set(prev);
-      filteredDetails.forEach((r) => next.add(r.computer_name));
+      if (allSelected) filteredDetails.forEach((r) => next.delete(r.computer_name));
+      else filteredDetails.forEach((r) => next.add(r.computer_name));
       return next;
     });
   };
   const handleDelete = async () => {
     const names = Array.from(selected);
     if (!names.length) return;
-    if (!confirm(`Excluir ${names.length} servidor(es) do WSUS? Esta ação não pode ser desfeita.`)) return;
     setDeleting(true);
     try {
       await deleteServers({ data: { computerNames: names } });
       toast.success(`${names.length} servidor(es) excluído(s)`);
       setSelected(new Set());
+      setConfirmOpen(false);
       qc.invalidateQueries({ queryKey: ["wsus-overview"] });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Falha ao excluir");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao excluir");
     } finally {
       setDeleting(false);
     }
   };
   // ──────────────────────────────────────────────────────────────────────────
 
-  if (isLoading)
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "64px 0",
-          gap: 8,
-          color: T.textMuted,
-          fontSize: 13,
-          fontFamily: "'IBM Plex Mono',monospace",
-        }}
-      >
-        <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <RefreshCw size={14} className="ws-spin" color={T.accent} /> Carregando dados WSUS…
-      </div>
-    );
-
+  if (isLoading) return <ModuleLoading />;
   if (!data || data.totalServers === 0)
     return (
       <div className="ws-root">
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <div
-          style={{
-            background: T.surface,
-            border: `1px solid ${T.border}`,
-            borderRadius: 12,
-            padding: "40px 24px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 12,
-            textAlign: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
-              background: T.accentGlow,
-              border: "1px solid rgba(59,130,246,0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Server size={20} color={T.accent} />
-          </div>
-          <div
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
-          >
-            Nenhum dado WSUS importado
-          </div>
-          <div style={{ fontSize: 13, color: T.textMuted, maxWidth: 460, lineHeight: 1.6 }}>
-            Vá em <strong style={{ color: T.textSecondary }}>Importar Dados</strong> → módulo{" "}
-            <strong style={{ color: T.textSecondary }}>WSUS</strong> e envie um arquivo (CSV/XLSX/JSON) com as colunas:
-            Computer Name, Needed, Installed/Not Applicable, Failed, No Status, Data.
-          </div>
+        <div className="ws-state">
+          <Server size={22} color="var(--v2-accent)" />
+          <span style={{ fontSize: 15, fontWeight: 600 }}>Nenhum dado do WSUS importado</span>
+          <span className="ws-dim" style={{ fontSize: 13, maxWidth: 460, lineHeight: 1.6 }}>
+            Em <b style={{ color: "var(--v2-fg-2)" }}>Importar dados</b>, módulo{" "}
+            <b style={{ color: "var(--v2-fg-2)" }}>WSUS</b>, envie um arquivo (CSV, XLSX ou JSON)
+            com as colunas: Computer Name, Needed, Installed/Not Applicable, Failed, No Status,
+            Data.
+          </span>
+          <Link to="/app/$module" params={{ module: "upload" }} className="ws-btn">
+            <Upload size={14} /> Importar dados
+          </Link>
         </div>
       </div>
     );
 
+  const total = data.totalServers;
   const pct = data.coveragePct;
-  const totalNeeded = data.details.reduce((acc: number, r: WsusDetailRow) => acc + (r.needed ?? 0), 0);
-  const patchedOk = data.details.filter(
-    (r: WsusDetailRow) => r.installed_or_na > 0 && r.failed === 0 && !r.has_alert,
-  ).length;
+  const patchedOk = details.filter(isPatched).length;
+  const pendingServers = details.filter((r) => r.needed > 0).length;
+  const totalNeeded = details.reduce((acc, r) => acc + (r.needed ?? 0), 0);
+  const lastReport = details.reduce<string | null>(
+    (m, r) => (r.last_report_at && (!m || r.last_report_at > m) ? r.last_report_at : m),
+    null,
+  );
+  const covColor = pct < 50 ? "var(--v2-crit)" : pct < META ? "var(--v2-med)" : "var(--v2-ok)";
+  const covStatus = pct < 50 ? "Crítico" : pct < META ? "Abaixo da meta" : "Meta atingida";
+  const missing = Math.max(0, Math.ceil((data.cmdbActiveServers * META) / 100) - data.coveredCount);
+  const outOfCmdb = details.filter((r) => !r.matched_in_cmdb).length;
+  const bySituation = (["Em dia", "Pendente", "Alerta", "Falhou"] as const).map((label) => {
+    const rows = details.filter((r) => situation(r).label === label);
+    return { label, n: rows.length, color: rows[0] ? situation(rows[0]).color : "var(--v2-fg-3)" };
+  });
+  const SIT_COLOR: Record<string, string> = {
+    "Em dia": "var(--v2-ok)",
+    Pendente: "var(--v2-med)",
+    Alerta: "var(--v2-high)",
+    Falhou: "var(--v2-crit)",
+  };
 
-  // Top 15 reage ao card-KPI selecionado (quando "all", usa o pré-computado do back-end)
+  // Top 15 reage ao KPI selecionado (quando "all", usa o pré-computado do back-end)
   const top15 =
     kpiFilter === "all"
       ? data.top15
-      : [...data.details]
+      : [...details]
           .filter(matchesKpi)
           .sort((a, b) => b.not_installed - a.not_installed)
           .slice(0, 15)
           .map((r) => ({ computer_name: r.computer_name, not_installed: r.not_installed }));
+  const topRows = top15.filter((t) => t.not_installed > 0);
+  const topMax = Math.max(1, ...topRows.map((t) => t.not_installed));
+
+  const Kpi = ({
+    k,
+    label,
+    value,
+    foot,
+    sw,
+    meter,
+  }: {
+    k: KpiFilter;
+    label: string;
+    value: React.ReactNode;
+    foot: string;
+    sw?: string;
+    meter?: number;
+  }) => (
+    <button
+      type="button"
+      className="ws-kpi"
+      aria-pressed={kpiFilter === k}
+      onClick={() => setKpiFilter((cur) => (cur === k || k === "all" ? "all" : k))}
+    >
+      <span className="ws-kpi-label">
+        {sw && <span className="ws-sw" style={{ background: sw }} />}
+        {label}
+      </span>
+      <span className="ws-kpi-value">{value}</span>
+      {meter !== undefined && (
+        <div className="ws-meter">
+          <i style={{ width: `${meter}%`, background: sw }} />
+        </div>
+      )}
+      <span className="ws-kpi-foot">{foot}</span>
+    </button>
+  );
 
   return (
-    <div className="ws-root ws-fadeup">
+    <div className="ws-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Page header ──────────────────────────────────────────────── */}
-      <div className="ws-hdr">
-        <div className="ws-hdr-brand">
-          <div className="ws-hdr-icon">
-            <Server size={18} color={T.accent} />
-          </div>
-          <div>
-            <div className="ws-hdr-title">WSUS — Windows Server Update Services</div>
-            <div className="ws-hdr-sub">Cobertura e conformidade de atualizações</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "4px 10px",
-              borderRadius: 5,
-              background: "rgba(107,114,128,0.08)",
-              border: `1px solid ${T.border}`,
-              fontSize: 11,
-              fontFamily: "'IBM Plex Mono',monospace",
-              color: T.textMuted,
-              fontWeight: 700,
-            }}
-          >
-            <Server size={11} /> {data.totalServers} servidores
-          </span>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "4px 10px",
-              borderRadius: 5,
-              background: pct >= 85 ? T.successBg : pct >= 50 ? T.warningBg : T.dangerBg,
-              border: `1px solid ${pct >= 85 ? "rgba(16,185,129,0.25)" : pct >= 50 ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.25)"}`,
-              fontSize: 11,
-              fontFamily: "'IBM Plex Mono',monospace",
-              color: pct >= 85 ? T.success : pct >= 50 ? T.warning : T.danger,
-              fontWeight: 700,
-            }}
-          >
-            <ShieldCheck size={11} /> {pct.toFixed(1)}% cobertura
-          </span>
-        </div>
-      </div>
-
-      {/* ── KPIs ─────────────────────────────────────────────────────── */}
-      <div className="ws-kpi-grid">
-        <div
-          className={`ws-kpi clickable${kpiFilter === "all" ? " sel" : ""}`}
-          onClick={() => setKpiFilter("all")}
-          title="Mostrar todos os servidores"
-          style={{ "--kc": T.accent, "--ki-bg": "rgba(59,130,246,0.18)" } as React.CSSProperties}
-        >
-          <div className="ws-kpi-icon">
-            <Server size={22} color={T.accent} />
-          </div>
-          <div className="ws-kpi-label">Total de Servidores</div>
-          <div className="ws-kpi-value">{data.totalServers}</div>
-          <div className="ws-kpi-hint">{data.cmdbActiveServers} Windows ativos no CMDB</div>
-        </div>
-        <div
-          className="ws-kpi"
-          title="Servidores com patches aplicados, sem falhas e sem alertas"
-          style={{ "--kc": T.success, "--ki-bg": "rgba(16,185,129,0.18)" } as React.CSSProperties}
-        >
-          <div className="ws-kpi-icon">
-            <CheckCircle2 size={22} color={T.success} />
-          </div>
-          <div className="ws-kpi-label">Servidores com Patchs Aplicados</div>
-          <div className="ws-kpi-value">{patchedOk}</div>
-          <div className="ws-kpi-hint">sem falhas e sem alertas</div>
-        </div>
-        <div
-          className={`ws-kpi clickable${kpiFilter === "failures" ? " sel" : ""}`}
-          onClick={() => setKpiFilter((f) => (f === "failures" ? "all" : "failures"))}
-          title="Filtrar servidores com falhas"
-          style={{ "--kc": T.danger, "--ki-bg": "rgba(239,68,68,0.18)" } as React.CSSProperties}
-        >
-          <div className="ws-kpi-icon">
-            <XCircle size={22} color={T.danger} />
-          </div>
-          <div className="ws-kpi-label">Servidores com Falhas</div>
-          <div className="ws-kpi-value">{data.serversWithFailures}</div>
-          <div className="ws-kpi-hint">requerem atenção</div>
-        </div>
-        <div
-          className={`ws-kpi clickable${kpiFilter === "pending" ? " sel" : ""}`}
-          onClick={() => setKpiFilter((f) => (f === "pending" ? "all" : "pending"))}
-          title="Filtrar servidores com updates pendentes"
-          style={{ "--kc": T.warning, "--ki-bg": "rgba(245,158,11,0.2)" } as React.CSSProperties}
-        >
-          <div className="ws-kpi-icon">
-            <Clock size={22} color={T.warning} />
-          </div>
-          <div className="ws-kpi-label">Updates Pendentes</div>
-          <div className="ws-kpi-value">{totalNeeded.toLocaleString("pt-BR")}</div>
-          <div className="ws-kpi-hint">updates necessários</div>
-        </div>
-        <div
-          className={`ws-kpi clickable${kpiFilter === "alerts" ? " sel" : ""}`}
-          onClick={() => setKpiFilter((f) => (f === "alerts" ? "all" : "alerts"))}
-          title="Filtrar servidores com alertas"
-          style={{ "--kc": T.warning, "--ki-bg": "rgba(245,158,11,0.2)" } as React.CSSProperties}
-        >
-          <div className="ws-kpi-icon">
-            <AlertTriangle size={22} color={T.warning} />
-          </div>
-          <div className="ws-kpi-label">Servidores com Alertas</div>
-          <div className="ws-kpi-value">{data.serversWithAlerts}</div>
-          <div className="ws-kpi-hint">com pendências</div>
-        </div>
-      </div>
-
-      {/* ── Charts grid ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* Gauge cobertura */}
-        <Block title="Cobertura WSUS vs CMDB" chartHeight={260} defaultSize="col-span-1">
-          <CoverageBar pct={pct} covered={data.coveredCount} total={data.cmdbActiveServers} />
-        </Block>
-
-        {/* Top 15 bar chart */}
-        <Block title="Top 15 — Updates Não Instalados" chartHeight={260} defaultSize="col-span-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={top15} layout="vertical" margin={{ top: 4, right: 36, left: 4, bottom: 4 }}>
-              <defs>
-                <linearGradient id="wsBarGrad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor={T.warning} stopOpacity={0.45} />
-                  <stop offset="100%" stopColor={T.warning} stopOpacity={1} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} horizontal={false} />
-              <XAxis type="number" {...axisProps} axisLine={false} />
-              <YAxis
-                className="ws-server-axis"
-                type="category"
-                dataKey="computer_name"
-                stroke={T.chartAxis}
-                fontSize={10}
-                width={140}
-                tick={{ fill: T.textPrimary, fontFamily: "'IBM Plex Mono',monospace" }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <Tooltip content={<ExecTooltip />} cursor={{ fill: "rgba(59,130,246,0.05)" }} />
-              <Bar dataKey="not_installed" name="Não instalados" fill="url(#wsBarGrad)" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Block>
-      </div>
-
-      {/* ── Detail table ─────────────────────────────────────────────── */}
-      <div className="ws-panel">
-        <div className="ws-panel-hdr">
-          <div className="ws-panel-title">
-            <Activity size={11} color={T.accent} />
-            Detalhamento por Servidor
-            <span style={{ fontWeight: 400, color: T.textSubtle }}>({filteredDetails.length} registros)</span>
-            {kpiFilter !== "all" && (
-              <span
-                className="ws-filter-chip"
-                onClick={() => setKpiFilter("all")}
-                title="Limpar filtro"
-                style={{ "--cc": kpiFilter === "failures" ? T.danger : T.warning } as React.CSSProperties}
-              >
-                {kpiFilter === "failures"
-                  ? "Com falhas"
-                  : kpiFilter === "pending"
-                    ? "Updates pendentes"
-                    : "Com alertas"}
-                <XCircle size={11} />
-              </span>
+      {/* ── Cabeçalho ──────────────────────────────────────────────────── */}
+      <div className="ws-ph">
+        <div>
+          <h1 className="ws-ph-title">WSUS</h1>
+          <p className="ws-ph-sub">
+            <span>Atualizações dos servidores Windows</span>
+            {lastReport && (
+              <>
+                <span>·</span>
+                <span>última coleta {fmtDate(lastReport)} · importado por planilha</span>
+              </>
             )}
+          </p>
+        </div>
+        <Link to="/app/$module" params={{ module: "upload" }} className="ws-btn">
+          <Upload size={14} /> Importar dados
+        </Link>
+      </div>
+
+      {/* ── KPIs ───────────────────────────────────────────────────────── */}
+      <div className="ws-kpis">
+        <Kpi k="all" label="Servidores no WSUS" value={total} foot="reportando ao console" />
+        <Kpi
+          k="ok"
+          label="Com patches aplicados"
+          value={
+            <>
+              {total ? Math.round((patchedOk / total) * 100) : 0}%<small>{patchedOk}</small>
+            </>
+          }
+          foot="sem falhas e sem alertas"
+          sw="var(--v2-ok)"
+          meter={total ? (patchedOk / total) * 100 : 0}
+        />
+        <Kpi
+          k="pending"
+          label="Com updates pendentes"
+          value={pendingServers}
+          foot={`${totalNeeded.toLocaleString("pt-BR")} atualizações faltando`}
+          sw="var(--v2-med)"
+        />
+        <Kpi
+          k="failures"
+          label="Com falhas"
+          value={data.serversWithFailures}
+          foot="instalação falhou em algum update"
+          sw="var(--v2-crit)"
+        />
+        <Kpi
+          k="alerts"
+          label="Com alertas"
+          value={data.serversWithAlerts}
+          foot="sinalizados na coleta"
+          sw="var(--v2-high)"
+        />
+      </div>
+
+      <div className="ws-grid">
+        {/* ── Cobertura ── */}
+        <div className="ws-panel">
+          <div className="ws-panel-hdr">
+            <h2 className="ws-panel-title">Cobertura do WSUS</h2>
+            <p className="ws-panel-sub">Servidores Windows do CMDB que reportam ao WSUS</p>
           </div>
-          <div className="ws-toolbar">
-            <div className="ws-search-wrap">
-              <Search size={12} className="ws-search-icon" />
-              <input
-                className="ws-search"
-                placeholder="Buscar servidor…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+          <div className="ws-panel-body">
+            <div className="ws-cov-head">
+              <span className="ws-cov-num">{pct.toFixed(1).replace(".", ",")}%</span>
+              <span className="ws-pill" style={{ "--c": covColor } as React.CSSProperties}>
+                {covStatus}
+              </span>
+            </div>
+            <p className="ws-cov-desc">
+              {data.coveredCount} de {data.cmdbActiveServers} servidores Windows do CMDB reportam ao
+              WSUS
+            </p>
+            <div className="ws-scale">
+              <i style={{ width: `${Math.min(100, pct)}%`, background: covColor }} />
+              <span className="mk" style={{ left: "50%" }} title="Abaixo de 50%: crítico" />
+              <span
+                className="mk"
+                style={{ left: `${META}%`, borderLeftColor: "var(--v2-ok)" }}
+                title={`Meta: ${META}%`}
               />
             </div>
-            {isAdmin && (
-              <button className="ws-btn danger" disabled={selected.size === 0 || deleting} onClick={handleDelete}>
-                <Trash2 size={13} className={deleting ? "ws-spin" : ""} /> Excluir{" "}
-                {selected.size > 0 ? `(${selected.size})` : ""}
-              </button>
-            )}
+            <div className="ws-scale-l">
+              <span style={{ left: 0 }}>0%</span>
+              <span style={{ left: "50%" }}>50%</span>
+              <span style={{ left: `${META}%`, color: "var(--v2-ok)" }}>meta {META}%</span>
+              <span style={{ left: "100%" }}>100%</span>
+            </div>
+            <dl className="ws-dl">
+              <dt>Faltam para a meta</dt>
+              <dd>{missing ? `${missing} servidores` : "—"}</dd>
+              <dt>No WSUS, fora do CMDB</dt>
+              <dd>{outOfCmdb}</dd>
+            </dl>
+            <h4 className="ws-h4">Situação dos servidores no WSUS</h4>
+            <div className="ws-stack">
+              {bySituation.map((g) => (
+                <i
+                  key={g.label}
+                  title={`${g.label}: ${g.n} servidores`}
+                  style={{
+                    width: `${total ? (g.n / total) * 100 : 0}%`,
+                    background: SIT_COLOR[g.label],
+                  }}
+                />
+              ))}
+            </div>
+            <div className="ws-legend">
+              {bySituation.map((g) => (
+                <span key={g.label}>
+                  <span className="ws-sw" style={{ background: SIT_COLOR[g.label] }} />
+                  {g.label} <b>{g.n}</b>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div style={{ overflowX: "auto", maxHeight: 520, overflowY: "auto" }}>
+        {/* ── Top 15 ── */}
+        <div className="ws-panel ws-span-2">
+          <div className="ws-panel-hdr">
+            <h2 className="ws-panel-title">Top 15: updates não instalados</h2>
+            <p className="ws-panel-sub">
+              {kpiFilter === "all"
+                ? "Servidores com mais atualizações faltando"
+                : `Filtrado: ${KPI_LABEL[kpiFilter].toLowerCase()}`}
+            </p>
+          </div>
+          <div className="ws-panel-body">
+            {topRows.length === 0 ? (
+              <div className="ws-empty">Nenhum servidor com updates faltando nesse filtro.</div>
+            ) : (
+              <div className="ws-hb">
+                {topRows.map((t) => {
+                  const ratio = t.not_installed / topMax;
+                  return (
+                    <div
+                      key={t.computer_name}
+                      title={`${t.computer_name}: ${t.not_installed} updates não instalados`}
+                    >
+                      <span className="nm">{t.computer_name}</span>
+                      <span className="tr">
+                        <i
+                          style={{
+                            width: `${ratio * 100}%`,
+                            background:
+                              ratio >= 0.66
+                                ? "var(--v2-crit)"
+                                : ratio >= 0.33
+                                  ? "var(--v2-high)"
+                                  : "var(--v2-med)",
+                          }}
+                        />
+                      </span>
+                      <span className="v">{t.not_installed}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Servidores ─────────────────────────────────────────────────── */}
+      <div className="ws-panel">
+        <div className="ws-tbar">
+          <b>
+            Servidores{" "}
+            <span>
+              ({filteredDetails.length === total ? total : `${filteredDetails.length} de ${total}`})
+            </span>
+          </b>
+          {kpiFilter !== "all" && (
+            <span className="ws-chip">
+              {KPI_LABEL[kpiFilter]}
+              <button onClick={() => setKpiFilter("all")} aria-label="Limpar filtro">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+          <label className="ws-search">
+            <Search size={14} />
+            <input
+              placeholder="Buscar servidor"
+              aria-label="Buscar servidor"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+        </div>
+        {isAdmin && selected.size > 0 && (
+          <div className="ws-selbar">
+            <b style={{ fontWeight: 600 }}>
+              {selected.size} selecionado{selected.size > 1 ? "s" : ""}
+            </b>
+            <button className="ws-btn sm danger-ghost" onClick={() => setConfirmOpen(true)}>
+              <Trash2 size={13} /> Excluir do WSUS
+            </button>
+            <button className="ws-link" onClick={() => setSelected(new Set())}>
+              Limpar seleção
+            </button>
+          </div>
+        )}
+
+        <div className="ws-scroll">
           <table className="ws-table">
             <thead>
               <tr>
-                {isAdmin && <th style={{ width: 36, paddingLeft: 16 }}></th>}
-                <th style={{ paddingLeft: isAdmin ? 8 : 18 }}>Servidor</th>
-                <th className="r">Patchs Aplicados</th>
-                <th className="r">Pendente</th>
-                <th className="r">Falhou</th>
-                <th className="r">Patchs Sem Validação</th>
-                <th className="c">Última Coleta</th>
-                <th>Ativo CMDB</th>
+                {isAdmin && (
+                  <th style={{ width: 36 }}>
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      aria-label="Selecionar todos"
+                    />
+                  </th>
+                )}
+                <th>Servidor</th>
+                <th>Situação</th>
+                <th className="r">Aplicados</th>
+                <th className="r">Pendentes</th>
+                <th className="r">Falharam</th>
+                <th className="r" title="Updates sem status reportado pelo cliente">
+                  Sem status
+                </th>
+                <th>Última coleta</th>
+                <th>CMDB</th>
               </tr>
             </thead>
             <tbody>
-              {filteredDetails.map((r: WsusDetailRow) => (
-                <tr key={r.computer_name}>
-                  {isAdmin && (
-                    <td style={{ paddingLeft: 16 }}>
-                      <Checkbox
-                        checked={selected.has(r.computer_name)}
-                        onCheckedChange={() => toggleOne(r.computer_name)}
-                        aria-label={`Selecionar ${r.computer_name}`}
-                      />
+              {filteredDetails.map((r) => {
+                const st = situation(r);
+                const sel = selected.has(r.computer_name);
+                return (
+                  <tr key={r.computer_name} className={sel ? "sel" : undefined}>
+                    {isAdmin && (
+                      <td>
+                        <Checkbox
+                          checked={sel}
+                          onCheckedChange={() => toggleOne(r.computer_name)}
+                          aria-label={`Selecionar ${r.computer_name}`}
+                        />
+                      </td>
+                    )}
+                    <td className="ws-mono" style={{ fontWeight: 500 }}>
+                      {r.computer_name}
                     </td>
-                  )}
-                  <td className="mono" style={{ paddingLeft: isAdmin ? 8 : 18, fontWeight: 500 }}>
-                    {r.computer_name}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {r.installed_or_na > 0 ? (
-                      <span className="ws-badge ok">{r.installed_or_na}</span>
-                    ) : (
-                      <span className="mono dim">0</span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {r.needed > 0 ? (
-                      <span className="ws-badge warn">{r.needed}</span>
-                    ) : (
-                      <span className="mono dim">0</span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {r.failed > 0 ? (
-                      <span className="ws-badge danger">{r.failed}</span>
-                    ) : (
-                      <span className="mono dim">0</span>
-                    )}
-                  </td>
-                  <td className="mono dim" style={{ textAlign: "right" }}>
-                    {r.no_status}
-                  </td>
-                  <td className="mono dim" style={{ textAlign: "center" }}>
-                    {r.last_report_at ? new Date(r.last_report_at).toLocaleDateString("pt-BR") : "—"}
-                  </td>
-                  <td>
-                    {r.matched_in_cmdb ? (
-                      <span className="ws-badge ok">
-                        <CheckCircle2 size={9} /> Sim
+                    <td>
+                      <span className="ws-pill" style={{ "--c": st.color } as React.CSSProperties}>
+                        {st.label}
                       </span>
-                    ) : (
-                      <span className="ws-badge neutral">Não</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className={`r ws-num ${r.installed_or_na > 0 ? "ok" : "z"}`}>
+                      {r.installed_or_na}
+                    </td>
+                    <td className={`r ws-num ${r.needed > 0 ? "warn" : "z"}`}>{r.needed}</td>
+                    <td className={`r ws-num ${r.failed > 0 ? "bad" : "z"}`}>{r.failed}</td>
+                    <td className="r ws-num z">{r.no_status}</td>
+                    <td className="ws-mono ws-dim">{fmtDate(r.last_report_at)}</td>
+                    <td>
+                      <span
+                        className="ws-pill"
+                        style={
+                          {
+                            "--c": r.matched_in_cmdb ? "var(--v2-ok)" : "var(--v2-fg-3)",
+                          } as React.CSSProperties
+                        }
+                      >
+                        {r.matched_in_cmdb ? "No CMDB" : "Fora do CMDB"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredDetails.length === 0 && (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7}>
-                    <div className="ws-empty">Nenhum servidor encontrado.</div>
+                  <td colSpan={isAdmin ? 9 : 8} className="ws-empty">
+                    Nenhum servidor encontrado.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-
-        {isAdmin && filteredDetails.length > 0 && (
-          <div
-            style={{
-              padding: "10px 16px",
-              borderTop: `1px solid ${T.border}`,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="Selecionar todos" />
-            <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
-              {allSelected ? "Desmarcar todos" : `Selecionar todos (${filteredDetails.length})`}
-            </span>
-          </div>
-        )}
       </div>
+
+      <Dialog open={confirmOpen} onOpenChange={(o) => !deleting && setConfirmOpen(o)}>
+        <DialogContent
+          className="font-ui sm:max-w-md"
+          style={{
+            background: "var(--v2-surface)",
+            border: "1px solid var(--v2-line-strong)",
+            color: "var(--v2-fg)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle style={{ fontSize: 16, fontWeight: 600 }}>
+              Excluir servidores do WSUS?
+            </DialogTitle>
+          </DialogHeader>
+          <p style={{ margin: 0, fontSize: 13.5, color: "var(--v2-fg-2)", lineHeight: 1.55 }}>
+            {selected.size} servidor{selected.size > 1 ? "es serão removidos" : " será removido"} do
+            WSUS no Z-Sec. A próxima importação pode trazê-los de volta. Não dá para desfazer.
+          </p>
+          <DialogFooter style={{ gap: 8 }}>
+            <button
+              className="ws-btn ghost"
+              onClick={() => setConfirmOpen(false)}
+              disabled={deleting}
+            >
+              Cancelar
+            </button>
+            <button className="ws-btn danger" onClick={handleDelete} disabled={deleting}>
+              {deleting && <Loader2 size={13} className="animate-spin" />} Excluir
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

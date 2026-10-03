@@ -30,3 +30,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# testes locais
+cloudflared.exe
+worker-index.b64
+
+# Agente Z-Sec
+agent/dist/

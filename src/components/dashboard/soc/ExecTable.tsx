@@ -59,7 +59,7 @@ export function ExecTR({ children, index }: { children: ReactNode; index: number
     <tr
       className="transition-colors hover:bg-white/[0.03]"
       style={{
-        background: index % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)",
+        background: index % 2 === 0 ? "transparent" : "rgba(var(--tl-ink, 255,255,255),0.015)",
         borderBottom: "1px solid var(--soc-border)",
       }}
     >

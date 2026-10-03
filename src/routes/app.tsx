@@ -1,8 +1,11 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
 import { AppSidebar } from "@/components/layout/AppSidebar";
+import { CommandMenu } from "@/components/layout/CommandMenu";
+import { ShellStateProvider } from "@/components/layout/shell-state";
 import { FiltersProvider } from "@/lib/filters-context";
 import { consumePendingRedirect } from "@/lib/sso.functions";
 
@@ -53,19 +56,18 @@ function AppLayout() {
     (navigate as any)({ to: "/login", search: { redirect: redirectTo, sso_error: undefined }, replace: true });
   }, [user, loading, navigate, location.pathname, location.searchStr]);
 
-  if (loading || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">Carregando...</div>
-    );
-  }
+  if (loading || !user) return <ModuleLoading fullScreen />;
   return (
     <FiltersProvider>
-      <div className="flex min-h-screen bg-background">
-        <AppSidebar />
-        <main className="flex-1 min-w-0 flex flex-col">
-          <Outlet />
-        </main>
-      </div>
+      <ShellStateProvider>
+        <div className="flex min-h-screen bg-v2-bg">
+          <AppSidebar />
+          <main className="flex-1 min-w-0 flex flex-col">
+            <Outlet />
+          </main>
+        </div>
+        <CommandMenu />
+      </ShellStateProvider>
     </FiltersProvider>
   );
 }

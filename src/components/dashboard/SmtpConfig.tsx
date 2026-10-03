@@ -1,252 +1,31 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { getSmtpConfig, upsertSmtpConfig, sendTestSmtpEmail } from "@/lib/smtp.functions";
-import { listEmailTemplates, upsertEmailTemplate, type EmailTemplateVariable } from "@/lib/email-templates.functions";
-import { useAuth } from "@/lib/auth-context";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Mail,
-  Send,
-  KeyRound,
-  FileCode2,
-  Save,
-  CheckCircle2,
-  AlertCircle,
-  Server,
-  Loader2,
-  Layers,
-} from "lucide-react";
+  listEmailTemplates,
+  upsertEmailTemplate,
+  type EmailTemplateVariable,
+} from "@/lib/email-templates.functions";
+import { useAuth } from "@/lib/auth-context";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
+import { DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
+import { dialogStyle } from "./ColaboradoresPanel";
+import { Check, ChevronRight, KeyRound, Send } from "lucide-react";
 
-// ── Design tokens (same palette as Integrações) ────────────────────────────────
-const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
-  accent: "#3B82F6",
-  accentGlow: "rgba(59,130,246,0.15)",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  textSubtle: "#475569",
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const ACCENTS = {
-  blue: { color: "#3B82F6", bg: "rgba(59,130,246,0.10)", border: "rgba(59,130,246,0.25)" },
-  emerald: { color: "#10B981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.25)" },
-  purple: { color: "#A78BFA", bg: "rgba(167,139,250,0.10)", border: "rgba(167,139,250,0.25)" },
-};
-
-// ── Inline CSS ─────────────────────────────────────────────────────────────────
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .smtp-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
-  .smtp-root * { box-sizing:border-box; }
-
-  /* ── Page header ── */
-  .smtp-page-header {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:16px 22px; display:flex; align-items:center; justify-content:space-between;
-    flex-wrap:wrap; gap:12px;
-  }
-  .smtp-page-title {
-    font-size:14px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em;
-  }
-  .smtp-page-sub { font-size:12px; color:${T.textMuted}; margin-top:3px; line-height:1.5; }
-  .smtp-status-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .smtp-pill {
-    display:inline-flex; align-items:center; gap:5px; padding:4px 10px;
-    border-radius:5px; font-size:10px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
-  }
-  .smtp-pill.ok   { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .smtp-pill.warn { background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.2); }
-  .smtp-pill.off  { background:rgba(107,114,128,0.1); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2); }
-  .smtp-pill-dot  { width:5px; height:5px; border-radius:50%; background:currentColor; }
-
-  /* ── Card ── */
-  .smtp-card {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:12px;
-    overflow:hidden; display:flex; flex-direction:column;
-    transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  .smtp-card:hover { border-color:${T.borderHi}; box-shadow:0 8px 32px rgba(0,0,0,0.3); }
-
-  .smtp-card-header {
-    padding:16px 20px 14px; background:${T.surfaceAlt};
-    border-bottom:1px solid ${T.border};
-    display:flex; align-items:center; justify-content:space-between;
-    position:relative; overflow:hidden;
-  }
-  .smtp-card-header::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:2px;
-    background:var(--card-color, ${T.accent});
-  }
-  .smtp-card-header-left { display:flex; align-items:center; gap:10px; }
-  .smtp-icon-wrap {
-    width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center;
-    background:var(--card-bg, ${T.accentSoft}); border:1px solid var(--card-border, rgba(59,130,246,0.2));
-    flex-shrink:0;
-  }
-  .smtp-card-title {
-    font-size:14px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em;
-  }
-  .smtp-card-sub { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:2px; }
-
-  .smtp-badge {
-    display:inline-flex; align-items:center; gap:4px; padding:3px 8px;
-    border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
-  }
-  .smtp-badge.ok   { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .smtp-badge.warn { background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.2); }
-  .smtp-badge.off  { background:rgba(107,114,128,0.1); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2); }
-
-  /* ── Card body ── */
-  .smtp-card-body { padding:18px 20px; display:flex; flex-direction:column; gap:14px; flex:1; }
-
-  /* ── Toggle row ── */
-  .smtp-toggle-row {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:10px 14px; background:${T.surfaceAlt}; border-radius:7px;
-    border:1px solid ${T.border};
-  }
-  .smtp-toggle-label { font-size:12px; font-weight:600; color:${T.textSecondary}; }
-  .smtp-toggle-hint  { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:1px; }
-
-  /* ── Field ── */
-  .smtp-field { display:flex; flex-direction:column; gap:5px; }
-  .smtp-field-label {
-    font-size:9px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-  }
-  .smtp-field-helper { font-size:10px; color:${T.textSubtle}; line-height:1.5; margin-top:1px; }
-  .smtp-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .smtp-grid-2.col-span { grid-column:1/-1; }
-
-  /* ── Sub-section ── */
-  .smtp-sub-label {
-    font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-    display:flex; align-items:center; gap:6px;
-  }
-  .smtp-sub-label::after { content:''; flex:1; height:1px; background:${T.border}; }
-
-  /* ── Input override ── */
-  .smtp-root input[type="text"],
-  .smtp-root input[type="email"],
-  .smtp-root input[type="number"],
-  .smtp-root input[type="password"],
-  .smtp-root input:not([type]) {
-    background:${T.surfaceAlt} !important; border-color:${T.border} !important;
-    color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace !important;
-    font-size:12px !important; border-radius:6px !important;
-    transition:border-color 0.15s, box-shadow 0.15s !important;
-  }
-  .smtp-root input:focus {
-    border-color:rgba(59,130,246,0.5) !important; outline:none !important;
-    box-shadow:0 0 0 2px rgba(59,130,246,0.1) !important;
-  }
-  .smtp-root input::placeholder { color:${T.textSubtle} !important; }
-
-  /* ── Select override ── */
-  .smtp-root [role="combobox"],
-  .smtp-root button[data-radix-select-trigger] {
-    background:${T.surfaceAlt} !important; border-color:${T.border} !important;
-    color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace !important;
-    font-size:12px !important; border-radius:6px !important;
-  }
-
-  /* ── Textarea override ── */
-  .smtp-root textarea {
-    background:${T.surfaceAlt} !important; border-color:${T.border} !important;
-    color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace !important;
-    font-size:11px !important; border-radius:6px !important; resize:vertical !important;
-  }
-
-  /* ── Save button ── */
-  .smtp-save-btn {
-    display:inline-flex; align-items:center; justify-content:center; gap:7px;
-    width:100%; padding:10px 16px; border-radius:7px;
-    background:var(--card-bg, ${T.accentSoft});
-    border:1px solid var(--card-border, rgba(59,130,246,0.35));
-    color:var(--card-color, ${T.accent});
-    font-size:12px; font-weight:700; cursor:pointer;
-    font-family:'DM Sans',sans-serif; transition:all 0.15s; margin-top:4px;
-  }
-  .smtp-save-btn:hover:not(:disabled) { filter:brightness(1.15); box-shadow:0 0 20px rgba(0,0,0,0.2); }
-  .smtp-save-btn:disabled { opacity:0.45; cursor:not-allowed; }
-
-  /* ── Password row ── */
-  .smtp-pw-box {
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:7px;
-    padding:12px 14px; display:flex; flex-direction:column; gap:8px;
-  }
-  .smtp-pw-header { display:flex; align-items:center; gap:6px; }
-  .smtp-pw-hint { font-size:10px; color:${T.textSubtle}; line-height:1.55; }
-
-  /* ── Placeholder reference ── */
-  .smtp-placeholder-box {
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:7px;
-    padding:12px 14px;
-  }
-  .smtp-placeholder-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; margin-top:8px; }
-  .smtp-placeholder-item { font-size:10px; color:${T.textMuted}; display:flex; align-items:baseline; gap:4px; }
-  .smtp-placeholder-token {
-    font-family:'IBM Plex Mono',monospace; font-size:10px;
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:3px;
-    padding:1px 5px; color:${T.textPrimary}; white-space:nowrap; flex-shrink:0;
-  }
-
-  /* ── Editor layout ── */
-  .smtp-editor-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:4px; }
-  @media (max-width:900px) { .smtp-editor-grid { grid-template-columns:1fr; } }
-
-  /* ── Divider ── */
-  .smtp-divider { height:1px; background:${T.border}; }
-
-  /* ── Spin ── */
-  @keyframes smtp-spin { to{transform:rotate(360deg)} }
-  .smtp-spin { animation:smtp-spin 0.7s linear infinite; }
-
-  /* ── Main two-column layout ── */
-  .smtp-main-grid {
-    display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;
-  }
-  .smtp-col { display:flex; flex-direction:column; gap:16px; }
-
-  /* ── Responsive ── */
-  @media (max-width:900px) {
-    .smtp-main-grid { grid-template-columns:1fr !important; }
-  }
-  @media (max-width:680px) {
-    .smtp-grid-2 { grid-template-columns:1fr !important; }
-    .smtp-editor-grid { grid-template-columns:1fr !important; }
-  }
-`;
-
-// ── CSS vars helper ────────────────────────────────────────────────────────────
-function accentVars(a: (typeof ACCENTS)["blue"]): React.CSSProperties {
-  return { "--card-color": a.color, "--card-bg": a.bg, "--card-border": a.border } as React.CSSProperties;
-}
-
-// ── Helpers (template panel) ───────────────────────────────────────────────────
 function buildTemplateSkeleton(variables: EmailTemplateVariable[]): string {
   const rows = variables.map((v) => `  <p><b>${v.token}:</b> {{${v.token}}}</p>`).join("\n");
   return `<div style="font-family:Arial,sans-serif">\n${rows}\n</div>`;
@@ -258,29 +37,193 @@ function renderTemplatePreview(html: string, variables: EmailTemplateVariable[])
   return out;
 }
 
+function fmtAgo(iso: string | null | undefined, now: number) {
+  if (!iso) return "nunca";
+  const m = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
+  if (m < 60) return `há ${m} min`;
+  if (m < 1440) return `há ${Math.round(m / 60)}h`;
+  return `há ${Math.round(m / 1440)}d`;
+}
+
+const fmtShort = (iso: string, now: number) => {
+  const d = new Date(iso);
+  const sameDay = new Date(now).toDateString() === d.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+};
+
+type EmailLogRow = {
+  id: string;
+  to_email: string;
+  subject: string | null;
+  template: string | null;
+  status: string;
+  error_message: string | null;
+  created_at: string;
+};
+
+type TemplateStat = { sent: number; failed: number; last: string | null };
+
+// ── CSS ───────────────────────────────────────────────────────────────────────
+
+const CSS = `
+  .sm-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
+  .sm-root * { box-sizing:border-box; }
+  .sm-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .sm-ph { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .sm-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .sm-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
+
+  .sm-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .sm-kpi { padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); min-width:0; text-align:left; background:transparent; border:0; color:inherit; font:inherit; }
+  button.sm-kpi { cursor:pointer; }
+  button.sm-kpi:hover { background:var(--v2-hover); }
+  .sm-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .sm-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .sm-kpi-value.word { font-size:22px; padding:3px 0; }
+  .sm-kpi-value small { font-size:15px; font-weight:500; color:var(--v2-fg-3); margin-left:4px; }
+  .sm-kpi-foot { font-size:12px; color:var(--v2-fg-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sm-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
+
+  .sm-subnav { display:flex; gap:4px; border-bottom:1px solid var(--v2-line); }
+  .sm-subnav button { height:38px; padding:0 12px; border:0; background:transparent; color:var(--v2-fg-2); font:500 13.5px var(--font-ui); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; display:inline-flex; gap:8px; align-items:center; }
+  .sm-subnav button:hover { color:var(--v2-fg); }
+  .sm-subnav button[aria-selected="true"] { color:var(--v2-fg); border-bottom-color:var(--v2-accent); }
+  .sm-subnav .c { font:500 11.5px var(--font-data); color:var(--v2-fg-3); }
+
+  .sm-two { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); gap:16px; align-items:start; }
+  @media (max-width: 1000px) { .sm-two { grid-template-columns:minmax(0, 1fr); } }
+  .sm-card { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; }
+  .sm-card-h { display:flex; gap:12px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--v2-line); flex-wrap:wrap; }
+  .sm-card-h b { display:block; font-size:14px; font-weight:600; }
+  .sm-card-h small { display:block; font-size:12.5px; color:var(--v2-fg-3); }
+  .sm-card-h .r { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  .sm-card-b { display:grid; gap:14px; padding:16px 18px; }
+  .sm-card-f { display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--v2-line); }
+  .sm-sublabel { font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--v2-fg-3); }
+  .sm-g2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .sm-g3 { display:grid; grid-template-columns:2fr 1fr 1fr; gap:12px; }
+  @media (max-width: 600px) { .sm-g2, .sm-g3 { grid-template-columns:1fr; } }
+  .sm-field { display:grid; gap:6px; font-size:12.5px; font-weight:500; color:var(--v2-fg-2); min-width:0; }
+  .sm-field small { font-size:12px; font-weight:400; color:var(--v2-fg-3); line-height:1.5; }
+  .sm-input, .sm-select { width:100%; height:34px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg); font-size:13px; font-family:var(--font-ui); outline:none; min-width:0; }
+  .sm-input.mono { font-family:var(--font-data); font-size:12.5px; }
+  .sm-input:focus, .sm-select:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .sm-togrow { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); }
+  .sm-togrow b { display:block; font-size:13px; font-weight:500; }
+  .sm-togrow small { display:block; font-size:12px; color:var(--v2-fg-3); }
+  .sm-secret { display:flex; gap:6px; }
+  .sm-secret .s { flex:1; min-width:0; display:flex; align-items:center; gap:8px; height:34px; padding:0 10px; border:1px dashed var(--v2-line-strong); border-radius:8px; font-size:13px; color:var(--v2-fg-2); }
+  .sm-secret .s svg { color:var(--v2-ok); flex:none; }
+  .sm-secret .s.warn svg { color:var(--v2-med); }
+  .sm-secret .s span { font:12px var(--font-data); color:var(--v2-fg-3); }
+
+  .sm-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
+  .sm-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .sm-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .sm-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .sm-btn.primary:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .sm-btn.ghost { border-color:transparent; background:transparent; }
+
+  .sm-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .sm-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+  .sm-link { font-size:12.5px; color:var(--v2-accent); text-decoration:none; display:inline-flex; gap:4px; align-items:center; }
+  .sm-link:hover { text-decoration:underline; }
+
+  .sm-sends > div { display:grid; grid-template-columns:8px minmax(0, 1fr) auto; gap:12px; align-items:center; padding:9px 18px; border-top:1px solid var(--v2-line); font-size:13px; }
+  .sm-sends > div:first-child { border-top:0; }
+  .sm-sends i { width:8px; height:8px; border-radius:50%; background:var(--c); }
+  .sm-sends b { display:block; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sm-sends small { display:block; font-size:12px; color:var(--v2-fg-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sm-sends time { font:12px var(--font-data); color:var(--v2-fg-3); }
+  .sm-empty { padding:20px 18px; color:var(--v2-fg-3); font-size:13px; }
+  .sm-errnote { margin:0 18px 16px; padding:10px 12px; border-radius:8px; background:color-mix(in oklch, var(--v2-crit) 8%, transparent); border:1px solid color-mix(in oklch, var(--v2-crit) 30%, transparent); font:12px/1.5 var(--font-data); color:var(--v2-fg-2); overflow-wrap:anywhere; }
+  .sm-errnote b { font-family:var(--font-ui); }
+
+  .sm-tbl { overflow-x:auto; }
+  .sm-tbl table { width:100%; border-collapse:collapse; font-size:13px; }
+  .sm-tbl th { text-align:left; font-weight:500; font-size:12.5px; color:var(--v2-fg-3); padding:10px 18px; border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .sm-tbl td { padding:10px 18px; border-bottom:1px solid var(--v2-line); }
+  .sm-tbl tr.row { cursor:pointer; }
+  .sm-tbl tr.row:hover td { background:var(--v2-hover); }
+  .sm-tbl tr.grp td { background:var(--v2-surface-2); font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--v2-fg-3); padding:7px 18px; }
+  .sm-tbl .num { text-align:right; font-family:var(--font-data); font-variant-numeric:tabular-nums; }
+  .sm-tn b { display:block; font-weight:500; }
+  .sm-tn small { display:block; font:12px var(--font-data); color:var(--v2-fg-3); }
+
+  .sm-seg { display:inline-flex; padding:2px; gap:2px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); justify-self:start; }
+  .sm-seg button { height:28px; padding:0 12px; border:0; border-radius:6px; background:transparent; color:var(--v2-fg-2); font:500 13px var(--font-ui); cursor:pointer; }
+  .sm-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); box-shadow:0 0 0 1px var(--v2-line); }
+  .sm-defbox { padding:16px; border:1px dashed var(--v2-line-strong); border-radius:8px; color:var(--v2-fg-2); font-size:13px; line-height:1.6; }
+  .sm-tokens { display:flex; flex-wrap:wrap; gap:6px; }
+  .sm-tokens button { display:inline-flex; gap:6px; align-items:center; height:26px; padding:0 8px; border:1px solid var(--v2-line); border-radius:5px; background:var(--v2-surface-2); color:var(--v2-fg); font:12px var(--font-data); cursor:pointer; }
+  .sm-tokens button:hover:not(:disabled) { border-color:var(--v2-accent); }
+  .sm-tokens button:disabled { cursor:default; }
+  .sm-tokens-help { display:grid; gap:4px; margin-top:8px; font-size:12px; color:var(--v2-fg-3); }
+  .sm-tokens-help code { font-family:var(--font-data); color:var(--v2-fg-2); }
+  .sm-ed { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width: 900px) { .sm-ed { grid-template-columns:1fr; } }
+  .sm-ed textarea { width:100%; min-height:440px; resize:vertical; padding:12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg); font:12.5px/1.6 var(--font-data); outline:none; }
+  .sm-ed textarea:focus { border-color:var(--v2-accent); }
+  .sm-ed iframe { width:100%; min-height:440px; border:1px solid var(--v2-line); border-radius:8px; background:#fff; }
+`;
+
 // ══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
+// PÁGINA
 // ══════════════════════════════════════════════════════════════════════════════
+
 export function SmtpConfigDashboard() {
   const { user, role } = useAuth();
   const qc = useQueryClient();
   const get = useServerFn(getSmtpConfig);
   const upsert = useServerFn(upsertSmtpConfig);
   const test = useServerFn(sendTestSmtpEmail);
+  const listTemplates = useServerFn(listEmailTemplates);
+  const isAdmin = role === "admin" || role === "super_admin";
 
-  const q = useQuery({ queryKey: ["smtp-config"], queryFn: () => get() });
+  const q = useQuery({ queryKey: ["smtp-config"], queryFn: () => get(), enabled: isAdmin });
+  const templatesQ = useQuery({
+    queryKey: ["email-templates"],
+    queryFn: () => listTemplates(),
+    enabled: isAdmin,
+  });
 
+  // Envios dos últimos 30 dias (estatísticas e últimos envios)
+  const logsQ = useQuery({
+    queryKey: ["smtp-email-logs-30d"],
+    enabled: isAdmin,
+    queryFn: async (): Promise<EmailLogRow[]> => {
+      const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+      const { data, error } = await supabase
+        .from("email_logs")
+        .select("id, to_email, subject, template, status, error_message, created_at")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      return (data ?? []) as EmailLogRow[];
+    },
+    refetchInterval: 60_000,
+  });
+
+  const [tab, setTab] = React.useState<"server" | "templates">("server");
   const [host, setHost] = React.useState("");
   const [port, setPort] = React.useState(587);
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [replacingPw, setReplacingPw] = React.useState(false);
   const [fromEmail, setFromEmail] = React.useState("");
-  const [fromName, setFromName] = React.useState("B-Security");
+  const [fromName, setFromName] = React.useState("Z-Sec");
   const [secure, setSecure] = React.useState(true);
   const [enabled, setEnabled] = React.useState(false);
-  const [testTo, setTestTo] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [testOpen, setTestOpen] = React.useState(false);
+  const [testTo, setTestTo] = React.useState("");
   const [testing, setTesting] = React.useState(false);
+  const [openTpl, setOpenTpl] = React.useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [now] = React.useState(() => Date.now());
 
   React.useEffect(() => {
     const c = q.data?.config;
@@ -289,34 +232,48 @@ export function SmtpConfigDashboard() {
       setPort(c.port ?? 587);
       setUsername(c.username ?? "");
       setFromEmail(c.from_email ?? "");
-      setFromName(c.from_name ?? "B-Security");
+      setFromName(c.from_name ?? "Z-Sec");
       setSecure(!!c.secure);
       setEnabled(!!c.enabled);
     }
   }, [q.data]);
 
-  if (role !== "admin" && role !== "super_admin") {
+  React.useEffect(() => {
+    if (user?.email && !testTo) setTestTo(user.email);
+  }, [user?.email, testTo]);
+
+  if (!isAdmin) {
     return (
-      <div className="smtp-root" style={{ padding: 24 }}>
+      <div className="sm-root">
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <div
-          style={{
-            background: T.surface,
-            border: `1px solid ${T.border}`,
-            borderRadius: 10,
-            padding: "24px 28px",
-            color: T.textMuted,
-            fontSize: 13,
-          }}
-        >
-          Apenas administradores podem visualizar/editar esta página.
+        <div className="sm-card">
+          <div className="sm-empty">
+            Apenas administradores podem visualizar ou editar esta página.
+          </div>
         </div>
       </div>
     );
   }
+  if (q.isLoading) return <ModuleLoading />;
 
-  const isSmtpConfigured = !!q.data?.config?.host;
+  const savedConfig = q.data?.config;
+  const isConfigured = !!savedConfig?.host;
   const hasPassword = !!q.data?.hasPassword;
+  const templates = templatesQ.data ?? [];
+  const logs = logsQ.data ?? [];
+
+  const stats = new Map<string, TemplateStat>();
+  for (const l of logs) {
+    if (!l.template) continue;
+    const s = stats.get(l.template) ?? { sent: 0, failed: 0, last: null };
+    s.sent += 1;
+    if (l.status === "error") s.failed += 1;
+    if (!s.last || l.created_at > s.last) s.last = l.created_at;
+    stats.set(l.template, s);
+  }
+  const failed = logs.filter((l) => l.status === "error");
+  const lastFail = failed[0];
+  const customCount = templates.filter((t) => t.mode === "custom").length;
 
   async function save() {
     setSaving(true);
@@ -336,9 +293,10 @@ export function SmtpConfigDashboard() {
       });
       toast.success("Configuração salva");
       setPassword("");
+      setReplacingPw(false);
       qc.invalidateQueries({ queryKey: ["smtp-config"] });
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -349,463 +307,633 @@ export function SmtpConfigDashboard() {
     setTesting(true);
     try {
       const r = await test({ data: { to: testTo } });
-      if (r.ok) toast.success("E-mail de teste enviado");
-      else toast.error("Falha: " + r.error);
-    } catch (e: any) {
-      toast.error(e.message);
+      if (r.ok) {
+        toast.success("E-mail de teste enviado");
+        setTestOpen(false);
+      } else toast.error("Falha: " + r.error);
+      qc.invalidateQueries({ queryKey: ["smtp-email-logs-30d"] });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setTesting(false);
     }
   }
 
+  const openTemplate = (key: string) => {
+    setOpenTpl(key);
+    setSheetOpen(true);
+  };
+  const selectedTpl = templates.find((t) => t.key === openTpl) ?? null;
+
   return (
-    <div className="smtp-root" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="sm-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="smtp-page-header">
+      <div className="sm-ph">
         <div>
-          <div className="smtp-page-title">Configuração SMTP</div>
-          <div className="smtp-page-sub">
-            Configure o servidor de envio e personalize os templates de notificação por módulo.
-          </div>
+          <h1 className="sm-ph-title">E-mail (SMTP)</h1>
+          <p className="sm-ph-sub">Servidor de envio e templates das notificações por e-mail</p>
         </div>
-        <div className="smtp-status-bar">
-          <span className={`smtp-pill ${enabled ? "ok" : "off"}`}>
-            <span className="smtp-pill-dot" />
-            {enabled ? "SMTP ativo" : "SMTP inativo"}
-          </span>
-          <span className={`smtp-pill ${isSmtpConfigured ? "ok" : "off"}`}>
-            <span className="smtp-pill-dot" />
-            {isSmtpConfigured ? "Servidor configurado" : "Servidor pendente"}
-          </span>
-          <span className={`smtp-pill ${hasPassword ? "ok" : "warn"}`}>
-            <span className="smtp-pill-dot" />
-            {hasPassword ? "Senha configurada" : "Senha pendente"}
-          </span>
-        </div>
+        <button
+          className="sm-btn"
+          onClick={() => setTestOpen(true)}
+          disabled={!savedConfig?.enabled}
+          title={savedConfig?.enabled ? undefined : "Habilite e salve o SMTP para enviar um teste"}
+        >
+          <Send size={14} />
+          Enviar teste
+        </button>
       </div>
 
-      {/* ── Main grid: left = server+test, right = templates ────────────────── */}
-      <div className="smtp-main-grid">
-        <div className="smtp-col">
-          {/* ── SMTP Server card ─────────────────────────────────────────────────── */}
-          <div className="smtp-card" style={accentVars(ACCENTS.blue)}>
-            <div className="smtp-card-header">
-              <div className="smtp-card-header-left">
-                <div className="smtp-icon-wrap">
-                  <Server size={16} style={{ color: ACCENTS.blue.color }} />
-                </div>
-                <div>
-                  <div className="smtp-card-title">Servidor SMTP</div>
-                  <div className="smtp-card-sub">Credenciais de envio de e-mail</div>
-                </div>
-              </div>
-              <span className={`smtp-badge ${isSmtpConfigured ? "ok" : "off"}`}>
-                {isSmtpConfigured ? (
-                  <>
-                    <CheckCircle2 size={10} /> Configurado
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle size={10} /> Pendente
-                  </>
-                )}
+      <div className="sm-kpis">
+        <div className="sm-kpi">
+          <span className="sm-kpi-label">
+            <span
+              className="sm-sw"
+              style={{ background: savedConfig?.enabled ? "var(--v2-ok)" : "var(--v2-fg-3)" }}
+            />
+            Envio de e-mails
+          </span>
+          <span className="sm-kpi-value word">
+            {!isConfigured ? "Não configurado" : savedConfig?.enabled ? "Ativo" : "Desligado"}
+          </span>
+          <span className="sm-kpi-foot">
+            {isConfigured
+              ? `${savedConfig?.host}:${savedConfig?.port}${savedConfig?.secure ? " · TLS" : ""}`
+              : "—"}
+          </span>
+        </div>
+        <div className="sm-kpi">
+          <span className="sm-kpi-label">Enviados · 30 dias</span>
+          <span className="sm-kpi-value">{logs.length.toLocaleString("pt-BR")}</span>
+          <span className="sm-kpi-foot">último {fmtAgo(logs[0]?.created_at, now)}</span>
+        </div>
+        <div className="sm-kpi">
+          <span className="sm-kpi-label">
+            {failed.length > 0 && (
+              <span className="sm-sw" style={{ background: "var(--v2-crit)" }} />
+            )}
+            Falhas · 30 dias
+          </span>
+          <span className="sm-kpi-value">{failed.length}</span>
+          <span className="sm-kpi-foot">
+            {logs.length
+              ? `${((failed.length / logs.length) * 100).toFixed(1).replace(".", ",")}% dos envios`
+              : "nenhum envio"}
+          </span>
+        </div>
+        <button className="sm-kpi" onClick={() => setTab("templates")}>
+          <span className="sm-kpi-label">Templates customizados</span>
+          <span className="sm-kpi-value">
+            {customCount}
+            <small>de {templates.length}</small>
+          </span>
+          <span className="sm-kpi-foot">os demais usam o padrão</span>
+        </button>
+      </div>
+
+      <div className="sm-subnav" role="tablist">
+        <button role="tab" aria-selected={tab === "server"} onClick={() => setTab("server")}>
+          Servidor
+        </button>
+        <button role="tab" aria-selected={tab === "templates"} onClick={() => setTab("templates")}>
+          Templates <span className="c">{templates.length}</span>
+        </button>
+      </div>
+
+      {tab === "server" ? (
+        <div className="sm-two">
+          <section className="sm-card">
+            <div className="sm-card-h">
+              <span>
+                <b>Servidor SMTP</b>
+                <small>Usado por todos os módulos que enviam e-mail</small>
+              </span>
+              <span className="r">
+                <span
+                  className="sm-pill"
+                  style={
+                    {
+                      "--c": isConfigured ? "var(--v2-ok)" : "var(--v2-med)",
+                    } as React.CSSProperties
+                  }
+                >
+                  {isConfigured ? "Configurado" : "Pendente"}
+                </span>
               </span>
             </div>
-
-            <div className="smtp-card-body">
-              {/* Toggle habilitar */}
-              <div className="smtp-toggle-row">
-                <div>
-                  <div className="smtp-toggle-label">Habilitar envios de e-mail</div>
-                  <div className="smtp-toggle-hint">
-                    {enabled ? "Módulos enviarão notificações normalmente" : "Nenhum e-mail será disparado"}
-                  </div>
-                </div>
-                <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <div className="sm-card-b">
+              <div className="sm-togrow">
+                <span>
+                  <b>Envio de e-mails habilitado</b>
+                  <small>
+                    {enabled
+                      ? "Os módulos enviam notificações normalmente"
+                      : "Nenhum e-mail será disparado"}
+                  </small>
+                </span>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={setEnabled}
+                  aria-label="Envio de e-mails habilitado"
+                />
               </div>
 
-              {/* Servidor */}
-              <div className="smtp-sub-label">Servidor</div>
-              <div className="smtp-grid-2">
-                <div className="smtp-field" style={{ gridColumn: "1/-1" }}>
-                  <span className="smtp-field-label">Host</span>
-                  <Input value={host} onChange={(e) => setHost(e.target.value)} placeholder="smtp.gmail.com" />
-                </div>
-                <div className="smtp-field">
-                  <span className="smtp-field-label">Porta</span>
-                  <Input
+              <div className="sm-sublabel">Servidor</div>
+              <div className="sm-g3">
+                <label className="sm-field">
+                  Host
+                  <input
+                    className="sm-input mono"
+                    value={host}
+                    onChange={(e) => setHost(e.target.value)}
+                    placeholder="smtp.office365.com"
+                  />
+                </label>
+                <label className="sm-field">
+                  Porta
+                  <input
+                    className="sm-input mono"
                     type="number"
                     value={port}
                     onChange={(e) => setPort(Number(e.target.value))}
                     placeholder="587"
                   />
-                </div>
-                <div className="smtp-field">
-                  <span className="smtp-field-label">TLS / SSL seguro</span>
-                  <div className="smtp-toggle-row" style={{ padding: "8px 12px", marginTop: 0 }}>
-                    <span style={{ fontSize: 11, color: T.textSecondary, fontFamily: "'IBM Plex Mono',monospace" }}>
-                      {secure ? "Habilitado (recomendado)" : "Desabilitado"}
-                    </span>
-                    <Switch checked={secure} onCheckedChange={setSecure} />
-                  </div>
-                </div>
+                </label>
+                <label className="sm-field">
+                  TLS / SSL
+                  <select
+                    className="sm-select"
+                    value={secure ? "on" : "off"}
+                    onChange={(e) => setSecure(e.target.value === "on")}
+                  >
+                    <option value="on">Ativo</option>
+                    <option value="off">Desativado</option>
+                  </select>
+                </label>
               </div>
 
-              {/* Identidade */}
-              <div className="smtp-sub-label">Identidade</div>
-              <div className="smtp-grid-2">
-                <div className="smtp-field">
-                  <span className="smtp-field-label">Usuário (login SMTP)</span>
-                  <Input
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="usuario@empresa.com"
-                  />
-                </div>
-                <div className="smtp-field">
-                  <span className="smtp-field-label">From — e-mail</span>
-                  <Input
+              <div className="sm-sublabel">Remetente</div>
+              <div className="sm-g2">
+                <label className="sm-field">
+                  E-mail do remetente
+                  <input
+                    className="sm-input"
                     type="email"
                     value={fromEmail}
                     onChange={(e) => setFromEmail(e.target.value)}
-                    placeholder="alertas@empresa.com"
+                    placeholder="alertas@empresa.com.br"
                   />
-                </div>
-                <div className="smtp-field">
-                  <span className="smtp-field-label">From — nome exibido</span>
-                  <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="B-Security" />
-                </div>
+                </label>
+                <label className="sm-field">
+                  Nome exibido
+                  <input
+                    className="sm-input"
+                    value={fromName}
+                    onChange={(e) => setFromName(e.target.value)}
+                    placeholder="Z-Sec"
+                  />
+                </label>
               </div>
 
-              {/* Senha */}
-              <div className="smtp-sub-label">Credencial</div>
-              <div className="smtp-pw-box">
-                <div className="smtp-pw-header">
-                  <KeyRound
-                    size={13}
-                    style={{ color: hasPassword ? ACCENTS.emerald.color : T.warning, flexShrink: 0 }}
+              <div className="sm-sublabel">Autenticação</div>
+              <div className="sm-g2">
+                <label className="sm-field">
+                  Usuário
+                  <input
+                    className="sm-input"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="usuario@empresa.com.br"
                   />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: T.textSecondary }}>Senha SMTP</span>
-                  <span className={`smtp-badge ${hasPassword ? "ok" : "warn"}`} style={{ marginLeft: "auto" }}>
-                    {hasPassword ? (
-                      <>
-                        <CheckCircle2 size={9} /> {q.data?.passwordSource === "db" ? "banco" : "secret"}
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle size={9} /> não configurada
-                      </>
-                    )}
-                  </span>
+                </label>
+                <div className="sm-field">
+                  Senha
+                  {hasPassword && !replacingPw ? (
+                    <div className="sm-secret">
+                      <span className="s">
+                        <KeyRound size={13} />
+                        Salva{" "}
+                        <span>
+                          {q.data?.passwordSource === "db" ? "no banco" : "em variável de ambiente"}
+                        </span>
+                      </span>
+                      <button type="button" className="sm-btn" onClick={() => setReplacingPw(true)}>
+                        Substituir
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="sm-secret">
+                      <input
+                        className="sm-input"
+                        type="password"
+                        aria-label="Senha SMTP"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={hasPassword ? "Nova senha" : "Digite a senha SMTP"}
+                        autoComplete="new-password"
+                        autoFocus={replacingPw}
+                      />
+                      {replacingPw && (
+                        <button
+                          type="button"
+                          className="sm-btn ghost"
+                          onClick={() => {
+                            setPassword("");
+                            setReplacingPw(false);
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <small>Só de escrita: nunca é exibida depois de salva.</small>
                 </div>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={hasPassword ? "•••••••• (deixe em branco para manter)" : "Digite a senha SMTP"}
-                  autoComplete="new-password"
-                />
-                <p className="smtp-pw-hint">
-                  A senha é armazenada de forma segura — apenas administradores têm acesso. Para trocar a credencial,
-                  basta digitar a nova senha e salvar.
-                </p>
               </div>
-
-              <button className="smtp-save-btn" onClick={save} disabled={saving}>
-                {saving ? <Loader2 size={13} className="smtp-spin" /> : <Save size={13} />}
+            </div>
+            <div className="sm-card-f">
+              <button className="sm-btn primary" onClick={save} disabled={saving}>
+                <Check size={14} />
                 {saving ? "Salvando…" : "Salvar configuração"}
               </button>
             </div>
-          </div>
+          </section>
 
-          {/* ── Test email card ──────────────────────────────────────────────────── */}
-          <div className="smtp-card" style={accentVars(ACCENTS.emerald)}>
-            <div className="smtp-card-header">
-              <div className="smtp-card-header-left">
-                <div className="smtp-icon-wrap">
-                  <Send size={16} style={{ color: ACCENTS.emerald.color }} />
-                </div>
-                <div>
-                  <div className="smtp-card-title">Envio de Teste</div>
-                  <div className="smtp-card-sub">Verifica se o servidor está respondendo</div>
-                </div>
-              </div>
-              {!enabled && (
-                <span className="smtp-badge warn">
-                  <AlertCircle size={10} /> SMTP inativo
-                </span>
-              )}
+          <section className="sm-card">
+            <div className="sm-card-h">
+              <span>
+                <b>Últimos envios</b>
+                <small>email_logs · todos os módulos</small>
+              </span>
+              <span className="r">
+                <Link to="/app/$module" params={{ module: "logs" }} className="sm-link">
+                  Central de Logs <ChevronRight size={13} />
+                </Link>
+              </span>
             </div>
-
-            <div className="smtp-card-body">
-              <div className="smtp-field">
-                <span className="smtp-field-label">Destinatário</span>
-                <Input
-                  type="email"
-                  value={testTo}
-                  onChange={(e) => setTestTo(e.target.value)}
-                  placeholder="voce@empresa.com"
-                />
-                {!enabled && (
-                  <span className="smtp-field-helper">
-                    Habilite o SMTP no painel acima para enviar e-mails de teste.
-                  </span>
-                )}
+            {logs.length === 0 ? (
+              <div className="sm-empty">Nenhum e-mail enviado nos últimos 30 dias.</div>
+            ) : (
+              <div className="sm-sends">
+                {logs.slice(0, 6).map((l) => (
+                  <div key={l.id}>
+                    <i
+                      style={
+                        {
+                          "--c": l.status === "error" ? "var(--v2-crit)" : "var(--v2-ok)",
+                        } as React.CSSProperties
+                      }
+                    />
+                    <span style={{ minWidth: 0 }}>
+                      <b>{l.subject ?? l.template ?? "E-mail"}</b>
+                      <small>
+                        {l.to_email}
+                        {l.template ? ` · ${l.template}` : ""}
+                      </small>
+                    </span>
+                    <time dateTime={l.created_at}>{fmtShort(l.created_at, now)}</time>
+                  </div>
+                ))}
               </div>
+            )}
+            {lastFail && (
+              <div className="sm-errnote">
+                <b>
+                  Última falha · {fmtShort(lastFail.created_at, now)} · {lastFail.to_email}
+                </b>
+                <br />
+                {lastFail.error_message ?? "sem mensagem de erro"}
+              </div>
+            )}
+          </section>
+        </div>
+      ) : (
+        <TemplatesTable templates={templates} stats={stats} now={now} onOpen={openTemplate} />
+      )}
 
-              <button className="smtp-save-btn" onClick={sendTest} disabled={testing || !enabled}>
-                {testing ? <Loader2 size={13} className="smtp-spin" /> : <Send size={13} />}
-                {testing ? "Enviando…" : "Enviar e-mail de teste"}
-              </button>
-            </div>
+      {selectedTpl && (
+        <TemplateSheet
+          key={selectedTpl.key}
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          template={selectedTpl}
+        />
+      )}
+
+      <Dialog open={testOpen} onOpenChange={(o) => !testing && setTestOpen(o)}>
+        <DialogContent className="font-ui sm:max-w-md" style={dialogStyle}>
+          <DialogHeader>
+            <DialogTitle>Enviar e-mail de teste</DialogTitle>
+          </DialogHeader>
+          <div className="sm-root" style={{ gap: 12 }}>
+            <label className="sm-field">
+              Destinatário
+              <input
+                className="sm-input"
+                type="email"
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+                placeholder="voce@empresa.com.br"
+                autoFocus
+              />
+              <small>Usa a configuração salva. O envio aparece na Central de Logs.</small>
+            </label>
           </div>
-        </div>
-        {/* /smtp-col left */}
-
-        {/* ── Right column: templates ──────────────────────────────────────────── */}
-        <div className="smtp-col">
-          <EmailTemplatesCard />
-        </div>
-      </div>
-      {/* /smtp-main-grid */}
+          <DialogFooter>
+            <button className="sm-btn ghost" onClick={() => setTestOpen(false)} disabled={testing}>
+              Cancelar
+            </button>
+            <button className="sm-btn primary" onClick={sendTest} disabled={testing || !testTo}>
+              <Send size={14} />
+              {testing ? "Enviando…" : "Enviar"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// EMAIL TEMPLATES CARD
+// TEMPLATES
 // ══════════════════════════════════════════════════════════════════════════════
-function EmailTemplatesCard() {
+
+type TemplateItem = Awaited<ReturnType<typeof listEmailTemplates>>[number];
+
+function TemplatesTable({
+  templates,
+  stats,
+  now,
+  onOpen,
+}: {
+  templates: TemplateItem[];
+  stats: Map<string, TemplateStat>;
+  now: number;
+  onOpen: (key: string) => void;
+}) {
+  const [search, setSearch] = React.useState("");
+  const q = search.trim().toLowerCase();
+  const rows = templates.filter(
+    (t) => !q || `${t.label} ${t.key} ${t.module_label}`.toLowerCase().includes(q),
+  );
+  let group = "";
+  return (
+    <section className="sm-card">
+      <div className="sm-card-h">
+        <span>
+          <b>Templates de e-mail</b>
+          <small>
+            Padrão do sistema ou HTML próprio, por notificação · estatísticas dos últimos 30 dias
+          </small>
+        </span>
+        <span className="r">
+          <input
+            className="sm-input"
+            style={{ width: 220 }}
+            placeholder="Buscar template"
+            aria-label="Buscar template"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </span>
+      </div>
+      <div className="sm-tbl">
+        <table>
+          <thead>
+            <tr>
+              <th>Notificação</th>
+              <th>Modo</th>
+              <th className="num">Enviados</th>
+              <th className="num">Falhas</th>
+              <th>Último envio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={5} className="sm-empty">
+                  Nenhum template encontrado.
+                </td>
+              </tr>
+            )}
+            {rows.map((t) => {
+              const s = stats.get(t.key);
+              const sep = t.module_label !== group;
+              group = t.module_label;
+              return (
+                <React.Fragment key={t.key}>
+                  {sep && (
+                    <tr className="grp">
+                      <td colSpan={5}>{t.module_label}</td>
+                    </tr>
+                  )}
+                  <tr
+                    className="row"
+                    tabIndex={0}
+                    onClick={() => onOpen(t.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") onOpen(t.key);
+                    }}
+                  >
+                    <td className="sm-tn">
+                      <b>{t.label}</b>
+                      <small>{t.key}</small>
+                    </td>
+                    <td>
+                      <span
+                        className="sm-pill"
+                        style={
+                          {
+                            "--c": t.mode === "custom" ? "var(--v2-accent)" : "var(--v2-fg-3)",
+                          } as React.CSSProperties
+                        }
+                      >
+                        {t.mode === "custom" ? "Customizado" : "Padrão"}
+                      </span>
+                    </td>
+                    <td className="num">{s?.sent ?? 0}</td>
+                    <td className="num" style={s?.failed ? { color: "var(--v2-crit)" } : undefined}>
+                      {s?.failed ?? 0}
+                    </td>
+                    <td style={{ color: "var(--v2-fg-3)" }}>{fmtAgo(s?.last, now)}</td>
+                  </tr>
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function TemplateSheet({
+  open,
+  onOpenChange,
+  template,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  template: TemplateItem;
+}) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const list = useServerFn(listEmailTemplates);
   const upsert = useServerFn(upsertEmailTemplate);
-
-  const q = useQuery({ queryKey: ["email-templates"], queryFn: () => list() });
-
-  const [selectedModule, setSelectedModule] = React.useState("");
-  const [selectedKey, setSelectedKey] = React.useState("");
-  const [mode, setMode] = React.useState<"default" | "custom">("default");
-  const [customHtml, setCustomHtml] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
-
-  const templates = q.data ?? [];
-
-  const groups = React.useMemo(() => {
-    const map = new Map<string, typeof templates>();
-    for (const t of templates) {
-      const arr = map.get(t.module_label) ?? [];
-      arr.push(t);
-      map.set(t.module_label, arr);
-    }
-    return Array.from(map.entries());
-  }, [templates]);
-
-  const moduleLabels = groups.map(([label]) => label);
-
-  const templatesForModule = React.useMemo(
-    () => groups.find(([label]) => label === selectedModule)?.[1] ?? [],
-    [groups, selectedModule],
+  const [mode, setMode] = React.useState<"default" | "custom">(
+    (template.mode as "default" | "custom") ?? "default",
   );
+  const [html, setHtml] = React.useState<string>(template.custom_html ?? "");
+  const [saving, setSaving] = React.useState(false);
+  const textRef = React.useRef<HTMLTextAreaElement>(null);
 
-  React.useEffect(() => {
-    if (!selectedModule && moduleLabels.length > 0) setSelectedModule(moduleLabels[0]);
-  }, [moduleLabels, selectedModule]);
-
-  React.useEffect(() => {
-    if (templatesForModule.length > 0) setSelectedKey(templatesForModule[0].key);
-  }, [selectedModule]);
-
-  const selected = templates.find((t) => t.key === selectedKey);
-
-  React.useEffect(() => {
-    if (!selected) return;
-    setMode((selected.mode as "default" | "custom") ?? "default");
-    setCustomHtml(selected.custom_html ?? "");
-  }, [selected?.key]);
-
-  function handleModeChange(next: "default" | "custom") {
+  function changeMode(next: "default" | "custom") {
     setMode(next);
-    if (next === "custom" && !customHtml.trim() && selected) {
-      setCustomHtml(buildTemplateSkeleton(selected.variables));
-    }
+    if (next === "custom" && !html.trim()) setHtml(buildTemplateSkeleton(template.variables));
   }
 
-  const previewHtml = React.useMemo(() => {
-    if (!selected) return "";
-    return renderTemplatePreview(customHtml, selected.variables);
-  }, [customHtml, selected]);
+  // Insere o placeholder na posição do cursor do editor
+  function insertToken(token: string) {
+    const el = textRef.current;
+    const text = `{{${token}}}`;
+    if (!el) return setHtml((h) => h + text);
+    const start = el.selectionStart ?? html.length;
+    const end = el.selectionEnd ?? html.length;
+    const next = html.slice(0, start) + text + html.slice(end);
+    setHtml(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + text.length, start + text.length);
+    });
+  }
 
-  const customCount = templates.filter((t) => t.mode === "custom").length;
+  const preview = React.useMemo(
+    () => renderTemplatePreview(html, template.variables),
+    [html, template.variables],
+  );
 
   async function save() {
-    if (!selected) return;
     setSaving(true);
     try {
       await upsert({
         data: {
-          template_key: selected.key,
+          template_key: template.key,
           mode,
-          custom_html: customHtml.trim().length > 0 ? customHtml : null,
+          custom_html: html.trim().length > 0 ? html : null,
           updated_by: user?.id ?? null,
         },
       });
       toast.success("Template salvo");
       qc.invalidateQueries({ queryKey: ["email-templates"] });
-    } catch (e: any) {
-      toast.error(e.message);
+      onOpenChange(false);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="smtp-card" style={accentVars(ACCENTS.purple)}>
-      <div className="smtp-card-header">
-        <div className="smtp-card-header-left">
-          <div className="smtp-icon-wrap">
-            <FileCode2 size={16} style={{ color: ACCENTS.purple.color }} />
-          </div>
-          <div>
-            <div className="smtp-card-title">Templates SMTP</div>
-            <div className="smtp-card-sub">HTML dos e-mails disparados por módulo</div>
-          </div>
-        </div>
-        <span className={`smtp-badge ${customCount > 0 ? "ok" : "off"}`}>
-          <Layers size={9} />
-          {customCount > 0 ? `${customCount} customizado${customCount > 1 ? "s" : ""}` : "todos padrão"}
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      width={1100}
+      eyebrow={`${template.module_label} · ${template.key}`}
+      title={template.label}
+      badges={
+        <span
+          className="sm-pill"
+          style={
+            {
+              "--c": mode === "custom" ? "var(--v2-accent)" : "var(--v2-fg-3)",
+            } as React.CSSProperties
+          }
+        >
+          {mode === "custom" ? "Customizado" : "Padrão"}
         </span>
-      </div>
-
-      <div className="smtp-card-body">
-        {/* Seletores */}
-        <div className="smtp-grid-2">
-          <div className="smtp-field">
-            <span className="smtp-field-label">Módulo</span>
-            <Select value={selectedModule} onValueChange={setSelectedModule}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um módulo" />
-              </SelectTrigger>
-              <SelectContent>
-                {moduleLabels.map((label) => (
-                  <SelectItem key={label} value={label}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="smtp-field">
-            <span className="smtp-field-label">Template do módulo</span>
-            <Select value={selectedKey} onValueChange={setSelectedKey} disabled={templatesForModule.length === 0}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um template" />
-              </SelectTrigger>
-              <SelectContent>
-                {templatesForModule.map((t) => (
-                  <SelectItem key={t.key} value={t.key}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      }
+      footer={
+        <>
+          <button
+            className="sm-btn ghost"
+            style={{ marginRight: "auto" }}
+            onClick={() => onOpenChange(false)}
+          >
+            Fechar
+          </button>
+          <button className="sm-btn primary" onClick={save} disabled={saving}>
+            <Check size={14} />
+            {saving ? "Salvando…" : "Salvar template"}
+          </button>
+        </>
+      }
+    >
+      <div className="sm-root" style={{ gap: 18 }}>
+        <div className="sm-seg" role="group" aria-label="Modo do template">
+          <button aria-pressed={mode === "default"} onClick={() => changeMode("default")}>
+            Padrão do sistema
+          </button>
+          <button aria-pressed={mode === "custom"} onClick={() => changeMode("custom")}>
+            HTML próprio
+          </button>
         </div>
 
-        {/* Modo */}
-        {selected && (
-          <>
-            <div className="smtp-divider" />
-            <div className="smtp-grid-2">
-              <div className="smtp-field">
-                <span className="smtp-field-label">Modo do template</span>
-                <Select value={mode} onValueChange={(v) => handleModeChange(v as "default" | "custom")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Padrão (já configurado)</SelectItem>
-                    <SelectItem value="custom">Customizado (HTML próprio)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="smtp-field" style={{ justifyContent: "flex-end" }}>
-                <span className="smtp-field-label">&nbsp;</span>
-                <span
-                  className={`smtp-badge ${mode === "custom" ? "warn" : "off"}`}
-                  style={{ alignSelf: "center", marginTop: 6 }}
-                >
-                  {mode === "custom" ? (
-                    <>
-                      <FileCode2 size={9} /> HTML customizado ativo
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 size={9} /> Usando template padrão
-                    </>
-                  )}
-                </span>
-              </div>
-            </div>
-          </>
+        {mode === "default" && (
+          <div className="sm-defbox">
+            Este e-mail usa o layout padrão do Z-Sec, mantido junto com o código. Escolha{" "}
+            <b>HTML próprio</b> para escrever outro corpo usando os campos abaixo
+            {html.trim() ? " (o HTML salvo antes continua guardado e volta ao trocar de modo)" : ""}
+            .
+          </div>
         )}
 
-        {/* Editor customizado */}
-        {mode === "custom" && selected && (
-          <>
-            <div className="smtp-divider" />
+        <DetailSection
+          title={
+            mode === "custom"
+              ? "Campos disponíveis · clique para inserir no cursor"
+              : "Campos disponíveis"
+          }
+        >
+          <div className="sm-tokens">
+            {template.variables.map((v) => (
+              <button
+                key={v.token}
+                type="button"
+                disabled={mode !== "custom"}
+                onClick={() => insertToken(v.token)}
+                title={`${v.description} · exemplo: ${v.sample}`}
+              >
+                {`{{${v.token}}}`}
+              </button>
+            ))}
+          </div>
+          <div className="sm-tokens-help">
+            {template.variables.map((v) => (
+              <span key={v.token}>
+                <code>{v.token}</code> — {v.description}
+              </span>
+            ))}
+          </div>
+        </DetailSection>
 
-            {/* Placeholders */}
-            <div className="smtp-placeholder-box">
-              <span className="smtp-field-label">Placeholders disponíveis</span>
-              <div className="smtp-placeholder-grid">
-                {selected.variables.map((v) => (
-                  <div key={v.token} className="smtp-placeholder-item">
-                    <span className="smtp-placeholder-token">{`{{${v.token}}}`}</span>
-                    <span style={{ color: T.textSubtle }}>— {v.description}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Editor + Preview */}
-            <div className="smtp-editor-grid">
-              <div className="smtp-field">
-                <span className="smtp-field-label">HTML do e-mail</span>
-                <Textarea
-                  value={customHtml}
-                  onChange={(e) => setCustomHtml(e.target.value)}
-                  style={{ minHeight: 380, marginTop: 4 }}
-                  spellCheck={false}
-                />
-              </div>
-              <div className="smtp-field">
-                <span className="smtp-field-label">Preview — dados de exemplo</span>
-                <iframe
-                  title="Preview do template"
-                  sandbox=""
-                  srcDoc={previewHtml}
-                  style={{
-                    width: "100%",
-                    minHeight: 380,
-                    marginTop: 4,
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 6,
-                    background: "#fff",
-                  }}
-                />
-              </div>
-            </div>
-          </>
+        {mode === "custom" && (
+          <div className="sm-ed">
+            <label className="sm-field">
+              HTML
+              <textarea
+                ref={textRef}
+                value={html}
+                onChange={(e) => setHtml(e.target.value)}
+                spellCheck={false}
+              />
+            </label>
+            <label className="sm-field">
+              Pré-visualização · dados de exemplo
+              <iframe title="Pré-visualização do template" sandbox="" srcDoc={preview} />
+            </label>
+          </div>
         )}
-
-        <button className="smtp-save-btn" onClick={save} disabled={saving || !selected}>
-          {saving ? <Loader2 size={13} className="smtp-spin" /> : <Save size={13} />}
-          {saving ? "Salvando…" : "Salvar template"}
-        </button>
       </div>
-    </div>
+    </DetailSheet>
   );
 }

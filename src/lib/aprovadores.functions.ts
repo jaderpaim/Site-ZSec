@@ -16,9 +16,9 @@ const UpsertSchema = z.object({
   email: z.string().email().max(255),
   department_id: z.string().uuid(),
   ordem: z.number().int().min(1).max(50),
-  // Obrigatório: o papel é o que define os grupos de aprovação "onda" (mesmo
-  // papel e ordem consecutiva = qualquer um dos dois aprova e dispensa o
-  // outro) usados pela GMUD para entrelaçar departamentos diferentes.
+  // Obrigatório: o papel define os grupos de aprovação da GMUD — mesmo
+  // departamento + mesmo papel = backup (uma aprovação dispensa o outro).
+  // Departamentos diferentes aprovam em sequência, cada um na sua vez.
   papel: z.string().trim().min(1, "Papel é obrigatório").max(120),
   created_by: z.string().uuid().optional().nullable(),
 });
@@ -39,7 +39,9 @@ export const listAprovadores = createServerFn({ method: "POST" })
 
 export const listAprovadoresByDepartment = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
-  .inputValidator((input: { department_id: string }) => z.object({ department_id: z.string().uuid() }).parse(input))
+  .inputValidator((input: { department_id: string }) =>
+    z.object({ department_id: z.string().uuid() }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "aprovadores", "view");
     const sb = admin();
@@ -83,7 +85,12 @@ export const upsertAprovador = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((input) => UpsertSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePermission(context.supabase, context.userId, "aprovadores", data.id ? "edit" : "create");
+    await requirePermission(
+      context.supabase,
+      context.userId,
+      "aprovadores",
+      data.id ? "edit" : "create",
+    );
     const sb = admin();
     const email = data.email.trim().toLowerCase();
     const payload = {
@@ -118,4 +125,23 @@ export const deleteAprovador = createServerFn({ method: "POST" })
     const { error } = await sb.from("aprovadores").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/**
+ * Aprovadores de um departamento, para avisar antes de removê-lo: a tabela
+ * aprovadores não tem FK para departments, então eles ficariam apontando para
+ * um departamento inexistente. Exige permissão de remover departamentos.
+ */
+export const listAprovadoresOfDepartment = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .inputValidator((input) => z.object({ departmentId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    await requirePermission(context.supabase, context.userId, "departamentos", "delete");
+    const { data: rows, error } = await admin()
+      .from("aprovadores")
+      .select("id, nome, ordem, papel")
+      .eq("department_id", data.departmentId)
+      .order("ordem");
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as Array<{ id: string; nome: string; ordem: number; papel: string | null }>;
   });

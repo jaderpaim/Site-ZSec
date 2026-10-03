@@ -1,3 +1,4 @@
+import { SyncActions } from "@/components/layout/SyncActions";
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -15,19 +16,22 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { AlertTriangle, Download, FileSpreadsheet, Loader2, RefreshCw, Search } from "lucide-react";
-import { KpiCard, Panel, Badge } from "./primitives";
+import {
+  AlertTriangle,
+  Circle,
+  Diamond,
+  Download,
+  Loader2,
+  RefreshCw,
+  Search,
+  Square,
+  Triangle,
+} from "lucide-react";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { isNonHumanAuthor } from "@/lib/sast-normalize";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   getSastAccess,
@@ -97,27 +101,57 @@ type SastRun = {
 const DAY = 864e5;
 const ALL = "__all";
 
-const STATUS: Record<Status, { label: string; tone: "danger" | "success" | "muted" | "info" }> = {
+type Tone = "danger" | "success" | "muted" | "info" | "warning";
+const TONE: Record<Tone, string> = {
+  danger: "var(--v2-crit)",
+  success: "var(--v2-ok)",
+  muted: "var(--v2-fg-3)",
+  info: "var(--v2-accent)",
+  warning: "var(--v2-med)",
+};
+const STATUS: Record<Status, { label: string; tone: Tone }> = {
   aberto: { label: "Aberto", tone: "danger" },
   resolvido: { label: "Resolvido", tone: "success" },
   falso_positivo: { label: "Falso positivo", tone: "muted" },
   risco_aceito: { label: "Risco aceito", tone: "info" },
 };
-const ENV: Record<Env, { label: string; tone: "danger" | "warning" | "info" | "muted" }> = {
+const ENV: Record<Env, { label: string; tone: Tone }> = {
   producao: { label: "Produção", tone: "danger" },
   homolog: { label: "Homolog", tone: "warning" },
   dev: { label: "Dev", tone: "info" },
   outro: { label: "Outro", tone: "muted" },
 };
-const SEV: Record<string, { label: string; color: string; rank: number }> = {
-  critica: { label: "Crítica", color: "var(--danger)", rank: 0 },
-  alta: { label: "Alta", color: "oklch(0.72 0.18 45)", rank: 1 },
-  media: { label: "Média", color: "var(--warning)", rank: 2 },
-  baixa: { label: "Baixa", color: "var(--primary)", rank: 3 },
-  info: { label: "Info", color: "var(--muted-foreground)", rank: 4 },
+type SevIcon = React.ComponentType<{ size?: number; fill?: string; strokeWidth?: number }>;
+const SEV: Record<string, { label: string; color: string; rank: number; icon: SevIcon }> = {
+  critica: { label: "Crítica", color: "var(--v2-crit)", rank: 0, icon: Triangle },
+  alta: { label: "Alta", color: "var(--v2-high)", rank: 1, icon: Diamond },
+  media: { label: "Média", color: "var(--v2-med)", rank: 2, icon: Square },
+  baixa: { label: "Baixa", color: "var(--v2-low)", rank: 3, icon: Circle },
+  info: { label: "Info", color: "var(--v2-fg-3)", rank: 4, icon: Circle },
 };
 const sevOf = (s: string | null) =>
-  SEV[s ?? ""] ?? { label: "—", color: "var(--muted-foreground)", rank: 5 };
+  SEV[s ?? ""] ?? { label: "—", color: "var(--v2-fg-3)", rank: 5, icon: Circle };
+
+/** Selo com ponto colorido (padrão v2). */
+function Badge({ tone, children }: { tone: Tone; children: React.ReactNode }) {
+  return (
+    <span className="sa-pill" style={{ "--c": TONE[tone] } as React.CSSProperties}>
+      {children}
+    </span>
+  );
+}
+function SevBadge({ severity }: { severity: string | null }) {
+  const sv = sevOf(severity);
+  const Icon = sv.icon;
+  return (
+    <span className="sa-sev" style={{ "--c": sv.color } as React.CSSProperties}>
+      <span style={{ color: sv.color, display: "grid" }}>
+        <Icon size={10} fill="currentColor" strokeWidth={0} />
+      </span>
+      {sv.label}
+    </span>
+  );
+}
 const CATEGORY_LABEL: Record<string, string> = {
   secret: "Segredo",
   code: "Código",
@@ -140,8 +174,8 @@ function relTime(iso: string | null): string {
   if (!iso) return "—";
   const h = (Date.now() - new Date(iso).getTime()) / 36e5;
   if (h < 1) return "agora";
-  if (h < 24) return `${Math.round(h)}h atrás`;
-  return `${Math.round(h / 24)}d atrás`;
+  if (h < 24) return `há ${Math.round(h)}h`;
+  return `há ${Math.round(h / 24)}d`;
 }
 const scopeKey = (x: { tool: string; project: string; repository: string; branch: string }) =>
   `${x.tool}|${x.project}|${x.repository}|${x.branch}`;
@@ -176,33 +210,124 @@ function FilterSelect({
   value,
   onChange,
   options,
+  isDefault,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: Array<{ value: string; label: string }>;
+  isDefault: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1.5 min-w-0">
-      <label htmlFor={id} className="text-mono-xs text-muted-foreground">
-        {label}
-      </label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="h-8 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value} className="text-xs">
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <label htmlFor={id} className={`sa-fsel${isDefault ? "" : " set"}`}>
+      {label}
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
+
+// ── CSS (interface v2) ─────────────────────────────────────────────────────────
+const CSS = `
+  .sa-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
+  .sa-root * { box-sizing:border-box; }
+  .sa-root ::-webkit-scrollbar { width:6px; height:6px; }
+  .sa-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .sa-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .sa-mono { font-family:var(--font-data); font-size:12.5px; }
+  .sa-dim { color:var(--v2-fg-3); }
+
+  .sa-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .sa-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .sa-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
+  .sa-src { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12.5px; color:var(--v2-fg-2); }
+  .sa-src span { display:inline-flex; align-items:center; gap:6px; }
+  .sa-src i { width:7px; height:7px; border-radius:50%; background:var(--c); }
+  .sa-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  .sa-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
+  .sa-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .sa-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .sa-btn.sm { height:30px; padding:0 10px; }
+  .sa-btn.danger { color:var(--v2-crit); }
+  .sa-menu { display:flex; flex-direction:column; }
+  .sa-menu button { display:flex; align-items:center; gap:8px; padding:7px 8px; border:0; border-radius:5px; background:none; color:var(--v2-fg); font:13px var(--font-ui); cursor:pointer; text-align:left; }
+  .sa-menu button:hover { background:var(--v2-hover); }
+  .sa-callout { display:flex; gap:10px; align-items:flex-start; padding:10px 14px; border-radius:10px; font-size:13px; line-height:1.5; color:var(--v2-fg-2); background:color-mix(in oklch, var(--c) 10%, transparent); border:1px solid color-mix(in oklch, var(--c) 35%, transparent); }
+  .sa-callout > svg { color:var(--c); flex-shrink:0; margin-top:2px; }
+  .sa-callout a { color:var(--v2-accent); text-decoration:underline; }
+
+  .sa-fbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 12px; border:1px solid var(--v2-line); border-radius:12px; background:var(--v2-surface); }
+  .sa-fsel { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 0 0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); font-size:13px; color:var(--v2-fg-3); }
+  .sa-fsel select { height:30px; border:0; background:transparent; color:var(--v2-fg); font:500 13px var(--font-ui); padding-right:6px; max-width:170px; outline:none; cursor:pointer; }
+  .sa-fsel.set { border-color:color-mix(in oklch, var(--v2-accent) 55%, transparent); }
+  .sa-search { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg-3); flex:1 1 180px; min-width:160px; }
+  .sa-search input { flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--v2-fg); font-size:13px; font-family:inherit; }
+
+  .sa-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .sa-kpi { position:relative; text-align:left; border:0; background:transparent; padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); color:inherit; font-family:inherit; min-width:0; }
+  button.sa-kpi { cursor:pointer; }
+  button.sa-kpi:hover { background:var(--v2-hover); }
+  .sa-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .sa-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .sa-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .sa-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
+
+  .sa-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; align-items:stretch; }
+  .sa-span-2 { grid-column:span 2; }
+  @media (max-width: 1100px) { .sa-grid { grid-template-columns:minmax(0, 1fr); } .sa-span-2 { grid-column:auto; } }
+  .sa-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; min-width:0; }
+  .sa-panel-hdr { padding:14px 18px 4px; }
+  .sa-panel-title { font-size:14px; font-weight:600; margin:0; }
+  .sa-panel-sub { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .sa-panel-body { padding:12px 18px 16px; }
+  .sa-legend { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; font-size:12.5px; color:var(--v2-fg-2); }
+  .sa-legend span { display:inline-flex; align-items:center; gap:6px; }
+  .sa-dist h4 { margin:0 0 6px; font-size:12px; font-weight:500; color:var(--v2-fg-3); }
+  .sa-dist + .sa-dist { margin-top:16px; }
+  .sa-dist-r { display:grid; grid-template-columns:minmax(80px, 130px) minmax(0, 1fr) 32px; gap:10px; align-items:center; padding:3px 0; font-size:12.5px; }
+  .sa-dist-r > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sa-dist-r .tr { height:8px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; }
+  .sa-dist-r .tr i { display:block; height:100%; border-radius:99px; }
+  .sa-dist-r .v { font:500 12.5px var(--font-data); text-align:right; }
+
+  .sa-tabs { display:flex; gap:2px; padding:4px 12px 0; border-bottom:1px solid var(--v2-line); overflow-x:auto; }
+  .sa-tabs button { display:inline-flex; align-items:center; gap:7px; padding:10px 10px 9px; border:0; border-bottom:2px solid transparent; background:none; color:var(--v2-fg-3); font:500 13px var(--font-ui); cursor:pointer; white-space:nowrap; }
+  .sa-tabs button:hover { color:var(--v2-fg); }
+  .sa-tabs button[aria-selected="true"] { color:var(--v2-fg); border-bottom-color:var(--v2-accent); }
+  .sa-tabs .n { font:500 11.5px var(--font-data); padding:1px 7px; border-radius:99px; background:var(--v2-surface-2); color:var(--v2-fg-2); }
+  .sa-tbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 18px; border-bottom:1px solid var(--v2-line); }
+  .sa-seg { display:inline-flex; padding:3px; gap:2px; background:var(--v2-bg); border:1px solid var(--v2-line); border-radius:8px; flex-wrap:wrap; }
+  .sa-seg button { border:0; background:transparent; padding:4px 12px; border-radius:5px; font-size:13px; color:var(--v2-fg-2); cursor:pointer; font-family:inherit; }
+  .sa-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); font-weight:500; box-shadow:inset 0 0 0 1px var(--v2-line); }
+
+  .sa-scroll { overflow:auto; max-height:600px; }
+  .sa-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .sa-table thead { position:sticky; top:0; z-index:1; }
+  .sa-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .sa-table th.r, .sa-table td.r { text-align:right; }
+  .sa-table td { padding:8px 12px; height:48px; border-bottom:1px solid var(--v2-line); vertical-align:middle; white-space:nowrap; }
+  .sa-table th:first-child, .sa-table td:first-child { padding-left:18px; }
+  .sa-table th:last-child, .sa-table td:last-child { padding-right:18px; }
+  .sa-table tbody tr:hover td { background:var(--v2-hover); }
+  .sa-table tbody tr.click { cursor:pointer; }
+  .sa-table tbody tr.sel td { background:color-mix(in oklch, var(--v2-accent) 10%, transparent); }
+  .sa-table tbody tr:last-child td { border-bottom:none; }
+  .sa-table td.nm b { display:block; font-weight:500; }
+  .sa-table td.nm small { display:block; font:400 12px var(--font-data); color:var(--v2-fg-3); max-width:320px; overflow:hidden; text-overflow:ellipsis; }
+  .sa-table a { color:var(--v2-accent); }
+  .sa-foot { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:10px 18px; border-top:1px solid var(--v2-line); font-size:12.5px; color:var(--v2-fg-3); }
+  .sa-empty { padding:40px 16px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
+
+  .sa-pill, .sa-sev { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .sa-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+  .sa-tag { display:inline-flex; align-items:center; height:22px; padding:0 7px; border-radius:5px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font:400 11.5px var(--font-data); color:var(--v2-fg-2); white-space:nowrap; }
+`;
 
 export function SastDashboard() {
   const qc = useQueryClient();
@@ -607,117 +732,138 @@ export function SastDashboard() {
 
   const st = syncStatusQ.data;
   const loading = findingsQ.isLoading || runsQ.isLoading;
+  if (loading) return <ModuleLoading />;
+
+  const ingestState = !st
+    ? { c: "var(--v2-fg-3)", t: "Carregando status…" }
+    : !st.ingest.enabled
+      ? { c: "var(--v2-fg-3)", t: "Pipeline direta · desligada" }
+      : st.ingest.lastReceivedAt
+        ? {
+            c: "var(--v2-ok)",
+            t: `Pipeline direta · último envio ${relTime(st.ingest.lastReceivedAt)}`,
+          }
+        : { c: "var(--v2-med)", t: "Pipeline direta · aguardando o primeiro envio" };
+  const aiState = !st
+    ? { c: "var(--v2-fg-3)", t: "Carregando status…" }
+    : !st.configured
+      ? { c: "var(--v2-fg-3)", t: "App Insights · não configurado" }
+      : !st.enabled
+        ? { c: "var(--v2-fg-3)", t: "App Insights · desativado" }
+        : {
+            c: st.cron?.lastOk === false ? "var(--v2-crit)" : "var(--v2-ok)",
+            t: st.lastSyncAt
+              ? `App Insights · sincronizado ${relTime(st.lastSyncAt)}`
+              : "App Insights · nunca sincronizado",
+          };
+  const goFindings = (patch: Partial<Filters>) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setTab("achados");
+  };
 
   return (
-    <div className="p-6 flex flex-col gap-4">
-      {/* ── Status da integração / ações ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">
-          Achados de segredos, código e dependências vindos das pipelines do Azure DevOps.
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="sa-root">
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+
+      {/* ── Cabeçalho ────────────────────────────────────────────────────── */}
+      <div className="sa-ph">
+        <div>
+          <h1 className="sa-ph-title">SAST</h1>
+          <p className="sa-ph-sub">
+            Segredos, código e dependências vindos das pipelines do Azure DevOps
+          </p>
           {/* Duas origens convivem: envio direto da pipeline + sync do App Insights */}
-          <div
-            className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-xs"
-            title="Origem: envio direto das pipelines do Azure DevOps (/api/public/hooks/sast-ingest)"
-          >
+          <div className="sa-src">
             <span
-              className={`size-2 rounded-full ${st?.ingest.enabled ? "bg-success" : "bg-muted-foreground"}`}
-            />
-            {!st
-              ? "Carregando status…"
-              : !st.ingest.enabled
-                ? "Pipeline direta · desligada"
-                : st.ingest.lastReceivedAt
-                  ? `Pipeline direta · último envio ${relTime(st.ingest.lastReceivedAt)}`
-                  : "Pipeline direta · aguardando o primeiro envio"}
-          </div>
-          <div
-            className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-xs"
-            title="Origem: App Insights devops-clarity-hub-insights"
-          >
-            <span
-              className={`size-2 rounded-full ${
-                !st?.configured || !st.enabled
-                  ? "bg-muted-foreground"
-                  : st.cron?.lastOk === false
-                    ? "bg-danger"
-                    : "bg-success"
-              }`}
-            />
-            {!st
-              ? "Carregando status…"
-              : !st.configured
-                ? "App Insights · não configurado"
-                : !st.enabled
-                  ? "App Insights · desativado"
-                  : st.lastSyncAt
-                    ? `App Insights · sincronizado ${relTime(st.lastSyncAt)}`
-                    : "App Insights · nunca sincronizado"}
-          </div>
-          {access.data?.canManage && st?.configured && st.enabled && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sync.mutate()}
-              disabled={sync.isPending || !st?.configured || !st?.enabled}
+              style={{ "--c": ingestState.c } as React.CSSProperties}
+              title="Origem: envio direto das pipelines do Azure DevOps (/api/public/hooks/sast-ingest)"
             >
-              <RefreshCw className={`size-3.5 ${sync.isPending ? "animate-spin" : ""}`} />
-              {sync.isPending ? "Sincronizando…" : "Sincronizar agora"}
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={exportCsv}>
-            <Download className="size-3.5" />
-            CSV
-          </Button>
-          <Button size="sm" onClick={exportXlsx}>
-            <FileSpreadsheet className="size-3.5" />
-            Excel
-          </Button>
+              <i />
+              {ingestState.t}
+            </span>
+            <span
+              style={{ "--c": aiState.c } as React.CSSProperties}
+              title="Origem: App Insights devops-clarity-hub-insights"
+            >
+              <i />
+              {aiState.t}
+            </span>
+          </div>
         </div>
+        <SyncActions moduleSlug="sast" jobs={["sast-sync"]}>
+          <div className="sa-actions">
+            {access.data?.canManage && st?.configured && st.enabled && (
+              <button className="sa-btn" onClick={() => sync.mutate()} disabled={sync.isPending}>
+                <RefreshCw size={14} className={sync.isPending ? "animate-spin" : ""} />
+                {sync.isPending ? "Sincronizando…" : "Sincronizar agora"}
+              </button>
+            )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="sa-btn" title="Exportar achados filtrados">
+                  <Download size={14} /> Exportar
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="w-auto min-w-[170px] p-1.5"
+                style={{
+                  background: "var(--v2-surface)",
+                  borderColor: "var(--v2-line-strong)",
+                  color: "var(--v2-fg)",
+                }}
+              >
+                <div className="sa-menu">
+                  <button onClick={exportCsv}>
+                    <Download size={13} /> CSV (.csv)
+                  </button>
+                  <button onClick={exportXlsx}>
+                    <Download size={13} /> Excel (.xlsx)
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </SyncActions>
       </div>
 
       {st && !st.ingest.enabled && !(st.configured && st.enabled) && (
-        <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-          <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
+        <div className="sa-callout" style={{ "--c": "var(--v2-med)" } as React.CSSProperties}>
+          <AlertTriangle size={15} />
           <div>
             Nenhuma origem de dados está ativa. Em{" "}
-            <Link
-              to="/app/$module"
-              params={{ module: "integracoes" }}
-              className="text-primary underline"
-            >
+            <Link to="/app/$module" params={{ module: "integracoes" }}>
               Integração API
             </Link>
-
             , card <b>SAST</b>: ligue a aba <b>Azure DevOps</b> pra receber os relatórios direto das
             pipelines (recomendado, sem credencial) e/ou configure a aba <b>App Insights</b> com o
-            cron job <span className="font-mono text-xs">sast-sync</span> pra ler o que já está no App
+            cron job <span className="sa-mono">sast-sync</span> pra ler o que já está no App
             Insights.
           </div>
         </div>
       )}
       {st?.cron?.lastOk === false && st.cron.lastError && (
-        <div className="flex items-start gap-3 rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-sm">
-          <AlertTriangle className="size-4 text-danger mt-0.5 shrink-0" />
+        <div className="sa-callout" style={{ "--c": "var(--v2-crit)" } as React.CSSProperties}>
+          <AlertTriangle size={15} />
           <div>
             Última sincronização falhou ({fmtDateTime(st.cron.lastAttemptAt)}):{" "}
-            <span className="font-mono text-xs">{st.cron.lastError}</span>
+            <span className="sa-mono">{st.cron.lastError}</span>
           </div>
         </div>
       )}
 
       {/* ── Filtros ── */}
-      <div className="grid gap-2.5 rounded-lg border border-border bg-surface p-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
+      <div className="sa-fbar">
         <FilterSelect
           id="sast-f-days"
           label="Período"
           value={String(filters.days)}
+          isDefault={filters.days === DEFAULT_FILTERS.days}
           onChange={(v) => setF("days", Number(v))}
           options={[
-            { value: "7", label: "Últimos 7 dias" },
-            { value: "30", label: "Últimos 30 dias" },
-            { value: "90", label: "Últimos 90 dias" },
+            { value: "7", label: "7 dias" },
+            { value: "30", label: "30 dias" },
+            { value: "90", label: "90 dias" },
             { value: "3650", label: "Tudo" },
           ]}
         />
@@ -725,6 +871,7 @@ export function SastDashboard() {
           id="sast-f-project"
           label="Projeto"
           value={filters.project}
+          isDefault={filters.project === ALL}
           onChange={(v) => setF("project", v)}
           options={opt(uniq(allFindings.map((f) => f.project)), "Todos")}
         />
@@ -732,6 +879,7 @@ export function SastDashboard() {
           id="sast-f-repo"
           label="Repositório"
           value={filters.repo}
+          isDefault={filters.repo === ALL}
           onChange={(v) => setF("repo", v)}
           options={opt(
             uniq(
@@ -746,6 +894,7 @@ export function SastDashboard() {
           id="sast-f-env"
           label="Ambiente"
           value={filters.env}
+          isDefault={filters.env === ALL}
           onChange={(v) => setF("env", v)}
           options={[
             { value: ALL, label: "Todos" },
@@ -756,168 +905,177 @@ export function SastDashboard() {
           id="sast-f-tool"
           label="Ferramenta"
           value={filters.tool}
+          isDefault={filters.tool === ALL}
           onChange={(v) => setF("tool", v)}
           options={opt(uniq(allFindings.map((f) => f.tool)), "Todas")}
-        />
-        <FilterSelect
-          id="sast-f-status"
-          label="Status"
-          value={filters.status}
-          onChange={(v) => setF("status", v)}
-          options={[
-            { value: "ativos", label: "Abertos" },
-            { value: ALL, label: "Todos" },
-            ...(Object.keys(STATUS) as Status[]).map((s) => ({ value: s, label: STATUS[s].label })),
-          ]}
         />
         <FilterSelect
           id="sast-f-rule"
           label="Tipo / regra"
           value={filters.rule}
+          isDefault={filters.rule === ALL}
           onChange={(v) => setF("rule", v)}
           options={opt(uniq(allFindings.map((f) => f.rule_id)), "Todas")}
         />
-        <div className="flex flex-col gap-1.5 min-w-0">
-          <label htmlFor="sast-f-q" className="text-mono-xs text-muted-foreground">
-            Buscar
-          </label>
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              id="sast-f-q"
-              value={filters.q}
-              onChange={(e) => setF("q", e.target.value)}
-              placeholder="Arquivo, autor, commit…"
-              className="h-8 pl-7 text-xs"
-            />
-          </div>
-        </div>
+        <label className="sa-search">
+          <Search size={14} />
+          <input
+            id="sast-f-q"
+            value={filters.q}
+            onChange={(e) => setF("q", e.target.value)}
+            placeholder="Arquivo, autor, commit…"
+            aria-label="Buscar achados"
+          />
+        </label>
       </div>
 
       {/* ── KPIs ── */}
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
-        <KpiCard
-          label="Achados abertos"
-          value={kpis.open}
-          accent="danger"
-          hint={`+${kpis.newLast7} novos em 7 dias`}
-          onClick={() => {
-            setFilters((f) => ({ ...f, status: "ativos" }));
-            setTab("achados");
-          }}
-        />
-        <KpiCard
-          label="Críticos em produção"
-          value={kpis.critProd}
-          accent="danger"
-          hint="segredos e críticos na main"
-          onClick={() => {
-            setFilters((f) => ({ ...f, status: "ativos", env: "producao" }));
-            setTab("achados");
-          }}
-        />
-        <KpiCard
-          label="Repositórios afetados"
-          value={kpis.repos}
-          accent="warning"
-          hint={`${kpis.projects} projetos no filtro`}
-        />
-        <KpiCard
-          label="Resolvidos no período"
-          value={kpis.resolved}
-          accent="success"
-          hint={`tempo médio de correção ${kpis.mttr} d`}
-          onClick={() => {
-            setFilters((f) => ({ ...f, status: "resolvido" }));
-            setTab("achados");
-          }}
-        />
-        <KpiCard
-          label="Repos sem scan > 7 dias"
-          value={kpis.stale}
-          accent="primary"
-          hint="ver Execuções e cobertura"
-          onClick={() => setTab("execucoes")}
-        />
+      <div className="sa-kpis">
+        <button type="button" className="sa-kpi" onClick={() => goFindings({ status: "ativos" })}>
+          <span className="sa-kpi-label">Achados abertos</span>
+          <span className="sa-kpi-value">{kpis.open}</span>
+          <span className="sa-kpi-foot">+{kpis.newLast7} novos em 7 dias</span>
+        </button>
+        <button
+          type="button"
+          className="sa-kpi"
+          onClick={() => goFindings({ status: "ativos", env: "producao" })}
+        >
+          <span className="sa-kpi-label">
+            {kpis.critProd > 0 && (
+              <span className="sa-sw" style={{ background: "var(--v2-crit)" }} />
+            )}
+            Críticos em produção
+          </span>
+          <span className="sa-kpi-value">{kpis.critProd}</span>
+          <span className="sa-kpi-foot">segredos e críticos na main</span>
+        </button>
+        <div className="sa-kpi">
+          <span className="sa-kpi-label">Repositórios afetados</span>
+          <span className="sa-kpi-value">{kpis.repos}</span>
+          <span className="sa-kpi-foot">{kpis.projects} projetos no filtro</span>
+        </div>
+        <button
+          type="button"
+          className="sa-kpi"
+          onClick={() => goFindings({ status: "resolvido" })}
+        >
+          <span className="sa-kpi-label">
+            <span className="sa-sw" style={{ background: "var(--v2-ok)" }} />
+            Resolvidos no período
+          </span>
+          <span className="sa-kpi-value">{kpis.resolved}</span>
+          <span className="sa-kpi-foot">tempo médio de correção {kpis.mttr} d</span>
+        </button>
+        <button type="button" className="sa-kpi" onClick={() => setTab("execucoes")}>
+          <span className="sa-kpi-label">
+            {kpis.stale > 0 && <span className="sa-sw" style={{ background: "var(--v2-med)" }} />}
+            Repos sem scan há 7+ dias
+          </span>
+          <span className="sa-kpi-value">{kpis.stale}</span>
+          <span className="sa-kpi-foot">ver Execuções e cobertura</span>
+        </button>
       </div>
 
       {/* ── Gráficos ── */}
-      <div className="grid gap-3 grid-cols-1 xl:grid-cols-3">
-        <Panel title="Evolução dos achados" className="xl:col-span-2">
-          <div style={{ height: 240 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={series} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                <CartesianGrid stroke="var(--border)" strokeDasharray="2 4" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  stroke="var(--muted-foreground)"
-                  fontSize={10}
-                  tickLine={false}
-                  minTickGap={16}
-                />
-                <YAxis
-                  stroke="var(--muted-foreground)"
-                  fontSize={10}
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--popover)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 6,
-                    fontSize: 12,
-                    color: "var(--foreground)",
+      <div className="sa-grid">
+        <div className="sa-panel sa-span-2">
+          <div className="sa-panel-hdr">
+            <h2 className="sa-panel-title">Evolução dos achados</h2>
+            <p className="sa-panel-sub">Novos e resolvidos por dia, com o total em aberto</p>
+          </div>
+          <div className="sa-panel-body">
+            <div style={{ height: 290 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={series} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid stroke="var(--v2-line)" strokeDasharray="3 4" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    stroke="var(--v2-line)"
+                    fontSize={11}
+                    tickLine={false}
+                    minTickGap={20}
+                    tick={{ fill: "var(--v2-fg-3)", fontFamily: "var(--font-data)" }}
+                  />
+                  <YAxis
+                    stroke="var(--v2-line)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    tick={{ fill: "var(--v2-fg-3)", fontFamily: "var(--font-data)" }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--v2-surface)",
+                      border: "1px solid var(--v2-line-strong)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      color: "var(--v2-fg)",
+                    }}
+                    labelStyle={{ color: "var(--v2-fg)", fontWeight: 600 }}
+                    cursor={{ fill: "var(--v2-hover)" }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="abertos"
+                    name="Em aberto"
+                    stroke="none"
+                    fill="var(--v2-accent)"
+                    fillOpacity={0.08}
+                  />
+                  <Bar
+                    dataKey="novos"
+                    name="Novos"
+                    fill="var(--v2-crit)"
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={10}
+                  />
+                  <Bar
+                    dataKey="resolvidos"
+                    name="Resolvidos"
+                    fill="var(--v2-ok)"
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={10}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="abertos"
+                    name="Em aberto (acumulado)"
+                    stroke="var(--v2-accent)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="sa-legend">
+              <span>
+                <span className="sa-sw" style={{ background: "var(--v2-crit)" }} /> Novos
+              </span>
+              <span>
+                <span className="sa-sw" style={{ background: "var(--v2-ok)" }} /> Resolvidos
+              </span>
+              <span>
+                <span
+                  style={{
+                    width: 12,
+                    height: 2,
+                    background: "var(--v2-accent)",
+                    display: "inline-block",
                   }}
-                  cursor={{ fill: "oklch(0.32 0.045 245 / 0.35)" }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="abertos"
-                  name="Abertos"
-                  stroke="none"
-                  fill="var(--primary)"
-                  fillOpacity={0.08}
-                />
-                <Bar
-                  dataKey="novos"
-                  name="Novos"
-                  fill="var(--danger)"
-                  radius={[2, 2, 0, 0]}
-                  maxBarSize={14}
-                />
-                <Bar
-                  dataKey="resolvidos"
-                  name="Resolvidos"
-                  fill="var(--success)"
-                  radius={[2, 2, 0, 0]}
-                  maxBarSize={14}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="abertos"
-                  name="Abertos (acumulado)"
-                  stroke="var(--primary)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+                />{" "}
+                Em aberto (acumulado)
+              </span>
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm bg-danger" /> Novos
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm bg-success" /> Resolvidos
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-0.5 w-3 bg-primary" /> Abertos (acumulado)
-            </span>
+        </div>
+        <div className="sa-panel">
+          <div className="sa-panel-hdr">
+            <h2 className="sa-panel-title">Distribuição dos abertos</h2>
+            <p className="sa-panel-sub">Por categoria, severidade e repositório</p>
           </div>
-        </Panel>
-        <Panel title="Distribuição dos abertos">
-          <div className="flex flex-col gap-4">
+          <div className="sa-panel-body">
             {(
               [
                 ["Categoria", distribution.category, false],
@@ -927,34 +1085,28 @@ export function SastDashboard() {
             ).map(([label, rows, bySev]) => {
               const max = Math.max(1, ...rows.map((r) => r[1]));
               return (
-                <div key={label}>
-                  <div className="text-mono-xs text-muted-foreground mb-1.5">{label}</div>
+                <div key={label} className="sa-dist">
+                  <h4>{label}</h4>
                   {rows.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">
+                    <div className="sa-dim" style={{ fontSize: 12.5 }}>
                       Nada aberto no filtro atual.
                     </div>
                   ) : (
                     rows.map(([k, v]) => (
-                      <div
-                        key={k}
-                        className="grid grid-cols-[minmax(90px,130px)_1fr_32px] items-center gap-2.5 py-1 text-xs"
-                      >
-                        <span className="truncate" title={k}>
-                          {k}
-                        </span>
-                        <div className="h-2 rounded bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded"
+                      <div key={k} className="sa-dist-r">
+                        <span title={k}>{k}</span>
+                        <span className="tr">
+                          <i
                             style={{
                               width: `${(v / max) * 100}%`,
                               background: bySev
                                 ? (Object.values(SEV).find((s) => s.label === k)?.color ??
-                                  "var(--primary)")
-                                : "var(--primary)",
+                                  "var(--v2-accent)")
+                                : "var(--v2-accent)",
                             }}
                           />
-                        </div>
-                        <span className="font-mono text-right tabular-nums">{v}</span>
+                        </span>
+                        <span className="v">{v}</span>
                       </div>
                     ))
                   )}
@@ -962,12 +1114,12 @@ export function SastDashboard() {
               );
             })}
           </div>
-        </Panel>
+        </div>
       </div>
 
       {/* ── Abas ── */}
-      <div className="rounded-lg border border-border bg-surface">
-        <div className="flex gap-0.5 overflow-x-auto border-b border-border px-2" role="tablist">
+      <div className="sa-panel">
+        <div className="sa-tabs" role="tablist">
           {(
             [
               ["achados", "Achados", visible.length],
@@ -975,36 +1127,47 @@ export function SastDashboard() {
               ["autores", "Por autor", authors.length],
             ] as const
           ).map(([key, label, count]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={tab === key}
-              onClick={() => setTab(key)}
-              className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors ${
-                tab === key
-                  ? "border-primary text-foreground font-medium"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
+            <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>
               {label}
-              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px font-mono text-[10.5px]">
-                {count}
-              </span>
+              <span className="n">{count}</span>
             </button>
           ))}
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Carregando…
-          </div>
-        ) : tab === "achados" ? (
-          <FindingsTable
-            rows={visible}
-            authorOf={authorOf}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
+        {tab === "achados" ? (
+          <>
+            <div className="sa-tbar">
+              <div className="sa-seg" role="group" aria-label="Status">
+                {(
+                  [
+                    ["ativos", "Abertos"],
+                    ["resolvido", "Resolvidos"],
+                    ["risco_aceito", "Risco aceito"],
+                    ["falso_positivo", "Falso positivo"],
+                    [ALL, "Todos"],
+                  ] as const
+                ).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={filters.status === k}
+                    onClick={() => setF("status", k)}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <span className="sa-dim" style={{ fontSize: 12.5, marginLeft: "auto" }}>
+                Ordenado por severidade e última detecção
+              </span>
+            </div>
+            <FindingsTable
+              rows={visible}
+              authorOf={authorOf}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
+          </>
         ) : tab === "execucoes" ? (
           <CoverageTable rows={coverage} />
         ) : (
@@ -1025,9 +1188,8 @@ export function SastDashboard() {
 // ══════════════════════════════════════════════════════════════════════════════
 // Tabelas
 // ══════════════════════════════════════════════════════════════════════════════
-const TH =
-  "px-3 py-2 text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap";
-const TD = "px-3 py-2 whitespace-nowrap align-middle";
+const TH = "";
+const TD = "";
 
 function FindingsTable({
   rows,
@@ -1043,17 +1205,12 @@ function FindingsTable({
   const PAGE = 200;
   const [limit, setLimit] = React.useState(PAGE);
   React.useEffect(() => setLimit(PAGE), [rows]);
-  if (!rows.length)
-    return (
-      <div className="p-10 text-center text-sm text-muted-foreground">
-        Nenhum achado com esses filtros.
-      </div>
-    );
+  if (!rows.length) return <div className="sa-empty">Nenhum achado com esses filtros.</div>;
   return (
     <>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="border-b border-border">
+      <div className="sa-scroll">
+        <table className="sa-table">
+          <thead>
             <tr>
               {[
                 "Severidade",
@@ -1068,7 +1225,7 @@ function FindingsTable({
                 "Última",
                 "Ocorr.",
               ].map((h) => (
-                <th key={h} className={`${TH} ${h === "Ocorr." ? "text-right" : ""}`}>
+                <th key={h} className={h === "Ocorr." ? "r" : undefined}>
                   {h}
                 </th>
               ))}
@@ -1077,79 +1234,73 @@ function FindingsTable({
           <tbody>
             {rows.slice(0, limit).map((f) => {
               const a = authorOf(f);
-              const sev = sevOf(f.severity);
               return (
                 <tr
                   key={f.id}
                   tabIndex={0}
                   onClick={() => onSelect(f.id)}
                   onKeyDown={(e) => e.key === "Enter" && onSelect(f.id)}
-                  className={`cursor-pointer border-b border-border/60 hover:bg-accent/40 ${selectedId === f.id ? "bg-primary/10" : ""}`}
+                  className={`click${selectedId === f.id ? " sel" : ""}`}
                 >
-                  <td className={TD}>
-                    <span
-                      className="mr-1.5 inline-block size-2 rounded-sm"
-                      style={{ background: sev.color }}
-                    />
-                    {sev.label}
+                  <td>
+                    <SevBadge severity={f.severity} />
                   </td>
-                  <td className={TD}>
+                  <td>
                     <Badge tone={STATUS[f.status].tone}>{STATUS[f.status].label}</Badge>
                     {f.resolution_source === "auto" && (
-                      <span className="ml-1.5 font-mono text-[10.5px] text-muted-foreground">
+                      <span className="sa-dim sa-mono" style={{ marginLeft: 6, fontSize: 11.5 }}>
                         auto
                       </span>
                     )}
                   </td>
-                  <td className={`${TD} font-mono text-[11px] text-muted-foreground`}>{f.tool}</td>
-                  <td className={TD}>
-                    <span className="font-medium text-foreground">{f.repository}</span>{" "}
-                    <span className="font-mono text-[11px] text-muted-foreground">{f.branch}</span>
+                  <td>
+                    <span className="sa-tag">{f.tool}</span>
                   </td>
-                  <td className={TD}>
+                  <td>
+                    <span style={{ fontWeight: 500 }}>{f.repository}</span>{" "}
+                    <span className="sa-mono sa-dim">{f.branch}</span>
+                  </td>
+                  <td>
                     <Badge tone={ENV[f.environment].tone}>{ENV[f.environment].label}</Badge>
                   </td>
-                  <td className={`${TD} font-mono text-[11.5px]`}>{f.rule_id}</td>
+                  <td className="sa-mono">{f.rule_id}</td>
                   <td
-                    className={`${TD} max-w-[280px] truncate font-mono text-[11.5px] text-muted-foreground`}
+                    className="sa-mono sa-dim"
+                    style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis" }}
                     title={f.file_path ?? ""}
                   >
                     {f.file_path ?? "—"}
                     {f.line ? `:${f.line}` : ""}
                   </td>
-                  <td className={TD}>
+                  <td>
                     {a.name}
                     {a.inferred && (
                       <span
-                        className="ml-1.5 text-[11px] text-warning"
+                        style={{ marginLeft: 6, fontSize: 11.5, color: "var(--v2-med)" }}
                         title="Evento veio do Build Service; autor inferido pelo mesmo fingerprint em outra branch"
                       >
                         inferido
                       </span>
                     )}
                   </td>
-                  <td className={`${TD} font-mono text-[11.5px] tabular-nums`}>
-                    {fmtDateTime(f.first_seen_at)}
-                  </td>
-                  <td className={`${TD} font-mono text-[11.5px] tabular-nums`}>
-                    {relTime(f.last_seen_at)}
-                  </td>
-                  <td className={`${TD} text-right font-mono tabular-nums`}>{f.occurrences}</td>
+                  <td className="sa-mono">{fmtDateTime(f.first_seen_at)}</td>
+                  <td className="sa-mono">{relTime(f.last_seen_at)}</td>
+                  <td className="r sa-mono">{f.occurrences}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-xs text-muted-foreground">
+      <div className="sa-foot">
         <span>
           {Math.min(limit, rows.length)} de {rows.length} achado(s) · clique numa linha pra ver
           detalhe e triar
         </span>
         {rows.length > limit && (
-          <Button variant="ghost" size="sm" onClick={() => setLimit((l) => l + PAGE)}>
+          <button className="sa-btn sm" onClick={() => setLimit((l) => l + PAGE)}>
             Mostrar mais
-          </Button>
+          </button>
         )}
       </div>
     </>
@@ -1172,17 +1323,12 @@ function CoverageTable({
     hasCompleted: boolean;
   }>;
 }) {
-  if (!rows.length)
-    return (
-      <div className="p-10 text-center text-sm text-muted-foreground">
-        Nenhuma execução registrada ainda.
-      </div>
-    );
+  if (!rows.length) return <div className="sa-empty">Nenhuma execução registrada ainda.</div>;
   return (
     <>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="border-b border-border">
+      <div className="sa-scroll">
+        <table className="sa-table">
+          <thead>
             <tr>
               {[
                 "Cobertura",
@@ -1196,9 +1342,7 @@ function CoverageTable({
                 "Build",
                 "Fechamento automático",
               ].map((h) => (
-                <th key={h} className={TH}>
-                  {h}
-                </th>
+                <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -1207,7 +1351,7 @@ function CoverageTable({
               const days = (Date.now() - new Date(r.last).getTime()) / DAY;
               return (
                 <tr key={scopeKey(r)} className="border-b border-border/60">
-                  <td className={TD}>
+                  <td>
                     {days > 30 ? (
                       <Badge tone="danger">Parado &gt; 30d</Badge>
                     ) : days > 7 ? (
@@ -1216,31 +1360,25 @@ function CoverageTable({
                       <Badge tone="success">Em dia</Badge>
                     )}
                   </td>
-                  <td className={`${TD} font-mono text-[11px] text-muted-foreground`}>{r.tool}</td>
-                  <td className={TD}>{r.project}</td>
-                  <td className={`${TD} font-medium`}>{r.repository}</td>
-                  <td className={`${TD} font-mono text-[11.5px]`}>{r.branch}</td>
-                  <td className={`${TD} font-mono text-[11.5px] tabular-nums`}>
-                    {fmtDateTime(r.last)}{" "}
-                    <span className="text-muted-foreground">({relTime(r.last)})</span>
+                  <td className="sa-mono sa-dim">{r.tool}</td>
+                  <td>{r.project}</td>
+                  <td style={{ fontWeight: 500 }}>{r.repository}</td>
+                  <td className="sa-mono">{r.branch}</td>
+                  <td className="sa-mono">
+                    {fmtDateTime(r.last)} <span className="sa-dim">({relTime(r.last)})</span>
                   </td>
-                  <td className={`${TD} text-right font-mono tabular-nums`}>{r.count ?? "—"}</td>
-                  <td className={`${TD} text-right font-mono tabular-nums`}>{r.runs30}</td>
-                  <td className={`${TD} font-mono text-[11.5px]`}>
+                  <td className="r sa-mono">{r.count ?? "—"}</td>
+                  <td className="r sa-mono">{r.runs30}</td>
+                  <td className="sa-mono">
                     {r.buildUrl ? (
-                      <a
-                        href={r.buildUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                      >
+                      <a href={r.buildUrl} target="_blank" rel="noopener noreferrer">
                         #{r.buildId ?? "build"}
                       </a>
                     ) : (
                       (r.buildId ?? "—")
                     )}
                   </td>
-                  <td className={TD}>
+                  <td>
                     {r.hasCompleted ? (
                       <Badge tone="success">Ativo</Badge>
                     ) : (
@@ -1253,7 +1391,7 @@ function CoverageTable({
           </tbody>
         </table>
       </div>
-      <div className="px-4 py-2.5 text-xs text-muted-foreground">
+      <div className="sa-foot">
         <b>Sem ScanCompleted</b>: a esteira só manda evento quando encontra algo, então os achados
         desse repositório não fecham sozinhos e a data do último scan é só a do último vazamento
         visto.
@@ -1275,17 +1413,12 @@ function AuthorsTable({
     last: string;
   }>;
 }) {
-  if (!rows.length)
-    return (
-      <div className="p-10 text-center text-sm text-muted-foreground">
-        Nenhum autor no filtro atual.
-      </div>
-    );
+  if (!rows.length) return <div className="sa-empty">Nenhum autor no filtro atual.</div>;
   return (
     <>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="border-b border-border">
+      <div className="sa-scroll">
+        <table className="sa-table">
+          <thead>
             <tr>
               {[
                 "Autor",
@@ -1296,34 +1429,31 @@ function AuthorsTable({
                 "Repositórios",
                 "Última detecção",
               ].map((h) => (
-                <th key={h} className={TH}>
-                  {h}
-                </th>
+                <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((a) => (
               <tr key={a.email || a.name} className="border-b border-border/60">
-                <td className={`${TD} font-medium`}>{a.name}</td>
-                <td className={`${TD} font-mono text-[11.5px] text-muted-foreground`}>
-                  {a.email || "—"}
-                </td>
-                <td className={`${TD} text-right font-mono tabular-nums`}>{a.open}</td>
+                <td style={{ fontWeight: 500 }}>{a.name}</td>
+                <td className="sa-mono sa-dim">{a.email || "—"}</td>
+                <td className="r sa-mono">{a.open}</td>
                 <td
-                  className={`${TD} text-right font-mono tabular-nums ${a.crit ? "text-danger" : ""}`}
+                  className="r sa-mono"
+                  style={a.crit ? { color: "var(--v2-crit)", fontWeight: 600 } : undefined}
                 >
                   {a.crit}
                 </td>
-                <td className={`${TD} text-right font-mono tabular-nums`}>{a.total}</td>
-                <td className={TD}>{[...a.repos].join(", ")}</td>
-                <td className={`${TD} font-mono text-[11.5px] tabular-nums`}>{relTime(a.last)}</td>
+                <td className="r sa-mono">{a.total}</td>
+                <td>{[...a.repos].join(", ")}</td>
+                <td className="sa-mono">{relTime(a.last)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div className="px-4 py-2.5 text-xs text-muted-foreground">
+      <div className="sa-foot">
         Agrupado por quem introduziu o achado (primeiro autor humano visto), sem o Build Service.
       </div>
     </>
@@ -1402,69 +1532,61 @@ function FindingSheet({
   const f = finding ?? last?.f;
   const a = finding ? author : last?.a;
   if (!f) return null;
-  const sev = sevOf(f.severity);
   const needsNote = note.trim().length < 5;
 
   return (
     <Sheet open={!!finding} onOpenChange={onOpenChange}>
       <SheetContent
-        className="w-full sm:max-w-xl overflow-y-auto"
+        className="font-ui w-full sm:max-w-xl overflow-y-auto border-v2-line bg-v2-surface text-v2-fg"
         style={width ? { width, maxWidth: "none" } : undefined}
       >
         <div
           onMouseDown={handleResizeStart}
-          className="absolute left-0 top-0 hidden h-full w-1.5 cursor-col-resize transition-colors hover:bg-primary/30 active:bg-primary/40 sm:block"
+          className="absolute left-0 top-0 hidden h-full w-1.5 cursor-col-resize transition-colors hover:bg-v2-accent/30 active:bg-v2-accent/40 sm:block"
         />
         <SheetHeader className="space-y-1 pr-8">
           <div className="flex flex-wrap gap-1.5">
             <Badge tone={STATUS[f.status].tone}>{STATUS[f.status].label}</Badge>
             <Badge tone={ENV[f.environment].tone}>{ENV[f.environment].label}</Badge>
-            <Badge tone="muted">{f.tool}</Badge>
+            <span className="sa-tag">{f.tool}</span>
           </div>
-          <SheetTitle className="font-mono text-base break-all">{f.rule_id}</SheetTitle>
-          <div className="text-xs text-muted-foreground">
+          <SheetTitle className="font-data text-[15px] font-semibold text-v2-fg break-all">
+            {f.rule_id}
+          </SheetTitle>
+          <div className="text-[12.5px] text-v2-fg-3">
             {f.project} · {f.repository} · {f.branch}
           </div>
         </SheetHeader>
 
         <div className="mt-5 flex flex-col gap-5 text-sm">
           {f.category === "secret" && f.status === "aberto" && (
-            <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-xs leading-relaxed">
+            <div className="sa-callout" style={{ "--c": "var(--v2-med)" } as React.CSSProperties}>
               <b>Remover o arquivo do repositório não basta.</b> O segredo continua no histórico do
               Git: rotacione a credencial na origem e depois marque como resolvido.
             </div>
           )}
           {a?.inferred && (
-            <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-xs leading-relaxed">
-              O último evento veio do <span className="font-mono">Build Service</span> (commit
+            <div className="sa-callout" style={{ "--c": "var(--v2-med)" } as React.CSSProperties}>
+              O último evento veio do <span className="font-data">Build Service</span> (commit
               sintético do espelhamento). O autor abaixo foi inferido pelo mesmo fingerprint visto
               em outra branch do repositório.
             </div>
           )}
 
-          <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-2 text-xs">
-            <dt className="text-mono-xs text-muted-foreground pt-0.5">Severidade</dt>
+          <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-2.5 text-[13px]">
+            <dt className="text-v2-fg-3">Severidade</dt>
             <dd>
-              <span
-                className="mr-1.5 inline-block size-2 rounded-sm"
-                style={{ background: sev.color }}
-              />
-              {sev.label}
+              <SevBadge severity={f.severity} />
               {f.category === "secret" && (
-                <span className="ml-1 text-muted-foreground">(segredo = crítico por padrão)</span>
+                <span className="ml-1.5 text-v2-fg-3">(segredo = crítico por padrão)</span>
               )}
             </dd>
-            <dt className="text-mono-xs text-muted-foreground pt-0.5">Categoria</dt>
+            <dt className="text-v2-fg-3">Categoria</dt>
             <dd>{CATEGORY_LABEL[f.category] ?? f.category}</dd>
-            <dt className="text-mono-xs text-muted-foreground pt-0.5">Arquivo</dt>
-            <dd className="font-mono text-[11.5px] break-all">
+            <dt className="text-v2-fg-3">Arquivo</dt>
+            <dd className="font-data text-[11.5px] break-all">
               {f.last_file_url ? (
-                <a
-                  href={f.last_file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
+                <a href={f.last_file_url} target="_blank" rel="noopener noreferrer">
                   {f.file_path ?? "—"}
                   {f.line ? `:${f.line}` : ""}
                 </a>
@@ -1475,39 +1597,37 @@ function FindingSheet({
                 </>
               )}
             </dd>
-            <dt className="text-mono-xs text-muted-foreground pt-0.5">Fingerprint</dt>
-            <dd className="font-mono text-[11px] text-muted-foreground break-all">
-              {f.fingerprint}
-            </dd>
-            <dt className="text-mono-xs text-muted-foreground pt-0.5">Introduzido por</dt>
+            <dt className="text-v2-fg-3">Fingerprint</dt>
+            <dd className="font-data text-[11px] text-v2-fg-3 break-all">{f.fingerprint}</dd>
+            <dt className="text-v2-fg-3">Introduzido por</dt>
             <dd>
               {a?.name ?? "—"}
-              {a?.email && (
-                <div className="font-mono text-[11px] text-muted-foreground">{a.email}</div>
-              )}
+              {a?.email && <div className="font-data text-[11px] text-v2-fg-3">{a.email}</div>}
             </dd>
-            <dt className="text-mono-xs text-muted-foreground pt-0.5">Último commit</dt>
-            <dd className="font-mono text-[11px] break-all">{f.last_commit_sha ?? "—"}</dd>
-            <dt className="text-mono-xs text-muted-foreground pt-0.5">1ª detecção</dt>
-            <dd className="font-mono tabular-nums">{fmtDateTime(f.first_seen_at)}</dd>
-            <dt className="text-mono-xs text-muted-foreground pt-0.5">Última detecção</dt>
-            <dd className="font-mono tabular-nums">
+            <dt className="text-v2-fg-3">Último commit</dt>
+            <dd className="font-data text-[11px] break-all">{f.last_commit_sha ?? "—"}</dd>
+            <dt className="text-v2-fg-3">1ª detecção</dt>
+            <dd className="font-data tabular-nums">{fmtDateTime(f.first_seen_at)}</dd>
+            <dt className="text-v2-fg-3">Última detecção</dt>
+            <dd className="font-data tabular-nums">
               {fmtDateTime(f.last_seen_at)} · {f.occurrences} ocorrência(s)
             </dd>
           </dl>
 
           {/* Triagem */}
-          <div className="flex flex-col gap-2.5 rounded-md border border-border bg-background p-3">
-            <div className="text-mono-xs text-muted-foreground">Triagem</div>
+          <div className="flex flex-col gap-2.5 rounded-md border border-v2-line bg-v2-bg p-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.06em] text-v2-fg-3">
+              Triagem
+            </div>
             {f.status !== "aberto" && (
               <div className="text-xs">
                 <Badge tone={STATUS[f.status].tone}>{STATUS[f.status].label}</Badge>{" "}
                 {f.resolution_source === "auto" ? (
-                  <span className="text-muted-foreground">
+                  <span className="text-v2-fg-3">
                     fechado automaticamente: não apareceu no scan de {fmtDateTime(f.resolved_at)}
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">
+                  <span className="text-v2-fg-3">
                     por {f.triaged_by_name ?? "—"} em {fmtDateTime(f.triaged_at)}
                   </span>
                 )}
@@ -1517,7 +1637,7 @@ function FindingSheet({
             {canEdit ? (
               f.status === "aberto" ? (
                 <>
-                  <label htmlFor="sast-triage-note" className="text-xs text-muted-foreground">
+                  <label htmlFor="sast-triage-note" className="text-xs text-v2-fg-3">
                     Justificativa (obrigatória, vai pro log de auditoria e dispara alerta)
                   </label>
                   <Textarea
@@ -1547,14 +1667,14 @@ function FindingSheet({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-danger border-danger/40"
+                      className="text-v2-crit border-v2-crit/40"
                       disabled={needsNote || triage.isPending}
                       onClick={() => triage.mutate("risco_aceito")}
                     >
                       Aceitar risco
                     </Button>
                   </div>
-                  <div className="text-[11.5px] leading-relaxed text-muted-foreground">
+                  <div className="text-[11.5px] leading-relaxed text-v2-fg-3">
                     Resolver não esconde o achado: se ele aparecer de novo num scan posterior, volta
                     pra Aberto. Falso positivo e risco aceito ficam até alguém reabrir.
                   </div>
@@ -1573,26 +1693,26 @@ function FindingSheet({
               )
             ) : (
               f.status === "aberto" && (
-                <div className="text-xs text-muted-foreground">
-                  Sem permissão de triagem neste módulo.
-                </div>
+                <div className="text-xs text-v2-fg-3">Sem permissão de triagem neste módulo.</div>
               )
             )}
           </div>
 
           {/* Histórico */}
           <div>
-            <div className="text-mono-xs text-muted-foreground mb-2.5">Histórico de detecções</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.06em] text-v2-fg-3 mb-2.5">
+              Histórico de detecções
+            </div>
             {events.isLoading ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-v2-fg-3">
                 <Loader2 className="size-3.5 animate-spin" /> Carregando…
               </div>
             ) : (
-              <div className="ml-1 flex flex-col border-l border-border">
+              <div className="ml-1 flex flex-col border-l border-v2-line">
                 {f.resolution_source === "auto" && f.resolved_at && (
                   <div className="relative pb-3 pl-4 text-xs">
-                    <span className="absolute -left-1 top-1.5 size-2 rounded-full bg-success" />
-                    <div className="font-mono text-[11px] text-muted-foreground">
+                    <span className="absolute -left-1 top-1.5 size-2 rounded-full bg-v2-ok" />
+                    <div className="font-data text-[11px] text-v2-fg-3">
                       {fmtDateTime(f.resolved_at)}
                     </div>
                     Não apareceu no ScanCompleted da build · fechado automaticamente
@@ -1600,8 +1720,8 @@ function FindingSheet({
                 )}
                 {((events.data?.events ?? []) as any[]).map((ev) => (
                   <div key={ev.id} className="relative pb-3 pl-4 text-xs">
-                    <span className="absolute -left-1 top-1.5 size-2 rounded-full bg-primary" />
-                    <div className="font-mono text-[11px] text-muted-foreground">
+                    <span className="absolute -left-1 top-1.5 size-2 rounded-full bg-v2-accent" />
+                    <div className="font-data text-[11px] text-v2-fg-3">
                       {fmtDateTime(ev.detected_at)}
                     </div>
                     Detectado na build{" "}
@@ -1610,12 +1730,12 @@ function FindingSheet({
                         href={ev.build_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-mono text-primary hover:underline"
+                        className="font-data text-v2-accent hover:underline"
                       >
                         #{ev.build_id ?? "build"}
                       </a>
                     ) : (
-                      <span className="font-mono">#{ev.build_id ?? "—"}</span>
+                      <span className="font-data">#{ev.build_id ?? "—"}</span>
                     )}{" "}
                     · {ev.author ?? "—"}
                   </div>
@@ -1624,9 +1744,9 @@ function FindingSheet({
             )}
           </div>
 
-          <div className="text-[11.5px] text-muted-foreground">
-            O valor do segredo nunca é armazenado no b-security. Só metadados: regra, arquivo,
-            linha, commit e autor.
+          <div className="text-[11.5px] text-v2-fg-3">
+            O valor do segredo nunca é armazenado no Z-Sec. Só metadados: regra, arquivo, linha,
+            commit e autor.
           </div>
         </div>
       </SheetContent>

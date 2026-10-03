@@ -1,3 +1,4 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,8 +9,6 @@ import {
   Trash2,
   Ban,
   KeyRound,
-  Server,
-  Wifi,
   CheckCircle2,
   XCircle,
   Plus,
@@ -21,9 +20,16 @@ import {
   Lock,
   Folder,
   ExternalLink,
+  Monitor,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,19 +49,26 @@ import {
 // ── Design tokens — mesmos valores do DastScanner.tsx (T), pra manter o
 // módulo com a mesma identidade visual, mesmo sendo domínio separado.
 const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
-  accent: "#3B82F6",
-  accentBg: "rgba(59,130,246,0.12)",
-  critical: "#EF4444",
-  high: "#F59E0B",
-  success: "#10B981",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  textSubtle: "#475569",
+  surface: "var(--v2-surface)",
+  surfaceAlt: "var(--v2-surface-2)",
+  border: "var(--v2-line)",
+  borderHi: "var(--v2-line-strong)",
+  accent: "var(--v2-accent)",
+  accentBg: "color-mix(in oklch, var(--v2-accent) 14%, transparent)",
+  critical: "var(--v2-crit)",
+  high: "var(--v2-med)",
+  success: "var(--v2-ok)",
+  textPrimary: "var(--v2-fg)",
+  textSecondary: "var(--v2-fg-2)",
+  textMuted: "var(--v2-fg-3)",
+  textSubtle: "var(--v2-fg-3)",
+};
+const STATUS_LABEL: Record<string, string> = {
+  queued: "Na fila",
+  running: "Em execução",
+  done: "Concluída",
+  error: "Falhou",
+  cancelled: "Cancelada",
 };
 
 const STATUS_TONE: Record<string, string> = {
@@ -80,76 +93,120 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 const CSS = `
-  .swit-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; display:flex; flex-direction:column; gap:16px; }
+  .swit-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
   .swit-root * { box-sizing:border-box; }
+  .swit-root ::-webkit-scrollbar { width:6px; height:6px; }
+  .swit-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .swit-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
   @keyframes swit-spin { to { transform:rotate(360deg) } }
-  .swit-spin { animation:swit-spin 0.75s linear infinite; }
-  .swit-hdr { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-  .swit-hdr-brand { display:flex; align-items:center; gap:12px; }
-  .swit-hdr-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:${T.accentBg}; border:1px solid rgba(59,130,246,0.3); }
-  .swit-hdr-title { font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em; }
-  .swit-hdr-sub { font-size:11px; color:${T.textMuted}; margin-top:2px; }
-  .swit-tabs { display:flex; gap:4px; }
-  .swit-tab { padding:7px 16px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid transparent; background:transparent; color:${T.textSecondary}; font-family:'DM Sans',sans-serif; }
-  .swit-tab.on { background:${T.accentBg}; border-color:rgba(59,130,246,0.35); color:${T.accent}; }
-  .swit-kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
-  @media (max-width:1100px){ .swit-kpis { grid-template-columns:repeat(2,1fr); } }
-  .swit-kpi { background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; padding:14px 16px; position:relative; overflow:hidden; }
-  .swit-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kc,${T.accent}); }
-  .swit-kpi-label { font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-bottom:6px; }
-  .swit-kpi-value { font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; line-height:1; color:var(--kc,${T.textPrimary}); font-variant-numeric:tabular-nums; }
-  .swit-panel { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; overflow:hidden; }
-  .swit-panel-hdr { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 20px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; flex-wrap:wrap; }
-  .swit-panel-title { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; }
-  .swit-table { width:100%; border-collapse:collapse; }
-  .swit-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; border-bottom:1px solid ${T.border}; white-space:nowrap; position:sticky; top:0; background:${T.surface}; z-index:1; }
-  .swit-table td { padding:10px 12px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; vertical-align:middle; }
-  .swit-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
-  .swit-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; }
-  .swit-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap; border:1px solid transparent; }
+  @keyframes swit-pulse { 50% { opacity:.3 } }
+  .swit-spin { animation:swit-spin 0.8s linear infinite; }
+  .swit-mono { font-family:var(--font-data); font-size:12.5px; }
+  .swit-dim { color:var(--v2-fg-3); }
+
+  .swit-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .swit-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .swit-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
+  .swit-ph-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  .swit-subnav { display:flex; gap:2px; padding:4px; background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; width:fit-content; max-width:100%; flex-wrap:wrap; }
+  .swit-subnav button { display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; background:transparent; padding:6px 14px; border-radius:6px; font:500 13px var(--font-ui); color:var(--v2-fg-3); cursor:pointer; }
+  .swit-subnav button:hover { color:var(--v2-fg); background:var(--v2-hover); }
+  .swit-subnav button[aria-selected="true"] { background:var(--v2-surface); color:var(--v2-fg); border-color:var(--v2-line); }
+  .swit-subnav .n { font:500 12px var(--font-data); color:var(--v2-fg-3); }
+  .swit-subnav .live { font:500 11.5px var(--font-data); padding:1px 7px; border-radius:99px; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-accent); }
+
+  .swit-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .swit-kpi { position:relative; text-align:left; border:0; background:transparent; padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); color:inherit; font-family:inherit; min-width:0; }
+  button.swit-kpi { cursor:pointer; }
+  button.swit-kpi:hover, .swit-kpi[aria-pressed="true"] { background:var(--v2-hover); }
+  .swit-kpi[aria-pressed="true"]::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--v2-accent); }
+  .swit-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .swit-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .swit-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .swit-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
+  .swit-meter { height:6px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; margin:8px 0 4px; }
+  .swit-meter i { display:block; height:100%; border-radius:99px; }
+
+  .swit-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; min-width:0; }
+  .swit-tbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .swit-tbar > b { font-size:14px; font-weight:600; margin-right:4px; }
+  .swit-tbar > b span { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
+  .swit-seg { display:inline-flex; padding:3px; gap:2px; background:var(--v2-bg); border:1px solid var(--v2-line); border-radius:8px; flex-wrap:wrap; }
+  .swit-seg button { border:0; background:transparent; padding:4px 12px; border-radius:5px; font-size:13px; color:var(--v2-fg-2); cursor:pointer; font-family:inherit; }
+  .swit-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); font-weight:500; box-shadow:inset 0 0 0 1px var(--v2-line); }
+
+  .swit-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .swit-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; border-bottom:1px solid var(--v2-line); white-space:nowrap; position:sticky; top:0; background:var(--v2-surface); z-index:1; }
+  .swit-table th.sort { cursor:pointer; user-select:none; }
+  .swit-table th[aria-sort] { color:var(--v2-fg); }
+  .swit-table th svg { color:var(--v2-accent); }
+  .swit-table td { padding:8px 12px; height:50px; border-bottom:1px solid var(--v2-line); color:var(--v2-fg); vertical-align:middle; }
+  .swit-table th:first-child, .swit-table td:first-child { padding-left:18px; }
+  .swit-table th:last-child, .swit-table td:last-child { padding-right:18px; }
+  .swit-table tbody tr:hover td { background:var(--v2-hover); }
+  .swit-table tbody tr:last-child td { border-bottom:none; }
+  .swit-badge, .swit-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; font-family:var(--font-ui); background:color-mix(in oklch, var(--c, var(--v2-fg-3)) 14%, transparent); color:color-mix(in oklch, var(--c, var(--v2-fg-3)) 72%, var(--v2-fg)); }
+  .swit-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c, var(--v2-fg-3)); }
+  .swit-pill.live::before { animation:swit-pulse 1.6s infinite; }
+  @media (prefers-reduced-motion: reduce) { .swit-pill.live::before { animation:none; } }
+  .swit-tag { display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 7px; border-radius:5px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font:500 11.5px var(--font-data); color:var(--v2-fg-2); white-space:nowrap; }
+  .swit-tag.tone { border-color:color-mix(in oklch, var(--c) 45%, transparent); color:color-mix(in oklch, var(--c) 75%, var(--v2-fg)); background:color-mix(in oklch, var(--c) 10%, transparent); }
+  .swit-tags { display:flex; gap:4px; flex-wrap:wrap; }
+  .swit-progress { display:grid; grid-template-columns:minmax(60px, 1fr) 38px; gap:8px; align-items:center; font:500 12px var(--font-data); min-width:120px; }
+  .swit-progress .tr { height:6px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; }
+  .swit-progress .tr i { display:block; height:100%; border-radius:99px; }
+
+  .swit-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
   .swit-btn:disabled { opacity:0.45; cursor:not-allowed; }
-  .swit-btn.pri { background:${T.accentBg}; border-color:rgba(59,130,246,0.35); color:${T.accent}; }
-  .swit-btn.gst { background:transparent; border-color:${T.border}; color:${T.textSecondary}; padding:5px 10px; }
-  .swit-btn.dng { background:transparent; border:none; color:${T.textMuted}; padding:5px 8px; }
-  .swit-btn.dng:hover:not(:disabled) { color:${T.critical}; }
-  .swit-empty { padding:40px; text-align:center; color:${T.textMuted}; font-size:13px; }
-  .swit-detail-wrap { display:flex; flex-direction:column; gap:14px; }
+  .swit-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .swit-btn.pri { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .swit-btn.pri:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .swit-btn.gst { height:32px; padding:0 12px; }
+  .swit-btn.sm { height:30px; padding:0 10px; }
+  .swit-btn.dng { background:transparent; border-color:transparent; color:var(--v2-fg-2); }
+  .swit-btn.dng:hover:not(:disabled) { color:var(--v2-crit); background:color-mix(in oklch, var(--v2-crit) 12%, transparent); }
+  .swit-icon-btn { width:30px; height:30px; border-radius:8px; border:0; background:transparent; color:var(--v2-fg-2); display:inline-grid; place-items:center; cursor:pointer; }
+  .swit-icon-btn:hover:not(:disabled) { color:var(--v2-fg); background:var(--v2-hover); }
+  .swit-icon-btn.danger:hover:not(:disabled) { color:var(--v2-crit); background:color-mix(in oklch, var(--v2-crit) 12%, transparent); }
+  .swit-icon-btn:disabled { opacity:.35; cursor:not-allowed; }
+  .swit-empty { padding:40px 16px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
   .swit-row-clickable { cursor:pointer; }
-  .swit-row-clickable.selected td { background:rgba(59,130,246,0.07); }
-  .swit-copy-btn { display:inline-flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; font-size:11.5px; margin-top:2px; }
-  .swit-copy-btn:hover { color:${T.accent}; }
-  .swit-card-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
-  @media (max-width:820px){ .swit-card-grid { grid-template-columns:1fr; } }
-  .swit-card { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+  .swit-row-clickable.selected td { background:color-mix(in oklch, var(--v2-accent) 10%, transparent); }
+
+  .swit-detail-wrap { display:flex; flex-direction:column; gap:20px; }
+  .swit-section-hd { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--v2-fg-3); margin:0 0 10px; }
+  .swit-card-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; }
+  .swit-card { border:1px solid var(--v2-line); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; background:var(--v2-surface); }
   .swit-card-hd { display:flex; align-items:center; gap:8px; }
-  .swit-card-icon { width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; background:${T.accentBg}; flex:none; }
-  .swit-card-title { font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textMuted}; }
-  .swit-netbios-name { font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:700; }
-  .swit-netbios-group { font-size:12px; color:${T.textSecondary}; }
-  .swit-netbios-group b { color:${T.textPrimary}; font-weight:600; }
-  .swit-status-pill { display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; padding:2px 8px; border-radius:5px; }
-  .swit-http-title { font-size:13px; color:${T.textPrimary}; line-height:1.35; }
-  .swit-http-title.muted { color:${T.textMuted}; font-style:italic; }
-  .swit-http-link { display:flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:${T.accent}; text-decoration:none; margin-top:auto; padding-top:8px; border-top:1px dashed ${T.border}; }
+  .swit-card-icon { width:26px; height:26px; border-radius:7px; display:grid; place-items:center; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-accent); flex:none; }
+  .swit-card-title { font-size:12.5px; color:var(--v2-fg-3); }
+  .swit-card-hd .swit-pill { margin-left:auto; }
+  .swit-netbios-name { font-size:15px; font-weight:600; }
+  .swit-netbios-group { font-size:12.5px; color:var(--v2-fg-3); }
+  .swit-netbios-group b { color:var(--v2-fg); font-weight:500; }
+  .swit-http-title { font-size:13px; color:var(--v2-fg); line-height:1.4; }
+  .swit-http-title.muted { color:var(--v2-fg-3); font-style:italic; }
+  .swit-http-link { display:inline-flex; align-items:center; gap:5px; font:400 12px var(--font-data); color:var(--v2-accent); text-decoration:none; margin-top:auto; }
   .swit-http-link:hover { text-decoration:underline; }
-  .swit-section-hd { display:flex; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:${T.textMuted}; margin-bottom:10px; }
   .swit-share-list { display:flex; flex-direction:column; gap:8px; }
-  .swit-share-card { display:flex; align-items:center; gap:14px; background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:10px; padding:11px 14px; flex-wrap:wrap; }
-  .swit-share-card.critico { border-color:rgba(239,68,68,0.4); }
-  .swit-share-icon { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex:none; }
-  .swit-share-icon.revisar { background:rgba(245,158,11,0.14); color:${T.high}; }
-  .swit-share-icon.critico { background:rgba(239,68,68,0.14); color:${T.critical}; }
-  .swit-share-icon.esperado { background:rgba(16,185,129,0.14); color:${T.success}; }
-  .swit-share-main { flex:1; min-width:160px; }
-  .swit-share-name { font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; }
-  .swit-share-meta { display:flex; align-items:center; gap:10px; flex:none; }
-  .swit-perm-pill { font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
-  .swit-perm-pill.rw { background:rgba(239,68,68,0.14); color:${T.critical}; }
-  .swit-perm-pill.ro { background:rgba(148,163,184,0.14); color:${T.textSecondary}; }
-  .swit-icon-btn { width:26px; height:26px; border-radius:6px; border:1px solid ${T.border}; background:transparent; color:${T.textMuted}; display:flex; align-items:center; justify-content:center; cursor:pointer; }
-  .swit-icon-btn:hover { color:${T.textPrimary}; border-color:${T.borderHi}; }
-  .swit-field { display:flex; flex-direction:column; gap:5px; }
-  .swit-field-lbl { font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
+  .swit-share-card { display:grid; grid-template-columns:32px minmax(0, 1fr) auto; gap:4px 12px; align-items:center; border:1px solid var(--v2-line); border-radius:10px; padding:11px 12px; --c:var(--v2-fg-3); }
+  .swit-share-card.critico { --c:var(--v2-crit); border-color:color-mix(in oklch, var(--v2-crit) 40%, transparent); }
+  .swit-share-card.revisar { --c:var(--v2-med); }
+  .swit-share-card.esperado { --c:var(--v2-ok); }
+  .swit-share-icon { width:32px; height:32px; border-radius:8px; display:grid; place-items:center; grid-row:span 2; background:color-mix(in oklch, var(--c) 14%, transparent); color:var(--c); }
+  .swit-share-main { min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  .swit-share-name { font-weight:600; font-size:13.5px; margin-right:2px; }
+  .swit-share-acts { grid-row:span 2; grid-column:3; display:flex; gap:6px; align-items:center; }
+  .swit-copy-btn { grid-column:2; display:inline-flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:var(--v2-fg-3); font:400 12px var(--font-data); text-align:left; min-width:0; }
+  .swit-copy-btn span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .swit-copy-btn:hover { color:var(--v2-accent); }
+  .swit-netb { display:flex; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--v2-line); border-radius:10px; background:var(--v2-surface-2); }
+  .swit-netb-ic { width:34px; height:34px; border-radius:8px; display:grid; place-items:center; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-accent); flex:none; }
+  .swit-web { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width: 560px) { .swit-web { grid-template-columns:1fr; } }
+  .swit-note { margin:0; font-size:13px; color:var(--v2-fg-3); }
+  .swit-field { display:flex; flex-direction:column; gap:6px; font-family:var(--font-ui); }
+  .swit-field-lbl { font-size:12.5px; font-weight:500; color:var(--v2-fg-2); }
 `;
 
 function fmtRel(iso?: string | null): string {
@@ -174,15 +231,23 @@ function fmtDuration(startIso?: string | null, endIso?: string | null): string {
 
 // ── Ordem de colunas da tabela de Hosts (preferência por navegador, via
 // localStorage -- não é dado de servidor, é só conveniência de exibição). ──
-type HostColumnKey = "ip" | "services" | "source" | "lastSeen" | "cmdb";
+type HostColumnKey = "ip" | "services" | "risk" | "source" | "lastSeen" | "cmdb";
 const HOST_COLUMN_LABEL: Record<HostColumnKey, string> = {
-  ip: "IP",
+  ip: "Host",
   services: "Serviços",
+  risk: "Risco",
   source: "Fonte",
   lastSeen: "Visto por último",
   cmdb: "CMDB",
 };
-const DEFAULT_HOST_COLUMN_ORDER: HostColumnKey[] = ["ip", "services", "source", "lastSeen", "cmdb"];
+const DEFAULT_HOST_COLUMN_ORDER: HostColumnKey[] = [
+  "ip",
+  "services",
+  "risk",
+  "cmdb",
+  "source",
+  "lastSeen",
+];
 const HOST_COLUMN_STORAGE_KEY = "shadowit-hosts-column-order";
 
 function loadHostColumnOrder(): HostColumnKey[] {
@@ -190,7 +255,9 @@ function loadHostColumnOrder(): HostColumnKey[] {
   try {
     const raw = localStorage.getItem(HOST_COLUMN_STORAGE_KEY);
     const saved = raw ? (JSON.parse(raw) as string[]) : [];
-    const valid = saved.filter((k): k is HostColumnKey => (Object.keys(HOST_COLUMN_LABEL) as string[]).includes(k));
+    const valid = saved.filter((k): k is HostColumnKey =>
+      (Object.keys(HOST_COLUMN_LABEL) as string[]).includes(k),
+    );
     // Cobre o caso de coluna nova adicionada depois que o usuário já salvou uma ordem antiga.
     const missing = DEFAULT_HOST_COLUMN_ORDER.filter((k) => !valid.includes(k));
     return valid.length ? [...valid, ...missing] : DEFAULT_HOST_COLUMN_ORDER;
@@ -217,25 +284,27 @@ function ColumnOrderPicker({
     <Popover>
       <PopoverTrigger asChild>
         <button className="swit-btn gst" title="Reordenar colunas">
-          <Settings2 size={13} /> Colunas
+          <Settings2 size={14} /> Colunas
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        style={{ background: T.surface, border: `1px solid ${T.borderHi}`, color: T.textPrimary, width: 220 }}
+        style={{
+          background: T.surface,
+          border: `1px solid ${T.borderHi}`,
+          color: T.textPrimary,
+          width: 240,
+          fontFamily: "var(--font-ui)",
+        }}
       >
         <div
           style={{
-            fontSize: 10,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
+            fontSize: 12,
             color: T.textMuted,
             marginBottom: 8,
-            fontFamily: "'IBM Plex Mono',monospace",
           }}
         >
-          Ordem das colunas
+          Ordem das colunas (salva neste navegador)
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {order.map((key, i) => (
@@ -252,16 +321,16 @@ function ColumnOrderPicker({
               <span>{HOST_COLUMN_LABEL[key]}</span>
               <div style={{ display: "flex", gap: 2 }}>
                 <button
-                  className="swit-btn gst"
-                  style={{ padding: "2px 6px" }}
+                  className="swit-icon-btn"
+                  aria-label="Subir"
                   disabled={i === 0}
                   onClick={() => move(i, -1)}
                 >
                   <ChevronUp size={12} />
                 </button>
                 <button
-                  className="swit-btn gst"
-                  style={{ padding: "2px 6px" }}
+                  className="swit-icon-btn"
+                  aria-label="Descer"
                   disabled={i === order.length - 1}
                   onClick={() => move(i, 1)}
                 >
@@ -276,7 +345,13 @@ function ColumnOrderPicker({
   );
 }
 
-function CredentialDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+function CredentialDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
   const fetchStatus = useServerFn(getShadowItSmbCredentialStatus);
   const save = useServerFn(saveShadowItSmbCredential);
   const qc = useQueryClient();
@@ -302,16 +377,27 @@ function CredentialDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+      <DialogContent
+        style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}
+      >
         <DialogHeader>
-          <DialogTitle style={{ color: T.textPrimary, fontFamily: "'Space Grotesk',sans-serif" }}>
+          <DialogTitle style={{ color: T.textPrimary, fontFamily: "var(--font-ui)" }}>
             Credencial de domínio (SMB)
           </DialogTitle>
         </DialogHeader>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 12, color: T.textSecondary }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            fontSize: 12,
+            color: T.textSecondary,
+          }}
+        >
           <p>
-            Usada pra enumerar compartilhamento SMB dos hosts — sessão anônima está bloqueada nessa rede, então sem
-            credencial essa parte da varredura fica vazia. Guardada cifrada (AES-256-GCM), nunca exibida de volta.
+            Usada pra enumerar compartilhamento SMB dos hosts — sessão anônima está bloqueada nessa
+            rede, então sem credencial essa parte da varredura fica vazia. Guardada cifrada
+            (AES-256-GCM), nunca exibida de volta.
           </p>
           <p style={{ color: T.textMuted }}>
             {statusQ.isLoading
@@ -345,7 +431,12 @@ function CredentialDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             disabled={!username || !password || saveMutation.isPending}
             onClick={() => saveMutation.mutate()}
           >
-            {saveMutation.isPending ? <Loader2 size={13} className="swit-spin" /> : <KeyRound size={13} />} Salvar
+            {saveMutation.isPending ? (
+              <Loader2 size={13} className="swit-spin" />
+            ) : (
+              <KeyRound size={13} />
+            )}{" "}
+            Salvar
           </button>
         </DialogFooter>
       </DialogContent>
@@ -353,7 +444,13 @@ function CredentialDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   );
 }
 
-function SubnetScanDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+function SubnetScanDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
   const discover = useServerFn(startShadowItDiscovery);
   const qc = useQueryClient();
   const [subnet, setSubnet] = React.useState("");
@@ -372,20 +469,34 @@ function SubnetScanDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}>
+      <DialogContent
+        style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12 }}
+      >
         <DialogHeader>
-          <DialogTitle style={{ color: T.textPrimary, fontFamily: "'Space Grotesk',sans-serif" }}>
+          <DialogTitle style={{ color: T.textPrimary, fontFamily: "var(--font-ui)" }}>
             Varrer faixa de IP
           </DialogTitle>
         </DialogHeader>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 12, color: T.textSecondary }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            fontSize: 12,
+            color: T.textSecondary,
+          }}
+        >
           <p>
-            Faz o ping sweep da subnet — todo host encontrado (com ou sem hostname resolvido) cai automaticamente aqui,
-            em Hosts. Não aparece no DAST Scanner. Só faixa privada (RFC1918).
+            Faz o ping sweep da subnet — todo host encontrado (com ou sem hostname resolvido) cai
+            automaticamente aqui, em Hosts. Não aparece no DAST Scanner. Só faixa privada (RFC1918).
           </p>
           <div className="swit-field">
             <span className="swit-field-lbl">Subnet (CIDR)</span>
-            <Input value={subnet} onChange={(e) => setSubnet(e.target.value)} placeholder="192.168.100.0/24" />
+            <Input
+              value={subnet}
+              onChange={(e) => setSubnet(e.target.value)}
+              placeholder="192.168.100.0/24"
+            />
           </div>
         </div>
         <DialogFooter>
@@ -394,7 +505,12 @@ function SubnetScanDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             disabled={!subnet.trim() || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending ? <Loader2 size={13} className="swit-spin" /> : <ScanSearch size={13} />} Iniciar
+            {mutation.isPending ? (
+              <Loader2 size={13} className="swit-spin" />
+            ) : (
+              <ScanSearch size={13} />
+            )}{" "}
+            Iniciar
           </button>
         </DialogFooter>
       </DialogContent>
@@ -431,7 +547,13 @@ async function copyToClipboard(value: string): Promise<boolean> {
   }
 }
 
-function CopyableText({ value, className = "swit-copy-btn" }: { value: string; className?: string }) {
+function CopyableText({
+  value,
+  className = "swit-copy-btn",
+}: {
+  value: string;
+  className?: string;
+}) {
   const [copied, setCopied] = React.useState(false);
   return (
     <button
@@ -488,22 +610,32 @@ function HttpCard({
         <div className="swit-card-title">
           {label} · porta {port}
         </div>
+        {statusCode && (
+          <span className="swit-pill" style={{ "--c": tone } as React.CSSProperties}>
+            {statusCode}
+          </span>
+        )}
       </div>
-      {statusCode && (
-        <span className="swit-status-pill" style={{ background: `${tone}22`, color: tone }}>
-          {statusCode}
-        </span>
-      )}
       <div className={`swit-http-title ${hasTitle ? "" : "muted"}`}>
         {hasTitle ? finding.value : "Sem <title> na página"}
       </div>
       <a className="swit-http-link" href={url} target="_blank" rel="noreferrer">
-        <ExternalLink size={11} />
-        {ip}:{port}
+        {ip}:{port} <ExternalLink size={11} />
       </a>
     </div>
   );
 }
+
+// Pior classificação entre os compartilhamentos SMB abertos do host
+function worstShare(
+  findings: Array<{ kind: string; status: string; classification?: string | null }>,
+): "critico" | "revisar" | null {
+  const shares = findings.filter((f) => f.kind === "smb_share" && f.status === "open");
+  if (shares.some((f) => f.classification === "critico")) return "critico";
+  if (shares.some((f) => f.classification === "revisar")) return "revisar";
+  return null;
+}
+const RISK_RANK = { critico: 0, revisar: 1 } as const;
 
 function HostRow({
   host,
@@ -523,133 +655,117 @@ function HostRow({
   columnOrder: HostColumnKey[];
 }) {
   const services = React.useMemo(() => {
-    const kinds = new Set(findings.map((f) => (f.kind === "http_title" ? f.name : KIND_LABEL[f.kind])));
+    const kinds = new Set(
+      findings.map((f) => (f.kind === "http_title" ? f.name : KIND_LABEL[f.kind])),
+    );
     return [...kinds].filter(Boolean) as string[];
   }, [findings]);
   const shares = findings.filter((f) => f.kind === "smb_share" && f.status === "open");
   const hasDetail = findings.length > 0;
-  const worst = shares.some((f) => f.classification === "critico")
-    ? "critico"
-    : shares.some((f) => f.classification === "revisar")
-      ? "revisar"
-      : null;
+  const worst = worstShare(findings);
 
   const cell: Record<HostColumnKey, React.ReactNode> = {
     ip: (
       <>
-        <div style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{host.ip}</div>
-        {host.hostname && <div style={{ fontSize: 10.5, color: T.textMuted, marginTop: 1 }}>{host.hostname}</div>}
+        <div className="swit-mono" style={{ fontWeight: 500, fontSize: 13 }}>
+          {host.ip}
+        </div>
+        <div className="swit-dim" style={{ fontSize: 12, marginTop: 1 }}>
+          {host.hostname ?? <span style={{ fontStyle: "italic" }}>sem nome NetBIOS</span>}
+        </div>
       </>
     ),
     cmdb: host.in_cmdb ? (
-      <span className="swit-badge" style={{ background: `${T.success}22`, color: T.success }}>
+      <span className="swit-pill" style={{ "--c": T.success } as React.CSSProperties}>
         No CMDB
       </span>
     ) : (
-      <span className="swit-badge" style={{ background: `${T.critical}22`, color: T.critical }}>
+      <span className="swit-pill" style={{ "--c": T.critical } as React.CSSProperties}>
         Fora do CMDB
       </span>
     ),
     services: (
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div className="swit-tags">
         {services.map((s) => (
-          <span key={s} className="swit-badge" style={{ background: `${T.accent}1a`, color: T.accent }}>
+          <span key={s} className="swit-tag">
             {s}
           </span>
         ))}
         {shares.length > 0 && (
           <span
-            className="swit-badge"
-            style={{
-              background: worst ? `${CLASS_TONE[worst].color}22` : `${T.success}22`,
-              color: worst ? CLASS_TONE[worst].color : T.success,
-            }}
+            className={`swit-tag${worst ? " tone" : ""}`}
+            style={worst ? ({ "--c": CLASS_TONE[worst].color } as React.CSSProperties) : undefined}
           >
-            SMB · {shares.length}
+            <Folder size={11} /> SMB · {shares.length}
           </span>
         )}
+        {services.length === 0 && shares.length === 0 && <span className="swit-dim">—</span>}
       </div>
     ),
-    source: host.source ?? "—",
+    risk: worst ? (
+      <span className="swit-pill" style={{ "--c": CLASS_TONE[worst].color } as React.CSSProperties}>
+        {CLASS_TONE[worst].label}
+      </span>
+    ) : (
+      <span className="swit-dim">—</span>
+    ),
+    source: <span className="swit-tag">{host.source ?? "—"}</span>,
     lastSeen: fmtRel(host.last_seen_at),
   };
   const cellStyle: Partial<Record<HostColumnKey, React.CSSProperties>> = {
-    source: { fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textMuted },
-    lastSeen: { color: T.textMuted, fontSize: 11 },
+    lastSeen: { color: T.textMuted, whiteSpace: "nowrap" },
   };
 
   return (
-    <tr className={`swit-row-clickable ${selected ? "selected" : ""}`} onClick={() => hasDetail && onSelect(host.ip)}>
-      {columnOrder.map((key, i) => (
-        <td key={key} style={{ ...(i === 0 ? { paddingLeft: 18 } : {}), ...cellStyle[key] }}>
+    <tr
+      className={`swit-row-clickable ${selected ? "selected" : ""}`}
+      onClick={() => hasDetail && onSelect(host.ip)}
+    >
+      {columnOrder.map((key) => (
+        <td key={key} style={cellStyle[key]}>
           {cell[key]}
         </td>
       ))}
-      <td style={{ paddingRight: 18, textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
+      <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
         <button
-          className="swit-btn gst"
-          style={{ padding: "5px 8px" }}
+          className="swit-icon-btn"
           disabled={verifying}
           onClick={() => onVerify(host.ip)}
           title="Verificar só este host"
+          aria-label="Verificar só este host"
         >
-          {verifying ? <Loader2 size={12} className="swit-spin" /> : <RefreshCw size={12} />}
+          {verifying ? <Loader2 size={14} className="swit-spin" /> : <RefreshCw size={14} />}
         </button>
       </td>
     </tr>
   );
 }
 
-// Sheet lateral (mesmo padrão de VulnDetailsSheet.tsx) -- abre na lateral
-// direita ao clicar num host, com alça de arrastar pra expandir a largura.
-const HOST_SHEET_MIN_WIDTH = 420;
-const HOST_SHEET_MAX_WIDTH = 1000;
-
+// Painel lateral do host (padrão v2 do DetailSheet): identificação NetBIOS,
+// serviços web e compartilhamentos SMB, com a verificação do host no rodapé.
 function HostDetailsSheet({
   open,
   onOpenChange,
   host,
   findings,
   onSetStatus,
+  onVerify,
+  verifying,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   host: any | null;
   findings: any[];
   onSetStatus: (findingId: string, status: "resolved" | "false_positive") => void;
+  onVerify: (ip: string) => void;
+  verifying: boolean;
 }) {
-  // Mantém o último host exibido enquanto o Sheet anima a saída -- `host` vira
+  // Mantém o último host exibido enquanto o painel anima a saída -- `host` vira
   // null no mesmo instante em que o fechamento começa.
   const [lastHost, setLastHost] = React.useState<any | null>(host);
   React.useEffect(() => {
     if (host) setLastHost(host);
   }, [host]);
-
-  // Largura customizada pelo usuário (arrastando a alça na borda esquerda).
-  const [width, setWidth] = React.useState<number | null>(null);
-  const draggingRef = React.useRef(false);
-
-  const handleResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    draggingRef.current = true;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    const onMove = (ev: MouseEvent) => {
-      if (!draggingRef.current) return;
-      const next = window.innerWidth - ev.clientX;
-      const clamped = Math.min(HOST_SHEET_MAX_WIDTH, window.innerWidth - 80, Math.max(HOST_SHEET_MIN_WIDTH, next));
-      setWidth(clamped);
-    };
-    const onUp = () => {
-      draggingRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
 
   const host_ = host ?? lastHost;
   if (!host_) return null;
@@ -659,136 +775,176 @@ function HostDetailsSheet({
   const http = findings.find((f) => f.kind === "http_title" && f.name === "HTTP");
   const https = findings.find((f) => f.kind === "http_title" && f.name === "HTTPS");
   const ftp = findings.find((f) => f.kind === "ftp_banner");
+  const worst = worstShare(findings);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        className="w-full sm:max-w-xl overflow-y-auto"
-        style={{
-          background: T.surface,
-          borderLeft: `1px solid ${T.borderHi}`,
-          color: T.textPrimary,
-          fontFamily: "'DM Sans',sans-serif",
-          ...(width ? { width, maxWidth: "none" } : {}),
-        }}
-      >
-        <div
-          onMouseDown={handleResizeStart}
-          className="absolute left-0 top-0 hidden h-full w-1.5 cursor-col-resize transition-colors hover:bg-primary/30 active:bg-primary/40 sm:block"
-        />
-        <SheetHeader className="space-y-1 pr-8">
-          <SheetTitle
-            style={{ color: T.textPrimary, fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700 }}
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      width={600}
+      eyebrow={`Fonte ${host_.source ?? "—"} · visto ${fmtRel(host_.last_seen_at)}`}
+      title={<span className="font-data">{host_.ip}</span>}
+      badges={
+        <>
+          <span
+            className="swit-pill"
+            style={{ "--c": host_.in_cmdb ? T.success : T.critical } as React.CSSProperties}
           >
-            {host_.ip}
-          </SheetTitle>
-          {host_.hostname && <div style={{ fontSize: 12.5, color: T.textMuted }}>{host_.hostname}</div>}
-        </SheetHeader>
-        <div className="swit-detail-wrap" style={{ paddingTop: 16 }}>
-          {(netbios || http || https || ftp) && (
-            <div className="swit-card-grid">
-              {netbios && (
-                <div className="swit-card">
-                  <div className="swit-card-hd">
-                    <div className="swit-card-icon">
-                      <Wifi size={14} color={T.accent} />
-                    </div>
-                    <div className="swit-card-title">NetBIOS</div>
-                  </div>
-                  <div className="swit-netbios-name">{netbios.name}</div>
-                  <div className="swit-netbios-group">
-                    Grupo <b>{netbios.value ?? "—"}</b>
-                  </div>
-                </div>
-              )}
-              {http && (
-                <HttpCard
-                  label="HTTP"
-                  icon={<Globe size={14} color={T.accent} />}
-                  finding={http}
-                  ip={host_.ip}
-                  port={80}
-                />
-              )}
-              {https && (
-                <HttpCard
-                  label="HTTPS"
-                  icon={<Lock size={14} color={T.accent} />}
-                  finding={https}
-                  ip={host_.ip}
-                  port={443}
-                />
-              )}
-              {ftp && (
-                <div className="swit-card">
-                  <div className="swit-card-hd">
-                    <div className="swit-card-icon">
-                      <Server size={14} color={T.accent} />
-                    </div>
-                    <div className="swit-card-title">FTP · porta 21</div>
-                  </div>
-                  <div className="swit-http-title">{ftp.value}</div>
-                  <div className="swit-http-link" style={{ color: T.textMuted }}>
-                    ftp://{host_.ip}/
-                  </div>
-                </div>
-              )}
-            </div>
+            {host_.in_cmdb ? "No CMDB" : "Fora do CMDB"}
+          </span>
+          {worst && (
+            <span
+              className="swit-pill"
+              style={{ "--c": CLASS_TONE[worst].color } as React.CSSProperties}
+            >
+              Risco {CLASS_TONE[worst].label.toLowerCase()}
+            </span>
           )}
-          {shares.length > 0 && (
+        </>
+      }
+      footer={
+        <>
+          <button
+            className="swit-btn dng"
+            style={{ marginRight: "auto" }}
+            onClick={() => onOpenChange(false)}
+          >
+            Fechar
+          </button>
+          <button className="swit-btn" disabled={verifying} onClick={() => onVerify(host_.ip)}>
+            {verifying ? <Loader2 size={14} className="swit-spin" /> : <RefreshCw size={14} />}
+            Verificar este host
+          </button>
+        </>
+      }
+    >
+      <DetailSection title="Identificação (NetBIOS)">
+        {netbios ? (
+          <div className="swit-netb">
+            <span className="swit-netb-ic">
+              <Monitor size={17} />
+            </span>
             <div>
-              <div className="swit-section-hd">
-                <Folder size={12} /> Compartilhamentos SMB
-              </div>
-              <div className="swit-share-list">
-                {shares.map((f) => {
-                  const tone = CLASS_TONE[f.classification as string];
-                  const uncPath = `\\\\${host_.ip}\\${f.name}`;
-                  const perm = (f.permission ?? "").toLowerCase();
-                  return (
-                    <div key={f.id} className={`swit-share-card ${f.classification ?? ""}`}>
-                      <div className={`swit-share-icon ${f.classification ?? ""}`}>
-                        <Folder size={15} />
-                      </div>
-                      <div className="swit-share-main">
-                        <div className="swit-share-name">{f.name}</div>
-                        <CopyableText value={uncPath} />
-                      </div>
-                      <div className="swit-share-meta">
-                        <span className={`swit-perm-pill ${perm.includes("write") ? "rw" : "ro"}`}>
-                          {f.permission ?? "—"}
-                        </span>
-                        {tone && (
-                          <span className="swit-badge" style={{ background: `${tone.color}22`, color: tone.color }}>
-                            {tone.label}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        <button
-                          className="swit-icon-btn"
-                          onClick={() => onSetStatus(f.id, "resolved")}
-                          title="Marcar como resolvido"
-                        >
-                          <CheckCircle2 size={13} />
-                        </button>
-                        <button
-                          className="swit-icon-btn"
-                          onClick={() => onSetStatus(f.id, "false_positive")}
-                          title="Marcar como falso positivo"
-                        >
-                          <XCircle size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="swit-netbios-name">{netbios.name}</div>
+              <div className="swit-netbios-group">
+                Grupo de trabalho/domínio <b>{netbios.value ?? "—"}</b>
               </div>
             </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+          </div>
+        ) : (
+          <p className="swit-note">
+            {host_.hostname ? `${host_.hostname} · ` : ""}O host não respondeu ao NetBIOS.
+          </p>
+        )}
+      </DetailSection>
+
+      <DetailSection title="Serviços web">
+        {http || https ? (
+          <div className="swit-web">
+            {http ? (
+              <HttpCard
+                label="HTTP"
+                icon={<Globe size={14} />}
+                finding={http}
+                ip={host_.ip}
+                port={80}
+              />
+            ) : (
+              <EmptyWebCard label="HTTP" icon={<Globe size={14} />} />
+            )}
+            {https ? (
+              <HttpCard
+                label="HTTPS"
+                icon={<Lock size={14} />}
+                finding={https}
+                ip={host_.ip}
+                port={443}
+              />
+            ) : (
+              <EmptyWebCard label="HTTPS" icon={<Lock size={14} />} />
+            )}
+          </div>
+        ) : (
+          <p className="swit-note">Nenhum serviço HTTP ou HTTPS respondeu.</p>
+        )}
+        {ftp && (
+          <p className="swit-note" style={{ marginTop: 10 }}>
+            FTP respondendo na porta 21: <span className="font-data">{ftp.value}</span>
+          </p>
+        )}
+      </DetailSection>
+
+      <DetailSection title={`Compartilhamentos SMB${shares.length ? ` (${shares.length})` : ""}`}>
+        {shares.length === 0 ? (
+          <p className="swit-note">
+            Nenhum compartilhamento aberto (ou sem credencial SMB configurada).
+          </p>
+        ) : (
+          <div className="swit-share-list">
+            {shares.map((f) => {
+              const tone = CLASS_TONE[f.classification as string];
+              const uncPath = `\\\\${host_.ip}\\${f.name}`;
+              const perm = (f.permission ?? "").toLowerCase();
+              return (
+                <div key={f.id} className={`swit-share-card ${f.classification ?? ""}`}>
+                  <div className="swit-share-icon">
+                    <Folder size={15} />
+                  </div>
+                  <div className="swit-share-main">
+                    <span className="swit-share-name">{f.name}</span>
+                    {tone && (
+                      <span
+                        className="swit-pill"
+                        style={{ "--c": tone.color } as React.CSSProperties}
+                      >
+                        {tone.label}
+                      </span>
+                    )}
+                    <span
+                      className="swit-badge"
+                      style={
+                        {
+                          "--c": perm.includes("write") ? T.critical : T.textMuted,
+                        } as React.CSSProperties
+                      }
+                    >
+                      {f.permission ?? "—"}
+                    </span>
+                  </div>
+                  <div className="swit-share-acts">
+                    <button className="swit-btn sm" onClick={() => onSetStatus(f.id, "resolved")}>
+                      Resolvido
+                    </button>
+                    <button
+                      className="swit-btn sm dng"
+                      onClick={() => onSetStatus(f.id, "false_positive")}
+                    >
+                      Falso positivo
+                    </button>
+                  </div>
+                  <CopyableText value={uncPath} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </DetailSection>
+    </DetailSheet>
+  );
+}
+
+function EmptyWebCard({ label, icon }: { label: string; icon: React.ReactNode }) {
+  return (
+    <div className="swit-card">
+      <div className="swit-card-hd">
+        <div className="swit-card-icon">{icon}</div>
+        <div className="swit-card-title">{label}</div>
+        <span className="swit-pill" style={{ "--c": T.textMuted } as React.CSSProperties}>
+          sem resposta
+        </span>
+      </div>
+      <div className="swit-http-title muted">Porta fechada ou sem título</div>
+    </div>
   );
 }
 
@@ -807,8 +963,12 @@ export function ShadowItDashboard() {
   const [credDlgOpen, setCredDlgOpen] = React.useState(false);
   const [subnetDlgOpen, setSubnetDlgOpen] = React.useState(false);
   const [selectedIp, setSelectedIp] = React.useState<string | null>(null);
+  const [cmdbFilter, setCmdbFilter] = React.useState<"all" | "out" | "in">("all");
+  const [svcFilter, setSvcFilter] = React.useState<"all" | "SMB" | "HTTP" | "FTP">("all");
   // Lazy init -- lê do localStorage só uma vez, na primeira renderização.
-  const [columnOrder, setColumnOrder] = React.useState<HostColumnKey[]>(() => loadHostColumnOrder());
+  const [columnOrder, setColumnOrder] = React.useState<HostColumnKey[]>(() =>
+    loadHostColumnOrder(),
+  );
   const [sortKey, setSortKey] = React.useState<HostColumnKey>("lastSeen");
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc");
   const toggleSort = (key: HostColumnKey) => {
@@ -820,7 +980,11 @@ export function ShadowItDashboard() {
   };
 
   const access = useQuery({ queryKey: ["shadowit-access"], queryFn: () => fetchAccess() });
-  const hostsQ = useQuery({ queryKey: ["shadowit-hosts"], queryFn: () => fetchHosts(), refetchInterval: 20000 });
+  const hostsQ = useQuery({
+    queryKey: ["shadowit-hosts"],
+    queryFn: () => fetchHosts(),
+    refetchInterval: 20000,
+  });
   const findingsQ = useQuery({
     queryKey: ["shadowit-findings"],
     queryFn: () => fetchFindings(),
@@ -832,9 +996,12 @@ export function ShadowItDashboard() {
     refetchInterval: 8000,
   });
 
-  const hosts = hostsQ.data?.hosts ?? [];
-  const findings = findingsQ.data?.findings ?? [];
-  const selectedHost = React.useMemo(() => hosts.find((h: any) => h.ip === selectedIp) ?? null, [hosts, selectedIp]);
+  const hosts = React.useMemo(() => hostsQ.data?.hosts ?? [], [hostsQ.data]);
+  const findings = React.useMemo(() => findingsQ.data?.findings ?? [], [findingsQ.data]);
+  const selectedHost = React.useMemo(
+    () => hosts.find((h: any) => h.ip === selectedIp) ?? null,
+    [hosts, selectedIp],
+  );
   const scans = scansQ.data?.scans ?? [];
 
   const findingsByIp = React.useMemo(() => {
@@ -848,7 +1015,8 @@ export function ShadowItDashboard() {
 
   // IP ordenado numericamente (octeto por octeto) -- comparação de texto
   // colocaria "192.168.100.9" depois de "192.168.100.10", errado.
-  const ipToNum = (ip: string) => ip.split(".").reduce((acc, oct) => acc * 256 + (Number(oct) || 0), 0);
+  const ipToNum = (ip: string) =>
+    ip.split(".").reduce((acc, oct) => acc * 256 + (Number(oct) || 0), 0);
 
   const sortedHosts = React.useMemo(() => {
     const arr = [...hosts];
@@ -870,15 +1038,40 @@ export function ShadowItDashboard() {
         case "services":
           cmp = (findingsByIp.get(a.ip)?.length ?? 0) - (findingsByIp.get(b.ip)?.length ?? 0);
           break;
+        case "risk": {
+          const ra = worstShare(findingsByIp.get(a.ip) ?? []);
+          const rb = worstShare(findingsByIp.get(b.ip) ?? []);
+          cmp = (ra ? RISK_RANK[ra] : 2) - (rb ? RISK_RANK[rb] : 2);
+          break;
+        }
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
     return arr;
   }, [hosts, sortKey, sortDir, findingsByIp]);
 
+  const visibleHosts = React.useMemo(
+    () =>
+      sortedHosts.filter((h) => {
+        if (cmdbFilter === "out" && h.in_cmdb) return false;
+        if (cmdbFilter === "in" && !h.in_cmdb) return false;
+        if (svcFilter === "all") return true;
+        const fs = findingsByIp.get(h.ip) ?? [];
+        if (svcFilter === "SMB")
+          return fs.some((f) => f.kind === "smb_share" && f.status === "open");
+        if (svcFilter === "HTTP") return fs.some((f) => f.kind === "http_title");
+        return fs.some((f) => f.kind === "ftp_banner");
+      }),
+    [sortedHosts, cmdbFilter, svcFilter, findingsByIp],
+  );
   const kpis = React.useMemo(() => {
     const smb = (findings as any[]).filter((f) => f.kind === "smb_share" && f.status === "open");
+    const hostsWith = (kind: string) =>
+      new Set(findings.filter((f) => f.kind === kind).map((f) => f.ip)).size;
     return {
+      outCmdb: hosts.filter((h: { in_cmdb?: boolean }) => !h.in_cmdb).length,
+      httpHosts: hostsWith("http_title"),
+      writable: smb.filter((f) => /write|escrita|rw/i.test(String(f.permission ?? ""))).length,
       hosts: hosts.length,
       http: (findings as any[]).filter((f) => f.kind === "http_title").length,
       ftp: (findings as any[]).filter((f) => f.kind === "ftp_banner").length,
@@ -922,105 +1115,221 @@ export function ShadowItDashboard() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  if (access.isLoading) {
+  if (access.isLoading) return <ModuleLoading />;
+  if (access.data && !access.data.allowed) {
     return (
-      <div className="swit-empty">
-        <Loader2 size={14} className="swit-spin" /> Carregando…
+      <div className="swit-root">
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        <div className="swit-panel swit-empty">
+          <Lock size={20} color={T.critical} style={{ margin: "0 auto 8px" }} />
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>Acesso restrito</div>
+          Você não tem permissão para acessar este módulo.
+        </div>
       </div>
     );
-  }
-  if (access.data && !access.data.allowed) {
-    return <div className="swit-empty">Acesso restrito a este módulo.</div>;
   }
 
   return (
     <div className="swit-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <div className="swit-hdr">
-        <div className="swit-hdr-brand">
-          <div className="swit-hdr-icon">
-            <Wifi size={18} color={T.accent} />
-          </div>
-          <div>
-            <div className="swit-hdr-title">Shadow IT</div>
-            <div className="swit-hdr-sub">
-              Visibilidade de rede interna — hosts sem cadastro em DNS, compartilhamentos e serviços expostos
-            </div>
-          </div>
+      <div className="swit-ph">
+        <div>
+          <h1 className="swit-ph-title">Shadow IT</h1>
+          <p className="swit-ph-sub">
+            Hosts da rede interna sem cadastro em DNS, com compartilhamentos e serviços expostos
+          </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <div className="swit-tabs">
-            <button className={`swit-tab ${view === "hosts" ? "on" : ""}`} onClick={() => setView("hosts")}>
-              Hosts
-            </button>
-            <button className={`swit-tab ${view === "scans" ? "on" : ""}`} onClick={() => setView("scans")}>
-              Varreduras
-            </button>
-          </div>
-          <button className="swit-btn gst" onClick={() => setCredDlgOpen(true)}>
-            <KeyRound size={13} /> Credencial SMB
+        <div className="swit-ph-actions">
+          <button className="swit-btn" onClick={() => setCredDlgOpen(true)}>
+            <KeyRound size={14} /> Credencial SMB
           </button>
-          <button className="swit-btn gst" onClick={() => setSubnetDlgOpen(true)}>
-            <Plus size={13} /> Nova varredura
+          <button className="swit-btn" onClick={() => setSubnetDlgOpen(true)}>
+            <Plus size={14} /> Nova varredura
           </button>
           <button
             className="swit-btn pri"
             disabled={(startMutation.isPending && !startMutation.variables) || hosts.length === 0}
             onClick={() => startMutation.mutate(undefined)}
-            title={hosts.length === 0 ? "Nenhum host catalogado ainda" : ""}
+            title={
+              hosts.length === 0
+                ? "Nenhum host catalogado ainda"
+                : "Verifica SMB, HTTP, FTP e NetBIOS em todos os hosts"
+            }
           >
             {startMutation.isPending && !startMutation.variables ? (
-              <Loader2 size={13} className="swit-spin" />
+              <Loader2 size={14} className="swit-spin" />
             ) : (
-              <RefreshCw size={13} />
+              <RefreshCw size={14} />
             )}
             Verificar todos
           </button>
         </div>
       </div>
 
+      <div className="swit-subnav" role="tablist" aria-label="Seções do Shadow IT">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "hosts"}
+          onClick={() => setView("hosts")}
+        >
+          Hosts <span className="n">{hosts.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "scans"}
+          onClick={() => setView("scans")}
+        >
+          Varreduras
+          {scans.some((x) => x.status === "running" || x.status === "queued") && (
+            <span className="live">em execução</span>
+          )}
+        </button>
+      </div>
+
       {view === "hosts" ? (
         <>
           <div className="swit-kpis">
             <div className="swit-kpi">
-              <div className="swit-kpi-label">Hosts</div>
-              <div className="swit-kpi-value">{kpis.hosts}</div>
+              <span className="swit-kpi-label">Hosts não catalogados</span>
+              <span className="swit-kpi-value">{kpis.hosts}</span>
+              <span className="swit-kpi-foot">sem nome em DNS interno</span>
             </div>
+            <button
+              type="button"
+              className="swit-kpi"
+              aria-pressed={cmdbFilter === "out"}
+              onClick={() => setCmdbFilter((c) => (c === "out" ? "all" : "out"))}
+            >
+              <span className="swit-kpi-label">
+                {kpis.outCmdb > 0 && (
+                  <span className="swit-sw" style={{ background: T.critical }} />
+                )}
+                Fora do CMDB
+              </span>
+              <span className="swit-kpi-value">{kpis.outCmdb}</span>
+              <div className="swit-meter">
+                <i
+                  style={{
+                    width: `${kpis.hosts ? (kpis.outCmdb / kpis.hosts) * 100 : 0}%`,
+                    background: T.critical,
+                  }}
+                />
+              </div>
+              <span className="swit-kpi-foot">
+                {kpis.hosts ? Math.round((kpis.outCmdb / kpis.hosts) * 100) : 0}% dos hosts
+                encontrados
+              </span>
+            </button>
+            <button
+              type="button"
+              className="swit-kpi"
+              aria-pressed={svcFilter === "HTTP"}
+              onClick={() => setSvcFilter((c) => (c === "HTTP" ? "all" : "HTTP"))}
+            >
+              <span className="swit-kpi-label">
+                <Globe size={13} /> Serviços web
+              </span>
+              <span className="swit-kpi-value">{kpis.http}</span>
+              <span className="swit-kpi-foot">HTTP/HTTPS com título em {kpis.httpHosts} hosts</span>
+            </button>
+            <button
+              type="button"
+              className="swit-kpi"
+              aria-pressed={svcFilter === "FTP"}
+              onClick={() => setSvcFilter((c) => (c === "FTP" ? "all" : "FTP"))}
+            >
+              <span className="swit-kpi-label">FTP</span>
+              <span className="swit-kpi-value">{kpis.ftp}</span>
+              <span className="swit-kpi-foot">servidores FTP respondendo</span>
+            </button>
+            <button
+              type="button"
+              className="swit-kpi"
+              aria-pressed={svcFilter === "SMB"}
+              onClick={() => setSvcFilter((c) => (c === "SMB" ? "all" : "SMB"))}
+            >
+              <span className="swit-kpi-label">
+                <Folder size={13} /> Compartilhamentos SMB
+              </span>
+              <span className="swit-kpi-value">{kpis.smbShares}</span>
+              <span className="swit-kpi-foot">{kpis.writable} com escrita liberada</span>
+            </button>
             <div className="swit-kpi">
-              <div className="swit-kpi-label">HTTP/HTTPS c/ título</div>
-              <div className="swit-kpi-value">{kpis.http}</div>
-            </div>
-            <div className="swit-kpi">
-              <div className="swit-kpi-label">FTP</div>
-              <div className="swit-kpi-value">{kpis.ftp}</div>
-            </div>
-            <div className="swit-kpi" style={{ "--kc": T.high } as React.CSSProperties}>
-              <div className="swit-kpi-label">Compart. SMB</div>
-              <div className="swit-kpi-value">{kpis.smbShares}</div>
-            </div>
-            <div className="swit-kpi" style={{ "--kc": T.critical } as React.CSSProperties}>
-              <div className="swit-kpi-label">Críticos</div>
-              <div className="swit-kpi-value">{kpis.criticos}</div>
+              <span className="swit-kpi-label">
+                {kpis.criticos > 0 && (
+                  <span className="swit-sw" style={{ background: T.critical }} />
+                )}
+                Compartilhamentos críticos
+              </span>
+              <span className="swit-kpi-value">{kpis.criticos}</span>
+              <span className="swit-kpi-foot">dados sensíveis expostos</span>
             </div>
           </div>
-
           <div className="swit-panel">
-            <div className="swit-panel-hdr">
-              <div className="swit-panel-title">
-                <Server size={11} color={T.accent} /> Hosts não catalogados ({hosts.length})
+            <div className="swit-tbar">
+              <b>
+                Hosts{" "}
+                <span>
+                  (
+                  {visibleHosts.length === hosts.length
+                    ? hosts.length
+                    : `${visibleHosts.length} de ${hosts.length}`}
+                  )
+                </span>
+              </b>
+              <div className="swit-seg" role="group" aria-label="CMDB">
+                {(
+                  [
+                    ["all", "Todos"],
+                    ["out", "Fora do CMDB"],
+                    ["in", "No CMDB"],
+                  ] as const
+                ).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={cmdbFilter === k}
+                    onClick={() => setCmdbFilter(k)}
+                  >
+                    {l}
+                  </button>
+                ))}
               </div>
-              <ColumnOrderPicker
-                order={columnOrder}
-                onChange={(next) => {
-                  setColumnOrder(next);
-                  try {
-                    localStorage.setItem(HOST_COLUMN_STORAGE_KEY, JSON.stringify(next));
-                  } catch {
-                    /* localStorage indisponível (modo privado etc.) -- ordem só não persiste */
-                  }
-                }}
-              />
+              <div className="swit-seg" role="group" aria-label="Serviço">
+                {(
+                  [
+                    ["all", "Qualquer serviço"],
+                    ["SMB", "SMB"],
+                    ["HTTP", "HTTP"],
+                    ["FTP", "FTP"],
+                  ] as const
+                ).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={svcFilter === k}
+                    onClick={() => setSvcFilter(k)}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <div style={{ marginLeft: "auto" }}>
+                <ColumnOrderPicker
+                  order={columnOrder}
+                  onChange={(next) => {
+                    setColumnOrder(next);
+                    try {
+                      localStorage.setItem(HOST_COLUMN_STORAGE_KEY, JSON.stringify(next));
+                    } catch {
+                      /* localStorage indisponível (modo privado etc.) -- ordem só não persiste */
+                    }
+                  }}
+                />
+              </div>
             </div>
             {hostsQ.isLoading ? (
               <div className="swit-empty">
@@ -1028,33 +1337,54 @@ export function ShadowItDashboard() {
               </div>
             ) : hosts.length === 0 ? (
               <div className="swit-empty">
-                Nenhum host encontrado ainda — rode uma descoberta de rede interna no DAST Scanner (Ativos Descobertos →
-                Nova descoberta). Host que não resolve hostname em DNS interno cai aqui automaticamente.
+                Nenhum host encontrado ainda — rode uma descoberta de rede interna no DAST Scanner
+                (Ativos Descobertos → Nova descoberta). Host que não resolve hostname em DNS interno
+                cai aqui automaticamente.
               </div>
             ) : (
               <div style={{ overflowX: "auto", maxHeight: 560, overflowY: "auto" }}>
                 <table className="swit-table">
                   <thead>
                     <tr>
-                      {columnOrder.map((key, i) => (
+                      {columnOrder.map((key) => (
                         <th
                           key={key}
-                          style={{ cursor: "pointer", ...(i === 0 ? { paddingLeft: 18 } : {}) }}
+                          className="sort"
+                          aria-sort={
+                            sortKey === key
+                              ? sortDir === "asc"
+                                ? "ascending"
+                                : "descending"
+                              : undefined
+                          }
                           onClick={() => toggleSort(key)}
                           title="Clique para ordenar"
                         >
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                             {HOST_COLUMN_LABEL[key]}
                             {sortKey === key &&
-                              (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
+                              (sortDir === "asc" ? (
+                                <ChevronUp size={10} />
+                              ) : (
+                                <ChevronDown size={10} />
+                              ))}
                           </span>
                         </th>
                       ))}
-                      <th style={{ paddingRight: 18, textAlign: "right" }}>Ações</th>
+                      <th>
+                        <span style={{ fontSize: 0 }}>Ações</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedHosts.map((h: any) => (
+                    {visibleHosts.length === 0 && (
+                      <tr>
+                        <td colSpan={columnOrder.length + 1} className="swit-empty">
+                          Nenhum host com esses filtros.
+                        </td>
+                      </tr>
+                    )}
+                    {visibleHosts.map((h: any) => (
                       <HostRow
                         key={h.id}
                         host={h}
@@ -1074,10 +1404,13 @@ export function ShadowItDashboard() {
         </>
       ) : (
         <div className="swit-panel">
-          <div className="swit-panel-hdr">
-            <div className="swit-panel-title">
-              <RefreshCw size={11} color={T.accent} /> Varreduras ({scans.length})
-            </div>
+          <div className="swit-tbar">
+            <b>
+              Varreduras <span>({scans.length})</span>
+            </b>
+            <span className="swit-dim" style={{ fontSize: 12.5 }}>
+              Verificam SMB, HTTP, FTP e NetBIOS em cada host
+            </span>
           </div>
           {scansQ.isLoading ? (
             <div className="swit-empty">
@@ -1090,12 +1423,15 @@ export function ShadowItDashboard() {
               <table className="swit-table">
                 <thead>
                   <tr>
-                    <th style={{ paddingLeft: 18 }}>Nome</th>
+                    <th>Varredura</th>
                     <th>Alvos</th>
                     <th>Status</th>
-                    <th>Criado</th>
+                    <th>Progresso</th>
+                    <th>Criada</th>
                     <th>Duração</th>
-                    <th style={{ paddingRight: 18, textAlign: "right" }}>Ações</th>
+                    <th>
+                      <span style={{ fontSize: 0 }}>Ações</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1103,49 +1439,77 @@ export function ShadowItDashboard() {
                     const tone = STATUS_TONE[s.status] ?? T.textMuted;
                     return (
                       <tr key={s.id}>
-                        <td style={{ paddingLeft: 18, fontWeight: 600 }}>{s.name ?? "—"}</td>
-                        <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textMuted }}>
-                          {(s.targets ?? []).length} host(s)
+                        <td style={{ fontWeight: 500 }}>{s.name ?? "—"}</td>
+                        <td className="swit-dim">
+                          {(s.targets ?? []).length}{" "}
+                          {(s.targets ?? []).length === 1 ? "host" : "hosts"}
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: "nowrap" }}>
                           <span
-                            className="swit-badge"
-                            style={{ background: `${tone}22`, color: tone, border: `1px solid ${tone}55` }}
+                            className={`swit-pill${s.status === "running" ? " live" : ""}`}
+                            style={{ "--c": tone } as React.CSSProperties}
                           >
-                            {s.status}
+                            {STATUS_LABEL[s.status] ?? s.status}
                           </span>
                           {s.error && (
                             <span
                               title={s.error}
-                              style={{ marginLeft: 6, fontSize: 10, color: T.critical, cursor: "help" }}
+                              style={{
+                                marginLeft: 6,
+                                display: "inline-flex",
+                                verticalAlign: "middle",
+                                color: T.critical,
+                                cursor: "help",
+                              }}
                             >
-                              ⚠
+                              <XCircle size={13} />
                             </span>
                           )}
                         </td>
-                        <td style={{ color: T.textMuted, fontSize: 11 }}>{fmtRel(s.created_at)}</td>
-                        <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: T.textMuted }}>
+                        <td>
+                          <div className="swit-progress">
+                            <span className="tr">
+                              <i
+                                style={{
+                                  width: `${s.progress ?? 0}%`,
+                                  background:
+                                    s.status === "error"
+                                      ? T.critical
+                                      : s.status === "done"
+                                        ? T.success
+                                        : T.accent,
+                                }}
+                              />
+                            </span>
+                            <span>{s.progress ?? 0}%</span>
+                          </div>
+                        </td>
+                        <td className="swit-dim" style={{ whiteSpace: "nowrap" }}>
+                          {fmtRel(s.created_at)}
+                        </td>
+                        <td className="swit-mono swit-dim" style={{ whiteSpace: "nowrap" }}>
                           {fmtDuration(s.started_at, s.finished_at)}
                         </td>
-                        <td style={{ paddingRight: 18 }}>
-                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                        <td>
+                          <div style={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
                             {(s.status === "queued" || s.status === "running") && (
                               <button
-                                className="swit-btn gst"
-                                style={{ padding: "5px 8px" }}
+                                className="swit-icon-btn danger"
                                 onClick={() => cancelMutation.mutate(s.id)}
                                 title="Cancelar"
+                                aria-label="Cancelar"
                               >
-                                <Ban size={12} />
+                                <Ban size={14} />
                               </button>
                             )}
                             {s.status !== "queued" && s.status !== "running" && (
                               <button
-                                className="swit-btn dng"
+                                className="swit-icon-btn danger"
                                 onClick={() => deleteMutation.mutate(s.id)}
                                 title="Excluir"
+                                aria-label="Excluir"
                               >
-                                <Trash2 size={12} />
+                                <Trash2 size={14} />
                               </button>
                             )}
                           </div>
@@ -1168,6 +1532,12 @@ export function ShadowItDashboard() {
         host={selectedHost}
         findings={selectedHost ? (findingsByIp.get(selectedHost.ip) ?? []) : []}
         onSetStatus={(findingId, status) => statusMutation.mutate({ findingId, status })}
+        onVerify={(ip) => startMutation.mutate([ip])}
+        verifying={
+          startMutation.isPending &&
+          !!selectedHost &&
+          startMutation.variables?.[0] === selectedHost.ip
+        }
       />
     </div>
   );

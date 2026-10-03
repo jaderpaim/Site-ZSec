@@ -1,38 +1,23 @@
+import { SyncActions } from "@/components/layout/SyncActions";
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
-  BarChart,
-  Bar,
+  Line,
   CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
   ReferenceLine,
-  LabelList,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { SekTicketsPanel } from "./soc/SekTicketsPanel";
-import { GripHorizontal, Minimize2, Maximize2 } from "lucide-react";
-import {
-  RefreshCw,
-  Network,
-  AlertTriangle,
-  ShieldOff,
-  Activity,
-  Shield,
-  TrendingUp,
-  TrendingDown,
-  ChevronUp,
-  ChevronDown,
-  Zap,
-  Eye,
-  Lock,
-} from "lucide-react";
+import { RefreshCw, AlertTriangle, Shield } from "lucide-react";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import { toast } from "sonner";
-import { CronHealthBadge, getCronHealth } from "./CronHealthBadge";
+import { getCronHealth } from "./CronHealthBadge";
 
 // Contrato de retorno do POST /api/public/hooks/qradar-sync-manual (mesmo
 // shape de QradarSyncResult em qradar.server.ts) — não importamos o tipo de
@@ -55,11 +40,11 @@ type QradarSyncManualResult = {
 // ── Design Tokens — Executive Dark Intelligence Theme ──────────────────────────
 const T = {
   // Core palette
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
 
   // Accent brand
   accent: "#3B82F6", // electric blue
@@ -73,471 +58,154 @@ const T = {
   warningBg: "rgba(245,158,11,0.10)",
   danger: "#EF4444",
   dangerBg: "rgba(239,68,68,0.10)",
-  neutral: "#6B7280",
+  neutral: "var(--tl-6b7280, #6B7280)",
 
   // Text
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
 
   // Chart fills
-  chartGrid: "rgba(30,38,64,0.8)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
-};
-
-// Tooltip executivo
-const execTooltip = {
-  contentStyle: {
-    background: "#0F1420",
-    border: `1px solid ${T.borderHi}`,
-    borderRadius: 8,
-    fontSize: 12,
-    color: T.textPrimary,
-    boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
-    fontFamily: "'IBM Plex Mono', monospace",
-    padding: "10px 14px",
-  },
-  cursor: { fill: "rgba(59,130,246,0.06)" },
-  labelStyle: { color: T.textSecondary, marginBottom: 4, fontFamily: "'DM Sans', sans-serif" },
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.8)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 const LICENSED_EPS = 2000;
 
-// ── Inline CSS ─────────────────────────────────────────────────────────────────
+// ── CSS (interface v2) ─────────────────────────────────────────────────────────
+// As classes exec-* continuam existindo porque o painel de chamados da Sek
+// (soc/SekTicketsPanel.tsx) depende delas; aqui elas ganham o visual v2.
 const inlineStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+  .soc-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
+  .soc-root * { box-sizing:border-box; }
+  @keyframes soc-spin { to{transform:rotate(360deg)} }
+  .spin { animation:soc-spin 0.8s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .spin { animation:none; } }
+  .soc-root ::-webkit-scrollbar { width:6px; height:6px; }
+  .soc-root ::-webkit-scrollbar-track { background:transparent; }
+  .soc-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .soc-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .soc-root .mono, .exec-table .mono { font-family:var(--font-data); font-size:12.5px; }
+  .soc-root .dim { color:var(--v2-fg-3); }
+  .soc-root .recharts-cartesian-axis-tick-value { fill:var(--v2-fg-3) !important; font-size:11px; font-family:var(--font-data); }
+  .soc-root .recharts-reference-line text { fill:var(--v2-crit) !important; font-size:11px; font-family:var(--font-data); }
 
-  .soc-exec-root {
-    font-family: 'DM Sans', sans-serif;
-    background: ${T.bg};
-    color: ${T.textPrimary};
-    min-height: 100vh;
-  }
+  /* ── Cabeçalho ── */
+  .soc-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .soc-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .soc-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .soc-live { display:inline-flex; align-items:center; gap:6px; }
+  .soc-live::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--v2-ok); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-ok) 25%, transparent); }
+  .soc-live.warn::before { background:var(--v2-med); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-med) 25%, transparent); }
+  .soc-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .soc-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; border:1px solid var(--v2-accent); background:var(--v2-accent); color:var(--v2-accent-ink); font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; }
+  .soc-btn:hover:not(:disabled) { filter:brightness(1.08); }
+  .soc-btn:disabled { opacity:0.5; cursor:not-allowed; }
+  .soc-error { display:flex; gap:8px; align-items:flex-start; padding:10px 14px; border-radius:8px; font-size:13px; background:color-mix(in oklch, var(--v2-med) 12%, transparent); border:1px solid color-mix(in oklch, var(--v2-med) 35%, transparent); }
+  .soc-error svg { flex-shrink:0; margin-top:2px; color:var(--v2-med); }
 
-  .soc-exec-root * {
-    box-sizing: border-box;
-  }
+  /* ── Submenu ── */
+  .soc-subnav { display:flex; gap:2px; padding:4px; background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; width:fit-content; max-width:100%; flex-wrap:wrap; }
+  .soc-subnav button { display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; background:transparent; padding:6px 14px; border-radius:6px; font-size:13px; font-weight:500; color:var(--v2-fg-3); cursor:pointer; font-family:inherit; }
+  .soc-subnav button:hover { color:var(--v2-fg); background:var(--v2-hover); }
+  .soc-subnav button[aria-selected="true"] { background:var(--v2-surface); color:var(--v2-fg); border-color:var(--v2-line); }
+  .soc-count { font:500 11px var(--font-data); padding:0 6px; border-radius:99px; background:color-mix(in oklch, var(--v2-crit) 18%, transparent); color:var(--v2-crit); }
+  .soc-count.warn { background:color-mix(in oklch, var(--v2-med) 18%, transparent); color:var(--v2-med); }
 
-  /* KPI Card Premium */
-  .exec-kpi {
-    background: ${T.surface};
-    border: 1px solid ${T.border};
-    border-radius: 12px;
-    padding: 20px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .exec-kpi::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: var(--kpi-accent, ${T.accent});
-    opacity: 0.7;
-  }
-  .exec-kpi:hover {
-    border-color: ${T.borderHi};
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  }
-  .exec-kpi-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: ${T.textSecondary};
-    font-family: 'IBM Plex Mono', monospace;
-  }
-  .exec-kpi-value {
-    font-size: 28px;
-    font-weight: 700;
-    font-family: 'Space Grotesk', sans-serif;
-    letter-spacing: -0.02em;
-    line-height: 1;
-    color: var(--kpi-color, ${T.textPrimary});
-  }
-  .exec-kpi-sub {
-    font-size: 11px;
-    color: ${T.textMuted};
-    font-family: 'IBM Plex Mono', monospace;
-  }
-  .exec-kpi-icon {
-    position: absolute;
-    top: 10px; right: 10px;
-    width: 42px; height: 42px;
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    background: color-mix(in srgb, var(--kpi-accent, #3B82F6) 18%, transparent);
-  }
-  /* Wrapper de KPI com tooltip — faz o card preencher a célula do grid (mesma altura dos demais) */
-  .exec-kpi-wrap { position: relative; display: flex; }
-  .exec-kpi-wrap > .exec-kpi { flex: 1; min-width: 0; }
+  /* ── KPIs ── */
+  .soc-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .soc-kpi { position:relative; text-align:left; border:0; background:transparent; padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); color:inherit; font-family:inherit; min-width:0; }
+  button.soc-kpi { cursor:pointer; }
+  button.soc-kpi:hover { background:var(--v2-hover); }
+  .soc-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .soc-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .soc-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .soc-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
+  .soc-meter { height:6px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; margin:6px 0 2px; }
+  .soc-meter i { display:block; height:100%; border-radius:99px; }
 
-  /* Panel Executivo */
-  .exec-panel {
-    background: ${T.surface};
-    border: 1px solid ${T.border};
-    border-radius: 12px;
-    overflow: hidden;
-  }
-  .exec-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 24px;
-    border-bottom: 1px solid ${T.border};
-    background: ${T.surfaceAlt};
-  }
-  .exec-panel-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: ${T.textPrimary};
-    letter-spacing: 0.01em;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: 'DM Sans', sans-serif;
-  }
-  .exec-panel-body {
-    padding: 20px 24px;
-  }
+  /* ── Grades e cartões ── */
+  .soc-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; align-items:start; }
+  .soc-grid-2 { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:20px; align-items:start; }
+  .soc-span-2 { grid-column:span 2; }
+  @media (max-width: 1100px) { .soc-grid, .soc-grid-2 { grid-template-columns:minmax(0, 1fr); } .soc-span-2 { grid-column:auto; } }
+  .soc-card { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; overflow:hidden; }
+  .soc-card-hdr { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:14px 18px 4px; }
+  .soc-card-title { font-size:14px; font-weight:600; margin:0; }
+  .soc-card-sub { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .soc-card-body { padding:10px 18px 16px; }
+  .soc-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--v2-fg-2); }
+  .soc-legend span { display:inline-flex; align-items:center; gap:6px; }
+  .soc-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .soc-toolbar b { font-size:14px; font-weight:600; }
+  .soc-toolbar small { font-size:13px; color:var(--v2-fg-3); }
+  .soc-foot { padding:10px 18px; border-top:1px solid var(--v2-line); font-size:12.5px; color:var(--v2-fg-3); }
 
-  /* Chart Container */
-  .exec-chart-card {
-    background: ${T.surface};
-    border: 1px solid ${T.border};
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    transition: border-color 0.2s;
-  }
-  .exec-chart-card:hover {
-    border-color: ${T.borderHi};
-  }
-  .exec-chart-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 20px;
-    border-bottom: 1px solid ${T.border};
-    background: ${T.surfaceAlt};
-    flex-shrink: 0;
-  }
-  .exec-chart-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: ${T.textSecondary};
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-family: 'IBM Plex Mono', monospace;
-  }
-  .exec-chart-body {
-    flex: 1;
-    padding: 16px;
-  }
+  /* ── Triagem ── */
+  .soc-feed { display:grid; }
+  .soc-feed button { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:2px 10px; padding:10px 8px; margin:0 -8px; border:0; border-radius:8px; background:transparent; text-align:left; color:var(--v2-fg); cursor:pointer; font-family:inherit; }
+  .soc-feed button:hover { background:var(--v2-hover); }
+  .soc-feed .k { grid-row:span 2; align-self:start; margin-top:1px; }
+  .soc-feed b { font-weight:500; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .soc-feed small { font-size:12px; color:var(--v2-fg-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  /* Table Executiva */
-  .exec-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12.5px;
-  }
-  .exec-table thead tr {
-    border-bottom: 1px solid ${T.border};
-  }
-  .exec-table th {
-    padding: 8px 12px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: ${T.textMuted};
-    font-family: 'IBM Plex Mono', monospace;
-    text-align: left;
-    white-space: nowrap;
-    cursor: pointer;
-    user-select: none;
-  }
-  .exec-table th:hover { color: ${T.textSecondary}; }
-  .exec-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid rgba(30,38,64,0.5);
-    font-family: 'DM Sans', sans-serif;
-    color: ${T.textPrimary};
-    vertical-align: middle;
-  }
-  .exec-table tbody tr:hover td { background: rgba(59,130,246,0.04); }
-  .exec-table tbody tr:last-child td { border-bottom: none; }
-  .exec-table .mono { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; }
+  /* ── Pílulas ── */
+  .soc-tag { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; --c:var(--v2-fg-3); background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .soc-tag.crit { --c:var(--v2-crit); } .soc-tag.high { --c:var(--v2-high); } .soc-tag.med { --c:var(--v2-med); } .soc-tag.ok { --c:var(--v2-ok); } .soc-tag.info { --c:var(--v2-accent); }
+  .sev-pill { display:inline-grid; place-items:center; min-width:26px; height:22px; padding:0 6px; border-radius:5px; font:600 12px var(--font-data); --c:var(--v2-low); background:color-mix(in oklch, var(--c) 16%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .sev-pill.sev-crit { --c:var(--v2-crit); } .sev-pill.sev-high { --c:var(--v2-high); } .sev-pill.sev-med { --c:var(--v2-med); }
+  .soc-diag { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--v2-fg-2); white-space:nowrap; }
+  .soc-diag.late { color:color-mix(in oklch, var(--v2-med) 75%, var(--v2-fg)); }
+  .soc-flag { display:inline-flex; align-items:center; gap:4px; margin-left:6px; font-size:11.5px; color:color-mix(in oklch, var(--v2-med) 75%, var(--v2-fg)); }
 
-  /* Status Badge Executivo */
-  .exec-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-family: 'IBM Plex Mono', monospace;
-    white-space: nowrap;
-  }
-  .exec-badge-dot {
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .exec-badge.success { background: ${T.successBg}; color: ${T.success}; border: 1px solid rgba(16,185,129,0.2); }
-  .exec-badge.warning { background: ${T.warningBg}; color: ${T.warning}; border: 1px solid rgba(245,158,11,0.2); }
-  .exec-badge.danger  { background: ${T.dangerBg};  color: ${T.danger};  border: 1px solid rgba(239,68,68,0.2);  }
-  .exec-badge.neutral { background: rgba(107,114,128,0.1); color: ${T.neutral}; border: 1px solid rgba(107,114,128,0.2); }
-  .exec-badge.accent  { background: ${T.accentSoft}; color: ${T.accent}; border: 1px solid rgba(59,130,246,0.2); }
+  /* ── Barras horizontais ── */
+  .soc-bars { display:grid; gap:10px; }
+  .soc-bar { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:5px 10px; font-size:13px; }
+  .soc-bar span:first-child { font:400 12.5px var(--font-data); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .soc-bar span:nth-child(2) { font:500 12.5px var(--font-data); color:var(--v2-fg-2); }
+  .soc-track { grid-column:1 / -1; height:8px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; }
+  .soc-track i { display:block; height:100%; border-radius:99px; background:var(--v2-accent); }
 
-  /* Header Principal */
-  .exec-header {
-    background: ${T.surface};
-    border-bottom: 1px solid ${T.border};
-    padding: 16px 28px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    backdrop-filter: blur(20px);
-  }
-  .exec-header-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .exec-header-shield {
-    width: 36px; height: 36px;
-    background: ${T.accentGlow};
-    border: 1px solid rgba(59,130,246,0.3);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .exec-header-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: ${T.textPrimary};
-    font-family: 'Space Grotesk', sans-serif;
-    letter-spacing: -0.01em;
-  }
-  .exec-header-sub {
-    font-size: 11px;
-    color: ${T.textMuted};
-    font-family: 'IBM Plex Mono', monospace;
-    margin-top: 1px;
-  }
-  .exec-header-meta {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  .exec-header-sync-info {
-    font-size: 11px;
-    color: ${T.textMuted};
-    font-family: 'IBM Plex Mono', monospace;
-    text-align: right;
-  }
+  /* ── Painel lateral ── */
+  .soc-warnbox { display:flex; gap:8px; padding:9px 12px; border-radius:8px; font-size:12.5px; background:color-mix(in oklch, var(--v2-med) 12%, transparent); border:1px solid color-mix(in oklch, var(--v2-med) 35%, transparent); }
+  .soc-warnbox svg { flex-shrink:0; margin-top:2px; color:var(--v2-med); }
+  .soc-diff { display:grid; gap:10px; }
+  .soc-diff-item { display:grid; gap:4px; font-size:13px; }
+  .soc-diff-item b { font-weight:500; }
+  .soc-diff .add { font:400 12.5px var(--font-data); padding:6px 10px; border-radius:6px; color:color-mix(in oklch, var(--v2-ok) 75%, var(--v2-fg)); background:color-mix(in oklch, var(--v2-ok) 10%, transparent); overflow-wrap:anywhere; }
+  .soc-diff .rem { font:400 12.5px var(--font-data); padding:6px 10px; border-radius:6px; color:color-mix(in oklch, var(--v2-crit) 75%, var(--v2-fg)); background:color-mix(in oklch, var(--v2-crit) 10%, transparent); text-decoration:line-through; overflow-wrap:anywhere; }
+  .soc-diff .same { font-size:12.5px; color:var(--v2-fg-3); }
+  .soc-raw { font:400 12px/1.5 var(--font-data); padding:8px 10px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); color:var(--v2-fg-2); overflow-wrap:anywhere; }
+  .soc-chips { display:flex; gap:6px; flex-wrap:wrap; }
 
-  /* Sync Button */
-  .exec-sync-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 9px 18px;
-    background: ${T.accentGlow};
-    border: 1px solid rgba(59,130,246,0.4);
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
-    color: ${T.accent};
-    cursor: pointer;
-    transition: all 0.2s;
-    font-family: 'DM Sans', sans-serif;
-    letter-spacing: 0.01em;
-  }
-  .exec-sync-btn:hover:not(:disabled) {
-    background: rgba(59,130,246,0.2);
-    border-color: rgba(59,130,246,0.6);
-    box-shadow: 0 0 20px rgba(59,130,246,0.15);
-  }
-  .exec-sync-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* Section Divider */
-  .exec-section-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: ${T.textMuted};
-    font-family: 'IBM Plex Mono', monospace;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-  .exec-section-label::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: ${T.border};
-  }
-
-  /* Resize controls */
-  .resize-ctrl {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-  .exec-chart-card:hover .resize-ctrl { opacity: 1; }
-  .resize-btn {
-    padding: 2px;
-    border: none;
-    background: transparent;
-    color: ${T.textMuted};
-    cursor: pointer;
-    border-radius: 3px;
-    line-height: 0;
-    transition: color 0.15s, background 0.15s;
-  }
-  .resize-btn:hover { color: ${T.textPrimary}; background: rgba(255,255,255,0.07); }
-  .resize-btn:disabled { opacity: 0.25; cursor: default; }
-
-  /* Scrollbar */
-  .exec-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
-  .exec-scroll::-webkit-scrollbar-track { background: transparent; }
-  .exec-scroll::-webkit-scrollbar-thumb { background: ${T.borderHi}; border-radius: 2px; }
-
-  /* Severity pill */
-  .sev-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 24px;
-    height: 20px;
-    padding: 0 6px;
-    border-radius: 3px;
-    font-size: 11px;
-    font-weight: 700;
-    font-family: 'IBM Plex Mono', monospace;
-  }
-  .sev-1,.sev-2,.sev-3 { background: rgba(16,185,129,0.12); color: ${T.success}; }
-  .sev-4,.sev-5,.sev-6 { background: rgba(245,158,11,0.12); color: ${T.warning}; }
-  .sev-7,.sev-8,.sev-9,.sev-10 { background: rgba(239,68,68,0.12); color: ${T.danger}; }
-
-  /* Pulse dot */
-  @keyframes pulse-ring {
-    0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
-    70% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
-    100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
-  }
-  .live-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: ${T.success};
-    animation: pulse-ring 2s infinite;
-  }
-
-  /* Spin */
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spin { animation: spin 0.8s linear infinite; }
-
-  /* Fade in */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .fade-up { animation: fadeUp 0.4s ease forwards; }
-
-  /* Empty state */
-  .exec-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 24px;
-    gap: 8px;
-    color: ${T.textMuted};
-    font-size: 13px;
-    font-family: 'DM Sans', sans-serif;
-  }
-  .exec-empty-icon {
-    width: 36px; height: 36px;
-    background: rgba(107,114,128,0.08);
-    border: 1px solid rgba(107,114,128,0.15);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 4px;
-    color: ${T.neutral};
-  }
-
-  /* Error banner */
-  .exec-error-bar {
-    background: ${T.dangerBg};
-    border: 1px solid rgba(239,68,68,0.2);
-    border-radius: 6px;
-    padding: 8px 14px;
-    font-size: 11.5px;
-    color: ${T.danger};
-    font-family: 'IBM Plex Mono', monospace;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-  }
-
-  /* Progress bar EPS */
-  .eps-progress-track {
-    height: 6px;
-    background: rgba(59,130,246,0.1);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-top: 6px;
-  }
-  .eps-progress-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.6s ease;
-  }
-
-  /* Log source pill status */
-  .status-row { display: flex; align-items: center; gap: 6px; }
-  .status-indicator {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .status-indicator.success { background: ${T.success}; box-shadow: 0 0 6px ${T.success}; }
-  .status-indicator.error   { background: ${T.danger};  box-shadow: 0 0 6px ${T.danger}; }
-  .status-indicator.disabled{ background: ${T.neutral}; }
-  .status-indicator.stale   { background: ${T.warning}; box-shadow: 0 0 6px ${T.warning}; }
-
-  /* ── Recharts global overrides ── */
-  .recharts-cartesian-axis-tick-value { fill: ${T.chartTick} !important; font-size: 10px; font-family: 'IBM Plex Mono', monospace; }
-  .recharts-text { fill: ${T.chartTick} !important; }
-  .recharts-legend-item-text { color: ${T.textSecondary} !important; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
-  .recharts-label { fill: ${T.textSecondary} !important; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
-
-  /* Rótulos de IP (eixo Y) dos gráficos de ofensores/origens — em branco */
-  .soc-scope .ip-axis .recharts-cartesian-axis-tick text { fill: ${T.textPrimary} !important; }
+  /* ── Classes exec-* (também usadas pelo painel da Sek) ── */
+  .exec-section-label { font-size:14px; font-weight:600; color:var(--v2-fg); display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .exec-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; min-width:0; }
+  .exec-panel-header { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .exec-panel-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--v2-fg); }
+  .exec-panel-body { padding:12px 18px; }
+  .exec-scroll { overflow:auto; }
+  .exec-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .exec-table thead { position:sticky; top:0; z-index:1; }
+  .exec-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; cursor:default; user-select:none; }
+  .exec-table th.r, .exec-table td.r { text-align:right; }
+  .exec-table td { padding:8px 12px; height:44px; border-bottom:1px solid var(--v2-line); color:var(--v2-fg); vertical-align:middle; }
+  .exec-table th:first-child, .exec-table td:first-child { padding-left:18px; }
+  .exec-table th:last-child, .exec-table td:last-child { padding-right:18px; }
+  .exec-table tbody tr:hover td { background:var(--v2-hover); }
+  .exec-table tbody tr:last-child td { border-bottom:none; }
+  .exec-table tbody tr.clickable { cursor:pointer; }
+  .exec-table th.sortable { cursor:pointer; }
+  .exec-table th.sortable:hover { color:var(--v2-fg); }
+  .exec-badge { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:var(--v2-surface-2); color:var(--v2-fg-2); }
+  .exec-badge.success { background:color-mix(in oklch, var(--v2-ok) 14%, transparent); color:color-mix(in oklch, var(--v2-ok) 72%, var(--v2-fg)); }
+  .exec-badge.warning { background:color-mix(in oklch, var(--v2-med) 14%, transparent); color:color-mix(in oklch, var(--v2-med) 72%, var(--v2-fg)); }
+  .exec-badge.danger { background:color-mix(in oklch, var(--v2-crit) 14%, transparent); color:color-mix(in oklch, var(--v2-crit) 72%, var(--v2-fg)); }
+  .exec-badge.accent { background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:color-mix(in oklch, var(--v2-accent) 72%, var(--v2-fg)); }
+  .exec-badge-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .exec-empty { display:flex; flex-direction:column; align-items:center; gap:8px; padding:32px 16px; color:var(--v2-fg-3); font-size:13px; text-align:center; }
+  .exec-empty-icon { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; background:var(--v2-surface-2); color:var(--v2-fg-3); }
 `;
 
 // ── Utility Components ────────────────────────────────────────────────────────
@@ -549,9 +217,13 @@ function ExecBadge({
   tone: "success" | "warning" | "danger" | "neutral" | "accent";
   children: React.ReactNode;
 }) {
-  const dotColor = { success: T.success, warning: T.warning, danger: T.danger, neutral: T.neutral, accent: T.accent }[
-    tone
-  ];
+  const dotColor = {
+    success: T.success,
+    warning: T.warning,
+    danger: T.danger,
+    neutral: T.neutral,
+    accent: T.accent,
+  }[tone];
   return (
     <span className={`exec-badge ${tone}`}>
       <span className="exec-badge-dot" style={{ background: dotColor }} />
@@ -562,7 +234,53 @@ function ExecBadge({
 
 function SevPill({ severity }: { severity: number | null | undefined }) {
   const s = severity ?? 0;
-  return <span className={`sev-pill sev-${Math.min(s, 10)}`}>{s}</span>;
+  const cls = s >= 8 ? "sev-crit" : s >= 6 ? "sev-high" : s >= 4 ? "sev-med" : "sev-low";
+  return (
+    <span className={`sev-pill ${cls}`} title={`Severidade ${s} de 10`}>
+      {s}
+    </span>
+  );
+}
+
+// Tooltip do gráfico de EPS diário
+function EpsTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: { day: string; avg: number; peak: number | null; lic: number } }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: 2,
+        padding: "8px 10px",
+        background: "var(--v2-surface-2)",
+        border: "1px solid var(--v2-line-strong)",
+        borderRadius: 8,
+        fontSize: 12,
+        boxShadow: "0 12px 32px rgba(0,0,0,0.3)",
+      }}
+    >
+      <b>
+        {new Date(p.day + "T12:00:00").toLocaleDateString("pt-BR", {
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit",
+        })}
+      </b>
+      <span style={{ fontFamily: "var(--font-data)", color: "var(--v2-fg-2)" }}>
+        EPS médio {fmtNum(p.avg)}
+      </span>
+      <span style={{ fontFamily: "var(--font-data)", color: "var(--v2-fg-2)" }}>
+        Pico {p.peak != null ? fmtNum(p.peak) : "—"}
+        {p.peak != null && p.peak > p.lic ? " · acima da licença" : ""}
+      </span>
+    </div>
+  );
 }
 
 function fmtDate(s: string | null | undefined) {
@@ -594,7 +312,10 @@ function fmtDayShort(day: string): string {
   return `${d}/${m}`;
 }
 
-function fortigateTypeBadge(queryType: string): { tone: "accent" | "warning" | "success"; label: string } {
+function fortigateTypeBadge(queryType: string): {
+  tone: "accent" | "warning" | "success";
+  label: string;
+} {
   if (queryType === "admin_config") return { tone: "warning", label: "Admin/Config" };
   if (queryType === "admin_login") return { tone: "success", label: "Login Admin" };
   return { tone: "accent", label: "Policy Change" };
@@ -614,17 +335,6 @@ function extractFortigatePolicyId(msg: string | null): string | null {
 function isOutsideBusinessHours(eventTime: string): boolean {
   const h = new Date(eventTime).getHours();
   return h < 8 || h >= 19;
-}
-
-function isInternalIp(ip: string | null | undefined): boolean {
-  if (!ip) return false;
-  const m = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)/);
-  if (!m) return false;
-  const [a, b] = [parseInt(m[1], 10), parseInt(m[2], 10)];
-  if (a === 10) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  return false;
 }
 
 // cfgattr é o diff bruto do FortiGate (ex.: "action[disable->enable]") — já
@@ -742,209 +452,34 @@ function fmtHours(h: number): string {
 function diagnoseOpenOffense(
   o: { description: string | null; start_time: string | null },
   statsByDesc: Map<string, { medianHours: number; count: number }>,
-): { tone: "neutral" | "warning"; label: string; elapsedHours: number | null; medianHours: number | null } {
+): {
+  tone: "neutral" | "warning";
+  label: string;
+  elapsedHours: number | null;
+  medianHours: number | null;
+} {
   const stats = statsByDesc.get(o.description ?? "");
-  const elapsedHours = o.start_time ? (Date.now() - new Date(o.start_time).getTime()) / 3_600_000 : null;
+  const elapsedHours = o.start_time
+    ? (Date.now() - new Date(o.start_time).getTime()) / 3_600_000
+    : null;
   if (!stats || stats.count < 2 || elapsedHours === null) {
     return { tone: "neutral", label: "Sem histórico", elapsedHours, medianHours: null };
   }
   const threshold = Math.max(stats.medianHours * 4, 6);
   if (elapsedHours > threshold) {
-    return { tone: "warning", label: "Atraso no fechamento", elapsedHours, medianHours: stats.medianHours };
+    return {
+      tone: "warning",
+      label: "Atraso no fechamento",
+      elapsedHours,
+      medianHours: stats.medianHours,
+    };
   }
-  return { tone: "neutral", label: "Dentro do padrão", elapsedHours, medianHours: stats.medianHours };
-}
-
-// ── Resizable Chart Card ────────────────────────────────────────────────────────
-const COL_SIZES_SOC = ["col-span-1", "col-span-2", "col-span-3"] as const;
-type ColSizeSoc = (typeof COL_SIZES_SOC)[number];
-
-function ResizableChart({
-  title,
-  children,
-  chartHeight = 280,
-  defaultSize = "col-span-1",
-  badge,
-  headerRight,
-}: {
-  title: React.ReactNode;
-  children: React.ReactNode;
-  chartHeight?: number;
-  defaultSize?: ColSizeSoc;
-  badge?: React.ReactNode;
-  headerRight?: React.ReactNode;
-}) {
-  const [colSize, setColSize] = React.useState<ColSizeSoc>(defaultSize);
-  function grow() {
-    const i = COL_SIZES_SOC.indexOf(colSize);
-    if (i < COL_SIZES_SOC.length - 1) setColSize(COL_SIZES_SOC[i + 1]);
-  }
-  function shrink() {
-    const i = COL_SIZES_SOC.indexOf(colSize);
-    if (i > 0) setColSize(COL_SIZES_SOC[i - 1]);
-  }
-  return (
-    <div className={`${colSize} exec-chart-card`} style={{ minHeight: chartHeight + 52 }}>
-      <div className="exec-chart-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <GripHorizontal size={12} color={T.textMuted} style={{ cursor: "grab" }} />
-          <span className="exec-chart-title">{title}</span>
-          {badge && <span style={{ marginLeft: 4 }}>{badge}</span>}
-        </div>
-        {headerRight && (
-          <span style={{ marginLeft: "auto", marginRight: 10, display: "flex", alignItems: "center" }}>
-            {headerRight}
-          </span>
-        )}
-        <div className="resize-ctrl">
-          <button className="resize-btn" onClick={shrink} disabled={colSize === COL_SIZES_SOC[0]} title="Diminuir">
-            <Minimize2 size={11} />
-          </button>
-          <button className="resize-btn" onClick={grow} disabled={colSize === COL_SIZES_SOC[2]} title="Aumentar">
-            <Maximize2 size={11} />
-          </button>
-        </div>
-      </div>
-      <div className="exec-chart-body" style={{ height: chartHeight }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ── Executive KPI Card ─────────────────────────────────────────────────────────
-function ExecKpiCard({
-  label,
-  value,
-  sub,
-  accentColor = T.accent,
-  icon: Icon,
-  trend,
-  footer,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accentColor?: string;
-  icon?: React.ElementType;
-  trend?: "up" | "down" | "neutral";
-  footer?: React.ReactNode;
-}) {
-  return (
-    <div
-      className="exec-kpi fade-up"
-      style={{ "--kpi-accent": accentColor, "--kpi-color": accentColor } as React.CSSProperties}
-    >
-      {Icon && (
-        <div className="exec-kpi-icon">
-          <Icon size={22} color={accentColor} />
-        </div>
-      )}
-      <span className="exec-kpi-label">{label}</span>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <span className="exec-kpi-value">{value}</span>
-        {trend && trend !== "neutral" && (
-          <span style={{ color: trend === "up" ? T.danger : T.success, display: "flex", alignItems: "center" }}>
-            {trend === "up" ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </span>
-        )}
-      </div>
-      {sub && <span className="exec-kpi-sub">{sub}</span>}
-      {footer}
-    </div>
-  );
-}
-
-// ── Custom Tooltip ──────────────────────────────────────────────────────────────
-function ExecTooltip({ active, payload, label, formatter }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      style={{
-        background: T.surface,
-        border: `1px solid ${T.borderHi}`,
-        borderRadius: 8,
-        padding: "10px 14px",
-        fontSize: 12,
-        fontFamily: "'DM Sans', sans-serif",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
-        minWidth: 140,
-      }}
-    >
-      <div
-        style={{
-          color: T.textMuted,
-          fontSize: 10,
-          fontFamily: "'IBM Plex Mono', monospace",
-          marginBottom: 6,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-        }}
-      >
-        {label}
-      </div>
-      {payload.map((entry: any, i: number) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-          <div style={{ width: 8, height: 8, borderRadius: 2, background: entry.color, flexShrink: 0 }} />
-          <span style={{ color: T.textSecondary, fontSize: 11 }}>{entry.name}:</span>
-          <span style={{ color: T.textPrimary, fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace" }}>
-            {formatter ? formatter(entry.value, entry.name, entry) : fmtNum(entry.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Custom Bar Shape with gradient ─────────────────────────────────────────────
-function ExecBarShape(props: any) {
-  const { x, y, width, height, fill } = props;
-  if (!width || !height) return null;
-  const id = `bar-grad-${Math.random().toString(36).slice(2, 6)}`;
-  return (
-    <g>
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={fill} stopOpacity={0.6} />
-          <stop offset="100%" stopColor={fill} stopOpacity={1} />
-        </linearGradient>
-      </defs>
-      <rect x={x} y={y} width={width} height={height} fill={`url(#${id})`} rx={3} />
-    </g>
-  );
-}
-
-// ── Detail Field (linha expandida de tabela) ────────────────────────────────────
-function DetailField({ label, value, span }: { label: string; value: React.ReactNode; span?: number }) {
-  return (
-    <div style={{ gridColumn: span ? `span ${span}` : undefined, minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: 9,
-          color: T.textMuted,
-          fontFamily: "'IBM Plex Mono', monospace",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          marginBottom: 3,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 12,
-          color: T.textPrimary,
-          fontFamily: "'DM Sans', sans-serif",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-        title={typeof value === "string" ? value : undefined}
-      >
-        {value}
-      </div>
-    </div>
-  );
+  return {
+    tone: "neutral",
+    label: "Dentro do padrão",
+    elapsedHours,
+    medianHours: stats.medianHours,
+  };
 }
 
 // ── Empty State ────────────────────────────────────────────────────────────────
@@ -966,39 +501,27 @@ export function SocRealDashboard() {
   const qc = useQueryClient();
   const [syncing, setSyncing] = React.useState(false);
   const [sortBy, setSortBy] = React.useState<string>("status-asc");
-  const [delSortBy, setDelSortBy] = React.useState<"event_count" | "username" | "event_time">("event_count");
+  const [delSortBy, setDelSortBy] = React.useState<"event_count" | "username" | "event_time">(
+    "event_count",
+  );
   const [delSortDir, setDelSortDir] = React.useState<"asc" | "desc">("desc");
-  const [dlSortBy, setDlSortBy] = React.useState<"event_count" | "username" | "event_time">("event_count");
+  const [dlSortBy, setDlSortBy] = React.useState<"event_count" | "username" | "event_time">(
+    "event_count",
+  );
   const [dlSortDir, setDlSortDir] = React.useState<"asc" | "desc">("desc");
-  const [showOffensesTip, setShowOffensesTip] = React.useState(false);
-  const [showEpsPeakTip, setShowEpsPeakTip] = React.useState(false);
-  const [expandedOffenseIds, setExpandedOffenseIds] = React.useState<Set<number>>(new Set());
-
-  function toggleOffenseExpand(id: number) {
-    setExpandedOffenseIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  const [expandedFortigateIds, setExpandedFortigateIds] = React.useState<Set<string>>(new Set());
-
-  function toggleFortigateExpand(id: string) {
-    setExpandedFortigateIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  // Itens abertos nos painéis laterais
+  const [openOffenseId, setOpenOffenseId] = React.useState<number | null>(null);
+  const [openFgId, setOpenFgId] = React.useState<string | null>(null);
 
   // ── ALL QUERIES UNCHANGED (back-end) ────────────────────────────────────────
   const state = useQuery({
     queryKey: ["qradar-sync-state"],
     queryFn: async () => {
-      const { data } = await supabase.from("qradar_sync_state").select("*").eq("id", true).maybeSingle();
+      const { data } = await supabase
+        .from("qradar_sync_state")
+        .select("*")
+        .eq("id", true)
+        .maybeSingle();
       return data;
     },
     // Refetch periódico pra refletir sync disparado por outra aba/pelo cron —
@@ -1019,7 +542,14 @@ export function SocRealDashboard() {
       if (error) throw error;
       const byHour = new Map<
         string,
-        { sum: number; count: number; lic: number; peak: number | null; avgPeakSum: number; avgPeakCount: number }
+        {
+          sum: number;
+          count: number;
+          lic: number;
+          peak: number | null;
+          avgPeakSum: number;
+          avgPeakCount: number;
+        }
       >();
       for (const s of data ?? []) {
         const d = new Date(s.sampled_at);
@@ -1062,7 +592,11 @@ export function SocRealDashboard() {
   const qradarCronHealth = useQuery({
     queryKey: ["cron-job-run", "qradar-sync"],
     queryFn: async () => {
-      const { data } = await supabase.from("cron_job_runs").select("*").eq("job_name", "qradar-sync").maybeSingle();
+      const { data } = await supabase
+        .from("cron_job_runs")
+        .select("*")
+        .eq("job_name", "qradar-sync")
+        .maybeSingle();
       return data;
     },
     refetchInterval: 60_000,
@@ -1343,7 +877,9 @@ export function SocRealDashboard() {
   const currentEps = epsSeries.length ? epsSeries[epsSeries.length - 1].eps : 0;
   const usagePct = LICENSED_EPS > 0 ? Math.round((currentEps / LICENSED_EPS) * 100) : 0;
   const excedentePct =
-    LICENSED_EPS > 0 ? Math.max(0, Math.round(((currentEps - LICENSED_EPS) / LICENSED_EPS) * 100)) : 0;
+    LICENSED_EPS > 0
+      ? Math.max(0, Math.round(((currentEps - LICENSED_EPS) / LICENSED_EPS) * 100))
+      : 0;
 
   // Pico diário = maior peak_eps do dia, vindo da telemetria nativa do QRadar
   // (StatFilter "Events per Second Raw - Peak 1 Sec"), não mais um derivado das
@@ -1359,7 +895,9 @@ export function SocRealDashboard() {
       const v = Number(s.peak_eps);
       if (!byDay.has(day) || v > (byDay.get(day) as number)) byDay.set(day, v);
     }
-    return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, peak]) => ({ day, peak }));
+    return [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, peak]) => ({ day, peak }));
   })();
   const maxPeak7d = dailyPeaksLast7.length ? Math.max(...dailyPeaksLast7.map((d) => d.peak)) : 0;
 
@@ -1416,7 +954,8 @@ export function SocRealDashboard() {
     for (const o of offenses.data ?? []) {
       if ((o.status ?? "").toUpperCase() !== "CLOSED") continue;
       if (!o.start_time || !o.closed_at) continue;
-      const hours = (new Date(o.closed_at).getTime() - new Date(o.start_time).getTime()) / 3_600_000;
+      const hours =
+        (new Date(o.closed_at).getTime() - new Date(o.start_time).getTime()) / 3_600_000;
       if (hours < 0) continue;
       const key = o.description ?? "";
       const arr = byDesc.get(key) ?? [];
@@ -1424,7 +963,8 @@ export function SocRealDashboard() {
       byDesc.set(key, arr);
     }
     const stats = new Map<string, { medianHours: number; count: number }>();
-    for (const [desc, hours] of byDesc) stats.set(desc, { medianHours: median(hours), count: hours.length });
+    for (const [desc, hours] of byDesc)
+      stats.set(desc, { medianHours: median(hours), count: hours.length });
     return stats;
   })();
 
@@ -1440,1315 +980,1139 @@ export function SocRealDashboard() {
   // atualizar essa tabela.
   const staleSources = logSourcesSyncUnhealthy ? activeSources : [];
 
+  // ── Visão da tela (submenu) ─────────────────────────────────────────────────
+  const SOC_VIEWS = ["geral", "ofensas", "ameacas", "m365", "infra", "sek"] as const;
+  type SocView = (typeof SOC_VIEWS)[number];
+  const [view, setView] = React.useState<SocView>(() => {
+    try {
+      const v = localStorage.getItem("soc_view") as SocView | null;
+      return v && (SOC_VIEWS as readonly string[]).includes(v) ? v : "geral";
+    } catch {
+      return "geral";
+    }
+  });
+  const go = (v: SocView) => {
+    setView(v);
+    try {
+      localStorage.setItem("soc_view", v);
+    } catch {
+      /* storage indisponível */
+    }
+  };
+
+  // ── EPS diário (média e pico) para o gráfico da visão geral ─────────────────
+  const epsDaily = (() => {
+    const byDay = new Map<string, { sum: number; n: number; peak: number | null; lic: number }>();
+    for (const s of eps.data ?? []) {
+      const day = s.sampled_at.slice(0, 10);
+      const cur = byDay.get(day) ?? {
+        sum: 0,
+        n: 0,
+        peak: null,
+        lic: s.licensed_eps ?? LICENSED_EPS,
+      };
+      cur.sum += Number(s.total_eps ?? 0);
+      cur.n += 1;
+      if (s.peak_eps != null)
+        cur.peak = cur.peak == null ? Number(s.peak_eps) : Math.max(cur.peak, Number(s.peak_eps));
+      byDay.set(day, cur);
+    }
+    return [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, v]) => ({
+        day,
+        label: fmtDayShort(day),
+        avg: Math.round(v.sum / v.n),
+        peak: v.peak,
+        lic: v.lic,
+      }));
+  })();
+
+  // ── M365: usuários distintos com anomalia ──
+  const m365Users = new Set([
+    ...(o365Deletions.data ?? []).map((r) => r.username),
+    ...(o365Downloads.data ?? []).map((r) => r.username),
+  ]).size;
+  const dropCount = drops.data?.length ?? 0;
+  const fgEvents = fortigatePolicyChanges.data ?? [];
+  const lateOffenses = openOffensesList.filter(
+    (o) => diagnoseOpenOffense(o, closeStatsByDesc).tone === "warning",
+  );
+
+  // ── "Precisa de atenção": junta o que pede ação, de todas as fontes ──
+  type FeedItem = {
+    key: string;
+    tag: React.ReactNode;
+    title: string;
+    sub: string;
+    onClick: () => void;
+  };
+  const feed: FeedItem[] = [];
+  for (const o of openOffensesList.filter((x) => (x.severity ?? 0) >= 7).slice(0, 3)) {
+    feed.push({
+      key: `off-${o.id}`,
+      tag: <SevPill severity={o.severity} />,
+      title: o.description ?? "Ofensa sem descrição",
+      sub: `Ofensa #${o.id} · aberta ${fmtDate(o.start_time)} · origem ${o.source_ip ?? "—"}`,
+      onClick: () => setOpenOffenseId(o.id),
+    });
+  }
+  for (const e of fgEvents.filter((x) => x.event_category === "any_any_accept").slice(0, 2)) {
+    feed.push({
+      key: `fg-${e.id}`,
+      tag: <span className="soc-tag crit">any/any</span>,
+      title: "Policy any/any habilitada no FortiGate",
+      sub: `${e.username ?? "—"} · ${fmtDate(e.event_time)}${isOutsideBusinessHours(e.event_time) ? " · fora do horário" : ""}`,
+      onClick: () => setOpenFgId(e.id),
+    });
+  }
+  for (const o of lateOffenses.filter((x) => (x.severity ?? 0) < 7).slice(0, 2)) {
+    feed.push({
+      key: `late-${o.id}`,
+      tag: <SevPill severity={o.severity} />,
+      title: o.description ?? "Ofensa sem descrição",
+      sub: `Ofensa #${o.id} · aberta há mais tempo que o normal para a regra`,
+      onClick: () => setOpenOffenseId(o.id),
+    });
+  }
+  if (m365Users > 0) {
+    feed.push({
+      key: "m365",
+      tag: <span className="soc-tag med">M365</span>,
+      title: "Deleção ou download em massa no Microsoft 365",
+      sub: `${m365Users} ${m365Users === 1 ? "usuário" : "usuários"} acima do limite de eventos por minuto`,
+      onClick: () => go("m365"),
+    });
+  }
+  if (errorSources.length > 0) {
+    feed.push({
+      key: "ls",
+      tag: <span className="soc-tag med">Log</span>,
+      title: `${errorSources.length} ${errorSources.length === 1 ? "fonte de log com erro" : "fontes de log com erro"}`,
+      sub: errorSources
+        .slice(0, 3)
+        .map(
+          (s) => `${s.name.replace(/@\s*.+$/, "").trim()} há ${fmtDuration(s.status_changed_at)}`,
+        )
+        .join(" · "),
+      onClick: () => go("infra"),
+    });
+  }
+  if (dropCount > 0) {
+    feed.push({
+      key: "drop",
+      tag: <span className="soc-tag crit">EPS</span>,
+      title: `${dropCount} ${dropCount === 1 ? "descarte de logs" : "descartes de logs"} por excesso de EPS`,
+      sub: "Eventos descartados pelo QRadar por estourar a licença",
+      onClick: () => go("infra"),
+    });
+  }
+
+  const openOffense = openOffensesList.find((o) => o.id === openOffenseId) ?? null;
+  const openFg = fgEvents.find((e) => e.id === openFgId) ?? null;
+  const peakTip = dailyPeaksLast7
+    .map((d) => `${fmtDayShort(d.day)}: ${fmtNum(d.peak)} EPS`)
+    .join("\n");
+  const sevClass = (s: number | null | undefined) =>
+    (s ?? 0) >= 8 ? "crit" : (s ?? 0) >= 6 ? "high" : (s ?? 0) >= 4 ? "med" : "low";
+
+  const HBars = ({ rows, unit }: { rows: Array<{ ip: string; v: number }>; unit: string }) => {
+    const max = rows[0]?.v || 1;
+    if (rows.length === 0) return <EmptyState message="Sem dados no último sync." />;
+    return (
+      <div className="soc-bars">
+        {rows.map((r) => (
+          <div key={r.ip} className="soc-bar" title={`${r.ip}: ${fmtNum(r.v)} ${unit}`}>
+            <span>{r.ip}</span>
+            <span>{fmtNum(r.v)}</span>
+            <div className="soc-track">
+              <i style={{ width: `${(r.v / max) * 100}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const M365Table = ({
+    rows,
+    sortBy: sb,
+    sortDir: sd,
+    setSortBy: ssb,
+    setSortDir: ssd,
+    countLabel,
+    tone,
+  }: {
+    rows: Array<{
+      username: string;
+      source_ip: string;
+      event_count: number;
+      event_time: string | null;
+    }>;
+    sortBy: "event_count" | "username" | "event_time";
+    sortDir: "asc" | "desc";
+    setSortBy: (v: "event_count" | "username" | "event_time") => void;
+    setSortDir: React.Dispatch<React.SetStateAction<"asc" | "desc">>;
+    countLabel: string;
+    tone: "crit" | "med";
+  }) => {
+    const sortTh = (key: "event_count" | "username" | "event_time", label: string, cls = "") => (
+      <th
+        className={`sortable ${cls}`}
+        onClick={() => {
+          ssb(key);
+          ssd((d) => (d === "asc" ? "desc" : "asc"));
+        }}
+      >
+        {label} {sb === key ? (sd === "asc" ? "↑" : "↓") : ""}
+      </th>
+    );
+    return (
+      <div className="exec-scroll" style={{ maxHeight: 420 }}>
+        <table className="exec-table">
+          <thead>
+            <tr>
+              {sortTh("username", "Usuário")}
+              <th>IP de origem</th>
+              {sortTh("event_count", countLabel, "r")}
+              {sortTh("event_time", "Quando", "r")}
+            </tr>
+          </thead>
+          <tbody>
+            {[...rows]
+              .sort((a, b) => {
+                const dir = sd === "asc" ? 1 : -1;
+                if (sb === "event_count") return (a.event_count - b.event_count) * dir;
+                if (sb === "username") return a.username.localeCompare(b.username) * dir;
+                return ((a.event_time ?? "") > (b.event_time ?? "") ? 1 : -1) * dir;
+              })
+              .map((r, i) => (
+                <tr key={i}>
+                  <td className="mono" style={{ fontWeight: 500 }}>
+                    {r.username || "—"}
+                  </td>
+                  <td className="mono dim">{r.source_ip || "—"}</td>
+                  <td className="r">
+                    <span className={`soc-tag ${tone}`} style={{ fontFamily: "var(--font-data)" }}>
+                      {r.event_count.toLocaleString("pt-BR")}
+                    </span>
+                  </td>
+                  <td className="r mono dim">{fmtDate(r.event_time)}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
-    <div className="soc-exec-root">
+    <div className="soc-root">
       <style dangerouslySetInnerHTML={{ __html: inlineStyles }} />
 
-      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
-      <div className="exec-header">
-        <div className="exec-header-brand">
-          <div className="exec-header-shield">
-            <Shield size={18} color={T.accent} />
-          </div>
-          <div>
-            <div className="exec-header-title">Centro de Operações de Segurança</div>
-            <div className="exec-header-sub">IBM QRadar SIEM · Painel Executivo</div>
-          </div>
-          <div style={{ marginLeft: 16, display: "flex", alignItems: "center", gap: 6 }}>
-            <div className="live-dot" />
+      {/* ── Cabeçalho ─────────────────────────────────────────────────────────── */}
+      <div className="soc-ph">
+        <div>
+          <h1 className="soc-ph-title">Centro de Operações de Segurança</h1>
+          <p className="soc-ph-sub">
             <span
-              style={{
-                fontSize: 10,
-                color: T.success,
-                fontFamily: "'IBM Plex Mono', monospace",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
+              className={`soc-live${state.data?.last_error ? " warn" : ""}`}
+              title={
+                state.data?.last_full_sync_at
+                  ? new Date(state.data.last_full_sync_at).toLocaleString("pt-BR")
+                  : undefined
+              }
             >
-              Live
+              Sincronizado em {fmtDate(state.data?.last_full_sync_at ?? null)}
             </span>
-          </div>
+            <span>·</span>
+            <span>IBM QRadar SIEM, Microsoft 365 e chamados da Sek</span>
+          </p>
         </div>
-        <div className="exec-header-meta">
-          <div className="exec-header-sync-info">
-            <div style={{ color: T.textSecondary, marginBottom: 2 }}>Última sincronização</div>
-            <div style={{ color: state.data?.last_error ? T.warning : T.success }}>
-              {fmtDate(state.data?.last_full_sync_at ?? null)}
-            </div>
-            <div style={{ marginTop: 4 }}>
-              <CronHealthBadge jobName="qradar-sync" moduleSlug="soc" />
-            </div>
+        <SyncActions moduleSlug="soc" jobs={["qradar-sync", "sek-zendesk-sync"]}>
+          <div className="soc-actions">
+            <button className="soc-btn" onClick={handleSync} disabled={syncDisabled}>
+              <RefreshCw size={14} className={syncDisabled ? "spin" : ""} />
+              {syncDisabled ? "Sincronizando…" : "Sincronizar"}
+            </button>
           </div>
-          <button className="exec-sync-btn" onClick={handleSync} disabled={syncDisabled}>
-            <RefreshCw size={13} className={syncDisabled ? "spin" : ""} />
-            {syncDisabled ? "Sincronizando…" : "Sincronizar"}
-          </button>
-        </div>
+        </SyncActions>
       </div>
 
-      {/* Error banner */}
       {state.data?.last_error && (
-        <div style={{ padding: "0 28px", marginTop: 12 }}>
-          <div className="exec-error-bar">
-            <AlertTriangle size={13} />
-            Último erro de sincronização: {state.data.last_error}
+        <div className="soc-error">
+          <AlertTriangle size={14} />
+          <span>Último erro de sincronização: {state.data.last_error}</span>
+        </div>
+      )}
+
+      {/* ── Submenu ─────────────────────────────────────────────────────────── */}
+      <div className="soc-subnav" role="tablist" aria-label="Seções do SOC">
+        {(
+          [
+            ["geral", "Visão geral", null, ""],
+            [
+              "ofensas",
+              "Ofensas",
+              openOffenses,
+              openOffensesList.some((o) => (o.severity ?? 0) >= 7) ? "" : "warn",
+            ],
+            ["ameacas", "Ameaças", null, ""],
+            ["m365", "Microsoft 365", m365Users, "warn"],
+            ["infra", "Infraestrutura", errorSources.length + dropCount, "warn"],
+            ["sek", "Chamados Sek", null, ""],
+          ] as Array<[SocView, string, number | null, string]>
+        ).map(([id, label, n, tone]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={view === id}
+            onClick={() => go(id)}
+          >
+            {label}
+            {n ? <span className={`soc-count ${tone}`}>{n}</span> : null}
+          </button>
+        ))}
+      </div>
+
+      {/* ══ VISÃO GERAL ═════════════════════════════════════════════════════ */}
+      {view === "geral" && (
+        <>
+          <div className="soc-kpis">
+            <div className="soc-kpi">
+              <span className="soc-kpi-label">EPS atual</span>
+              <span className="soc-kpi-value">{fmtNum(currentEps)}</span>
+              <div className="soc-meter" aria-hidden="true">
+                <i
+                  style={{
+                    width: `${Math.min(100, usagePct)}%`,
+                    background:
+                      usagePct >= 90
+                        ? "var(--v2-crit)"
+                        : usagePct >= 70
+                          ? "var(--v2-med)"
+                          : "var(--v2-accent)",
+                  }}
+                />
+              </div>
+              <span className="soc-kpi-foot">
+                {usagePct}% da licença de {fmtNum(LICENSED_EPS)} EPS
+                {excedentePct > 0 ? ` · ${excedentePct}% acima` : ""}
+              </span>
+            </div>
+            <div className="soc-kpi" title={peakTip ? `Pico diário:\n${peakTip}` : undefined}>
+              <span className="soc-kpi-label">
+                {maxPeak7d >= LICENSED_EPS && (
+                  <span className="soc-sw" style={{ background: "var(--v2-crit)" }} />
+                )}
+                Pico em 7 dias
+              </span>
+              <span className="soc-kpi-value">{fmtNum(maxPeak7d)}</span>
+              <span className="soc-kpi-foot">
+                {maxPeak7d >= LICENSED_EPS ? "acima da licença" : "dentro da licença"} · passe o
+                mouse para ver por dia
+              </span>
+            </div>
+            <button type="button" className="soc-kpi" onClick={() => go("ofensas")}>
+              <span className="soc-kpi-label">
+                {openOffenses > 0 && (
+                  <span className="soc-sw" style={{ background: "var(--v2-crit)" }} />
+                )}
+                Ofensas abertas
+              </span>
+              <span className="soc-kpi-value">{openOffenses}</span>
+              <span className="soc-kpi-foot">
+                {lateOffenses.length > 0
+                  ? `${lateOffenses.length} há mais tempo que o normal`
+                  : openOffenses > 0
+                    ? "dentro do tempo normal"
+                    : "nada aberto"}
+              </span>
+            </button>
+            <button type="button" className="soc-kpi" onClick={() => go("m365")}>
+              <span className="soc-kpi-label">
+                {m365Users > 0 && (
+                  <span className="soc-sw" style={{ background: "var(--v2-med)" }} />
+                )}
+                Anomalias no M365
+              </span>
+              <span className="soc-kpi-value">{m365Users}</span>
+              <span className="soc-kpi-foot">usuários com deleção ou download em massa</span>
+            </button>
+            <button type="button" className="soc-kpi" onClick={() => go("infra")}>
+              <span className="soc-kpi-label">
+                {errorSources.length > 0 && (
+                  <span className="soc-sw" style={{ background: "var(--v2-med)" }} />
+                )}
+                Fontes de log com erro
+              </span>
+              <span className="soc-kpi-value">{errorSources.length}</span>
+              <span className="soc-kpi-foot">
+                de {allSources.length} fontes · {dropCount}{" "}
+                {dropCount === 1 ? "descarte" : "descartes"} de log
+              </span>
+            </button>
+            <div className="soc-kpi">
+              <span className="soc-kpi-label">Eventos registrados</span>
+              <span className="soc-kpi-value">{fmtNum(totalEvents)}</span>
+              <span className="soc-kpi-foot">nas ofensas sincronizadas</span>
+            </div>
+          </div>
+
+          <div className="soc-grid">
+            <div className="soc-card soc-span-2">
+              <div className="soc-card-hdr">
+                <div>
+                  <h2 className="soc-card-title">EPS nos últimos 30 dias</h2>
+                  <p className="soc-card-sub">
+                    Média e pico de cada dia, comparados à licença contratada
+                  </p>
+                </div>
+                <div className="soc-legend">
+                  <span>
+                    <span className="soc-sw" style={{ background: "var(--v2-accent)" }} /> EPS médio
+                  </span>
+                  <span>
+                    <span className="soc-sw" style={{ background: "var(--v2-high)" }} /> Pico
+                  </span>
+                  <span>
+                    <span className="soc-sw" style={{ background: "var(--v2-crit)", height: 2 }} />{" "}
+                    Licença
+                  </span>
+                </div>
+              </div>
+              <div className="soc-card-body" style={{ height: 280 }}>
+                {epsDaily.length === 0 ? (
+                  <EmptyState message="Sem amostras de EPS nos últimos 30 dias." />
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={epsDaily}
+                      margin={{ top: 10, right: 12, bottom: 0, left: -6 }}
+                    >
+                      <CartesianGrid stroke="var(--v2-line)" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={52}
+                        tickFormatter={(v) => fmtNum(Number(v))}
+                      />
+                      <Tooltip
+                        cursor={{ stroke: "var(--v2-line-strong)" }}
+                        content={<EpsTooltip />}
+                      />
+                      <ReferenceLine
+                        y={LICENSED_EPS}
+                        stroke="var(--v2-crit)"
+                        strokeWidth={1.5}
+                        label={{
+                          value: `licença ${fmtNum(LICENSED_EPS)}`,
+                          position: "insideTopRight",
+                        }}
+                      />
+                      <Area
+                        type="linear"
+                        dataKey="avg"
+                        name="EPS médio"
+                        stroke="var(--v2-accent)"
+                        strokeWidth={2}
+                        fill="color-mix(in oklch, var(--v2-accent) 16%, transparent)"
+                        dot={false}
+                        activeDot={{
+                          r: 4,
+                          fill: "var(--v2-accent)",
+                          stroke: "var(--v2-surface)",
+                          strokeWidth: 2,
+                        }}
+                      />
+                      <Line
+                        type="linear"
+                        dataKey="peak"
+                        name="Pico"
+                        stroke="var(--v2-high)"
+                        strokeWidth={1.6}
+                        strokeDasharray="4 3"
+                        connectNulls
+                        dot={(p: {
+                          cx?: number;
+                          cy?: number;
+                          index?: number;
+                          payload?: { peak: number | null; lic: number };
+                        }) =>
+                          p.payload?.peak != null && p.payload.peak > p.payload.lic ? (
+                            <circle
+                              key={`o${p.index}`}
+                              cx={p.cx}
+                              cy={p.cy}
+                              r={4}
+                              fill="var(--v2-crit)"
+                              stroke="var(--v2-surface)"
+                              strokeWidth={2}
+                            />
+                          ) : (
+                            <g key={`d${p.index}`} />
+                          )
+                        }
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            <div className="soc-card">
+              <div className="soc-card-hdr">
+                <div>
+                  <h2 className="soc-card-title">Precisa de atenção</h2>
+                  <p className="soc-card-sub">O que olhar primeiro, de todas as fontes</p>
+                </div>
+              </div>
+              <div className="soc-card-body">
+                {feed.length === 0 ? (
+                  <EmptyState message="Nada pedindo atenção agora." />
+                ) : (
+                  <div className="soc-feed">
+                    {feed.map((f) => (
+                      <button key={f.key} type="button" onClick={f.onClick}>
+                        <span className="k">{f.tag}</span>
+                        <b title={f.title}>{f.title}</b>
+                        <small title={f.sub}>{f.sub}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ══ OFENSAS ═════════════════════════════════════════════════════════ */}
+      {view === "ofensas" && (
+        <div className="exec-panel">
+          <div className="soc-toolbar">
+            <b>Ofensas abertas</b>
+            <small>
+              {openOffenses} ·{" "}
+              {fmtNum(openOffensesList.reduce((a, o) => a + (o.event_count ?? 0), 0))} eventos
+            </small>
+          </div>
+          {openOffensesList.length === 0 ? (
+            <EmptyState message="Nenhuma ofensa aberta." />
+          ) : (
+            <div className="exec-scroll" style={{ maxHeight: 640 }}>
+              <table className="exec-table">
+                <thead>
+                  <tr>
+                    <th>Sev.</th>
+                    <th>Descrição</th>
+                    <th className="r">Magnitude</th>
+                    <th>Início</th>
+                    <th>Origem</th>
+                    <th>Rede de destino</th>
+                    <th className="r">Eventos</th>
+                    <th>Diagnóstico</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {openOffensesList.map((o) => {
+                    const diag = diagnoseOpenOffense(o, closeStatsByDesc);
+                    return (
+                      <tr
+                        key={o.id}
+                        className="clickable"
+                        tabIndex={0}
+                        onClick={() => setOpenOffenseId(o.id)}
+                        onKeyDown={(e) => e.key === "Enter" && setOpenOffenseId(o.id)}
+                      >
+                        <td>
+                          <SevPill severity={o.severity} />
+                        </td>
+                        <td style={{ maxWidth: 340 }}>
+                          <span
+                            style={{
+                              display: "block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              fontWeight: 500,
+                            }}
+                            title={o.description ?? undefined}
+                          >
+                            {o.description ?? "—"}
+                          </span>
+                          <span className="mono dim" style={{ fontSize: 12 }}>
+                            #{o.id}
+                          </span>
+                        </td>
+                        <td className="r mono">{o.magnitude ?? "—"}</td>
+                        <td className="mono dim">{fmtDate(o.start_time)}</td>
+                        <td className="mono">{o.source_ip ?? "—"}</td>
+                        <td className="mono dim">{o.destination_ip ?? "—"}</td>
+                        <td className="r mono">{fmtNum(o.event_count ?? 0)}</td>
+                        <td title="Estimativa por comparação com a mediana histórica da mesma regra — o QRadar não informa o motivo real do atraso.">
+                          <span className={`soc-diag${diag.tone === "warning" ? " late" : ""}`}>
+                            {diag.tone === "warning" && <AlertTriangle size={12} />}
+                            {diag.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="soc-foot">
+            O diagnóstico compara o tempo aberto com a mediana histórica da mesma regra · o QRadar
+            não informa o motivo real do atraso
           </div>
         </div>
       )}
 
-      <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 28 }}>
-        {/* ── SECTION: KPIs ─────────────────────────────────────────────────── */}
-        <div>
-          <div className="exec-section-label">
-            <Zap size={10} />
-            Indicadores-Chave de Desempenho
+      {/* ══ AMEAÇAS ═════════════════════════════════════════════════════════ */}
+      {view === "ameacas" && (
+        <>
+          <div className="soc-grid">
+            {(
+              [
+                [
+                  "Maiores ofensores externos",
+                  "IPs de fora com mais eventos",
+                  externalOffenders.data ?? [],
+                  "eventos",
+                ],
+                [
+                  "Origens internas · mais eventos",
+                  "Máquinas da rede com mais eventos",
+                  topSourceEvents.data ?? [],
+                  "eventos",
+                ],
+                [
+                  "Origens internas · mais ofensas",
+                  "Máquinas envolvidas em mais ofensas",
+                  internalSources,
+                  "ofensas",
+                ],
+              ] as Array<[string, string, Array<{ ip: string; v: number }>, string]>
+            ).map(([title, sub, rows, unit]) => (
+              <div key={title} className="soc-card">
+                <div className="soc-card-hdr">
+                  <div>
+                    <h2 className="soc-card-title">{title}</h2>
+                    <p className="soc-card-sub">{sub}</p>
+                  </div>
+                </div>
+                <div className="soc-card-body">
+                  <HBars rows={rows} unit={unit} />
+                </div>
+              </div>
+            ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 14 }}>
-            <ExecKpiCard
-              label="Total de Eventos"
-              value={fmtNum(totalEvents)}
-              sub="offenses registradas"
-              accentColor={T.accent}
-              icon={Activity}
-            />
-            <ExecKpiCard
-              label="EPS Atual"
-              value={fmtNum(currentEps)}
-              sub={`${usagePct}% da licença`}
-              accentColor={usagePct >= 90 ? T.danger : usagePct >= 70 ? T.warning : T.accent}
-              icon={TrendingUp}
-              trend={currentEps > LICENSED_EPS ? "up" : "neutral"}
-            />
-            <ExecKpiCard
-              label="EPS Excedente"
-              value={`${excedentePct}%`}
-              sub={currentEps > LICENSED_EPS ? "acima da licença" : "dentro do limite"}
-              accentColor={currentEps > LICENSED_EPS ? T.danger : T.success}
-              icon={currentEps > LICENSED_EPS ? TrendingUp : TrendingDown}
-              footer={
-                <span
-                  className="exec-kpi-sub"
-                  style={{ color: (drops.data?.length ?? 0) > 0 ? T.warning : T.success, marginTop: 2 }}
-                >
-                  Descarte de logs: {drops.data?.length ?? 0}
-                </span>
-              }
-            />
-            <div
-              className="exec-kpi-wrap"
-              onMouseEnter={() => setShowEpsPeakTip(true)}
-              onMouseLeave={() => setShowEpsPeakTip(false)}
-            >
-              <ExecKpiCard
-                label="EPS Pico (7 dias)"
-                value={fmtNum(maxPeak7d)}
-                sub="maior pico do período"
-                accentColor={
-                  maxPeak7d >= LICENSED_EPS ? T.danger : maxPeak7d >= LICENSED_EPS * 0.7 ? T.warning : T.accent
-                }
-                icon={Zap}
-              />
-              {showEpsPeakTip && dailyPeaksLast7.length > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 8px)",
-                    left: 0,
-                    right: 0,
-                    zIndex: 60,
-                    background: T.surface,
-                    border: `1px solid ${T.borderHi}`,
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: T.textMuted,
-                      fontFamily: "'IBM Plex Mono', monospace",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Pico Diário — Últimos {dailyPeaksLast7.length} Dias
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {dailyPeaksLast7.map((d) => (
-                      <div
-                        key={d.day}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color: T.textSecondary,
-                            fontFamily: "'IBM Plex Mono', monospace",
-                          }}
-                        >
-                          {fmtDayShort(d.day)}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color: d.peak >= LICENSED_EPS ? T.danger : T.textPrimary,
-                            fontWeight: 600,
-                            fontFamily: "'IBM Plex Mono', monospace",
-                          }}
-                        >
-                          {fmtNum(d.peak)} EPS
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
+          <div className="exec-panel">
+            <div className="soc-toolbar">
+              <b>Conexões RDP suspeitas</b>
+              <small>Logon tipo 10 · evento 4624 · usuário "infra" · últimas 24 h</small>
             </div>
-            <div
-              className="exec-kpi-wrap"
-              onMouseEnter={() => setShowOffensesTip(true)}
-              onMouseLeave={() => setShowOffensesTip(false)}
-            >
-              <ExecKpiCard
-                label="Offenses Abertos"
-                value={String(openOffenses)}
-                sub="requerem atenção"
-                accentColor={openOffenses > 0 ? T.warning : T.success}
-                icon={Eye}
-                trend={openOffenses > 0 ? "up" : "neutral"}
-              />
-              {showOffensesTip && openOffenses > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 8px)",
-                    left: 0,
-                    right: 0,
-                    zIndex: 60,
-                    background: T.surface,
-                    border: `1px solid ${T.borderHi}`,
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: T.textMuted,
-                      fontFamily: "'IBM Plex Mono', monospace",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Offenses Abertos ({openOffenses})
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {openOffensesList.slice(0, 8).map((o) => (
-                      <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <SevPill severity={o.severity} />
-                        <span
-                          style={{
-                            flex: 1,
-                            minWidth: 0,
-                            fontSize: 12,
-                            color: T.textPrimary,
-                            fontFamily: "'DM Sans', sans-serif",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                          title={o.description ?? undefined}
-                        >
-                          {o.description ?? "—"}
-                        </span>
-                      </div>
+            {(rdp.data?.length ?? 0) === 0 ? (
+              <EmptyState message="Nenhum evento correspondente nas últimas 24h." />
+            ) : (
+              <div className="exec-scroll" style={{ maxHeight: 420 }}>
+                <table className="exec-table">
+                  <thead>
+                    <tr>
+                      <th>Quando</th>
+                      <th>Usuário</th>
+                      <th>IP de origem</th>
+                      <th>IP de destino</th>
+                      <th>Fonte de log</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(rdp.data ?? []).map((e) => (
+                      <tr key={e.id}>
+                        <td className="mono dim">
+                          {fmtDate(e.event_time)}
+                          {e.event_time && isOutsideBusinessHours(e.event_time) && (
+                            <span className="soc-flag" title="Fora do horário comercial (08h–19h)">
+                              <AlertTriangle size={11} /> fora do horário
+                            </span>
+                          )}
+                        </td>
+                        <td className="mono" style={{ fontWeight: 500 }}>
+                          {e.username ?? "—"}
+                        </td>
+                        <td className="mono">{e.source_ip ?? "—"}</td>
+                        <td className="mono">{e.destination_ip ?? "—"}</td>
+                        <td className="dim">{e.log_source ?? "—"}</td>
+                      </tr>
                     ))}
-                    {openOffenses > 8 && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: T.textMuted,
-                          fontFamily: "'IBM Plex Mono', monospace",
-                          paddingTop: 2,
-                        }}
-                      >
-                        +{openOffenses - 8} mais
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ══ MICROSOFT 365 ═══════════════════════════════════════════════════ */}
+      {view === "m365" && (
+        <div className="soc-grid-2">
+          <div className="exec-panel">
+            <div className="soc-toolbar">
+              <b>Deleção em massa</b>
+              <small>≥ 50 deleções por minuto</small>
             </div>
-            <ExecKpiCard
-              label="Download Suspeito"
-              value={fmtNum(new Set((o365Downloads.data ?? []).map((r) => r.username)).size)}
-              sub="usuários M365"
-              accentColor={(o365Downloads.data?.length ?? 0) > 0 ? T.warning : T.success}
-              icon={Network}
-            />
-            <ExecKpiCard
-              label="Deleção Suspeita"
-              value={fmtNum(new Set((o365Deletions.data ?? []).map((r) => r.username)).size)}
-              sub="usuários M365"
-              accentColor={(o365Deletions.data?.length ?? 0) > 0 ? T.danger : T.success}
-              icon={ShieldOff}
-              trend={(o365Deletions.data?.length ?? 0) > 0 ? "up" : "neutral"}
-            />
+            {(o365Deletions.data?.length ?? 0) === 0 ? (
+              <EmptyState message="Nenhuma deleção suspeita nas últimas 24h." />
+            ) : (
+              <M365Table
+                rows={o365Deletions.data ?? []}
+                sortBy={delSortBy}
+                sortDir={delSortDir}
+                setSortBy={setDelSortBy}
+                setSortDir={setDelSortDir}
+                countLabel="Deleções"
+                tone="crit"
+              />
+            )}
+          </div>
+          <div className="exec-panel">
+            <div className="soc-toolbar">
+              <b>Download em massa</b>
+              <small>≥ 50 eventos por minuto</small>
+            </div>
+            {(o365Downloads.data?.length ?? 0) === 0 ? (
+              <EmptyState message="Nenhum download suspeito nas últimas 24h." />
+            ) : (
+              <M365Table
+                rows={o365Downloads.data ?? []}
+                sortBy={dlSortBy}
+                sortDir={dlSortDir}
+                setSortBy={setDlSortBy}
+                setSortDir={setDlSortDir}
+                countLabel="Eventos"
+                tone="med"
+              />
+            )}
           </div>
         </div>
+      )}
 
-        {/* ── SECTION: EPS TREND ────────────────────────────────────────────── */}
-        <div>
-          <div className="exec-section-label">
-            <Activity size={10} />
-            Volume de Tráfego — EPS vs. Licença Contratada ({fmtNum(LICENSED_EPS)} EPS)
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-            <ResizableChart
-              title={`EPS Médio — Últimos 30 dias`}
-              defaultSize="col-span-3"
-              chartHeight={260}
-              badge={
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    background: usagePct >= 90 ? T.dangerBg : T.accentSoft,
-                    color: usagePct >= 90 ? T.danger : T.accent,
-                    padding: "2px 7px",
-                    borderRadius: 3,
-                    border: `1px solid ${usagePct >= 90 ? "rgba(239,68,68,0.2)" : "rgba(59,130,246,0.2)"}`,
-                  }}
-                >
-                  {usagePct}% utilizado
-                </span>
-              }
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={epsSeries} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id="epsGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={T.accent} stopOpacity={0.3} />
-                      <stop offset="100%" stopColor={T.accent} stopOpacity={0.02} />
-                    </linearGradient>
-                    <linearGradient id="epsPeakGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={T.danger} stopOpacity={0.3} />
-                      <stop offset="100%" stopColor={T.danger} stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} vertical={false} />
-                  <XAxis
-                    dataKey="t"
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    tick={{ fill: T.chartTick, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={{ stroke: T.border }}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    tick={{ fill: T.chartTick, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v) => fmtNum(v)}
-                  />
-                  <Tooltip content={<ExecTooltip />} />
-                  <ReferenceLine
-                    y={LICENSED_EPS}
-                    stroke={T.danger}
-                    strokeDasharray="5 3"
-                    strokeWidth={1.5}
-                    label={{
-                      value: `Limite ${fmtNum(LICENSED_EPS)}`,
-                      fill: T.danger,
-                      fontSize: 10,
-                      fontFamily: "'IBM Plex Mono', monospace",
-                      position: "insideTopRight",
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="peak"
-                    name="Pico médio"
-                    stroke={T.danger}
-                    strokeWidth={1.5}
-                    fill="url(#epsPeakGrad)"
-                    dot={false}
-                    activeDot={{ r: 4, fill: T.danger, stroke: T.surface, strokeWidth: 2 }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="eps"
-                    name="EPS médio"
-                    stroke={T.accent}
-                    strokeWidth={2}
-                    fill="url(#epsGrad)"
-                    dot={false}
-                    activeDot={{ r: 4, fill: T.accent, stroke: T.surface, strokeWidth: 2 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ResizableChart>
-          </div>
-        </div>
-
-        {/* ── SECTION: LOG SOURCES + EPS por Fonte ─────────────────────────── */}
-        <div>
-          <div className="exec-section-label">
-            <Lock size={10} />
-            Fontes de Log e Consumo de EPS
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            {/* Log Sources Table */}
-            <div className="exec-panel">
-              <div className="exec-panel-header">
-                <div className="exec-panel-title">
-                  <Network size={14} color={T.accent} />
-                  Fontes de Log — FGT / WinCollect
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
+      {/* ══ INFRAESTRUTURA ══════════════════════════════════════════════════ */}
+      {view === "infra" && (
+        <>
+          <div className="soc-grid">
+            <div className="exec-panel soc-span-2">
+              <div className="soc-toolbar">
+                <b>Fontes de log · FortiGate e WinCollect</b>
+                <small>{allSources.length}</small>
+                <span style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {logSourcesSyncUnhealthy ? (
-                    <ExecBadge tone="warning">{staleSources.length} Desatualizadas</ExecBadge>
+                    <ExecBadge tone="warning">{staleSources.length} desatualizadas</ExecBadge>
                   ) : (
-                    <ExecBadge tone="success">{activeSources.length} Ativas</ExecBadge>
+                    <ExecBadge tone="success">{activeSources.length} ativas</ExecBadge>
                   )}
-                  {errorSources.length > 0 && <ExecBadge tone="danger">{errorSources.length} Erro</ExecBadge>}
-                  {disabledSources.length > 0 && <ExecBadge tone="neutral">{disabledSources.length} Desab.</ExecBadge>}
-                </div>
-              </div>
-              <div className="exec-panel-body" style={{ padding: 0 }}>
-                {allSources.length === 0 ? (
-                  <EmptyState message="Nenhuma fonte encontrada." />
-                ) : (
-                  <div className="exec-scroll" style={{ maxHeight: 340, overflowY: "auto" }}>
-                    <table className="exec-table">
-                      <thead>
-                        <tr>
-                          <th
-                            onClick={() => setSortBy((s) => (s === "name-asc" ? "name-desc" : "name-asc"))}
-                            style={{ paddingLeft: 20 }}
-                          >
-                            Fonte {sortBy.startsWith("name") ? (sortBy === "name-asc" ? "↑" : "↓") : ""}
-                          </th>
-                          <th onClick={() => setSortBy((s) => (s === "status-asc" ? "status-desc" : "status-asc"))}>
-                            Status {sortBy.startsWith("status") ? (sortBy === "status-asc" ? "↑" : "↓") : ""}
-                          </th>
-                          <th>Status há</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(() => {
-                          const order = { error: 0, success: 1, disabled: 2 };
-                          return [...allSources]
-                            .sort((a, b) => {
-                              if (sortBy === "name-asc") return a.name.localeCompare(b.name);
-                              if (sortBy === "name-desc") return b.name.localeCompare(a.name);
-                              if (sortBy === "status-asc")
-                                return (
-                                  (order[a.status as keyof typeof order] ?? 3) -
-                                  (order[b.status as keyof typeof order] ?? 3)
-                                );
-                              if (sortBy === "status-desc")
-                                return (
-                                  (order[b.status as keyof typeof order] ?? 3) -
-                                  (order[a.status as keyof typeof order] ?? 3)
-                                );
-                              return (
-                                (order[a.status as keyof typeof order] ?? 3) -
-                                (order[b.status as keyof typeof order] ?? 3)
-                              );
-                            })
-                            .map((s) => {
-                              const isStale = s.status === "success" && logSourcesSyncUnhealthy;
-                              const displayStatus = isStale ? "stale" : s.status;
-                              const tone =
-                                displayStatus === "error"
-                                  ? "danger"
-                                  : displayStatus === "success"
-                                    ? "success"
-                                    : displayStatus === "stale"
-                                      ? "warning"
-                                      : "neutral";
-                              const label =
-                                displayStatus === "error"
-                                  ? "Erro"
-                                  : displayStatus === "success"
-                                    ? "Ativo"
-                                    : displayStatus === "stale"
-                                      ? "Desatualizado"
-                                      : "Desabilitado";
-                              return (
-                                <tr key={s.id}>
-                                  <td style={{ paddingLeft: 20 }}>
-                                    <div className="status-row">
-                                      <div className={`status-indicator ${displayStatus}`} />
-                                      <span
-                                        style={{
-                                          color: s.status === "disabled" ? T.textMuted : T.textPrimary,
-                                          fontSize: 12,
-                                        }}
-                                      >
-                                        {s.name}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td>
-                                    <ExecBadge tone={tone as any}>{label}</ExecBadge>
-                                  </td>
-                                  <td
-                                    className="mono"
-                                    style={{ color: T.textMuted, fontSize: 11 }}
-                                    title={s.status_changed_at ? `desde ${fmtDate(s.status_changed_at)}` : undefined}
-                                  >
-                                    {fmtDuration(s.status_changed_at)}
-                                  </td>
-                                </tr>
-                              );
-                            });
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* EPS por Fonte — Bar chart */}
-            <ResizableChart title="Consumo de EPS por Fonte (Top 10)" defaultSize="col-span-1" chartHeight={320}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sourcesByEps} layout="vertical" margin={{ top: 4, right: 52, bottom: 4, left: 4 }}>
-                  <defs>
-                    <linearGradient id="epsBarGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={T.accent} stopOpacity={0.5} />
-                      <stop offset="100%" stopColor={T.accent} stopOpacity={1} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} horizontal={false} />
-                  <XAxis
-                    type="number"
-                    domain={[0, "dataMax"]}
-                    tickFormatter={(v) => `${v}%`}
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    tick={{ fill: T.chartTick, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={{ stroke: T.border }}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    width={150}
-                    tick={{ fill: T.textSecondary, fontFamily: "'DM Sans', sans-serif" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    content={
-                      <ExecTooltip
-                        formatter={(v: any, _: any, item: any) => `${v}% · ${fmtNum(item?.payload?.eps)} EPS`}
-                      />
-                    }
-                  />
-                  <Bar dataKey="pct" name="Consumo" fill="url(#epsBarGrad)" radius={[0, 3, 3, 0]}>
-                    <LabelList
-                      dataKey="pct"
-                      position="right"
-                      formatter={(v: number) => `${v}%`}
-                      style={{ fill: T.chartTick, fontSize: 10, fontFamily: "'IBM Plex Mono', monospace" }}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </ResizableChart>
-          </div>
-        </div>
-
-        {/* ── SECTION: FORTIGATE POLICY CHANGE ──────────────────────────────── */}
-        <div>
-          <div className="exec-section-label">
-            <Lock size={10} />
-            Mudanças de Policy — Fortigate
-          </div>
-          <div className="exec-panel">
-            <div className="exec-panel-header">
-              <div className="exec-panel-title">
-                <Lock size={14} color={T.accent} />
-                Detalhamento - Fortigate
-                <span style={{ color: T.textMuted, fontWeight: 400, fontSize: 11 }}>Últimas 24h</span>
-              </div>
-              <ExecBadge tone={(fortigatePolicyChanges.data?.length ?? 0) > 0 ? "warning" : "success"}>
-                {fortigatePolicyChanges.data?.length ?? 0} eventos
-              </ExecBadge>
-            </div>
-            <div className="exec-panel-body" style={{ padding: 0 }}>
-              {(fortigatePolicyChanges.data?.length ?? 0) === 0 ? (
-                <EmptyState message="Nenhum evento de policy/admin/config detectado nas últimas 24h." />
-              ) : (
-                <div className="exec-scroll" style={{ maxHeight: 340, overflowY: "auto" }}>
-                  <table className="exec-table">
-                    <thead>
-                      <tr>
-                        <th style={{ paddingLeft: 20, width: 16 }}></th>
-                        <th>Quando</th>
-                        <th>Tipo</th>
-                        <th>Usuário Admin</th>
-                        <th>IP Origem</th>
-                        <th>IP Destino</th>
-                        <th>Ação</th>
-                        <th>Mensagem</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(fortigatePolicyChanges.data ?? []).map((e) => {
-                        const typeBadge = fortigateTypeBadge(e.query_type);
-                        const afterHours = isOutsideBusinessHours(e.event_time);
-                        const expanded = expandedFortigateIds.has(e.id);
-                        const detail = fortigateRawDetail(e.raw);
-                        return (
-                          <React.Fragment key={e.id}>
-                            <tr style={{ cursor: "pointer" }} onClick={() => toggleFortigateExpand(e.id)}>
-                              <td style={{ paddingLeft: 20 }}>
-                                {expanded ? (
-                                  <ChevronUp size={13} color={T.textMuted} />
-                                ) : (
-                                  <ChevronDown size={13} color={T.textMuted} />
-                                )}
-                              </td>
-                              <td className="mono" style={{ color: T.textMuted, fontSize: 11 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  {fmtDate(e.event_time)}
-                                  {afterHours && (
-                                    <span title="Fora do horário comercial (08:00–19:00)">
-                                      <ExecBadge tone="danger">Fora do horário</ExecBadge>
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <ExecBadge tone={typeBadge.tone}>{typeBadge.label}</ExecBadge>
-                                  {e.event_category === "any_any_accept" && (
-                                    <span title="Policy any/any com ação accept, habilitada a partir de disabled">
-                                      <ExecBadge tone="danger">Risco Alto</ExecBadge>
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td style={{ fontWeight: 500 }}>{e.username ?? "—"}</td>
-                              <td className="mono">{e.source_ip ?? "—"}</td>
-                              <td className="mono">{e.destination_ip ?? "—"}</td>
-                              <td>{e.action ?? e.event_name ?? "—"}</td>
-                              <td
-                                style={{
-                                  color: T.textMuted,
-                                  fontSize: 11,
-                                  maxWidth: 220,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                                title={e.message ?? undefined}
-                              >
-                                {e.message ?? "—"}
-                              </td>
-                            </tr>
-                            {expanded && (
-                              <tr>
-                                <td colSpan={8} style={{ padding: 0 }}>
-                                  <div
-                                    style={{
-                                      display: "grid",
-                                      gridTemplateColumns: "repeat(4, 1fr)",
-                                      gap: 12,
-                                      padding: "14px 24px",
-                                      background: T.surfaceAlt,
-                                      borderBottom: "1px solid rgba(30,38,64,0.5)",
-                                    }}
-                                  >
-                                    <DetailField label="QID" value={e.qid ?? "—"} />
-                                    <DetailField label="Regra QRadar" value={e.qid_name ?? "—"} />
-                                    <DetailField label="Fonte de Log" value={e.log_source_name ?? "—"} />
-                                    <DetailField
-                                      label="ID da Policy"
-                                      value={extractFortigatePolicyId(e.message) ?? "—"}
-                                    />
-                                    <div style={{ gridColumn: "span 4", minWidth: 0 }}>
-                                      <div
-                                        style={{
-                                          fontSize: 9,
-                                          color: T.textMuted,
-                                          fontFamily: "'IBM Plex Mono', monospace",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.08em",
-                                          marginBottom: 6,
-                                        }}
-                                      >
-                                        Detalhe da Mudança
-                                      </div>
-                                      {(() => {
-                                        const changes = parseFortigateCfgAttr(detail.cfgattr);
-                                        if (!changes) {
-                                          return (
-                                            <span style={{ fontSize: 12, color: T.textMuted }}>
-                                              {detail.cfgattr ?? "Não disponível para este tipo de evento"}
-                                            </span>
-                                          );
-                                        }
-                                        return (
-                                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                                            {changes.map((c, i) => (
-                                              <div
-                                                key={i}
-                                                style={{
-                                                  fontSize: 12,
-                                                  fontFamily: "'DM Sans', sans-serif",
-                                                  display: "flex",
-                                                  flexDirection: "column",
-                                                  gap: 2,
-                                                }}
-                                              >
-                                                <span style={{ color: T.textSecondary, fontWeight: 600 }}>
-                                                  {c.label}
-                                                </span>
-                                                {c.unchanged ? (
-                                                  <span style={{ color: T.textMuted, paddingLeft: 10 }}>
-                                                    sem alteração
-                                                  </span>
-                                                ) : c.added.length > 0 || c.removed.length > 0 ? (
-                                                  <>
-                                                    {c.removed.map((w) => (
-                                                      <span key={`r-${w}`} style={{ color: T.danger, paddingLeft: 10 }}>
-                                                        Removido: {w}
-                                                      </span>
-                                                    ))}
-                                                    {c.added.map((w) => (
-                                                      <span
-                                                        key={`a-${w}`}
-                                                        style={{ color: T.success, paddingLeft: 10 }}
-                                                      >
-                                                        Adicionado: {w}
-                                                      </span>
-                                                    ))}
-                                                  </>
-                                                ) : c.before ? (
-                                                  <span style={{ color: T.textPrimary, paddingLeft: 10 }}>
-                                                    Antes: {c.before} · Depois: {c.after}
-                                                  </span>
-                                                ) : (
-                                                  <span style={{ color: T.textPrimary, paddingLeft: 10 }}>
-                                                    Definido: {c.after}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        );
-                                      })()}
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ── SECTION: THREAT CHARTS ─────────────────────────────────────────── */}
-        <div>
-          <div className="exec-section-label">
-            <AlertTriangle size={10} />
-            Mapa de Ameaças — Ofensores e Origens
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-            {/* Maiores Ofensores Externos */}
-            <ResizableChart
-              title="Maiores Ofensores Externos"
-              chartHeight={300}
-              badge={<ExecBadge tone="danger">{(externalOffenders.data ?? []).length} IPs</ExecBadge>}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={externalOffenders.data ?? []}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
-                >
-                  <defs>
-                    <linearGradient id="extGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={T.danger} stopOpacity={0.45} />
-                      <stop offset="100%" stopColor={T.danger} stopOpacity={1} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} horizontal={false} />
-                  <XAxis
-                    type="number"
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    tick={{ fill: T.chartTick, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={{ stroke: T.border }}
-                    tickFormatter={(v) => fmtNum(v)}
-                  />
-                  <YAxis
-                    className="ip-axis"
-                    type="category"
-                    dataKey="ip"
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    width={108}
-                    tick={{ fill: T.textPrimary, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip content={<ExecTooltip formatter={(v: any) => `${fmtNum(v)} eventos`} />} />
-                  <Bar dataKey="v" name="Eventos" fill="url(#extGrad)" radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ResizableChart>
-
-            {/* Origens Internas — mais eventos */}
-            <ResizableChart
-              title="Origens Internas — Mais Eventos"
-              chartHeight={300}
-              badge={<ExecBadge tone="warning">{(topSourceEvents.data ?? []).length} IPs</ExecBadge>}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={topSourceEvents.data ?? []}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
-                >
-                  <defs>
-                    <linearGradient id="intEvGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={T.warning} stopOpacity={0.45} />
-                      <stop offset="100%" stopColor={T.warning} stopOpacity={1} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} horizontal={false} />
-                  <XAxis
-                    type="number"
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    tick={{ fill: T.chartTick, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={{ stroke: T.border }}
-                    tickFormatter={(v) => fmtNum(v)}
-                  />
-                  <YAxis
-                    className="ip-axis"
-                    type="category"
-                    dataKey="ip"
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    width={108}
-                    tick={{ fill: T.textPrimary, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip content={<ExecTooltip formatter={(v: any) => `${fmtNum(v)} eventos`} />} />
-                  <Bar dataKey="v" name="Eventos" fill="url(#intEvGrad)" radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ResizableChart>
-
-            {/* Origens Internas — mais ofensores */}
-            <ResizableChart
-              title="Origens Internas — Mais Ofensores"
-              chartHeight={300}
-              badge={<ExecBadge tone="accent">{internalSources.length} IPs</ExecBadge>}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={internalSources} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
-                  <defs>
-                    <linearGradient id="intOffGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={T.accent} stopOpacity={0.45} />
-                      <stop offset="100%" stopColor={T.accent} stopOpacity={1} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} horizontal={false} />
-                  <XAxis
-                    type="number"
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    tick={{ fill: T.chartTick, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={{ stroke: T.border }}
-                    tickFormatter={(v) => fmtNum(v)}
-                  />
-                  <YAxis
-                    className="ip-axis"
-                    type="category"
-                    dataKey="ip"
-                    stroke={T.chartAxis}
-                    fontSize={10}
-                    width={108}
-                    tick={{ fill: T.textPrimary, fontFamily: "'IBM Plex Mono', monospace" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip content={<ExecTooltip formatter={(v: any) => `${fmtNum(v)} ofensores`} />} />
-                  <Bar dataKey="v" name="Ofensores" fill="url(#intOffGrad)" radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ResizableChart>
-          </div>
-        </div>
-
-        {/* ── SECTION: RDP ─────────────────────────────────────────────────── */}
-        <div>
-          <div className="exec-section-label">
-            <Eye size={10} />
-            Monitoramento de Acesso Remoto
-          </div>
-          <div className="exec-panel">
-            <div className="exec-panel-header">
-              <div className="exec-panel-title">
-                <Network size={14} color={T.warning} />
-                Conexões RDP Suspeitas
-                <span
-                  style={{
-                    color: T.textMuted,
-                    fontSize: 11,
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    fontWeight: 400,
-                  }}
-                >
-                  Logon Type 10 · Event 4624 · Usuário "infra"
+                  {errorSources.length > 0 && (
+                    <ExecBadge tone="danger">{errorSources.length} com erro</ExecBadge>
+                  )}
+                  {disabledSources.length > 0 && (
+                    <ExecBadge tone="neutral">{disabledSources.length} desabilitadas</ExecBadge>
+                  )}
                 </span>
               </div>
-              <ExecBadge tone={(rdp.data?.length ?? 0) > 0 ? "warning" : "success"}>
-                {rdp.data?.length ?? 0} eventos · 24h
-              </ExecBadge>
-            </div>
-            <div className="exec-panel-body" style={{ padding: 0 }}>
-              {(rdp.data?.length ?? 0) === 0 ? (
-                <EmptyState message="Nenhum evento correspondente nas últimas 24h." />
+              {allSources.length === 0 ? (
+                <EmptyState message="Nenhuma fonte encontrada." />
               ) : (
-                <div className="exec-scroll" style={{ maxHeight: 360, overflowY: "auto" }}>
+                <div className="exec-scroll" style={{ maxHeight: 420 }}>
                   <table className="exec-table">
                     <thead>
                       <tr>
-                        <th style={{ paddingLeft: 24 }}>Quando</th>
-                        <th>Usuário</th>
-                        <th>IP Origem</th>
-                        <th>IP Destino</th>
-                        <th>Fonte de Log</th>
+                        <th
+                          className="sortable"
+                          onClick={() =>
+                            setSortBy((s) => (s === "name-asc" ? "name-desc" : "name-asc"))
+                          }
+                        >
+                          Fonte{" "}
+                          {sortBy.startsWith("name") ? (sortBy === "name-asc" ? "↑" : "↓") : ""}
+                        </th>
+                        <th className="r">EPS</th>
+                        <th
+                          className="sortable"
+                          onClick={() =>
+                            setSortBy((s) => (s === "status-asc" ? "status-desc" : "status-asc"))
+                          }
+                        >
+                          Status{" "}
+                          {sortBy.startsWith("status") ? (sortBy === "status-asc" ? "↑" : "↓") : ""}
+                        </th>
+                        <th className="r">Status há</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(rdp.data ?? []).map((e) => (
-                        <tr key={e.id}>
-                          <td className="mono" style={{ paddingLeft: 24, color: T.textMuted }}>
-                            {fmtDate(e.event_time)}
-                          </td>
-                          <td style={{ fontWeight: 500 }}>{e.username ?? "—"}</td>
-                          <td className="mono">{e.source_ip ?? "—"}</td>
-                          <td className="mono">{e.destination_ip ?? "—"}</td>
-                          <td style={{ color: T.textMuted, fontSize: 11 }}>{e.log_source ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ── SECTION: O365 DELETIONS ───────────────────────────────────────── */}
-        <div>
-          <div className="exec-section-label">
-            <ShieldOff size={10} />
-            Anomalias Microsoft 365
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            {/* Deleções */}
-            <div className="exec-panel">
-              <div className="exec-panel-header">
-                <div className="exec-panel-title">
-                  <AlertTriangle size={14} color={T.danger} />
-                  Alto Volume de Deleção
-                  <span style={{ color: T.textMuted, fontWeight: 400, fontSize: 11 }}>≥ 50 deleções/min</span>
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {(o365Deletions.data?.length ?? 0) > 0 && (
-                    <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {(o365Deletions.data ?? []).reduce((a, r) => a + r.event_count, 0).toLocaleString("pt-BR")}{" "}
-                      deleções
-                    </span>
-                  )}
-                  <ExecBadge tone={(o365Deletions.data?.length ?? 0) > 0 ? "danger" : "success"}>
-                    {(o365Deletions.data?.length ?? 0) > 0 ? "Detectado" : "Normal"}
-                  </ExecBadge>
-                </div>
-              </div>
-              <div className="exec-panel-body" style={{ padding: 0 }}>
-                {(o365Deletions.data?.length ?? 0) === 0 ? (
-                  <EmptyState message="Nenhuma deleção suspeita nas últimas 24h." />
-                ) : (
-                  <div className="exec-scroll" style={{ maxHeight: 280, overflowY: "auto" }}>
-                    <table className="exec-table">
-                      <thead>
-                        <tr>
-                          <th
-                            style={{ paddingLeft: 20 }}
-                            onClick={() => {
-                              setDelSortBy("event_time");
-                              setDelSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                            }}
-                          >
-                            Hora {delSortBy === "event_time" ? (delSortDir === "asc" ? "↑" : "↓") : ""}
-                          </th>
-                          <th
-                            onClick={() => {
-                              setDelSortBy("username");
-                              setDelSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                            }}
-                          >
-                            Usuário {delSortBy === "username" ? (delSortDir === "asc" ? "↑" : "↓") : ""}
-                          </th>
-                          <th>IP Origem</th>
-                          <th
-                            style={{ textAlign: "right", paddingRight: 20 }}
-                            onClick={() => {
-                              setDelSortBy("event_count");
-                              setDelSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                            }}
-                          >
-                            Deleções {delSortBy === "event_count" ? (delSortDir === "asc" ? "↑" : "↓") : ""}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...(o365Deletions.data ?? [])]
+                      {(() => {
+                        const order = { error: 0, success: 1, disabled: 2 };
+                        const rank = (s: string | null) => order[s as keyof typeof order] ?? 3;
+                        return [...allSources]
                           .sort((a, b) => {
-                            const dir = delSortDir === "asc" ? 1 : -1;
-                            if (delSortBy === "event_count") return (a.event_count - b.event_count) * dir;
-                            if (delSortBy === "username") return a.username.localeCompare(b.username) * dir;
-                            if (delSortBy === "event_time")
-                              return ((a.event_time ?? "") > (b.event_time ?? "") ? 1 : -1) * dir;
-                            return 0;
+                            if (sortBy === "name-asc") return a.name.localeCompare(b.name);
+                            if (sortBy === "name-desc") return b.name.localeCompare(a.name);
+                            if (sortBy === "status-desc") return rank(b.status) - rank(a.status);
+                            return rank(a.status) - rank(b.status);
                           })
-                          .map((r, i) => (
-                            <tr key={i}>
-                              <td className="mono" style={{ paddingLeft: 20, color: T.textMuted }}>
-                                {r.event_time ? new Date(r.event_time).toLocaleString("pt-BR") : "—"}
-                              </td>
-                              <td style={{ fontWeight: 500 }}>{r.username || "—"}</td>
-                              <td className="mono">{r.source_ip || "—"}</td>
-                              <td style={{ textAlign: "right", paddingRight: 20 }}>
-                                <span
+                          .map((s) => {
+                            const isStale = s.status === "success" && logSourcesSyncUnhealthy;
+                            const st = isStale ? "stale" : s.status;
+                            const [label, tone] =
+                              st === "error"
+                                ? ["Erro", "danger"]
+                                : st === "success"
+                                  ? ["Ativa", "success"]
+                                  : st === "stale"
+                                    ? ["Desatualizada", "warning"]
+                                    : ["Desabilitada", "neutral"];
+                            return (
+                              <tr key={s.id}>
+                                <td
+                                  className="mono"
                                   style={{
-                                    background: T.dangerBg,
-                                    color: T.danger,
-                                    padding: "2px 8px",
-                                    borderRadius: 3,
-                                    fontFamily: "'IBM Plex Mono', monospace",
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    border: "1px solid rgba(239,68,68,0.2)",
+                                    fontWeight: 500,
+                                    color: s.status === "disabled" ? "var(--v2-fg-3)" : undefined,
                                   }}
                                 >
-                                  {r.event_count.toLocaleString("pt-BR")}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Downloads */}
-            <div className="exec-panel">
-              <div className="exec-panel-header">
-                <div className="exec-panel-title">
-                  <AlertTriangle size={14} color={T.warning} />
-                  Alto Volume de Download
-                  <span style={{ color: T.textMuted, fontWeight: 400, fontSize: 11 }}>≥ 50 eventos/min</span>
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {(o365Downloads.data?.length ?? 0) > 0 && (
-                    <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {(o365Downloads.data ?? []).reduce((a, r) => a + r.event_count, 0).toLocaleString("pt-BR")}{" "}
-                      eventos
-                    </span>
-                  )}
-                  <ExecBadge tone={(o365Downloads.data?.length ?? 0) > 0 ? "warning" : "success"}>
-                    {(o365Downloads.data?.length ?? 0) > 0 ? "Detectado" : "Normal"}
-                  </ExecBadge>
-                </div>
-              </div>
-              <div className="exec-panel-body" style={{ padding: 0 }}>
-                {(o365Downloads.data?.length ?? 0) === 0 ? (
-                  <EmptyState message="Nenhum download suspeito nas últimas 24h." />
-                ) : (
-                  <div className="exec-scroll" style={{ maxHeight: 280, overflowY: "auto" }}>
-                    <table className="exec-table">
-                      <thead>
-                        <tr>
-                          <th
-                            style={{ paddingLeft: 20 }}
-                            onClick={() => {
-                              setDlSortBy("event_time");
-                              setDlSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                            }}
-                          >
-                            Hora {dlSortBy === "event_time" ? (dlSortDir === "asc" ? "↑" : "↓") : ""}
-                          </th>
-                          <th
-                            onClick={() => {
-                              setDlSortBy("username");
-                              setDlSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                            }}
-                          >
-                            Usuário {dlSortBy === "username" ? (dlSortDir === "asc" ? "↑" : "↓") : ""}
-                          </th>
-                          <th>IP Origem</th>
-                          <th
-                            style={{ textAlign: "right", paddingRight: 20 }}
-                            onClick={() => {
-                              setDlSortBy("event_count");
-                              setDlSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                            }}
-                          >
-                            Eventos {dlSortBy === "event_count" ? (dlSortDir === "asc" ? "↑" : "↓") : ""}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...(o365Downloads.data ?? [])]
-                          .sort((a, b) => {
-                            const dir = dlSortDir === "asc" ? 1 : -1;
-                            if (dlSortBy === "event_count") return (a.event_count - b.event_count) * dir;
-                            if (dlSortBy === "username") return a.username.localeCompare(b.username) * dir;
-                            if (dlSortBy === "event_time")
-                              return ((a.event_time ?? "") > (b.event_time ?? "") ? 1 : -1) * dir;
-                            return 0;
-                          })
-                          .map((r, i) => (
-                            <tr key={i}>
-                              <td className="mono" style={{ paddingLeft: 20, color: T.textMuted }}>
-                                {r.event_time ? new Date(r.event_time).toLocaleString("pt-BR") : "—"}
-                              </td>
-                              <td style={{ fontWeight: 500 }}>{r.username || "—"}</td>
-                              <td className="mono">{r.source_ip || "—"}</td>
-                              <td style={{ textAlign: "right", paddingRight: 20 }}>
-                                <span
-                                  style={{
-                                    background: T.warningBg,
-                                    color: T.warning,
-                                    padding: "2px 8px",
-                                    borderRadius: 3,
-                                    fontFamily: "'IBM Plex Mono', monospace",
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    border: "1px solid rgba(245,158,11,0.2)",
-                                  }}
-                                >
-                                  {r.event_count.toLocaleString("pt-BR")}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── SECTION: OFFENSES ABERTOS — DETALHAMENTO ─────────────────────── */}
-        <div>
-          <div className="exec-section-label">
-            <Eye size={10} />
-            Offenses Abertos — Detalhamento
-          </div>
-          <div className="exec-panel">
-            <div className="exec-panel-header">
-              <div className="exec-panel-title">
-                <Eye size={14} color={T.warning} />
-                Offenses em Aberto
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {openOffenses > 0 && (
-                  <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono', monospace" }}>
-                    {fmtNum(openOffensesList.reduce((a, o) => a + (o.event_count ?? 0), 0))} eventos
-                  </span>
-                )}
-                <ExecBadge tone={openOffenses > 0 ? "warning" : "success"}>
-                  {openOffenses} {openOffenses === 1 ? "offense" : "offenses"}
-                </ExecBadge>
-              </div>
-            </div>
-            <div className="exec-panel-body" style={{ padding: 0 }}>
-              {openOffensesList.length === 0 ? (
-                <EmptyState message="Nenhum offense aberto." />
-              ) : (
-                <div className="exec-scroll" style={{ maxHeight: 420, overflowY: "auto" }}>
-                  <table className="exec-table">
-                    <thead>
-                      <tr>
-                        <th style={{ paddingLeft: 20, width: 16 }}></th>
-                        <th>Sev.</th>
-                        <th>Descrição</th>
-                        <th>Magnitude</th>
-                        <th>Início</th>
-                        <th>Origem</th>
-                        <th>Rede Destino</th>
-                        <th style={{ textAlign: "right" }}>Eventos</th>
-                        <th>Status</th>
-                        <th style={{ paddingRight: 20 }}>Diagnóstico</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {openOffensesList.map((o) => {
-                        const expanded = expandedOffenseIds.has(o.id);
-                        const detail = offenseRawDetail(o.raw);
-                        const diag = diagnoseOpenOffense(o, closeStatsByDesc);
-                        return (
-                          <React.Fragment key={o.id}>
-                            <tr style={{ cursor: "pointer" }} onClick={() => toggleOffenseExpand(o.id)}>
-                              <td style={{ paddingLeft: 20 }}>
-                                {expanded ? (
-                                  <ChevronUp size={13} color={T.textMuted} />
-                                ) : (
-                                  <ChevronDown size={13} color={T.textMuted} />
-                                )}
-                              </td>
-                              <td>
-                                <SevPill severity={o.severity} />
-                              </td>
-                              <td
-                                style={{
-                                  maxWidth: 320,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                                title={o.description ?? undefined}
-                              >
-                                {o.description ?? "—"}
-                              </td>
-                              <td className="mono" style={{ color: T.textSecondary }}>
-                                {o.magnitude ?? "—"}
-                              </td>
-                              <td className="mono" style={{ color: T.textMuted, fontSize: 11 }}>
-                                {fmtDate(o.start_time)}
-                              </td>
-                              <td className="mono">{o.source_ip ?? "—"}</td>
-                              <td className="mono">{o.destination_ip ?? "—"}</td>
-                              <td style={{ textAlign: "right" }} className="mono">
-                                {fmtNum(o.event_count ?? 0)}
-                              </td>
-                              <td>
-                                <ExecBadge tone={(o.status ?? "").toUpperCase() === "OPEN" ? "warning" : "neutral"}>
-                                  {o.status ?? "—"}
-                                </ExecBadge>
-                              </td>
-                              <td
-                                style={{ paddingRight: 20 }}
-                                title="Estimativa por comparação com a mediana histórica da mesma regra — o QRadar não informa o motivo real do atraso."
-                              >
-                                <ExecBadge tone={diag.tone}>{diag.label}</ExecBadge>
-                              </td>
-                            </tr>
-                            {expanded && (
-                              <tr>
-                                <td colSpan={10} style={{ padding: 0 }}>
-                                  <div
-                                    style={{
-                                      display: "grid",
-                                      gridTemplateColumns: "repeat(4, 1fr)",
-                                      gap: 12,
-                                      padding: "14px 24px",
-                                      background: T.surfaceAlt,
-                                      borderBottom: "1px solid rgba(30,38,64,0.5)",
-                                    }}
+                                  {s.name}
+                                </td>
+                                <td className="r mono">{fmtNum(Number(s.avg_eps ?? 0))}</td>
+                                <td>
+                                  <ExecBadge
+                                    tone={tone as "danger" | "success" | "warning" | "neutral"}
                                   >
-                                    <DetailField label="Atualizado" value={fmtDate(o.last_updated_time)} />
-                                    <DetailField label="Credibilidade" value={detail.credibility ?? "—"} />
-                                    <DetailField label="Relevância" value={detail.relevance ?? "—"} />
-                                    <DetailField label="Atribuído a" value={detail.assignedTo ?? "Não atribuído"} />
-                                    <DetailField label="Dispositivos" value={detail.deviceCount ?? "—"} />
-                                    <DetailField label="Origens" value={detail.sourceCount ?? "—"} />
-                                    <DetailField label="Flows" value={detail.flowCount ?? "—"} />
-                                    <DetailField label="Acompanhamento" value={detail.followUp ? "Sim" : "Não"} />
-                                    <DetailField
-                                      label="Tempo Aberto"
-                                      value={diag.elapsedHours != null ? fmtHours(diag.elapsedHours) : "—"}
-                                    />
-                                    <DetailField
-                                      label="Mediana de Fechamento (regra)"
-                                      value={diag.medianHours != null ? fmtHours(diag.medianHours) : "Sem histórico"}
-                                    />
-                                    <DetailField
-                                      label="Categorias"
-                                      span={4}
-                                      value={detail.categories.length ? detail.categories.join(", ") : "—"}
-                                    />
-                                  </div>
+                                    {label}
+                                  </ExecBadge>
+                                </td>
+                                <td
+                                  className="r mono dim"
+                                  title={
+                                    s.status_changed_at
+                                      ? `desde ${fmtDate(s.status_changed_at)}`
+                                      : undefined
+                                  }
+                                >
+                                  {fmtDuration(s.status_changed_at)}
                                 </td>
                               </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
+                            );
+                          });
+                      })()}
                     </tbody>
                   </table>
                 </div>
               )}
             </div>
-          </div>
-        </div>
 
-        <SekTicketsPanel />
+            <div className="soc-card">
+              <div className="soc-card-hdr">
+                <div>
+                  <h2 className="soc-card-title">Consumo de EPS por fonte</h2>
+                  <p className="soc-card-sub">Top 10 · % do EPS somado dessas fontes</p>
+                </div>
+              </div>
+              <div className="soc-card-body">
+                {sourcesByEps.length === 0 ? (
+                  <EmptyState message="Sem consumo registrado." />
+                ) : (
+                  <div className="soc-bars">
+                    {sourcesByEps.map((s) => (
+                      <div
+                        key={s.name}
+                        className="soc-bar"
+                        title={`${s.name}: ${s.pct}% · ${fmtNum(s.eps)} EPS`}
+                      >
+                        <span>{s.name}</span>
+                        <span>{s.pct}%</span>
+                        <div className="soc-track">
+                          <i style={{ width: `${(s.pct / (sourcesByEps[0]?.pct || 1)) * 100}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            borderTop: `1px solid ${T.border}`,
-            paddingTop: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            fontSize: 11,
-            color: T.textMuted,
-            fontFamily: "'IBM Plex Mono', monospace",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Shield size={12} color={T.textMuted} />
-            <span>SOC · IBM QRadar SIEM · Sincronização automática diária 03:00</span>
+          <div className="exec-panel">
+            <div className="soc-toolbar">
+              <b>Mudanças de policy no FortiGate</b>
+              <small>últimas 24 h · clique para ver o que mudou</small>
+            </div>
+            {fgEvents.length === 0 ? (
+              <EmptyState message="Nenhum evento de policy/admin/config detectado nas últimas 24h." />
+            ) : (
+              <div className="exec-scroll" style={{ maxHeight: 420 }}>
+                <table className="exec-table">
+                  <thead>
+                    <tr>
+                      <th>Quando</th>
+                      <th>Tipo</th>
+                      <th>Administrador</th>
+                      <th>IP de origem</th>
+                      <th>Ação</th>
+                      <th>Mensagem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fgEvents.map((e) => {
+                      const tb = fortigateTypeBadge(e.query_type);
+                      return (
+                        <tr
+                          key={e.id}
+                          className="clickable"
+                          tabIndex={0}
+                          onClick={() => setOpenFgId(e.id)}
+                          onKeyDown={(ev) => ev.key === "Enter" && setOpenFgId(e.id)}
+                        >
+                          <td className="mono dim" style={{ whiteSpace: "nowrap" }}>
+                            {fmtDate(e.event_time)}
+                            {isOutsideBusinessHours(e.event_time) && (
+                              <span
+                                className="soc-flag"
+                                title="Fora do horário comercial (08h–19h)"
+                              >
+                                <AlertTriangle size={11} /> fora do horário
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <span style={{ display: "inline-flex", gap: 6 }}>
+                              <ExecBadge tone={tb.tone}>{tb.label}</ExecBadge>
+                              {e.event_category === "any_any_accept" && (
+                                <span
+                                  className="soc-tag crit"
+                                  title="Policy any/any com ação accept, habilitada a partir de disabled"
+                                >
+                                  any/any
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="mono" style={{ fontWeight: 500 }}>
+                            {e.username ?? "—"}
+                          </td>
+                          <td className="mono dim">{e.source_ip ?? "—"}</td>
+                          <td>{e.action ?? e.event_name ?? "—"}</td>
+                          <td className="dim" style={{ maxWidth: 280 }}>
+                            <span
+                              style={{
+                                display: "block",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                              title={e.message ?? undefined}
+                            >
+                              {e.message ?? "—"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ color: state.data?.last_error ? T.warning : T.success }}>
-              {state.data?.last_error ? "⚠ Erro na última sync" : "✓ Sistema operacional"}
-            </span>
-            <span>|</span>
-            <span>Atualizado: {fmtDate(state.data?.last_full_sync_at ?? null)}</span>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
+
+      {/* ══ CHAMADOS SEK ════════════════════════════════════════════════════ */}
+      {view === "sek" && <SekTicketsPanel />}
+
+      {/* ── Painel lateral: ofensa ───────────────────────────────────────────── */}
+      <DetailSheet
+        open={!!openOffense}
+        onOpenChange={(o) => !o && setOpenOffenseId(null)}
+        eyebrow={
+          openOffense
+            ? `Ofensa #${openOffense.id} · aberta em ${fmtDate(openOffense.start_time)}`
+            : null
+        }
+        title={openOffense?.description ?? "Ofensa sem descrição"}
+        badges={
+          openOffense && (
+            <>
+              <SevPill severity={openOffense.severity} />
+              <span className="soc-tag">Magnitude {openOffense.magnitude ?? "—"}</span>
+              <span className="soc-tag info">{openOffense.status ?? "—"}</span>
+            </>
+          )
+        }
+      >
+        {openOffense &&
+          (() => {
+            const detail = offenseRawDetail(openOffense.raw);
+            const diag = diagnoseOpenOffense(openOffense, closeStatsByDesc);
+            return (
+              <>
+                {diag.tone === "warning" && (
+                  <div className="soc-warnbox">
+                    <AlertTriangle size={14} />
+                    <span>
+                      Aberta há {diag.elapsedHours != null ? fmtHours(diag.elapsedHours) : "—"}, bem
+                      acima da mediana de fechamento da regra (
+                      {diag.medianHours != null ? fmtHours(diag.medianHours) : "—"}). Estimativa por
+                      comparação com o histórico; o QRadar não informa o motivo real.
+                    </span>
+                  </div>
+                )}
+                <DetailSection title="Ofensa">
+                  <DetailList
+                    items={[
+                      ["Origem", openOffense.source_ip ?? "—", true],
+                      ["Rede de destino", openOffense.destination_ip ?? "—", true],
+                      ["Eventos", fmtNum(openOffense.event_count ?? 0), true],
+                      ["Atualizada", fmtDate(openOffense.last_updated_time), true],
+                      ["Credibilidade", String(detail.credibility ?? "—")],
+                      ["Relevância", String(detail.relevance ?? "—")],
+                      ["Atribuída a", detail.assignedTo ?? "Não atribuída"],
+                      ["Dispositivos", String(detail.deviceCount ?? "—")],
+                      ["Origens", String(detail.sourceCount ?? "—")],
+                      ["Flows", String(detail.flowCount ?? "—")],
+                      ["Acompanhamento", detail.followUp ? "Sim" : "Não"],
+                    ]}
+                  />
+                </DetailSection>
+                <DetailSection title="Tempo">
+                  <DetailList
+                    items={[
+                      [
+                        "Tempo aberta",
+                        diag.elapsedHours != null ? fmtHours(diag.elapsedHours) : "—",
+                      ],
+                      [
+                        "Mediana da regra",
+                        diag.medianHours != null ? fmtHours(diag.medianHours) : "Sem histórico",
+                      ],
+                      ["Diagnóstico", diag.label],
+                    ]}
+                  />
+                </DetailSection>
+                {detail.categories.length > 0 && (
+                  <DetailSection title="Categorias">
+                    <div className="soc-chips">
+                      {detail.categories.map((c) => (
+                        <span key={c} className="soc-tag">
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  </DetailSection>
+                )}
+              </>
+            );
+          })()}
+      </DetailSheet>
+
+      {/* ── Painel lateral: mudança no FortiGate ─────────────────────────────── */}
+      <DetailSheet
+        open={!!openFg}
+        onOpenChange={(o) => !o && setOpenFgId(null)}
+        eyebrow={openFg ? `FortiGate · ${fmtDate(openFg.event_time)}` : null}
+        title={
+          openFg
+            ? extractFortigatePolicyId(openFg.message)
+              ? `Policy ${extractFortigatePolicyId(openFg.message)}`
+              : (openFg.action ?? openFg.event_name ?? "Mudança de configuração")
+            : ""
+        }
+        badges={
+          openFg && (
+            <>
+              <ExecBadge tone={fortigateTypeBadge(openFg.query_type).tone}>
+                {fortigateTypeBadge(openFg.query_type).label}
+              </ExecBadge>
+              {openFg.event_category === "any_any_accept" && (
+                <span className="soc-tag crit">any/any habilitada</span>
+              )}
+              {isOutsideBusinessHours(openFg.event_time) && (
+                <span className="soc-tag med">fora do horário</span>
+              )}
+            </>
+          )
+        }
+      >
+        {openFg &&
+          (() => {
+            const changes = parseFortigateCfgAttr(fortigateRawDetail(openFg.raw).cfgattr);
+            const raw = fortigateRawDetail(openFg.raw).cfgattr;
+            return (
+              <>
+                <DetailSection title="Quem e de onde">
+                  <DetailList
+                    items={[
+                      ["Administrador", openFg.username ?? "—", true],
+                      ["IP de origem", openFg.source_ip ?? "—", true],
+                      ["IP de destino", openFg.destination_ip ?? "—", true],
+                      ["Ação", openFg.action ?? openFg.event_name ?? "—"],
+                      ["Regra QRadar", openFg.qid_name ?? "—"],
+                      ["QID", String(openFg.qid ?? "—"), true],
+                      ["Fonte de log", openFg.log_source_name ?? "—"],
+                    ]}
+                  />
+                </DetailSection>
+                <DetailSection title="O que mudou">
+                  {!changes ? (
+                    <div className="soc-raw">
+                      {raw ?? "Não disponível para este tipo de evento"}
+                    </div>
+                  ) : (
+                    <div className="soc-diff">
+                      {changes.map((c, i) => (
+                        <div key={i} className="soc-diff-item">
+                          <b>{c.label}</b>
+                          {c.unchanged ? (
+                            <span className="same">sem alteração</span>
+                          ) : c.added.length > 0 || c.removed.length > 0 ? (
+                            <>
+                              {c.removed.length > 0 && (
+                                <span className="rem">{c.removed.join(" ")}</span>
+                              )}
+                              {c.added.length > 0 && (
+                                <span className="add">{c.added.join(" ")}</span>
+                              )}
+                            </>
+                          ) : c.before ? (
+                            <>
+                              <span className="rem">{c.before}</span>
+                              <span className="add">{c.after}</span>
+                            </>
+                          ) : (
+                            <span className="add">{c.after}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </DetailSection>
+                {openFg.message && (
+                  <DetailSection title="Mensagem">
+                    <div className="soc-raw">{openFg.message}</div>
+                  </DetailSection>
+                )}
+              </>
+            );
+          })()}
+      </DetailSheet>
     </div>
   );
 }

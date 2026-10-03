@@ -1,3 +1,4 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -42,11 +43,11 @@ import { getExecutiveOverview } from "@/lib/executive.functions";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
-  bg: "#0A0D14",
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
+  bg: "var(--tl-0a0d14, #0A0D14)",
+  surface: "var(--tl-0f1420, #0F1420)",
+  surfaceAlt: "var(--tl-131825, #131825)",
+  border: "var(--tl-1e2640, #1E2640)",
+  borderHi: "var(--tl-2a3560, #2A3560)",
   accent: "#3B82F6",
   accentGlow: "rgba(59,130,246,0.15)",
   accentSoft: "rgba(59,130,246,0.08)",
@@ -59,14 +60,14 @@ const T = {
   purple: "#A78BFA",
   purpleBg: "rgba(167,139,250,0.10)",
   cyan: "#22D3EE",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#F1F5F9",
-  chartTick: "#F1F5F9",
+  neutral: "var(--tl-6b7280, #6B7280)",
+  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
+  textSecondary: "var(--tl-f1f5f9, #F1F5F9)",
+  textMuted: "var(--tl-f1f5f9, #F1F5F9)",
+  textSubtle: "var(--tl-f1f5f9, #F1F5F9)",
+  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
+  chartAxis: "var(--tl-f1f5f9, #F1F5F9)",
+  chartTick: "var(--tl-f1f5f9, #F1F5F9)",
 };
 
 // ── CSS ────────────────────────────────────────────────────────────────────────
@@ -163,7 +164,7 @@ const CSS = `
   /* ── List rows (depts, tools, nc) ── */
   .pe-row { display:flex; align-items:center; gap:10px; padding:5px 0; }
   .pe-row-name { font-size:11px; color:${T.textPrimary}; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pe-row-bar-wrap { flex:1.4; height:9px; background:rgba(30,38,64,0.5); border-radius:3px; overflow:hidden; min-width:0; }
+  .pe-row-bar-wrap { flex:1.4; height:9px; background:rgba(var(--tl-line-rgb, 30,38,64),0.5); border-radius:3px; overflow:hidden; min-width:0; }
   .pe-row-bar { height:100%; border-radius:3px; transition:width 0.6s ease; }
   .pe-row-val { font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; width:42px; text-align:right; flex-shrink:0; }
 
@@ -339,7 +340,7 @@ function MiniBar({
         className="pe-bar-fill"
         style={{
           width: `${Math.min(100, Math.max(0, pct))}%`,
-          background: `linear-gradient(90deg,${color}66,${color})`,
+          background: `linear-gradient(90deg,color-mix(in srgb, ${color} 40%, transparent),${color})`,
         }}
       />
       {markerPct != null && (
@@ -439,19 +440,7 @@ export function PainelExecutivoDashboard() {
   }, []);
   // ──────────────────────────────────────────────────────────────────────────
 
-  if (isLoading && !data) {
-    return (
-      <div ref={presentRef} className="pe-wrap">
-        <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <div className="pe-root">
-          <div className="pe-state">
-            <RefreshCw size={22} className="pe-spin" color={T.accent} />
-            <span style={{ fontSize: 13, color: T.textSecondary }}>Carregando painel executivo…</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading && !data) return <ModuleLoading />;
 
   if (isError || !data) {
     return (
@@ -941,7 +930,7 @@ export function PainelExecutivoDashboard() {
               <div className="pe-card">
                 <div className="pe-card-accent" style={{ background: npsColor }} />
                 <div className="pe-card-label">
-                  <span className="pe-icon-pill" style={{ background: `${npsColor}22` }}>
+                  <span className="pe-icon-pill" style={{ background: `color-mix(in srgb, ${npsColor} 13%, transparent)` }}>
                     <Smile size={15} color={npsColor} />
                   </span>
                   NPS · Segurança da Informação
@@ -1165,8 +1154,8 @@ export function PainelExecutivoDashboard() {
                           marginTop: 8,
                           padding: "8px 12px",
                           borderRadius: 9,
-                          background: `${T.success}14`,
-                          border: `1px solid ${T.success}40`,
+                          background: `color-mix(in srgb, ${T.success} 8%, transparent)`,
+                          border: `1px solid color-mix(in srgb, ${T.success} 25%, transparent)`,
                         }}
                       >
                         <span style={{ fontSize: 24, lineHeight: 1, color: T.success }}>↓</span>
@@ -1312,8 +1301,8 @@ export function PainelExecutivoDashboard() {
                       marginTop: 10,
                       padding: "8px 12px",
                       borderRadius: 9,
-                      background: evitadosMelhorou ? `${T.success}14` : "rgba(107,114,128,0.10)",
-                      border: `1px solid ${evitadosMelhorou ? `${T.success}40` : T.border}`,
+                      background: evitadosMelhorou ? `color-mix(in srgb, ${T.success} 8%, transparent)` : "rgba(107,114,128,0.10)",
+                      border: `1px solid ${evitadosMelhorou ? `color-mix(in srgb, ${T.success} 25%, transparent)` : T.border}`,
                     }}
                   >
                     <span
@@ -1338,9 +1327,9 @@ export function PainelExecutivoDashboard() {
                           className="pe-badge"
                           style={{
                             marginLeft: "auto",
-                            background: `${T.success}1A`,
+                            background: `color-mix(in srgb, ${T.success} 10%, transparent)`,
                             color: T.success,
-                            borderColor: `${T.success}55`,
+                            borderColor: `color-mix(in srgb, ${T.success} 33%, transparent)`,
                             fontSize: 11,
                             padding: "4px 11px",
                           }}
@@ -1548,8 +1537,8 @@ export function PainelExecutivoDashboard() {
                       gap: 10,
                       padding: "8px 12px",
                       borderRadius: 9,
-                      background: `${vulnTrendColor}14`,
-                      border: `1px solid ${vulnTrendColor}40`,
+                      background: `color-mix(in srgb, ${vulnTrendColor} 8%, transparent)`,
+                      border: `1px solid color-mix(in srgb, ${vulnTrendColor} 25%, transparent)`,
                       marginBottom: 12,
                     }}
                   >
@@ -1597,9 +1586,9 @@ export function PainelExecutivoDashboard() {
                       className="pe-badge"
                       style={{
                         marginLeft: "auto",
-                        background: `${vulnTrendColor}1A`,
+                        background: `color-mix(in srgb, ${vulnTrendColor} 10%, transparent)`,
                         color: vulnTrendColor,
-                        borderColor: `${vulnTrendColor}55`,
+                        borderColor: `color-mix(in srgb, ${vulnTrendColor} 33%, transparent)`,
                         fontSize: 11,
                         padding: "4px 11px",
                       }}
@@ -1883,7 +1872,7 @@ export function PainelExecutivoDashboard() {
                             className="pe-row-bar"
                             style={{
                               width: `${Math.max(5, (d.count / maxDept) * 100)}%`,
-                              background: `linear-gradient(90deg,${T.danger}55,${T.danger})`,
+                              background: `linear-gradient(90deg,color-mix(in srgb, ${T.danger} 33%, transparent),${T.danger})`,
                             }}
                           />
                         </div>
@@ -2050,7 +2039,7 @@ export function PainelExecutivoDashboard() {
                           className="pe-row-bar"
                           style={{
                             width: `${Math.max(5, (t.count / maxTool) * 100)}%`,
-                            background: `linear-gradient(90deg,${T.purple}55,${T.purple})`,
+                            background: `linear-gradient(90deg,color-mix(in srgb, ${T.purple} 33%, transparent),${T.purple})`,
                           }}
                         />
                       </div>

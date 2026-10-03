@@ -100,6 +100,166 @@
   /* Same as :root — app is dark-only */
 }
 
+/* ── Interface v2 (redesign) ─────────────────────────────────────────────────
+   Tokens da nova interface, com nomes próprios (v2-*) para conviver com os
+   tokens atuais durante a migração: o shell (sidebar/header) já usa os v2, e os
+   módulos continuam nos tokens antigos até serem migrados um a um. */
+:root {
+  --v2-bg: oklch(0.165 0.012 255);
+  --v2-surface: oklch(0.2 0.014 255);
+  --v2-surface-2: oklch(0.235 0.016 255);
+  --v2-hover: oklch(0.26 0.018 255);
+  --v2-line: oklch(0.29 0.016 255);
+  --v2-line-strong: oklch(0.37 0.02 255);
+  --v2-fg: oklch(0.955 0.005 255);
+  --v2-fg-2: oklch(0.8 0.012 255);
+  --v2-fg-3: oklch(0.66 0.014 255);
+  --v2-accent: oklch(0.74 0.13 245);
+  --v2-accent-ink: oklch(0.17 0.03 255);
+  --v2-crit: oklch(0.67 0.2 25);
+  --v2-high: oklch(0.74 0.16 52);
+  --v2-med: oklch(0.83 0.14 88);
+  --v2-low: oklch(0.7 0.07 240);
+  --v2-ok: oklch(0.75 0.14 162);
+}
+
+/* Tema claro (botão ☀/☾ no cabeçalho; valor salvo em localStorage "bsec.theme"). */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --v2-bg: oklch(0.972 0.004 255);
+  --v2-surface: oklch(1 0 0);
+  --v2-surface-2: oklch(0.962 0.006 255);
+  --v2-hover: oklch(0.945 0.008 255);
+  --v2-line: oklch(0.905 0.008 255);
+  --v2-line-strong: oklch(0.82 0.012 255);
+  --v2-fg: oklch(0.22 0.02 255);
+  --v2-fg-2: oklch(0.4 0.02 255);
+  --v2-fg-3: oklch(0.5 0.018 255);
+  --v2-accent: oklch(0.52 0.17 255);
+  --v2-accent-ink: oklch(0.99 0 0);
+  --v2-crit: oklch(0.55 0.2 25);
+  --v2-high: oklch(0.6 0.16 48);
+  --v2-med: oklch(0.62 0.14 75);
+  --v2-low: oklch(0.56 0.08 245);
+  --v2-ok: oklch(0.55 0.13 160);
+}
+
+
+/* ── Tema claro: componentes base (shadcn) e módulos ─────────────────────────
+   Os componentes base (Sheet, Dialog, Select, Popover, Card, Table…) usam os tokens
+   abaixo. Os módulos usam cores fixas em hex: cada hex neutro virou
+   var(--tl-<hex>, #hex) — no escuro a variável não existe e vale o hex original
+   (idêntico ao de antes); no claro vale o equivalente claro definido aqui.
+   Cores de dados/status (vermelho, âmbar, verde, azul…) não mudam em nenhum tema. */
+:root[data-theme="light"] {
+  --background: oklch(0.972 0.004 255);
+  --foreground: oklch(0.22 0.02 255);
+  --surface: oklch(1 0 0);
+  --surface-elevated: oklch(1 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 255);
+  --primary: oklch(0.52 0.17 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.006 255);
+  --secondary-foreground: oklch(0.22 0.02 255);
+  --muted: oklch(0.955 0.006 255);
+  --muted-foreground: oklch(0.47 0.018 255);
+  --accent: oklch(0.94 0.01 255);
+  --accent-foreground: oklch(0.22 0.02 255);
+  --destructive: oklch(0.55 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.9 0.008 255);
+  --input: oklch(0.88 0.01 255);
+  --ring: oklch(0.52 0.17 255);
+  --success: oklch(0.55 0.13 160);
+  --warning: oklch(0.62 0.14 75);
+  --danger: oklch(0.55 0.2 25);
+  --info: oklch(0.52 0.17 255);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.4 0.02 255);
+  --sidebar-primary: oklch(0.52 0.17 255);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.945 0.008 255);
+  --sidebar-accent-foreground: oklch(0.22 0.02 255);
+  --sidebar-border: oklch(0.905 0.008 255);
+  --sidebar-ring: oklch(0.52 0.17 255);
+
+  /* Cores fixas dos módulos (gerado a partir dos hex neutros encontrados no código) */
+  --tl-ink: 15, 23, 42; /* realces rgba(255,255,255,a) viram tinta escura */
+  --tl-line-rgb: 148, 163, 184; /* linhas rgba(30,38,64,a) viram cinza */
+
+  --tl-002d45: oklch(0.93 0.045 239);
+  --tl-021a1a: oklch(1 0 0);
+  --tl-04201a: oklch(0.962 0.006 255);
+  --tl-065060: oklch(0.93 0.045 218);
+  --tl-0a0d14: oklch(0.972 0.004 255);
+  --tl-0b0f1a: oklch(0.972 0.004 255);
+  --tl-0d1117: oklch(0.972 0.004 255);
+  --tl-0f1420: oklch(1 0 0);
+  --tl-0f1724: oklch(1 0 0);
+  --tl-131825: oklch(1 0 0);
+  --tl-14532d: oklch(0.93 0.045 153);
+  --tl-161c2e: oklch(0.962 0.006 255);
+  --tl-1a1300: oklch(1 0 0);
+  --tl-1c2438: oklch(0.905 0.008 255);
+  --tl-1e2640: oklch(0.905 0.008 255);
+  --tl-1e2a3a: oklch(0.905 0.008 255);
+  --tl-1e3a8a: oklch(0.93 0.045 266);
+  --tl-2a3560: oklch(0.93 0.045 271);
+  --tl-2d3748: oklch(0.82 0.012 255);
+  --tl-312e81: oklch(0.93 0.045 279);
+  --tl-334155: oklch(0.82 0.012 255);
+  --tl-3a4a5c: oklch(0.82 0.012 255);
+  --tl-475569: oklch(0.5 0.018 255);
+  --tl-4a5568: oklch(0.5 0.018 255);
+  --tl-5a6a7c: oklch(0.5 0.018 255);
+  --tl-5b6478: oklch(0.5 0.018 255);
+  --tl-64748b: oklch(0.5 0.018 255);
+  --tl-6a7a8c: oklch(0.5 0.018 255);
+  --tl-6b7280: oklch(0.5 0.018 255);
+  --tl-6e7e94: oklch(0.5 0.018 255);
+  --tl-7a8a9c: oklch(0.4 0.02 255);
+  --tl-7c8aa0: oklch(0.4 0.02 255);
+  --tl-7f1d1d: oklch(0.93 0.045 26);
+  --tl-818fa6: oklch(0.4 0.02 255);
+  --tl-8a95a8: oklch(0.4 0.02 255);
+  --tl-8a97ad: oklch(0.4 0.02 255);
+  --tl-8a9aac: oklch(0.4 0.02 255);
+  --tl-8b96ac: oklch(0.4 0.02 255);
+  --tl-94a3b8: oklch(0.4 0.02 255);
+  --tl-9aa8bc: oklch(0.4 0.02 255);
+  --tl-9ca3af: oklch(0.4 0.02 255);
+  --tl-a9b4c7: oklch(0.4 0.02 255);
+  --tl-c8d4e0: oklch(0.22 0.02 255);
+  --tl-cbd5e1: oklch(0.22 0.02 255);
+  --tl-d0d8e4: oklch(0.22 0.02 255);
+  --tl-e6ebf2: oklch(0.22 0.02 255);
+  --tl-f1f5f9: oklch(0.22 0.02 255);
+}
+
+@theme inline {
+  --color-v2-bg: var(--v2-bg);
+  --color-v2-surface: var(--v2-surface);
+  --color-v2-surface-2: var(--v2-surface-2);
+  --color-v2-hover: var(--v2-hover);
+  --color-v2-line: var(--v2-line);
+  --color-v2-line-strong: var(--v2-line-strong);
+  --color-v2-fg: var(--v2-fg);
+  --color-v2-fg-2: var(--v2-fg-2);
+  --color-v2-fg-3: var(--v2-fg-3);
+  --color-v2-accent: var(--v2-accent);
+  --color-v2-accent-ink: var(--v2-accent-ink);
+  --color-v2-crit: var(--v2-crit);
+  --color-v2-high: var(--v2-high);
+  --color-v2-med: var(--v2-med);
+  --color-v2-low: var(--v2-low);
+  --color-v2-ok: var(--v2-ok);
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -136,26 +296,26 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: oklch(0.2 0.032 250); /* --sidebar */
+  background: var(--v2-surface);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.35 0.04 248); /* ligeiramente acima do --border */
+  background: var(--v2-line-strong);
   border-radius: 999px;
   transition: background 0.2s;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.78 0.13 220); /* --primary */
+  background: var(--v2-fg-3);
 }
 
 ::-webkit-scrollbar-corner {
-  background: oklch(0.2 0.032 250);
+  background: var(--v2-surface);
 }
 
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: oklch(0.35 0.04 248) oklch(0.2 0.032 250);
+  scrollbar-color: var(--v2-line-strong) var(--v2-surface);
 }

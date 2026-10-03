@@ -1,431 +1,25 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MODULE_BY_SLUG } from "@/lib/modules";
 import { seedAuthAccessHistory } from "@/lib/access-logs.functions";
-import { type CronJobRun, getCronHealth, fmtDateTime } from "./CronHealthBadge";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import {
-  Trash2,
-  Plus,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Filter,
-  X,
-  GitBranch,
-  Mail,
-  ShieldCheck,
-  AlertTriangle,
-  RefreshCw,
-  UserCheck,
-  Timer,
-  KeyRound,
-  UserPlus,
-  LogIn,
-  LogOut,
-  Activity,
-  MapPin,
+  ArrowUpDown,
+  Bug,
   Globe,
-  Monitor,
-  Wifi,
-  AlertCircle,
-  Terminal,
-  Laptop,
-  Smartphone,
-  Pencil,
-  Power,
+  List,
+  LogIn,
+  Mail,
+  Plug,
+  ShieldCheck,
+  Upload,
 } from "lucide-react";
 
-// ─── Design Tokens (espelho do módulo Integrações) ──────────────────────────
-const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  surfaceHover: "#161C2E",
-  border: "#1E2640",
-  borderHi: "#2A3560",
-  accent: "#3B82F6",
-  accentGlow: "rgba(59,130,246,0.15)",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  info: "#6366F1",
-  infoBg: "rgba(99,102,241,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
-};
-
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .logs-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
-  .logs-root * { box-sizing:border-box; }
-
-  /* ── Page header ── */
-  .logs-page-header {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:16px 22px; display:flex; align-items:center; justify-content:space-between;
-    margin-bottom:4px;
-  }
-  .logs-page-title {
-    font-size:14px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em;
-  }
-  .logs-page-sub { font-size:12px; color:${T.textMuted}; margin-top:3px; line-height:1.5; }
-
-  .logs-stat-pill {
-    display:inline-flex; align-items:center; gap:5px; padding:4px 10px;
-    border-radius:5px; font-size:10px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
-  }
-  .logs-stat-pill.ok   { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .logs-stat-pill.err  { background:${T.dangerBg};  color:${T.danger};  border:1px solid rgba(239,68,68,0.2); }
-  .logs-stat-pill.info { background:${T.accentSoft}; color:${T.accent}; border:1px solid rgba(59,130,246,0.2); }
-  .logs-stat-dot { width:5px; height:5px; border-radius:50%; background:currentColor; flex-shrink:0; }
-
-  /* ── Tab navigation ── */
-  .logs-root [role="tablist"] {
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:10px;
-    padding:4px; gap:2px; height:auto; overflow-x:auto; flex-wrap:nowrap;
-    scrollbar-width:none; -ms-overflow-style:none;
-  }
-  .logs-root [role="tablist"]::-webkit-scrollbar { display:none; }
-  .logs-root [role="tab"] {
-    font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif;
-    color:rgba(148,163,184,0.7); border-radius:7px; padding:6px 12px; height:auto;
-    white-space:nowrap; border:1px solid transparent; background:transparent;
-    transition:color 0.15s, background 0.15s, border-color 0.15s;
-    display:inline-flex; align-items:center; gap:5px; line-height:1;
-  }
-  .logs-root [role="tab"]:hover:not([data-state="active"]) {
-    background:${T.surfaceHover}; color:rgba(241,245,249,0.75);
-  }
-  .logs-root [role="tab"][data-state="active"] {
-    background:${T.accentSoft}; border-color:rgba(59,130,246,0.22);
-    color:${T.accent}; font-weight:600; box-shadow:none;
-  }
-  .logs-tab-badge {
-    display:inline-flex; align-items:center; justify-content:center;
-    min-width:15px; height:15px; padding:0 4px; border-radius:99px;
-    background:${T.danger}; color:#fff;
-    font-size:9px; font-weight:700; font-family:'IBM Plex Mono',monospace; line-height:1;
-  }
-
-  /* ── KPI grid ── */
-  .logs-kpi-grid { display:grid; gap:12px; }
-  .logs-kpi-grid.col3 { grid-template-columns:repeat(3,1fr); }
-  .logs-kpi-grid.col4 { grid-template-columns:repeat(4,1fr); }
-  .logs-kpi-grid.col5 { grid-template-columns:repeat(5,1fr); }
-  .logs-kpi-grid.col6 { grid-template-columns:repeat(6,1fr); }
-
-  .logs-kpi-card {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:14px 16px; display:flex; flex-direction:column; gap:6px;
-    position:relative; overflow:hidden; transition:border-color 0.2s;
-  }
-  .logs-kpi-card:hover { border-color:${T.borderHi}; }
-  .logs-kpi-card::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:2px;
-    background:var(--kpi-color,${T.accent});
-  }
-  .logs-kpi-label {
-    font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-  }
-  .logs-kpi-value {
-    font-size:22px; font-weight:700; font-family:'Space Grotesk',sans-serif;
-    color:var(--kpi-color,${T.accent}); line-height:1; display:flex; align-items:center; gap:7px;
-  }
-
-  /* ── Panel ── */
-  .logs-panel {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; overflow:hidden;
-  }
-  .logs-panel-header {
-    padding:12px 18px; border-bottom:1px solid ${T.border};
-    font-size:11px; font-weight:700; color:${T.textSecondary};
-    font-family:'IBM Plex Mono',monospace; letter-spacing:0.06em; text-transform:uppercase;
-    display:flex; align-items:center; justify-content:space-between;
-  }
-  .logs-panel-body { padding:16px 18px; }
-
-  /* ── Filters bar ── */
-  .logs-filters {
-    display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px;
-  }
-  .logs-select {
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:6px;
-    padding:6px 10px; font-size:12px; color:${T.textPrimary};
-    font-family:'IBM Plex Mono',monospace; outline:none; cursor:pointer;
-    transition:border-color 0.15s;
-  }
-  .logs-select:focus { border-color:rgba(59,130,246,0.5); }
-  .logs-search {
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:6px;
-    padding:6px 28px 6px 10px; font-size:12px; color:${T.textPrimary};
-    font-family:'IBM Plex Mono',monospace; outline:none; width:200px;
-    transition:border-color 0.15s;
-  }
-  .logs-search:focus { border-color:rgba(59,130,246,0.5); }
-  .logs-search::placeholder { color:${T.textSubtle}; }
-  .logs-search-wrap { position:relative; }
-  .logs-search-clear {
-    position:absolute; right:7px; top:50%; transform:translateY(-50%);
-    background:none; border:none; cursor:pointer; color:${T.textMuted}; display:flex; align-items:center;
-    padding:0;
-  }
-  .logs-clear-btn {
-    display:flex; align-items:center; gap:4px; padding:5px 9px; border-radius:5px;
-    background:${T.dangerBg}; border:1px solid rgba(239,68,68,0.2); color:${T.danger};
-    font-size:11px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif;
-    transition:filter 0.15s;
-  }
-  .logs-clear-btn:hover { filter:brightness(1.2); }
-  .logs-count { margin-left:auto; font-size:11px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-
-  /* ── Table ── */
-  .logs-table-wrap { overflow:auto; max-height:560px; }
-  .logs-table { width:100%; border-collapse:collapse; font-size:12px; }
-  .logs-table thead { position:sticky; top:0; z-index:10; background:${T.surfaceAlt}; }
-  .logs-table th {
-    text-align:left; padding:9px 12px; font-size:9px; font-weight:700;
-    letter-spacing:0.12em; text-transform:uppercase; color:${T.textMuted};
-    font-family:'IBM Plex Mono',monospace; border-bottom:1px solid ${T.border};
-    white-space:nowrap;
-  }
-  .logs-table td { padding:9px 12px; border-bottom:1px solid ${T.border}; vertical-align:middle; }
-  .logs-table tr:last-child td { border-bottom:none; }
-  .logs-table tbody tr { transition:background 0.12s; }
-  .logs-table tbody tr:hover { background:${T.surfaceHover}; }
-  .logs-table .mono { font-family:'IBM Plex Mono',monospace; }
-  .logs-table .muted { color:${T.textMuted}; }
-
-  /* ── Method badge ── */
-  .logs-method-sso {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-    background:rgba(99,102,241,0.12); color:#818CF8; border:1px solid rgba(99,102,241,0.25);
-  }
-  .logs-method-email {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-    background:${T.accentSoft}; color:${T.accent}; border:1px solid rgba(59,130,246,0.2);
-  }
-  .logs-method-invite {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-    background:rgba(245,158,11,0.12); color:${T.warning}; border:1px solid rgba(245,158,11,0.25);
-  }
-
-  /* ── Status badge ── */
-  .logs-badge-success {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-    background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2);
-  }
-  .logs-badge-error {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-    background:${T.dangerBg}; color:${T.danger}; border:1px solid rgba(239,68,68,0.2);
-  }
-  .logs-badge-warning {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-    background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.2);
-  }
-  .logs-badge-info {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-    background:${T.infoBg}; color:${T.info}; border:1px solid rgba(99,102,241,0.2);
-  }
-  .logs-badge-muted {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-    background:rgba(107,114,128,0.1); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2);
-  }
-
-  /* ── Filter chips (botões inline da AuditTab) ── */
-  .logs-chip {
-    padding:4px 10px; border-radius:5px; font-size:11px; font-weight:600;
-    border:1px solid ${T.border}; color:${T.textMuted}; cursor:pointer;
-    background:${T.surfaceAlt}; transition:all 0.12s; font-family:'DM Sans',sans-serif;
-  }
-  .logs-chip.active {
-    background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4); color:${T.textPrimary};
-  }
-  .logs-chip:hover:not(.active) { color:${T.textPrimary}; border-color:${T.borderHi}; }
-
-  /* ── Details row ── */
-  .logs-expand-row td { background:${T.surfaceAlt}; padding:14px 20px; }
-  .logs-expand-label {
-    font-size:9px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase;
-    letter-spacing:0.12em; color:${T.textMuted}; margin-bottom:6px;
-  }
-
-  /* ── Access detail cards ── */
-  .logs-detail-section {
-    display:flex; flex-direction:column; gap:10px;
-  }
-  .logs-detail-cards {
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px;
-  }
-  .logs-detail-card {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:8px;
-    padding:12px 14px; border-left:3px solid var(--dc,${T.border});
-    display:flex; flex-direction:column; gap:5px;
-  }
-  .logs-detail-card-hd {
-    display:flex; align-items:center; gap:5px;
-    font-size:9px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase;
-    letter-spacing:0.1em; color:${T.textMuted};
-  }
-  .logs-detail-card-val {
-    font-size:13px; font-weight:600; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; line-height:1.3; word-break:break-all;
-  }
-  .logs-detail-card-val.mono { font-family:'IBM Plex Mono',monospace; font-size:12px; }
-  .logs-detail-card-sub {
-    font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-    line-height:1.4; word-break:break-all;
-  }
-  .logs-detail-divider {
-    height:1px; background:${T.border}; margin:4px 0;
-  }
-  .logs-detail-error {
-    background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2);
-    border-radius:8px; padding:12px 14px; border-left:3px solid ${T.danger};
-  }
-  .logs-detail-error-hd {
-    display:flex; align-items:center; gap:5px; margin-bottom:6px;
-    font-size:9px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase;
-    letter-spacing:0.1em; color:${T.danger};
-  }
-  .logs-detail-error-msg {
-    font-size:12px; color:${T.danger}; font-family:'IBM Plex Mono',monospace;
-    line-height:1.5; word-break:break-word;
-  }
-  .logs-detail-ua {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:8px;
-    padding:10px 14px;
-  }
-  .logs-detail-ua-hd {
-    display:flex; align-items:center; gap:5px; margin-bottom:5px;
-    font-size:9px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase;
-    letter-spacing:0.1em; color:${T.textMuted};
-  }
-  .logs-detail-ua-val {
-    font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-    line-height:1.5; word-break:break-all;
-  }
-
-  /* ── Cron cards ── */
-  .logs-cron-grid {
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(480px,1fr)); gap:14px;
-  }
-  .logs-cron-card {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    overflow:hidden; border-left:3px solid var(--cc,${T.border});
-    display:flex; flex-direction:column;
-    transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  .logs-cron-card:hover { box-shadow:0 0 0 1px ${T.borderHi}; }
-  .logs-cron-card-hd {
-    padding:14px 20px 12px; display:flex; align-items:center;
-    justify-content:space-between; gap:8px; border-bottom:1px solid ${T.border};
-  }
-  .logs-cron-card-left { display:flex; align-items:center; gap:9px; min-width:0; }
-  .logs-cron-dot {
-    width:9px; height:9px; border-radius:50%; flex-shrink:0;
-    background:var(--cc,${T.neutral}); position:relative;
-  }
-  .logs-cron-dot.pulse::after {
-    content:''; position:absolute; inset:-3px; border-radius:50%;
-    border:2px solid var(--cc,${T.neutral}); opacity:0;
-    animation:cronRing 2.2s ease-out infinite;
-  }
-  @keyframes cronRing {
-    0%   { transform:scale(0.6); opacity:0.7; }
-    100% { transform:scale(1.8); opacity:0; }
-  }
-  .logs-cron-name {
-    font-size:13px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; white-space:nowrap;
-    overflow:hidden; text-overflow:ellipsis;
-  }
-  .logs-cron-badges { display:flex; gap:6px; flex-shrink:0; }
-  .logs-cron-body { padding:16px 20px; display:flex; flex-direction:column; gap:14px; }
-  .logs-cron-stats {
-    display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px;
-  }
-  .logs-cron-stat { display:flex; flex-direction:column; gap:4px; }
-  .logs-cron-stat-lbl {
-    display:flex; align-items:center; gap:4px; font-size:9px;
-    font-family:'IBM Plex Mono',monospace; text-transform:uppercase;
-    letter-spacing:0.1em; color:${T.textMuted};
-  }
-  .logs-cron-stat-val {
-    font-size:11px; font-family:'IBM Plex Mono',monospace; color:${T.textSecondary};
-    font-weight:500;
-  }
-  .logs-cron-stat-val.large {
-    font-size:15px; font-family:'Space Grotesk',sans-serif;
-    font-weight:700; color:var(--cc,${T.accent});
-  }
-  .logs-cron-bar-wrap {
-    height:4px; background:${T.border}; border-radius:2px; overflow:hidden;
-  }
-  .logs-cron-bar {
-    height:100%; border-radius:2px; transition:width 0.6s ease;
-    background:var(--bar-color,${T.success});
-  }
-  .logs-cron-bar-label {
-    display:flex; justify-content:space-between; align-items:center;
-    font-size:9px; font-family:'IBM Plex Mono',monospace;
-    color:${T.textMuted}; margin-bottom:5px;
-  }
-  .logs-cron-error {
-    background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2);
-    border-radius:7px; padding:10px 12px; border-left:3px solid ${T.danger};
-  }
-  .logs-cron-error-hd {
-    display:flex; align-items:center; gap:5px; margin-bottom:5px;
-    font-size:9px; font-family:'IBM Plex Mono',monospace;
-    text-transform:uppercase; letter-spacing:0.1em; color:${T.danger};
-  }
-  .logs-cron-error-msg {
-    font-size:11px; color:${T.danger}; font-family:'IBM Plex Mono',monospace;
-    line-height:1.5; word-break:break-word;
-  }
-
-  /* ── Scrollbar ── */
-  .logs-root ::-webkit-scrollbar { width:4px; height:4px; }
-  .logs-root ::-webkit-scrollbar-track { background:transparent; }
-  .logs-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
-
-  .logs-empty {
-    padding:40px 0; text-align:center; color:${T.textMuted};
-    font-size:13px; font-family:'DM Sans',sans-serif;
-  }
-  .logs-loading { padding:32px 0; text-align:center; color:${T.textMuted}; font-size:13px; }
-`;
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Tipos das tabelas de log ─────────────────────────────────────────────────
 
 type VulnLog = {
   id: string;
@@ -444,15 +38,7 @@ type GmudLog = {
   id: string;
   gmud_id: string | null;
   gmud_titulo: string | null;
-  tipo_evento:
-    | "criacao"
-    | "aprovacao"
-    | "rejeicao"
-    | "mudanca_status"
-    | "exclusao"
-    | "email_enviado"
-    | "email_erro"
-    | "erro";
+  tipo_evento: string;
   descricao: string;
   usuario_email: string | null;
   usuario_nome: string | null;
@@ -470,6 +56,7 @@ type ImportLog = {
   ignored_count: number;
   total_count: number;
   message: string | null;
+  created_by: string | null;
   created_at: string;
 };
 
@@ -483,7 +70,7 @@ type ApiLog = {
   created_at: string;
 };
 
-type AuditLogRaw = {
+type CfAuditLog = {
   id: string;
   action: string;
   status: "success" | "error";
@@ -496,16 +83,14 @@ type AuditLogRaw = {
   created_at: string;
 };
 
-type AuditLog = {
+type EmailLog = {
   id: string;
-  action: "purge_cache" | "create_dns" | "update_dns" | "update_rule" | "toggle_rule" | "delete_rule";
-  status: "success" | "error";
-  zone_id: string | null;
-  zone_name: string | null;
-  details: Record<string, unknown> | null;
-  message: string | null;
-  user_email: string | null;
-  duration_ms: number | null;
+  to_email: string;
+  subject: string | null;
+  template: string | null;
+  status: string;
+  error_message: string | null;
+  related_gmud_id: string | null;
   created_at: string;
 };
 
@@ -539,1106 +124,53 @@ type SystemAuditLog = {
   detalhes: Record<string, unknown> | null;
 };
 
-// ─── Helpers de IP / Geolocalização ──────────────────────────────────────────
+// ─── Fontes ───────────────────────────────────────────────────────────────────
 
-type GeoResult = {
-  country_name: string;
-  country_code: string;
-  city: string;
-  org: string;
-};
+// As chaves são as mesmas das antigas abas (guardadas em localStorage para os
+// selos de "erro novo desde a última visita").
+type SrcKey = "sysaudit" | "acessos" | "imports" | "apis" | "emails" | "audit" | "gmud" | "vulns";
 
-const geoCache = new Map<string, GeoResult | null>();
-
-function isPrivateIp(ip: string): boolean {
-  return (
-    /^127\./.test(ip) ||
-    /^10\./.test(ip) ||
-    /^192\.168\./.test(ip) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(ip) ||
-    ip === "::1" ||
-    ip === "localhost"
-  );
-}
-
-async function fetchGeo(ip: string): Promise<GeoResult | null> {
-  if (!ip || isPrivateIp(ip)) return null;
-  if (geoCache.has(ip)) return geoCache.get(ip)!;
-  try {
-    const res = await fetch(`https://ipapi.co/${ip}/json/`);
-    if (!res.ok) {
-      geoCache.set(ip, null);
-      return null;
-    }
-    const d = (await res.json()) as any;
-    const result: GeoResult = {
-      country_name: d.country_name ?? "—",
-      country_code: d.country_code ?? "",
-      city: d.city ?? "—",
-      org: d.org ?? "—",
-    };
-    geoCache.set(ip, result);
-    return result;
-  } catch {
-    geoCache.set(ip, null);
-    return null;
-  }
-}
-
-function countryFlag(code: string): string {
-  if (!code || code.length !== 2) return "🌐";
-  return String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
-}
-
-// ─── Helpers de User-Agent ────────────────────────────────────────────────────
-
-function parseDevice(ua: string | null): string {
-  if (!ua) return "—";
-  if (/iPhone/i.test(ua)) return "iPhone";
-  if (/iPad/i.test(ua)) return "iPad";
-  if (/Android/i.test(ua) && /Mobile/i.test(ua)) return "Android Phone";
-  if (/Android/i.test(ua)) return "Android Tablet";
-  if (/Windows NT/i.test(ua)) return "Windows";
-  if (/Macintosh|Mac OS X/i.test(ua)) return "macOS";
-  if (/Linux/i.test(ua)) return "Linux";
-  return "Desconhecido";
-}
-
-function parseBrowser(ua: string | null): string {
-  if (!ua) return "—";
-  if (/Edg\//i.test(ua)) return "Edge";
-  if (/OPR\/|Opera/i.test(ua)) return "Opera";
-  if (/Firefox\//i.test(ua)) return "Firefox";
-  if (/Chrome\//i.test(ua)) return "Chrome";
-  if (/Safari\//i.test(ua)) return "Safari";
-  return "Outro";
-}
-
-function normalizeAuditLog(raw: AuditLogRaw): AuditLog {
-  const details =
-    raw.details && typeof raw.details === "object" && !Array.isArray(raw.details)
-      ? (raw.details as Record<string, unknown>)
-      : null;
-  return {
-    id: raw.id,
-    action: raw.action as AuditLog["action"],
-    status: raw.status ?? "success",
-    zone_id: raw.zone_id ?? null,
-    zone_name: raw.zone_name ?? null,
-    details,
-    message: raw.message ?? null,
-    user_email: raw.user_email ?? null,
-    duration_ms: raw.duration_ms ?? null,
-    created_at: raw.created_at,
-  };
-}
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function fmt(ts: string) {
-  return new Date(ts).toLocaleString("pt-BR");
-}
-
-function fmtDuration(ms: number | null) {
-  if (ms === null) return "—";
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-const ACTION_LABEL: Record<string, string> = {
-  purge_cache: "Purge de Cache",
-  create_dns: "Adicionar DNS",
-  update_dns: "Editar DNS",
-  update_rule: "Editar Rule",
-  toggle_rule: "Habilitar/Desabilitar Rule",
-  delete_rule: "Excluir Rule",
-};
-
-const ACTION_ICON: Record<string, React.ReactNode> = {
-  purge_cache: <Trash2 className="size-3.5 text-warning inline mr-1" />,
-  create_dns: <Plus className="size-3.5 text-success inline mr-1" />,
-  update_dns: <Pencil className="size-3.5 text-accent inline mr-1" />,
-  update_rule: <Pencil className="size-3.5 text-accent inline mr-1" />,
-  toggle_rule: <Power className="size-3.5 text-accent inline mr-1" />,
-  delete_rule: <Trash2 className="size-3.5 text-danger inline mr-1" />,
-};
-
-// ─── LogsDashboard ─────────────────────────────────────────────────────────────
-
-export function LogsDashboard() {
-  const imports = useQuery({
-    queryKey: ["import-logs"],
-    queryFn: async (): Promise<ImportLog[]> => {
-      const { data, error } = await supabase
-        .from("import_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []) as ImportLog[];
-    },
-  });
-
-  const apis = useQuery({
-    queryKey: ["api-logs"],
-    queryFn: async (): Promise<ApiLog[]> => {
-      const { data, error } = await supabase
-        .from("api_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []) as ApiLog[];
-    },
-  });
-
-  const audits = useQuery({
-    queryKey: ["audit-logs"],
-    queryFn: async (): Promise<AuditLog[]> => {
-      const { data, error } = await supabase
-        .from("audit_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return ((data ?? []) as unknown as AuditLogRaw[]).map(normalizeAuditLog);
-    },
-    refetchInterval: 30_000,
-  });
-
-  const emails = useQuery({
-    queryKey: ["email-logs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("email_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []) as Array<{
-        id: string;
-        to_email: string;
-        subject: string | null;
-        template: string | null;
-        status: string;
-        error_message: string | null;
-        related_gmud_id: string | null;
-        created_at: string;
-      }>;
-    },
-    refetchInterval: 30_000,
-  });
-
-  const domains = useQuery({
-    queryKey: ["domains-logs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("domains")
-        .select("id, domain_name, registrar, status, expiry_date, created_at, last_checked_at")
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as Array<{
-        id: string;
-        domain_name: string;
-        registrar: string;
-        status: string;
-        expiry_date: string | null;
-        created_at: string;
-        last_checked_at: string | null;
-      }>;
-    },
-    refetchInterval: 60_000,
-  });
-
-  const cronJobs = useQuery({
-    queryKey: ["cron-job-runs"],
-    queryFn: async (): Promise<CronJobRun[]> => {
-      const { data, error } = await supabase.from("cron_job_runs").select("*").order("job_name");
-      if (error) throw error;
-      return (data ?? []) as CronJobRun[];
-    },
-    refetchInterval: 60_000,
-  });
-
-  const queryClient = useQueryClient();
-
-  // Track which tab is active so we never badge the visible tab.
-  const [activeTab, setActiveTab] = React.useState("imports");
-
-  // Persist the ISO timestamp of when each tab was last viewed in localStorage.
-  // This survives module navigation so badges don't reappear for already-seen errors.
-  const [seenAt, setSeenAt] = React.useState<Record<string, string>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("logs_tab_seen_at") ?? "{}");
-    } catch {
-      return {};
-    }
-  });
-
-  function markTabSeen(tab: string) {
-    const now = new Date().toISOString();
-    setSeenAt((prev) => {
-      const next = { ...prev, [tab]: now };
-      try {
-        localStorage.setItem("logs_tab_seen_at", JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  }
-
-  function handleTabChange(tab: string) {
-    // Mark the tab being left as seen, then activate the new one.
-    markTabSeen(activeTab);
-    setActiveTab(tab);
-  }
-
-  // Snapshot timestamp taken when component first mounts, used as the baseline
-  // "seen" for tabs the user has never explicitly visited in this browser.
-  // This prevents ALL historical errors from lighting up on very first page load.
-  const mountedAtRef = React.useRef(new Date().toISOString());
-
-  // Returns the count of NEW logs since the last time this tab was visited.
-  // Returns 0 if the tab is currently active (user is looking at it).
-  function getTabNotification(tab: string): number {
-    if (tab === activeTab) return 0;
-    // Use the stored "seen" timestamp, or the component mount time as fallback
-    // (so historical logs don't create false badges on first visit).
-    const seen = seenAt[tab] ?? mountedAtRef.current;
-    const countSince = (arr: any[] | undefined, onlyErrors = true) => {
-      const items = (arr ?? []).filter((l: any) => !onlyErrors || l.status === "error");
-      return items.filter((l: any) => (l.created_at as string) > seen).length;
-    };
-    if (tab === "imports") return countSince(imports.data);
-    if (tab === "audit") return countSince(audits.data);
-    if (tab === "emails") return countSince(emails.data);
-    if (tab === "vulns") return countSince(vulnLogs.data);
-    if (tab === "gmud") return countSince(gmudLogs.data);
-    // Acessos: badge for ANY new log entry (success or error), not just errors.
-    if (tab === "acessos") return countSince(accessLogs.data, false);
-    if (tab === "sysaudit") return countSince(systemAuditLogs.data);
-    if (tab === "cron") {
-      const jobs = (cronJobs.data ?? []).filter((j) => getCronHealth(j).tone !== "success");
-      return jobs.filter((j) => (j.updated_at ?? j.last_attempt_at ?? "") > seen).length;
-    }
-    return 0;
-  }
-
-  const gmudLogs = useQuery({
-    queryKey: ["gmud-logs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("gmud_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as GmudLog[];
-    },
-  });
-
-  const vulnLogs = useQuery({
-    queryKey: ["vuln-logs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vuln_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as VulnLog[];
-    },
-  });
-
-  const accessLogs = useQuery({
-    queryKey: ["auth-access-logs"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("auth_access_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []) as AccessLog[];
-    },
-    refetchInterval: 5_000,
-  });
-
-  const systemAuditLogs = useQuery({
-    queryKey: ["system-audit-log"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("system_audit_log")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as SystemAuditLog[];
-    },
-    refetchInterval: 30_000,
-  });
-
-  React.useEffect(() => {
-    const channel = supabase
-      .channel("auth-access-logs-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "auth_access_logs" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["auth-access-logs"] });
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
-  const seedFn = useServerFn(seedAuthAccessHistory);
-  const seededRef = React.useRef(false);
-  React.useEffect(() => {
-    if (seededRef.current) return;
-    seededRef.current = true;
-    seedFn()
-      .then((res) => {
-        if (res?.seeded && res.seeded > 0) accessLogs.refetch();
-      })
-      .catch(() => {});
-  }, []);
-
-  // Totais para o cabeçalho
-  const totalErrors =
-    (imports.data?.filter((l) => l.status === "error").length ?? 0) +
-    (audits.data?.filter((l) => l.status === "error").length ?? 0) +
-    (accessLogs.data?.filter((l) => l.status === "error").length ?? 0);
-
-  return (
-    <div className="logs-root" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-
-      {/* ── Page header ── */}
-      <div className="logs-page-header">
-        <div>
-          <div className="logs-page-title">Central de Logs</div>
-          <div className="logs-page-sub">
-            Histórico de eventos do sistema — importações, acessos, e-mails, integrações e tarefas agendadas.
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          <span className="logs-stat-pill info">
-            <span className="logs-stat-dot" />
-            {accessLogs.data?.length ?? "—"} acessos
-          </span>
-          {totalErrors > 0 && (
-            <span className="logs-stat-pill err">
-              <span className="logs-stat-dot" />
-              {totalErrors} erros
-            </span>
-          )}
-          <span className="logs-stat-pill ok">
-            <span className="logs-stat-dot" />
-            {cronJobs.data?.filter((j) => getCronHealth(j).tone === "success").length ?? "—"} cron ok
-          </span>
-        </div>
-      </div>
-
-      <Tabs defaultValue="imports" onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="imports">
-            Importações de dados
-            {getTabNotification("imports") > 0 && (
-              <span className="logs-tab-badge">{getTabNotification("imports")}</span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="apis">Conexões de API</TabsTrigger>
-          <TabsTrigger value="audit">
-            Auditoria Cloudflare
-            {getTabNotification("audit") > 0 && <span className="logs-tab-badge">{getTabNotification("audit")}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="emails">
-            E-mails
-            {getTabNotification("emails") > 0 && <span className="logs-tab-badge">{getTabNotification("emails")}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="domains">Domínios/SSL</TabsTrigger>
-          <TabsTrigger value="vulns">
-            Vulnerabilidades
-            {getTabNotification("vulns") > 0 && <span className="logs-tab-badge">{getTabNotification("vulns")}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="gmud">
-            GMUD
-            {getTabNotification("gmud") > 0 && <span className="logs-tab-badge">{getTabNotification("gmud")}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="acessos">
-            Acessos
-            {getTabNotification("acessos") > 0 && (
-              <span className="logs-tab-badge">{getTabNotification("acessos")}</span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="cron">
-            Cron Jobs
-            {getTabNotification("cron") > 0 && <span className="logs-tab-badge">{getTabNotification("cron")}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="sysaudit">
-            Auditoria Sistema
-            {getTabNotification("sysaudit") > 0 && (
-              <span className="logs-tab-badge">{getTabNotification("sysaudit")}</span>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="imports" className="mt-4">
-          <ImportsTab logs={imports.data ?? []} isLoading={imports.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="apis" className="mt-4">
-          <ApisTab logs={apis.data ?? []} isLoading={apis.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="audit" className="mt-4">
-          <AuditTab logs={audits.data ?? []} isLoading={audits.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="emails" className="mt-4">
-          <EmailsTab logs={emails.data ?? []} isLoading={emails.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="domains" className="mt-4">
-          <DomainsTab logs={domains.data ?? []} isLoading={domains.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="qradar" className="mt-4">
-          <QRadarTab logs={apis.data?.filter((l) => l.provider === "qradar") ?? []} isLoading={apis.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="acessos" className="mt-4">
-          <AcessosTab logs={accessLogs.data ?? []} isLoading={accessLogs.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="vulns" className="mt-4">
-          <VulnsLogsTab logs={vulnLogs.data ?? []} isLoading={vulnLogs.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="gmud" className="mt-4">
-          <GmudLogsTab logs={gmudLogs.data ?? []} isLoading={gmudLogs.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="cron" className="mt-4">
-          <CronJobsTab logs={cronJobs.data ?? []} isLoading={cronJobs.isLoading} />
-        </TabsContent>
-
-        <TabsContent value="sysaudit" className="mt-4">
-          <SystemAuditTab logs={systemAuditLogs.data ?? []} isLoading={systemAuditLogs.isLoading} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-// ─── KpiCard ──────────────────────────────────────────────────────────────────
-
-function KpiCard({
-  label,
-  value,
-  color,
-  icon,
-}: {
+const SOURCES: Array<{
+  key: SrcKey;
   label: string;
-  value: string | number;
-  color: string;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <div className="logs-kpi-card" style={{ "--kpi-color": color } as React.CSSProperties}>
-      <span className="logs-kpi-label">{label}</span>
-      <span className="logs-kpi-value">
-        {icon}
-        {value}
-      </span>
-    </div>
-  );
-}
+  table: string;
+  icon: React.ComponentType<{ size?: number }>;
+}> = [
+  { key: "sysaudit", label: "Auditoria do sistema", table: "system_audit_log", icon: ShieldCheck },
+  { key: "acessos", label: "Acessos", table: "auth_access_logs", icon: LogIn },
+  { key: "imports", label: "Importações", table: "import_logs", icon: Upload },
+  { key: "apis", label: "Conexões de API", table: "api_logs", icon: Plug },
+  { key: "emails", label: "E-mails", table: "email_logs", icon: Mail },
+  { key: "audit", label: "Cloudflare", table: "audit_logs", icon: Globe },
+  { key: "gmud", label: "GMUD", table: "gmud_logs", icon: ArrowUpDown },
+  { key: "vulns", label: "Vulnerabilidades", table: "vuln_logs", icon: Bug },
+];
+const SRC_BY_KEY = Object.fromEntries(SOURCES.map((s) => [s.key, s])) as Record<
+  SrcKey,
+  (typeof SOURCES)[number]
+>;
 
-// ─── LogsBadge ────────────────────────────────────────────────────────────────
+type Status = "ok" | "err" | "warn";
+const STATUS: Record<Status, { label: string; color: string }> = {
+  ok: { label: "Sucesso", color: "var(--v2-ok)" },
+  err: { label: "Erro", color: "var(--v2-crit)" },
+  warn: { label: "Parcial", color: "var(--v2-med)" },
+};
 
-function LogsBadge({
-  tone,
-  children,
-}: {
-  tone: "success" | "error" | "warning" | "info" | "muted";
-  children: React.ReactNode;
-}) {
-  return <span className={`logs-badge-${tone}`}>{children}</span>;
-}
+type LogEvent = {
+  key: string;
+  src: SrcKey;
+  at: string;
+  title: string;
+  sub: string;
+  who: string;
+  status: Status;
+  /** Valor do filtro específico da fonte (módulo, método, template…) */
+  facet?: [value: string, label: string];
+  raw: unknown;
+};
 
-// ─── MethodBadge ──────────────────────────────────────────────────────────────
-
-function MethodBadge({ method }: { method: string | null }) {
-  if (method === "sso_azure")
-    return (
-      <span className="logs-method-sso">
-        <ShieldCheck style={{ width: 10, height: 10 }} />
-        SSO Azure
-      </span>
-    );
-  if (method === "invite")
-    return (
-      <span className="logs-method-invite">
-        <UserPlus style={{ width: 10, height: 10 }} />
-        Convite (1º acesso)
-      </span>
-    );
-  return (
-    <span className="logs-method-email">
-      <KeyRound style={{ width: 10, height: 10 }} />
-      E-mail
-    </span>
-  );
-}
-
-// ─── EventTypeBadge / LogoutReasonBadge ────────────────────────────────────────
-
-function EventTypeBadge({ type }: { type: "login" | "logout" }) {
-  return type === "login" ? (
-    <LogsBadge tone="info">
-      <LogIn style={{ width: 10, height: 10 }} />
-      Login
-    </LogsBadge>
-  ) : (
-    <LogsBadge tone="muted">
-      <LogOut style={{ width: 10, height: 10 }} />
-      Logout
-    </LogsBadge>
-  );
-}
-
-function LogoutReasonBadge({ reason }: { reason: string | null }) {
-  if (reason === "manual")
-    return (
-      <span className="logs-method-email">
-        <LogOut style={{ width: 10, height: 10 }} />
-        Manual
-      </span>
-    );
-  if (reason === "inactivity")
-    return (
-      <span className="logs-method-invite">
-        <Timer style={{ width: 10, height: 10 }} />
-        Inatividade (8h)
-      </span>
-    );
-  if (reason === "expired")
-    return (
-      <span className="logs-method-sso">
-        <AlertCircle style={{ width: 10, height: 10 }} />
-        Expiração (24h)
-      </span>
-    );
-  return <span style={{ color: T.textMuted, fontSize: 11 }}>—</span>;
-}
-
-// ─── LogsTable ────────────────────────────────────────────────────────────────
-
-function LogsTable({
-  headers,
-  children,
-  isLoading,
-  empty,
-}: {
-  headers: string[];
-  children: React.ReactNode;
-  isLoading: boolean;
-  empty: string;
-}) {
-  if (isLoading) return <div className="logs-loading">Carregando…</div>;
-  return (
-    <div className="logs-table-wrap">
-      <table className="logs-table">
-        <thead>
-          <tr>
-            {headers.map((h) => (
-              <th key={h}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {React.Children.count(children) === 0 ? (
-            <tr>
-              <td colSpan={headers.length} className="logs-empty">
-                {empty}
-              </td>
-            </tr>
-          ) : (
-            children
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ─── LogsFilters ──────────────────────────────────────────────────────────────
-
-function LogsFilters({
-  search,
-  onSearch,
-  filters,
-  total,
-  filtered,
-}: {
-  search: string;
-  onSearch: (v: string) => void;
-  filters: Array<{
-    value: string;
-    onChange: (v: string) => void;
-    options: Array<{ value: string; label: string }>;
-  }>;
-  total: number;
-  filtered: number;
-}) {
-  const hasFilter = search.trim() !== "" || filters.some((f) => f.value !== "all");
-  return (
-    <div className="logs-filters">
-      <Filter style={{ width: 14, height: 14, color: T.textMuted, flexShrink: 0 }} />
-      {filters.map((f, i) => (
-        <select key={i} className="logs-select" value={f.value} onChange={(e) => f.onChange(e.target.value)}>
-          {f.options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      ))}
-      <div className="logs-search-wrap">
-        <input
-          type="text"
-          placeholder="Buscar…"
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          className="logs-search"
-        />
-        {search && (
-          <button className="logs-search-clear" onClick={() => onSearch("")}>
-            <X style={{ width: 12, height: 12 }} />
-          </button>
-        )}
-      </div>
-      {hasFilter && (
-        <button
-          className="logs-clear-btn"
-          onClick={() => {
-            onSearch("");
-            filters.forEach((f) => f.onChange("all"));
-          }}
-        >
-          <X style={{ width: 11, height: 11 }} /> Limpar
-        </button>
-      )}
-      <span className="logs-count">
-        {filtered} / {total}
-      </span>
-    </div>
-  );
-}
-
-// ─── AuditTab ──────────────────────────────────────────────────────────────────
-
-function AuditTab({ logs, isLoading }: { logs: AuditLog[]; isLoading: boolean }) {
-  const [filterAction, setFilterAction] = React.useState<string>("all");
-  const [filterStatus, setFilterStatus] = React.useState<string>("all");
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
-
-  const filtered = React.useMemo(() => {
-    return logs.filter((l) => {
-      if (filterAction !== "all" && l.action !== filterAction) return false;
-      if (filterStatus !== "all" && l.status !== filterStatus) return false;
-      return true;
-    });
-  }, [logs, filterAction, filterStatus]);
-
-  const successCount = logs.filter((l) => l.status === "success").length;
-  const errorCount = logs.filter((l) => l.status === "error").length;
-  const purgeCount = logs.filter((l) => l.action === "purge_cache").length;
-  const dnsCount = logs.filter((l) => l.action === "create_dns").length;
-  const hasFilter = filterAction !== "all" || filterStatus !== "all";
-
-  if (isLoading)
-    return (
-      <div className="logs-panel">
-        <div className="logs-loading">Carregando…</div>
-      </div>
-    );
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col4">
-        <KpiCard
-          label="Total de operações"
-          value={logs.length}
-          color={T.accent}
-          icon={<Activity style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Sucesso"
-          value={successCount}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Erros"
-          value={errorCount}
-          color={T.danger}
-          icon={<XCircle style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard label="Purges / DNS" value={`${purgeCount} / ${dnsCount}`} color={T.warning} />
-      </div>
-
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          Auditoria Cloudflare
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length}
-            {hasFilter ? " filtrado" : ""} de {logs.length}
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          {/* Filtros inline */}
-          <div className="logs-filters">
-            <Filter style={{ width: 14, height: 14, color: T.textMuted }} />
-            <span style={{ fontSize: 11, color: T.textMuted }}>Ação:</span>
-            {[
-              { value: "all", label: "Todas" },
-              { value: "purge_cache", label: "Purge" },
-              { value: "create_dns", label: "Add DNS" },
-              { value: "update_rule", label: "Edit Rule" },
-              { value: "toggle_rule", label: "Toggle Rule" },
-              { value: "delete_rule", label: "Delete Rule" },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                className={`logs-chip${filterAction === opt.value ? " active" : ""}`}
-                onClick={() => setFilterAction(opt.value)}
-              >
-                {opt.label}
-              </button>
-            ))}
-            <span style={{ fontSize: 11, color: T.textMuted, marginLeft: 4 }}>Status:</span>
-            {[
-              { value: "all", label: "Todos" },
-              { value: "success", label: "Sucesso" },
-              { value: "error", label: "Erro" },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                className={`logs-chip${filterStatus === opt.value ? " active" : ""}`}
-                onClick={() => setFilterStatus(opt.value)}
-              >
-                {opt.label}
-              </button>
-            ))}
-            {hasFilter && (
-              <button
-                className="logs-clear-btn"
-                onClick={() => {
-                  setFilterAction("all");
-                  setFilterStatus("all");
-                }}
-              >
-                <X style={{ width: 11, height: 11 }} /> Limpar
-              </button>
-            )}
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="logs-empty">
-              {logs.length === 0
-                ? "Nenhuma operação registrada. Realize um Purge ou crie um registro DNS para começar."
-                : "Nenhum resultado para os filtros selecionados."}
-            </div>
-          ) : (
-            <div className="logs-table-wrap">
-              <table className="logs-table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Operação</th>
-                    <th>Zona</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: "right" }}>Duração</th>
-                    <th>Usuário</th>
-                    <th>Mensagem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((l) => (
-                    <React.Fragment key={l.id}>
-                      <tr
-                        style={{ cursor: "pointer" }}
-                        onClick={() => setExpandedId(expandedId === l.id ? null : l.id)}
-                      >
-                        <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                          {fmt(l.created_at)}
-                        </td>
-                        <td style={{ fontWeight: 600, fontSize: 12 }}>
-                          {ACTION_ICON[l.action]}
-                          {ACTION_LABEL[l.action] ?? l.action}
-                        </td>
-                        <td className="mono muted" style={{ fontSize: 11 }}>
-                          {l.zone_name ?? l.zone_id ?? "—"}
-                        </td>
-                        <td>
-                          {l.status === "success" ? (
-                            <LogsBadge tone="success">
-                              <CheckCircle2 style={{ width: 10, height: 10 }} />
-                              Sucesso
-                            </LogsBadge>
-                          ) : (
-                            <LogsBadge tone="error">
-                              <XCircle style={{ width: 10, height: 10 }} />
-                              Erro
-                            </LogsBadge>
-                          )}
-                        </td>
-                        <td className="mono muted" style={{ textAlign: "right", fontSize: 11 }}>
-                          {fmtDuration(l.duration_ms)}
-                        </td>
-                        <td
-                          className="muted"
-                          style={{
-                            fontSize: 11,
-                            maxWidth: 140,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {l.user_email ?? "—"}
-                        </td>
-                        <td
-                          className="muted"
-                          style={{
-                            fontSize: 11,
-                            maxWidth: 220,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {l.message ?? "—"}
-                        </td>
-                      </tr>
-                      {expandedId === l.id && l.details && (
-                        <tr className="logs-expand-row">
-                          <td colSpan={7}>
-                            <div className="logs-expand-label">Detalhes da operação</div>
-                            <DetailsGrid action={l.action} details={l.details} />
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── DetailsGrid ───────────────────────────────────────────────────────────────
-
-type ChangeEntry = { path: string; before: unknown; after: unknown };
-
-// Tabela "o que mudou" — campo a campo, antes → depois. Sem isso, os detalhes
-// de uma edição só mostravam o valor NOVO (a descrição/expressão podia ser
-// reenviada igual, sem indicar se algo de fato mudou).
-function ChangesTable({ changes }: { changes: ChangeEntry[] | undefined }) {
-  if (!changes || changes.length === 0) {
-    return (
-      <div style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace", marginTop: 8 }}>
-        Nenhum campo alterado (reenviado igual).
-      </div>
-    );
-  }
-  const fmt = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
-  return (
-    <div style={{ marginTop: 10 }}>
-      <div
-        style={{
-          fontSize: 10,
-          color: T.textMuted,
-          fontFamily: "'IBM Plex Mono',monospace",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          marginBottom: 4,
-        }}
-      >
-        O que mudou
-      </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, fontFamily: "'IBM Plex Mono',monospace" }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: "left", color: T.textMuted, fontWeight: 400, padding: "2px 8px 2px 0" }}>Campo</th>
-            <th style={{ textAlign: "left", color: T.textMuted, fontWeight: 400, padding: "2px 8px" }}>Antes</th>
-            <th style={{ textAlign: "left", color: T.textMuted, fontWeight: 400, padding: "2px 0" }}>Depois</th>
-          </tr>
-        </thead>
-        <tbody>
-          {changes.map((c) => (
-            <tr key={c.path}>
-              <td style={{ color: T.textPrimary, padding: "2px 8px 2px 0", whiteSpace: "nowrap" }}>{c.path}</td>
-              <td style={{ color: T.danger, padding: "2px 8px" }}>{fmt(c.before)}</td>
-              <td style={{ color: T.success, padding: "2px 0" }}>{fmt(c.after)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function DetailsGrid({ action, details }: { action: string; details: Record<string, unknown> }) {
-  if (action === "purge_cache") {
-    const hosts = (details.hostnames as string[] | undefined) ?? [];
-    const all = details.purge_everything as boolean | undefined;
-    return (
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "4px 24px",
-          fontSize: 11,
-          fontFamily: "'IBM Plex Mono',monospace",
-        }}
-      >
-        <span style={{ color: T.textMuted }}>Modo:</span>
-        <span style={{ color: all ? T.danger : T.textPrimary, fontWeight: all ? 700 : 400 }}>
-          {all ? "Purge total da zona" : "Hostnames específicos"}
-        </span>
-        {!all && hosts.length > 0 && (
-          <>
-            <span style={{ color: T.textMuted, width: "100%", marginTop: 4 }}>Hosts purgados:</span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {hosts.map((h) => (
-                <span
-                  key={h}
-                  style={{
-                    background: T.accentSoft,
-                    border: `1px solid rgba(59,130,246,0.2)`,
-                    color: T.accent,
-                    padding: "1px 8px",
-                    borderRadius: 4,
-                    fontSize: 10,
-                  }}
-                >
-                  {h}
-                </span>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-  if (action === "create_dns") {
-    const fields: Array<[string, unknown]> = [
-      ["Tipo", details.type],
-      ["Nome", details.name],
-      ["Conteúdo", details.content],
-      ["TTL", details.ttl === 1 ? "Auto" : details.ttl],
-      ["Proxy", details.proxied ? "Ativo" : "Desativado"],
-      ["Record ID", details.record_id ?? "—"],
-    ];
-    return (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "4px 24px",
-          fontSize: 11,
-          fontFamily: "'IBM Plex Mono',monospace",
-        }}
-      >
-        {fields.map(([label, value]) => (
-          <React.Fragment key={label}>
-            <span style={{ color: T.textMuted }}>{label}:</span>
-            <span style={{ color: T.textPrimary }}>{String(value ?? "—")}</span>
-          </React.Fragment>
-        ))}
-      </div>
-    );
-  }
-  if (action === "update_dns") {
-    const fields: Array<[string, unknown]> = [
-      ["Tipo", details.type],
-      ["Nome", details.name],
-      ["Conteúdo", details.content],
-      ["TTL", details.ttl],
-      ["Proxy", details.proxied ? "Ativo" : "Desativado"],
-      ["Record ID", details.record_id ?? "—"],
-    ];
-    return (
-      <div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "4px 24px",
-            fontSize: 11,
-            fontFamily: "'IBM Plex Mono',monospace",
-          }}
-        >
-          {fields.map(([label, value]) => (
-            <React.Fragment key={label}>
-              <span style={{ color: T.textMuted }}>{label}:</span>
-              <span style={{ color: T.textPrimary }}>{String(value ?? "—")}</span>
-            </React.Fragment>
-          ))}
-        </div>
-        <ChangesTable changes={details.changes as ChangeEntry[] | undefined} />
-      </div>
-    );
-  }
-  if (action === "update_rule" || action === "toggle_rule" || action === "delete_rule") {
-    const fields: Array<[string, unknown]> = [
-      ["Categoria", details.category],
-      ["Descrição", details.description],
-      ...(action === "toggle_rule" ? ([["Novo status", details.enabled ? "Habilitada" : "Desabilitada"]] as Array<[string, unknown]>) : []),
-    ];
-    return (
-      <div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "4px 24px",
-            fontSize: 11,
-            fontFamily: "'IBM Plex Mono',monospace",
-          }}
-        >
-          {fields.map(([label, value]) => (
-            <React.Fragment key={label}>
-              <span style={{ color: T.textMuted }}>{label}:</span>
-              <span style={{ color: T.textPrimary }}>{String(value ?? "—")}</span>
-            </React.Fragment>
-          ))}
-        </div>
-        {action === "update_rule" && <ChangesTable changes={details.changes as ChangeEntry[] | undefined} />}
-      </div>
-    );
-  }
-  return (
-    <pre
-      style={{
-        fontSize: 11,
-        color: T.textMuted,
-        whiteSpace: "pre-wrap",
-        fontFamily: "'IBM Plex Mono',monospace",
-      }}
-    >
-      {JSON.stringify(details, null, 2)}
-    </pre>
-  );
-}
-
-// ─── SystemAuditTab ─────────────────────────────────────────────────────────────
+// ─── Rótulos ──────────────────────────────────────────────────────────────────
 
 const SYS_ACTION_LABEL: Record<string, string> = {
   create: "Criação",
@@ -1661,1958 +193,1355 @@ const SYS_ACTION_LABEL: Record<string, string> = {
   update_template: "Edição de template de e-mail",
 };
 
-function sysModuleLabel(mod: string) {
-  return MODULE_BY_SLUG[mod]?.short ?? mod;
+const CF_ACTION_LABEL: Record<string, string> = {
+  purge_cache: "Purge de cache",
+  create_dns: "Adicionar DNS",
+  update_dns: "Editar DNS",
+  update_rule: "Editar rule",
+  toggle_rule: "Habilitar/desabilitar rule",
+  delete_rule: "Excluir rule",
+};
+
+const GMUD_EVENT_LABEL: Record<string, string> = {
+  criacao: "Criação",
+  aprovacao: "Aprovação",
+  rejeicao: "Rejeição",
+  mudanca_status: "Mudança de status",
+  exclusao: "Exclusão",
+  email_enviado: "E-mail enviado",
+  email_erro: "Erro de e-mail",
+  erro: "Erro",
+};
+
+const VULN_EVENT_LABEL: Record<string, string> = {
+  mudanca_status: "Mudança de status",
+  mudanca_departamento: "Depto. responsável",
+  solicitacao_aprovacao: "Solicitação de aprovação",
+  aprovacao: "Aprovação",
+  rejeicao: "Rejeição",
+  criacao: "Criação",
+  mudanca_data: "Mudança de data",
+};
+
+const API_PROVIDER_LABEL: Record<string, string> = {
+  cloudflare: "Cloudflare",
+  sophos: "Sophos",
+  qradar: "QRadar",
+  gophish: "Gophish",
+  zabbix: "Zabbix",
+  sendgrid: "SendGrid",
+  dast_scanner: "DAST Scanner",
+  dast_ad_ldap: "DAST · AD/LDAP",
+  shadowit_smb: "Shadow IT · SMB",
+  "ranking-ia": "Ranking IA",
+  privacy_tools: "Privacy Tools",
+  purview_dlp: "Purview DLP",
+  disponibilidade_alerts: "Alertas de disponibilidade",
+  alerts_recipients: "Destinatários de alertas",
+};
+
+const LOGIN_METHOD_LABEL = (m: string | null) =>
+  m === "sso_azure" ? "SSO Azure" : m === "invite" ? "Convite (1º acesso)" : "E-mail e senha";
+const LOGOUT_REASON_LABEL: Record<string, string> = {
+  manual: "manual",
+  inactivity: "por inatividade (8h)",
+  expired: "por expiração (24h)",
+};
+
+const moduleLabel = (mod: string) =>
+  mod === "upload-config" ? "Configuração de bloqueio" : (MODULE_BY_SLUG[mod]?.short ?? mod);
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtDuration(ms: number | null) {
+  if (ms === null) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1).replace(".", ",")}s`;
 }
 
-function SystemAuditTab({ logs, isLoading }: { logs: SystemAuditLog[]; isLoading: boolean }) {
-  const [filterModulo, setFilterModulo] = React.useState<string>("all");
-  const [filterStatus, setFilterStatus] = React.useState<string>("all");
-  const [search, setSearch] = React.useState("");
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
+const fmtTime = (iso: string | number) =>
+  new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const fmtFull = (iso: string) => new Date(iso).toLocaleString("pt-BR");
 
-  const moduloOptions = React.useMemo(() => {
-    const unique = [...new Set(logs.map((l) => l.modulo))].sort();
-    return unique.map((m) => ({ value: m, label: sysModuleLabel(m) }));
-  }, [logs]);
+function fmtAgo(iso: string, now: number) {
+  const m = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
+  if (m < 60) return `há ${m} min`;
+  if (m < 1440) return `há ${Math.round(m / 60)}h`;
+  return `há ${Math.round(m / 1440)}d`;
+}
 
-  const filtered = React.useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return logs.filter((l) => {
-      if (filterModulo !== "all" && l.modulo !== filterModulo) return false;
-      if (filterStatus !== "all" && l.status !== filterStatus) return false;
-      if (q) {
-        const haystack = `${l.usuario_email ?? ""} ${l.usuario_nome ?? ""} ${l.descricao} ${l.acao}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [logs, filterModulo, filterStatus, search]);
+function dayLabel(iso: string, now: number) {
+  const d = new Date(iso);
+  const today = new Date(now);
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const t = d.getTime();
+  if (t >= startToday) return "Hoje";
+  if (t >= startToday - 86_400_000) return "Ontem";
+  return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
+}
 
-  const successCount = logs.filter((l) => l.status === "success").length;
-  const errorCount = logs.filter((l) => l.status === "error").length;
+function parseDevice(ua: string | null): string {
+  if (!ua) return "—";
+  if (/iPhone/i.test(ua)) return "iPhone";
+  if (/iPad/i.test(ua)) return "iPad";
+  if (/Android/i.test(ua) && /Mobile/i.test(ua)) return "Android (celular)";
+  if (/Android/i.test(ua)) return "Android (tablet)";
+  if (/Windows NT/i.test(ua)) return "Windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "macOS";
+  if (/Linux/i.test(ua)) return "Linux";
+  return "Desconhecido";
+}
 
-  if (isLoading)
-    return (
-      <div className="logs-panel">
-        <div className="logs-loading">Carregando…</div>
-      </div>
-    );
+function parseBrowser(ua: string | null): string {
+  if (!ua) return "—";
+  if (/Edg\//i.test(ua)) return "Edge";
+  if (/OPR\/|Opera/i.test(ua)) return "Opera";
+  if (/Firefox\//i.test(ua)) return "Firefox";
+  if (/Chrome\//i.test(ua)) return "Chrome";
+  if (/Safari\//i.test(ua)) return "Safari";
+  return "Outro";
+}
 
+const asRecord = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+
+// ─── Geolocalização de IP (só ao abrir o detalhe de um acesso) ───────────────
+
+type GeoResult = { country_name: string; country_code: string; city: string; org: string };
+const geoCache = new Map<string, GeoResult | null>();
+
+function isPrivateIp(ip: string): boolean {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col4">
-        <KpiCard
-          label="Total de ações"
-          value={logs.length}
-          color={T.accent}
-          icon={<Activity style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Sucesso"
-          value={successCount}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Erros"
-          value={errorCount}
-          color={T.danger}
-          icon={<XCircle style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard label="Módulos com atividade" value={moduloOptions.length} color={T.info} />
-      </div>
-
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          Auditoria Sistema
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length}
-            {filterModulo !== "all" || filterStatus !== "all" || search ? " filtrado" : ""} de {logs.length}
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            filters={[
-              {
-                value: filterModulo,
-                onChange: setFilterModulo,
-                options: [{ value: "all", label: "Todos os módulos" }, ...moduloOptions],
-              },
-              {
-                value: filterStatus,
-                onChange: setFilterStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "success", label: "Sucesso" },
-                  { value: "error", label: "Erro" },
-                ],
-              },
-            ]}
-            total={logs.length}
-            filtered={filtered.length}
-          />
-
-          {filtered.length === 0 ? (
-            <div className="logs-empty">
-              {logs.length === 0
-                ? "Nenhuma ação administrativa registrada ainda."
-                : "Nenhum resultado para os filtros selecionados."}
-            </div>
-          ) : (
-            <LogsTable
-              headers={["Data", "Usuário", "Módulo", "Ação", "Descrição", "Status"]}
-              isLoading={false}
-              empty="Nenhum resultado."
-            >
-              {filtered.map((l) => (
-                <React.Fragment key={l.id}>
-                  <tr style={{ cursor: "pointer" }} onClick={() => setExpandedId(expandedId === l.id ? null : l.id)}>
-                    <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                      {fmt(l.created_at)}
-                    </td>
-                    <td
-                      className="muted"
-                      style={{
-                        fontSize: 11,
-                        maxWidth: 160,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {l.usuario_nome ?? l.usuario_email ?? "—"}
-                    </td>
-                    <td className="mono muted" style={{ fontSize: 11 }}>
-                      {sysModuleLabel(l.modulo)}
-                    </td>
-                    <td style={{ fontSize: 12, fontWeight: 600 }}>{SYS_ACTION_LABEL[l.acao] ?? l.acao}</td>
-                    <td
-                      className="muted"
-                      style={{
-                        fontSize: 11,
-                        maxWidth: 320,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {l.descricao}
-                    </td>
-                    <td>
-                      {l.status === "success" ? (
-                        <LogsBadge tone="success">
-                          <CheckCircle2 style={{ width: 10, height: 10 }} />
-                          Sucesso
-                        </LogsBadge>
-                      ) : (
-                        <LogsBadge tone="error">
-                          <XCircle style={{ width: 10, height: 10 }} />
-                          Erro
-                        </LogsBadge>
-                      )}
-                    </td>
-                  </tr>
-                  {expandedId === l.id && (
-                    <tr className="logs-expand-row">
-                      <td colSpan={6}>
-                        <div className="logs-expand-label">Detalhes da ação</div>
-                        <div style={{ fontSize: 11, color: T.textPrimary, marginBottom: 6 }}>{l.descricao}</div>
-                        {l.usuario_email && (
-                          <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>
-                            Usuário: {l.usuario_nome ? `${l.usuario_nome} (${l.usuario_email})` : l.usuario_email}
-                          </div>
-                        )}
-                        {l.mensagem_erro && (
-                          <div style={{ fontSize: 11, color: T.danger, marginBottom: 6 }}>Erro: {l.mensagem_erro}</div>
-                        )}
-                        {l.detalhes && Object.keys(l.detalhes).length > 0 && (
-                          <pre
-                            style={{
-                              fontSize: 11,
-                              color: T.textMuted,
-                              whiteSpace: "pre-wrap",
-                              fontFamily: "'IBM Plex Mono',monospace",
-                            }}
-                          >
-                            {JSON.stringify(l.detalhes, null, 2)}
-                          </pre>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </LogsTable>
-          )}
-        </div>
-      </div>
-    </div>
+    /^127\./.test(ip) ||
+    /^10\./.test(ip) ||
+    /^192\.168\./.test(ip) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(ip) ||
+    ip === "::1" ||
+    ip === "localhost"
   );
 }
 
-// ─── ImportsTab ───────────────────────────────────────────────────────────────
-
-function moduleLabel(mod: string) {
-  if (mod === "upload-config") return "Configuração de bloqueio";
-  return MODULE_BY_SLUG[mod]?.short ?? mod;
-}
-
-function ImportsTab({ logs, isLoading }: { logs: ImportLog[]; isLoading: boolean }) {
-  const [status, setStatus] = React.useState("all");
-  const [module, setModule] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
-
-  // Lista de módulos únicos presentes nos logs
-  const moduleOptions = React.useMemo(() => {
-    const unique = [...new Set(logs.map((l) => l.module))].sort();
-    return unique.map((m) => ({ value: m, label: moduleLabel(m) }));
-  }, [logs]);
-
-  const filtered = React.useMemo(
-    () =>
-      logs.filter((l) => {
-        if (status !== "all" && l.status !== status) return false;
-        if (module !== "all" && l.module !== module) return false;
-        if (search.trim())
-          return (l.module + (l.filename ?? "") + (l.message ?? "")).toLowerCase().includes(search.toLowerCase());
-        return true;
-      }),
-    [logs, status, module, search],
-  );
-
-  const erros = logs.filter((l) => l.status === "error").length;
-  const sucesso = logs.filter((l) => l.status === "success").length;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col3">
-        <KpiCard label="Total" value={logs.length} color={T.accent} icon={<Plus style={{ width: 18, height: 18 }} />} />
-        <KpiCard
-          label="Sucesso"
-          value={sucesso}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard label="Erros" value={erros} color={T.danger} icon={<XCircle style={{ width: 18, height: 18 }} />} />
-      </div>
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          Importações de Dados
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length} de {logs.length} · clique na linha para detalhes
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            total={logs.length}
-            filtered={filtered.length}
-            filters={[
-              {
-                value: status,
-                onChange: setStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "success", label: "Sucesso" },
-                  { value: "error", label: "Erro" },
-                  { value: "partial", label: "Parcial" },
-                ],
-              },
-              {
-                value: module,
-                onChange: setModule,
-                options: [{ value: "all", label: "Todos os módulos" }, ...moduleOptions],
-              },
-            ]}
-          />
-
-          {isLoading ? (
-            <div className="logs-loading">Carregando…</div>
-          ) : filtered.length === 0 ? (
-            <div className="logs-empty">Nenhuma importação registrada.</div>
-          ) : (
-            <div className="logs-table-wrap">
-              <table className="logs-table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Módulo</th>
-                    <th>Arquivo</th>
-                    <th>Status</th>
-                    <th style={{ width: 28 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((l) => (
-                    <React.Fragment key={l.id}>
-                      <tr
-                        style={{ cursor: "pointer" }}
-                        onClick={() => setExpandedId(expandedId === l.id ? null : l.id)}
-                      >
-                        <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                          {fmt(l.created_at)}
-                        </td>
-                        <td style={{ fontSize: 12, fontWeight: 500 }}>{moduleLabel(l.module)}</td>
-                        <td
-                          className="mono muted"
-                          style={{
-                            fontSize: 11,
-                            maxWidth: 260,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                          title={l.filename ?? undefined}
-                        >
-                          {l.filename ?? "—"}
-                        </td>
-                        <td>
-                          <LogsBadge
-                            tone={l.status === "success" ? "success" : l.status === "error" ? "error" : "warning"}
-                          >
-                            {l.status === "success" ? "Sucesso" : l.status === "error" ? "Erro" : "Parcial"}
-                          </LogsBadge>
-                        </td>
-                        <td style={{ textAlign: "center", color: T.textMuted, fontSize: 10 }}>
-                          {expandedId === l.id ? "▲" : "▼"}
-                        </td>
-                      </tr>
-
-                      {expandedId === l.id && (
-                        <tr className="logs-expand-row">
-                          <td colSpan={5}>
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: 24,
-                                flexWrap: "wrap",
-                                alignItems: "flex-start",
-                              }}
-                            >
-                              {/* Contadores */}
-                              <div style={{ display: "flex", gap: 16 }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                  <span
-                                    style={{
-                                      fontSize: 9,
-                                      fontFamily: "'IBM Plex Mono',monospace",
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.12em",
-                                      color: T.textMuted,
-                                    }}
-                                  >
-                                    Total
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: 18,
-                                      fontWeight: 700,
-                                      fontFamily: "'Space Grotesk',sans-serif",
-                                      color: T.accent,
-                                    }}
-                                  >
-                                    {l.total_count}
-                                  </span>
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                  <span
-                                    style={{
-                                      fontSize: 9,
-                                      fontFamily: "'IBM Plex Mono',monospace",
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.12em",
-                                      color: T.textMuted,
-                                    }}
-                                  >
-                                    Importados
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: 18,
-                                      fontWeight: 700,
-                                      fontFamily: "'Space Grotesk',sans-serif",
-                                      color: T.success,
-                                    }}
-                                  >
-                                    {l.imported_count}
-                                  </span>
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                  <span
-                                    style={{
-                                      fontSize: 9,
-                                      fontFamily: "'IBM Plex Mono',monospace",
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.12em",
-                                      color: T.textMuted,
-                                    }}
-                                  >
-                                    Ignorados
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: 18,
-                                      fontWeight: 700,
-                                      fontFamily: "'Space Grotesk',sans-serif",
-                                      color: T.neutral,
-                                    }}
-                                  >
-                                    {l.ignored_count}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Mensagem */}
-                              {l.message && (
-                                <div style={{ flex: 1, minWidth: 200 }}>
-                                  <div className="logs-expand-label" style={{ marginBottom: 4 }}>
-                                    Mensagem
-                                  </div>
-                                  <p
-                                    style={{
-                                      fontSize: 12,
-                                      color: l.status === "error" ? T.danger : T.textSecondary,
-                                      margin: 0,
-                                      lineHeight: 1.5,
-                                      fontFamily: "'IBM Plex Mono',monospace",
-                                    }}
-                                  >
-                                    {l.message}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── ApisTab ──────────────────────────────────────────────────────────────────
-
-function ApisTab({ logs, isLoading }: { logs: ApiLog[]; isLoading: boolean }) {
-  const [status, setStatus] = React.useState("all");
-  const [provider, setProvider] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
-
-  const providers = [...new Set(logs.map((l) => l.provider))];
-  const baseForKpi = React.useMemo(
-    () => (provider === "all" ? logs : logs.filter((l) => l.provider === provider)),
-    [logs, provider],
-  );
-  const filtered = React.useMemo(
-    () =>
-      baseForKpi.filter((l) => {
-        if (status !== "all" && l.status !== status) return false;
-        if (search.trim()) return (l.provider + (l.message ?? "")).toLowerCase().includes(search.toLowerCase());
-        return true;
-      }),
-    [baseForKpi, status, search],
-  );
-  const erros = baseForKpi.filter((l) => l.status === "error").length;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col3">
-        <KpiCard
-          label="Total"
-          value={baseForKpi.length}
-          color={T.accent}
-          icon={<Plus style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Sucesso"
-          value={baseForKpi.length - erros}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Erros"
-          value={erros}
-          color={T.danger}
-          icon={<AlertTriangle style={{ width: 18, height: 18 }} />}
-        />
-      </div>
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          Conexões de API
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length} de {baseForKpi.length} · clique na linha para detalhes
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            total={baseForKpi.length}
-            filtered={filtered.length}
-            filters={[
-              {
-                value: status,
-                onChange: setStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "success", label: "Sucesso" },
-                  { value: "error", label: "Erro" },
-                ],
-              },
-              {
-                value: provider,
-                onChange: setProvider,
-                options: [
-                  { value: "all", label: "Todos os provedores" },
-                  ...providers.map((p) => ({ value: p, label: p })),
-                ],
-              },
-            ]}
-          />
-
-          {isLoading ? (
-            <div className="logs-loading">Carregando…</div>
-          ) : filtered.length === 0 ? (
-            <div className="logs-empty">Nenhuma chamada de API registrada.</div>
-          ) : (
-            <div className="logs-table-wrap">
-              <table className="logs-table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Provedor</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: "right" }}>HTTP</th>
-                    <th style={{ textAlign: "right" }}>Duração</th>
-                    <th style={{ width: 28 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((l) => (
-                    <React.Fragment key={l.id}>
-                      <tr
-                        style={{ cursor: "pointer" }}
-                        onClick={() => setExpandedId(expandedId === l.id ? null : l.id)}
-                      >
-                        <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                          {fmt(l.created_at)}
-                        </td>
-                        <td style={{ fontSize: 12, textTransform: "capitalize", fontWeight: 500 }}>{l.provider}</td>
-                        <td>
-                          <LogsBadge tone={l.status === "success" ? "success" : "error"}>
-                            {l.status === "success" ? "Sucesso" : "Erro"}
-                          </LogsBadge>
-                        </td>
-                        <td className="mono" style={{ textAlign: "right", fontSize: 11 }}>
-                          {l.http_status ?? "—"}
-                        </td>
-                        <td className="mono" style={{ textAlign: "right", fontSize: 11 }}>
-                          {l.duration_ms ? `${l.duration_ms}ms` : "—"}
-                        </td>
-                        <td style={{ textAlign: "center", color: T.textMuted, fontSize: 10 }}>
-                          {expandedId === l.id ? "▲" : "▼"}
-                        </td>
-                      </tr>
-
-                      {expandedId === l.id && (
-                        <tr className="logs-expand-row">
-                          <td colSpan={6}>
-                            <div className="logs-expand-label">Mensagem</div>
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: 12,
-                                fontFamily: "'IBM Plex Mono',monospace",
-                                color: l.status === "error" ? T.danger : T.textSecondary,
-                                lineHeight: 1.6,
-                                whiteSpace: "pre-wrap",
-                                wordBreak: "break-all",
-                              }}
-                            >
-                              {l.message ?? "—"}
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── EmailsTab ────────────────────────────────────────────────────────────────
-
-function EmailsTab({ logs, isLoading }: { logs: any[]; isLoading: boolean }) {
-  const [status, setStatus] = React.useState("all");
-  const [template, setTemplate] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-
-  const templateOptions = React.useMemo(() => {
-    const unique = [...new Set(logs.map((l) => l.template).filter(Boolean))].sort() as string[];
-    return unique.map((t) => ({ value: t, label: t }));
-  }, [logs]);
-
-  const filtered = React.useMemo(
-    () =>
-      logs.filter((l) => {
-        if (status !== "all" && l.status !== status) return false;
-        if (template !== "all" && l.template !== template) return false;
-        if (search.trim())
-          return ((l.to_email ?? "") + (l.subject ?? "") + (l.template ?? ""))
-            .toLowerCase()
-            .includes(search.toLowerCase());
-        return true;
-      }),
-    [logs, status, template, search],
-  );
-  const enviados = logs.filter((l) => l.status === "success").length;
-  const erros = logs.filter((l) => l.status === "error").length;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col3">
-        <KpiCard label="Total" value={logs.length} color={T.accent} icon={<Mail style={{ width: 18, height: 18 }} />} />
-        <KpiCard
-          label="Enviados"
-          value={enviados}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard label="Erros" value={erros} color={T.danger} icon={<XCircle style={{ width: 18, height: 18 }} />} />
-      </div>
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          E-mails
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length} de {logs.length}
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            total={logs.length}
-            filtered={filtered.length}
-            filters={[
-              {
-                value: status,
-                onChange: setStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "success", label: "Enviado" },
-                  { value: "error", label: "Erro" },
-                ],
-              },
-              {
-                value: template,
-                onChange: setTemplate,
-                options: [{ value: "all", label: "Todos os templates" }, ...templateOptions],
-              },
-            ]}
-          />
-          <LogsTable
-            isLoading={isLoading}
-            empty="Nenhum e-mail registrado."
-            headers={["Data", "Destinatário", "Assunto", "Template", "Status", "Erro", "GMUD"]}
-          >
-            {filtered.map((l) => (
-              <tr key={l.id}>
-                <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                  {fmt(l.created_at)}
-                </td>
-                <td style={{ fontSize: 12 }}>{l.to_email}</td>
-                <td
-                  style={{
-                    fontSize: 11,
-                    maxWidth: 220,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {l.subject ?? "—"}
-                </td>
-                <td className="muted" style={{ fontSize: 11 }}>
-                  {l.template ?? "—"}
-                </td>
-                <td>
-                  <LogsBadge tone={l.status === "success" ? "success" : "error"}>
-                    {l.status === "success" ? "Enviado" : "Erro"}
-                  </LogsBadge>
-                </td>
-                <td
-                  style={{
-                    fontSize: 11,
-                    color: T.danger,
-                    maxWidth: 200,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {l.error_message ?? "—"}
-                </td>
-                <td className="mono muted" style={{ fontSize: 10 }}>
-                  {l.related_gmud_id ? l.related_gmud_id.slice(0, 8) : "—"}
-                </td>
-              </tr>
-            ))}
-          </LogsTable>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── DomainsTab ───────────────────────────────────────────────────────────────
-
-function DomainsTab({ logs, isLoading }: { logs: any[]; isLoading: boolean }) {
-  const [status, setStatus] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-  const filtered = React.useMemo(
-    () =>
-      logs.filter((l) => {
-        if (status !== "all" && l.status !== status) return false;
-        if (search.trim())
-          return ((l.domain_name ?? "") + (l.registrar ?? "")).toLowerCase().includes(search.toLowerCase());
-        return true;
-      }),
-    [logs, status, search],
-  );
-  const ativos = logs.filter((l) => l.status === "ativo").length;
-  const expirados = logs.filter((l) => l.status !== "ativo").length;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col3">
-        <KpiCard
-          label="Total"
-          value={logs.length}
-          color={T.accent}
-          icon={<GitBranch style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Ativos"
-          value={ativos}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Expirados"
-          value={expirados}
-          color={T.danger}
-          icon={<AlertTriangle style={{ width: 18, height: 18 }} />}
-        />
-      </div>
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          Domínios/SSL
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length} de {logs.length}
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            total={logs.length}
-            filtered={filtered.length}
-            filters={[
-              {
-                value: status,
-                onChange: setStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "ativo", label: "Ativo" },
-                  { value: "expirado", label: "Expirado" },
-                ],
-              },
-            ]}
-          />
-          <LogsTable
-            isLoading={isLoading}
-            empty="Nenhum domínio cadastrado."
-            headers={["Data cadastro", "Domínio", "Registrador", "Validade", "Status", "Última verificação"]}
-          >
-            {filtered.map((d) => (
-              <tr key={d.id}>
-                <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                  {fmt(d.created_at)}
-                </td>
-                <td style={{ fontWeight: 600, fontSize: 12 }}>{d.domain_name}</td>
-                <td className="muted" style={{ fontSize: 11, textTransform: "capitalize" }}>
-                  {d.registrar}
-                </td>
-                <td className="mono" style={{ fontSize: 11 }}>
-                  {d.expiry_date ? new Date(d.expiry_date).toLocaleDateString("pt-BR") : "—"}
-                </td>
-                <td>
-                  <LogsBadge tone={d.status === "ativo" ? "success" : "error"}>
-                    {d.status === "ativo" ? "Ativo" : "Expirado"}
-                  </LogsBadge>
-                </td>
-                <td className="mono muted" style={{ fontSize: 11 }}>
-                  {d.last_checked_at ? fmt(d.last_checked_at) : "—"}
-                </td>
-              </tr>
-            ))}
-          </LogsTable>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── QRadarTab ────────────────────────────────────────────────────────────────
-
-function QRadarTab({ logs, isLoading }: { logs: ApiLog[]; isLoading: boolean }) {
-  const [status, setStatus] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-  const filtered = React.useMemo(
-    () =>
-      logs.filter((l) => {
-        if (status !== "all" && l.status !== status) return false;
-        if (search.trim()) return (l.message ?? "").toLowerCase().includes(search.toLowerCase());
-        return true;
-      }),
-    [logs, status, search],
-  );
-  const erros = logs.filter((l) => l.status === "error").length;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col3">
-        <KpiCard
-          label="Total"
-          value={logs.length}
-          color={T.accent}
-          icon={<RefreshCw style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Sucesso"
-          value={logs.length - erros}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Erros"
-          value={erros}
-          color={T.danger}
-          icon={<AlertTriangle style={{ width: 18, height: 18 }} />}
-        />
-      </div>
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          API QRadar
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length} de {logs.length}
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            total={logs.length}
-            filtered={filtered.length}
-            filters={[
-              {
-                value: status,
-                onChange: setStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "success", label: "Sucesso" },
-                  { value: "error", label: "Erro" },
-                ],
-              },
-            ]}
-          />
-          <LogsTable
-            isLoading={isLoading}
-            empty="Nenhuma chamada à API do QRadar registrada."
-            headers={["Data", "Endpoint / Mensagem", "Status", "HTTP", "Duração"]}
-          >
-            {filtered.map((l) => (
-              <tr key={l.id}>
-                <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                  {fmt(l.created_at)}
-                </td>
-                <td
-                  className="muted"
-                  style={{
-                    fontSize: 11,
-                    maxWidth: 440,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {l.message ?? "—"}
-                </td>
-                <td>
-                  <LogsBadge tone={l.status === "success" ? "success" : "error"}>
-                    {l.status === "success" ? "Sucesso" : "Erro"}
-                  </LogsBadge>
-                </td>
-                <td className="mono" style={{ textAlign: "right", fontSize: 11 }}>
-                  {l.http_status ?? "—"}
-                </td>
-                <td className="mono" style={{ textAlign: "right", fontSize: 11 }}>
-                  {fmtDuration(l.duration_ms)}
-                </td>
-              </tr>
-            ))}
-          </LogsTable>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── AcessosTab ───────────────────────────────────────────────────────────────
-
-function AcessosTab({ logs, isLoading }: { logs: AccessLog[]; isLoading: boolean }) {
-  const [status, setStatus] = React.useState("all");
-  const [method, setMethod] = React.useState("all");
-  const [eventType, setEventType] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
-  const [geoData, setGeoData] = React.useState<Record<string, GeoResult | null>>({});
-
-  const filtered = React.useMemo(
-    () =>
-      logs.filter((l) => {
-        if (status !== "all" && l.status !== status) return false;
-        if (eventType !== "all" && l.event_type !== eventType) return false;
-        // Método é um atributo de LOGIN — qualquer filtro de método exclui logouts.
-        if (method !== "all" && l.event_type === "logout") return false;
-        if (method === "sso" && l.login_method !== "sso_azure") return false;
-        if (method === "invite" && l.login_method !== "invite") return false;
-        if (method === "email" && (l.login_method === "sso_azure" || l.login_method === "invite")) return false;
-        if (search.trim()) return ((l.email ?? "") + (l.full_name ?? "")).toLowerCase().includes(search.toLowerCase());
-        return true;
-      }),
-    [logs, status, eventType, method, search],
-  );
-
-  const loginLogs = React.useMemo(() => logs.filter((l) => l.event_type !== "logout"), [logs]);
-  const logoutLogs = React.useMemo(() => logs.filter((l) => l.event_type === "logout"), [logs]);
-
-  const sucesso = logs.filter((l) => l.status === "success").length;
-  const erros = logs.filter((l) => l.status === "error").length;
-  const ssoCount = loginLogs.filter((l) => l.login_method === "sso_azure").length;
-  const inviteCount = loginLogs.filter((l) => l.login_method === "invite").length;
-  const emailCount = loginLogs.filter((l) => l.login_method !== "sso_azure" && l.login_method !== "invite").length;
-  const logoutManualCount = logoutLogs.filter((l) => l.logout_reason === "manual").length;
-  const logoutInactivityCount = logoutLogs.filter((l) => l.logout_reason === "inactivity").length;
-  const logoutExpiredCount = logoutLogs.filter((l) => l.logout_reason === "expired").length;
-
-  function handleExpand(log: AccessLog) {
-    const next = expandedId === log.id ? null : log.id;
-    setExpandedId(next);
-    if (next && log.ip && !(log.ip in geoData)) {
-      fetchGeo(log.ip).then((geo) => setGeoData((prev) => ({ ...prev, [log.ip!]: geo })));
+async function fetchGeo(ip: string): Promise<GeoResult | null> {
+  if (!ip || isPrivateIp(ip)) return null;
+  if (geoCache.has(ip)) return geoCache.get(ip)!;
+  try {
+    const res = await fetch(`https://ipapi.co/${ip}/json/`);
+    if (!res.ok) {
+      geoCache.set(ip, null);
+      return null;
     }
+    const d = (await res.json()) as Partial<GeoResult>;
+    const result: GeoResult = {
+      country_name: d.country_name ?? "—",
+      country_code: d.country_code ?? "",
+      city: d.city ?? "—",
+      org: d.org ?? "—",
+    };
+    geoCache.set(ip, result);
+    return result;
+  } catch {
+    geoCache.set(ip, null);
+    return null;
+  }
+}
+
+function countryFlag(code: string): string {
+  if (!code || code.length !== 2) return "🌐";
+  return String.fromCodePoint(
+    ...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),
+  );
+}
+
+// ─── Normalização: cada tabela vira o mesmo formato de evento ────────────────
+
+function fromSysAudit(l: SystemAuditLog): LogEvent {
+  return {
+    key: `sysaudit:${l.id}`,
+    src: "sysaudit",
+    at: l.created_at,
+    title: `${SYS_ACTION_LABEL[l.acao] ?? l.acao} · ${moduleLabel(l.modulo)}`,
+    sub: l.mensagem_erro ? `${l.descricao} — ${l.mensagem_erro}` : l.descricao,
+    who: l.usuario_nome ?? l.usuario_email ?? "—",
+    status: l.status === "error" ? "err" : "ok",
+    facet: [l.modulo, moduleLabel(l.modulo)],
+    raw: l,
+  };
+}
+
+function fromAccess(l: AccessLog): LogEvent {
+  const isLogout = l.event_type === "logout";
+  const title = isLogout
+    ? `Logout ${LOGOUT_REASON_LABEL[l.logout_reason ?? ""] ?? ""}`.trim()
+    : l.status === "error"
+      ? "Login falhou"
+      : "Login";
+  const device = `${parseBrowser(l.user_agent)} em ${parseDevice(l.user_agent)}`;
+  const method = isLogout ? null : LOGIN_METHOD_LABEL(l.login_method);
+  return {
+    key: `acessos:${l.id}`,
+    src: "acessos",
+    at: l.created_at,
+    title,
+    sub: l.error_message
+      ? `${method ?? ""} · ${l.error_message}`
+      : [method, device].filter(Boolean).join(" · "),
+    who: l.full_name ?? l.email,
+    status: l.status === "error" ? "err" : "ok",
+    facet: isLogout
+      ? ["logout", "Logout"]
+      : [l.login_method ?? "email", method ?? "E-mail e senha"],
+    raw: l,
+  };
+}
+
+function fromImport(l: ImportLog, names: Map<string, string>): LogEvent {
+  const counts = `${l.imported_count.toLocaleString("pt-BR")} importados, ${l.ignored_count.toLocaleString("pt-BR")} ignorados`;
+  return {
+    key: `imports:${l.id}`,
+    src: "imports",
+    at: l.created_at,
+    title: `Importação · ${moduleLabel(l.module)}`,
+    sub: [l.filename, l.status === "error" && l.message ? l.message : counts]
+      .filter(Boolean)
+      .join(" · "),
+    who: (l.created_by && names.get(l.created_by)) || "—",
+    status: l.status === "error" ? "err" : l.status === "partial" ? "warn" : "ok",
+    facet: [l.module, moduleLabel(l.module)],
+    raw: l,
+  };
+}
+
+function fromApi(l: ApiLog): LogEvent {
+  const prov = API_PROVIDER_LABEL[l.provider] ?? l.provider;
+  return {
+    key: `apis:${l.id}`,
+    src: "apis",
+    at: l.created_at,
+    title: prov,
+    sub: [l.http_status ? `HTTP ${l.http_status}` : null, l.message, fmtDuration(l.duration_ms)]
+      .filter((v) => v && v !== "—")
+      .join(" · "),
+    who: "sistema",
+    status: l.status === "error" ? "err" : "ok",
+    facet: [l.provider, prov],
+    raw: l,
+  };
+}
+
+function fromEmail(l: EmailLog): LogEvent {
+  return {
+    key: `emails:${l.id}`,
+    src: "emails",
+    at: l.created_at,
+    title: l.subject ?? l.template ?? "E-mail",
+    sub: [l.template, l.error_message].filter(Boolean).join(" · "),
+    who: l.to_email,
+    status: l.status === "error" ? "err" : "ok",
+    facet: l.template ? [l.template, l.template] : ["—", "Sem template"],
+    raw: l,
+  };
+}
+
+function fromCfAudit(l: CfAuditLog): LogEvent {
+  return {
+    key: `audit:${l.id}`,
+    src: "audit",
+    at: l.created_at,
+    title: CF_ACTION_LABEL[l.action] ?? l.action,
+    sub: [l.zone_name ?? l.zone_id, l.message].filter(Boolean).join(" · "),
+    who: l.user_email ?? "—",
+    status: l.status === "error" ? "err" : "ok",
+    facet: [l.action, CF_ACTION_LABEL[l.action] ?? l.action],
+    raw: l,
+  };
+}
+
+function fromGmud(l: GmudLog): LogEvent {
+  const ev = GMUD_EVENT_LABEL[l.tipo_evento] ?? l.tipo_evento;
+  return {
+    key: `gmud:${l.id}`,
+    src: "gmud",
+    at: l.created_at,
+    title: l.gmud_titulo ? `${ev} · ${l.gmud_titulo}` : ev,
+    sub: l.descricao,
+    who: l.usuario_nome ?? l.usuario_email ?? "sistema",
+    status: l.status === "error" ? "err" : l.status === "warning" ? "warn" : "ok",
+    facet: [l.tipo_evento, ev],
+    raw: l,
+  };
+}
+
+function fromVuln(l: VulnLog): LogEvent {
+  const ev = VULN_EVENT_LABEL[l.tipo_evento] ?? l.tipo_evento;
+  return {
+    key: `vulns:${l.id}`,
+    src: "vulns",
+    at: l.created_at,
+    title: l.fqdn ? `${ev} · ${l.fqdn}` : ev,
+    sub: l.descricao,
+    who: l.usuario_nome ?? l.usuario_email ?? "sistema",
+    status: l.status === "error" ? "err" : l.status === "warning" ? "warn" : "ok",
+    facet: [l.tipo_evento, ev],
+    raw: l,
+  };
+}
+
+const FACET_LABEL: Partial<Record<SrcKey, string>> = {
+  sysaudit: "Todos os módulos",
+  acessos: "Todos os tipos",
+  imports: "Todos os módulos",
+  apis: "Todos os provedores",
+  emails: "Todos os templates",
+  audit: "Todas as operações",
+  gmud: "Todos os eventos",
+  vulns: "Todos os eventos",
+};
+
+// ─── CSS ──────────────────────────────────────────────────────────────────────
+
+const CSS = `
+  .lg-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
+  .lg-root * { box-sizing:border-box; }
+  .lg-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .lg-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .lg-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
+
+  .lg-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .lg-kpi { padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); min-width:0; text-align:left; background:transparent; border:0; color:inherit; font:inherit; position:relative; }
+  button.lg-kpi { cursor:pointer; }
+  button.lg-kpi:hover { background:var(--v2-hover); }
+  button.lg-kpi[aria-pressed="true"]::after { content:""; position:absolute; left:18px; right:18px; bottom:0; height:2px; background:var(--v2-accent); border-radius:2px; }
+  .lg-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .lg-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .lg-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .lg-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
+
+  .lg-layout { display:grid; grid-template-columns:236px minmax(0, 1fr); gap:16px; align-items:start; }
+  @media (max-width: 960px) { .lg-layout { grid-template-columns:minmax(0, 1fr); } }
+  .lg-rail { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; padding:6px; display:grid; gap:2px; position:sticky; top:16px; }
+  .lg-rail-h { font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--v2-fg-3); padding:10px 10px 4px; }
+  .lg-rail button { display:grid; grid-template-columns:18px minmax(0, 1fr) auto; gap:10px; align-items:center; padding:8px 10px; border:0; border-radius:8px; background:transparent; color:var(--v2-fg-2); font:13px var(--font-ui); text-align:left; cursor:pointer; }
+  .lg-rail button:hover { background:var(--v2-hover); color:var(--v2-fg); }
+  .lg-rail button[aria-current="true"] { background:color-mix(in oklch, var(--v2-accent) 12%, transparent); color:var(--v2-fg); font-weight:500; }
+  .lg-rail button[aria-current="true"] svg { color:var(--v2-accent); }
+  .lg-rail .n { font:500 11.5px var(--font-data); color:var(--v2-fg-3); }
+  .lg-rail .new { font:600 11px var(--font-data); color:#fff; background:var(--v2-crit); border-radius:99px; padding:1px 6px; }
+  .lg-rail-foot { border-top:1px solid var(--v2-line); margin-top:6px; padding:10px; font-size:12px; color:var(--v2-fg-3); line-height:1.6; }
+  .lg-rail-foot a { color:var(--v2-accent); text-decoration:none; }
+  .lg-rail-foot a:hover { text-decoration:underline; }
+
+  .lg-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; }
+  .lg-panel-h { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--v2-line); }
+  .lg-panel-h > b { font-size:14px; font-weight:600; margin-right:4px; }
+  .lg-panel-h > b span { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
+  .lg-panel-h > b code { font-family:var(--font-data); font-size:12px; }
+  .lg-input { margin-left:auto; width:240px; max-width:100%; height:32px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg); font-size:13px; font-family:var(--font-ui); outline:none; }
+  .lg-input:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .lg-select { height:32px; border:1px solid var(--v2-line); background:var(--v2-bg); color:var(--v2-fg); border-radius:8px; font:13px var(--font-ui); padding:0 8px; max-width:220px; }
+  .lg-seg { display:inline-flex; padding:2px; gap:2px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); }
+  .lg-seg button { height:26px; padding:0 10px; border:0; border-radius:6px; background:transparent; color:var(--v2-fg-2); font:500 13px var(--font-ui); cursor:pointer; white-space:nowrap; }
+  .lg-seg button:hover { color:var(--v2-fg); }
+  .lg-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); box-shadow:0 0 0 1px var(--v2-line); }
+
+  .lg-vol { padding:12px 16px 6px; border-bottom:1px solid var(--v2-line); }
+  .lg-vol-t { display:flex; justify-content:space-between; font-size:12px; color:var(--v2-fg-3); margin-bottom:8px; }
+  .lg-vol-t b { color:var(--v2-fg-2); font-weight:500; }
+  .lg-bars { display:grid; grid-template-columns:repeat(24, 1fr); gap:3px; align-items:end; height:56px; }
+  .lg-bars span { display:flex; flex-direction:column-reverse; gap:2px; height:100%; }
+  .lg-bars i { display:block; border-radius:3px 3px 0 0; background:color-mix(in oklch, var(--v2-accent) 55%, transparent); }
+  .lg-bars i.e { background:var(--v2-crit); border-radius:3px; }
+  .lg-vol-ax { display:flex; justify-content:space-between; font:400 11px var(--font-data); color:var(--v2-fg-3); margin-top:4px; }
+
+  .lg-tbl { overflow-x:auto; }
+  .lg-tbl table { width:100%; border-collapse:collapse; font-size:13px; }
+  .lg-tbl th { text-align:left; font-weight:500; font-size:12.5px; color:var(--v2-fg-3); padding:10px 16px; border-bottom:1px solid var(--v2-line); white-space:nowrap; position:sticky; top:0; background:var(--v2-surface); }
+  .lg-tbl td { padding:9px 16px; border-bottom:1px solid var(--v2-line); vertical-align:middle; }
+  .lg-tbl tr.row { cursor:pointer; }
+  .lg-tbl tr.row:hover td { background:var(--v2-hover); }
+  .lg-tbl tr.err td:first-child { box-shadow:inset 3px 0 0 var(--v2-crit); }
+  .lg-tbl tr.day td { background:var(--v2-surface-2); font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--v2-fg-3); padding:7px 16px; }
+  .lg-when { font:400 12.5px var(--font-data); white-space:nowrap; color:var(--v2-fg-2); }
+  .lg-when small { display:block; font-size:11px; color:var(--v2-fg-3); }
+  .lg-src { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--v2-fg-2); white-space:nowrap; }
+  .lg-src svg { color:var(--v2-fg-3); }
+  .lg-ev b { display:block; font-weight:500; font-size:13px; }
+  .lg-ev small { display:block; font-size:12px; color:var(--v2-fg-3); max-width:560px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lg-who { font-size:12.5px; color:var(--v2-fg-2); white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  .lg-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .lg-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+  .lg-tag { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:5px; border:1px solid var(--v2-line); font-size:12px; color:var(--v2-fg-2); }
+  .lg-empty { padding:28px 16px; color:var(--v2-fg-3); font-size:13px; }
+  .lg-more { padding:12px 16px; font-size:12.5px; color:var(--v2-fg-3); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lg-btn { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
+  .lg-btn:hover { background:var(--v2-hover); }
+
+  .lg-json { margin:0; padding:12px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font:12px/1.6 var(--font-data); color:var(--v2-fg-2); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .lg-json.err { border-color:color-mix(in oklch, var(--v2-crit) 35%, transparent); background:color-mix(in oklch, var(--v2-crit) 8%, transparent); }
+  .lg-chg { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .lg-chg th { text-align:left; font-weight:500; color:var(--v2-fg-3); padding:6px 8px; border-bottom:1px solid var(--v2-line); }
+  .lg-chg td { padding:6px 8px; border-bottom:1px solid var(--v2-line); font-family:var(--font-data); font-size:12px; overflow-wrap:anywhere; }
+  .lg-chg td.b { color:color-mix(in oklch, var(--v2-crit) 70%, var(--v2-fg)); text-decoration:line-through; }
+  .lg-chg td.a { color:color-mix(in oklch, var(--v2-ok) 70%, var(--v2-fg)); }
+  .lg-chips { display:flex; flex-wrap:wrap; gap:6px; }
+`;
+
+// ─── LogsDashboard ────────────────────────────────────────────────────────────
+
+const PAGE = 200;
+type Period = "24h" | "7d" | "all";
+const PERIOD_MIN: Record<Period, number> = {
+  "24h": 1440,
+  "7d": 10080,
+  all: Number.POSITIVE_INFINITY,
+};
+
+export function LogsDashboard() {
+  const queryClient = useQueryClient();
+
+  const imports = useQuery({
+    queryKey: ["import-logs"],
+    queryFn: async (): Promise<ImportLog[]> => {
+      const { data, error } = await supabase
+        .from("import_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as ImportLog[];
+    },
+  });
+
+  // Nome de quem importou (import_logs só guarda o id)
+  const importUserIds = React.useMemo(
+    () => [...new Set((imports.data ?? []).map((l) => l.created_by).filter(Boolean) as string[])],
+    [imports.data],
+  );
+  const { data: importProfiles } = useQuery({
+    queryKey: ["import-logs", "profiles", importUserIds],
+    enabled: importUserIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", importUserIds);
+      return (data ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>;
+    },
+  });
+
+  const apis = useQuery({
+    queryKey: ["api-logs"],
+    queryFn: async (): Promise<ApiLog[]> => {
+      const { data, error } = await supabase
+        .from("api_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as ApiLog[];
+    },
+  });
+
+  const audits = useQuery({
+    queryKey: ["audit-logs"],
+    queryFn: async (): Promise<CfAuditLog[]> => {
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as unknown as CfAuditLog[];
+    },
+    refetchInterval: 30_000,
+  });
+
+  const emails = useQuery({
+    queryKey: ["email-logs"],
+    queryFn: async (): Promise<EmailLog[]> => {
+      const { data, error } = await supabase
+        .from("email_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as EmailLog[];
+    },
+    refetchInterval: 30_000,
+  });
+
+  const gmudLogs = useQuery({
+    queryKey: ["gmud-logs"],
+    queryFn: async (): Promise<GmudLog[]> => {
+      const { data, error } = await supabase
+        .from("gmud_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as GmudLog[];
+    },
+  });
+
+  const vulnLogs = useQuery({
+    queryKey: ["vuln-logs"],
+    queryFn: async (): Promise<VulnLog[]> => {
+      const { data, error } = await supabase
+        .from("vuln_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as VulnLog[];
+    },
+  });
+
+  const accessLogs = useQuery({
+    queryKey: ["auth-access-logs"],
+    queryFn: async (): Promise<AccessLog[]> => {
+      const { data, error } = await supabase
+        .from("auth_access_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as AccessLog[];
+    },
+    refetchInterval: 5_000,
+  });
+
+  const systemAuditLogs = useQuery({
+    queryKey: ["system-audit-log"],
+    queryFn: async (): Promise<SystemAuditLog[]> => {
+      const { data, error } = await supabase
+        .from("system_audit_log")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as SystemAuditLog[];
+    },
+    refetchInterval: 30_000,
+  });
+
+  // Acessos em tempo real
+  React.useEffect(() => {
+    const channel = supabase
+      .channel("auth-access-logs-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "auth_access_logs" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["auth-access-logs"] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  // Popula o histórico de acessos uma vez (só admin global; falha silenciosa)
+  const seedFn = useServerFn(seedAuthAccessHistory);
+  const seededRef = React.useRef(false);
+  const refetchAccess = accessLogs.refetch;
+  React.useEffect(() => {
+    if (seededRef.current) return;
+    seededRef.current = true;
+    seedFn()
+      .then((res) => {
+        if (res?.seeded && res.seeded > 0) refetchAccess();
+      })
+      .catch(() => {});
+  }, [seedFn, refetchAccess]);
+
+  // "Agora" de referência — avança a cada minuto
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const [src, setSrc] = React.useState<SrcKey | "all">("all");
+  const [period, setPeriod] = React.useState<Period>("24h");
+  const [statusFilter, setStatusFilter] = React.useState<"all" | "err">("all");
+  const [facet, setFacet] = React.useState("all");
+  const [search, setSearch] = React.useState("");
+  const [limit, setLimit] = React.useState(PAGE);
+  const [openKey, setOpenKey] = React.useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+
+  // Selos de "erro novo": quando cada fonte foi vista pela última vez (persistido)
+  const [seenAt, setSeenAt] = React.useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("logs_tab_seen_at") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  const mountedAtRef = React.useRef(new Date().toISOString());
+  function markSeen(key: string) {
+    const ts = new Date().toISOString();
+    setSeenAt((prev) => {
+      const next = { ...prev, [key]: ts };
+      try {
+        localStorage.setItem("logs_tab_seen_at", JSON.stringify(next));
+      } catch {
+        /* armazenamento indisponível */
+      }
+      return next;
+    });
+  }
+  function selectSource(next: SrcKey | "all") {
+    if (src !== "all") markSeen(src);
+    if (next !== "all") markSeen(next);
+    setSrc(next);
+    setFacet("all");
+    setLimit(PAGE);
+  }
+
+  const names = React.useMemo(
+    () => new Map((importProfiles ?? []).map((p) => [p.id, p.full_name || p.email || ""])),
+    [importProfiles],
+  );
+
+  const events = React.useMemo(() => {
+    const all: LogEvent[] = [
+      ...(systemAuditLogs.data ?? []).map(fromSysAudit),
+      ...(accessLogs.data ?? []).map(fromAccess),
+      ...(imports.data ?? []).map((l) => fromImport(l, names)),
+      ...(apis.data ?? []).map(fromApi),
+      ...(emails.data ?? []).map(fromEmail),
+      ...(audits.data ?? []).map(fromCfAudit),
+      ...(gmudLogs.data ?? []).map(fromGmud),
+      ...(vulnLogs.data ?? []).map(fromVuln),
+    ];
+    return all.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  }, [
+    systemAuditLogs.data,
+    accessLogs.data,
+    imports.data,
+    names,
+    apis.data,
+    emails.data,
+    audits.data,
+    gmudLogs.data,
+    vulnLogs.data,
+  ]);
+
+  const loading =
+    systemAuditLogs.isLoading &&
+    accessLogs.isLoading &&
+    imports.isLoading &&
+    apis.isLoading &&
+    emails.isLoading &&
+    audits.isLoading;
+  if (loading) return <ModuleLoading />;
+
+  const countBySrc = (k: SrcKey) => events.filter((e) => e.src === k).length;
+  // Acessos: qualquer evento novo conta; demais fontes: só erros
+  const newCount = (k: SrcKey) => {
+    if (k === src) return 0;
+    const seen = seenAt[k] ?? mountedAtRef.current;
+    return events.filter(
+      (e) => e.src === k && e.at > seen && (k === "acessos" || e.status === "err"),
+    ).length;
+  };
+
+  const since24 = new Date(now - 86_400_000).toISOString();
+  const last24 = events.filter((e) => e.at >= since24);
+  const err24 = last24.filter((e) => e.status === "err");
+  const srcWithNew = SOURCES.filter((s) => s.key !== "acessos" && newCount(s.key) > 0).length;
+  const loginAttempts24 = last24.filter(
+    (e) => e.src === "acessos" && (e.raw as AccessLog).event_type === "login",
+  );
+  const loginFails24 = loginAttempts24.filter((e) => e.status === "err").length;
+
+  const bySrc = src === "all" ? events : events.filter((e) => e.src === src);
+  const facetOptions =
+    src === "all"
+      ? []
+      : [
+          ...new Map(bySrc.filter((e) => e.facet).map((e) => [e.facet![0], e.facet![1]])).entries(),
+        ].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
+  const periodSince = Number.isFinite(PERIOD_MIN[period])
+    ? new Date(now - PERIOD_MIN[period] * 60_000).toISOString()
+    : "";
+  const q = search.trim().toLowerCase();
+  const rows = bySrc.filter(
+    (e) =>
+      (!periodSince || e.at >= periodSince) &&
+      (statusFilter === "all" || e.status === "err") &&
+      (facet === "all" || e.facet?.[0] === facet) &&
+      (!q || `${e.title} ${e.sub} ${e.who}`.toLowerCase().includes(q)),
+  );
+  const shown = rows.slice(0, limit);
+
+  // Volume por hora (últimas 24h) da fonte selecionada
+  const hours = Array.from({ length: 24 }, (_, i) => {
+    const a = now - (24 - i) * 3_600_000;
+    const b = a + 3_600_000;
+    const ev = bySrc.filter((e) => {
+      const t = new Date(e.at).getTime();
+      return t >= a && t < b;
+    });
+    return { a, n: ev.length, e: ev.filter((x) => x.status === "err").length };
+  });
+  const maxH = Math.max(1, ...hours.map((h) => h.n));
+  const errH = hours.reduce((s, h) => s + h.e, 0);
+
+  const selected = events.find((e) => e.key === openKey) ?? null;
+  const openEvent = (k: string) => {
+    setOpenKey(k);
+    setSheetOpen(true);
+  };
+
+  const head = src === "all" ? null : SRC_BY_KEY[src];
+  const colCount = src === "all" ? 5 : 4;
+  let lastDay = "";
+
+  return (
+    <div className="lg-root">
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+
+      <div>
+        <h1 className="lg-ph-title">Central de Logs</h1>
+        <p className="lg-ph-sub">
+          Tudo o que aconteceu no Z-Sec em um só lugar: ações, acessos, importações, integrações e
+          e-mails
+        </p>
+      </div>
+
+      <div className="lg-kpis">
+        <div className="lg-kpi">
+          <span className="lg-kpi-label">Eventos · 24h</span>
+          <span className="lg-kpi-value">{last24.length.toLocaleString("pt-BR")}</span>
+          <span className="lg-kpi-foot">em {new Set(last24.map((e) => e.src)).size} fontes</span>
+        </div>
+        <button
+          className="lg-kpi"
+          aria-pressed={statusFilter === "err" && src === "all"}
+          onClick={() => {
+            selectSource("all");
+            setStatusFilter((s) => (s === "err" && src === "all" ? "all" : "err"));
+            setPeriod("24h");
+          }}
+        >
+          <span className="lg-kpi-label">
+            {err24.length > 0 && (
+              <span className="lg-sw" style={{ background: "var(--v2-crit)" }} />
+            )}
+            Erros · 24h
+          </span>
+          <span className="lg-kpi-value">{err24.length}</span>
+          <span className="lg-kpi-foot">
+            {srcWithNew
+              ? `${srcWithNew} ${srcWithNew === 1 ? "fonte" : "fontes"} com erro novo`
+              : "nenhum erro novo"}
+          </span>
+        </button>
+        <button
+          className="lg-kpi"
+          aria-pressed={src === "acessos" && statusFilter === "err"}
+          onClick={() => {
+            selectSource("acessos");
+            setStatusFilter("err");
+            setPeriod("24h");
+          }}
+        >
+          <span className="lg-kpi-label">Logins com falha · 24h</span>
+          <span className="lg-kpi-value">{loginFails24}</span>
+          <span className="lg-kpi-foot">de {loginAttempts24.length} tentativas</span>
+        </button>
+        <button
+          className="lg-kpi"
+          aria-pressed={src === "sysaudit" && statusFilter === "all"}
+          onClick={() => {
+            selectSource("sysaudit");
+            setStatusFilter("all");
+            setPeriod("24h");
+          }}
+        >
+          <span className="lg-kpi-label">Ações de usuários · 24h</span>
+          <span className="lg-kpi-value">{last24.filter((e) => e.src === "sysaudit").length}</span>
+          <span className="lg-kpi-foot">auditoria do sistema</span>
+        </button>
+      </div>
+
+      <div className="lg-layout">
+        <nav className="lg-rail" aria-label="Fontes de log">
+          <div className="lg-rail-h">Fontes</div>
+          <button aria-current={src === "all"} onClick={() => selectSource("all")}>
+            <List size={16} />
+            <span>Todas as fontes</span>
+            <span className="n">{events.length}</span>
+          </button>
+          {SOURCES.map((s) => {
+            const Icon = s.icon;
+            const n = newCount(s.key);
+            return (
+              <button key={s.key} aria-current={src === s.key} onClick={() => selectSource(s.key)}>
+                <Icon size={16} />
+                <span>{s.label}</span>
+                {n > 0 ? (
+                  <span
+                    className="new"
+                    title={`${n} ${s.key === "acessos" ? "evento" : "erro"}${n > 1 ? "s" : ""} novo${n > 1 ? "s" : ""} desde a última visita`}
+                  >
+                    {n}
+                  </span>
+                ) : (
+                  <span className="n">{countBySrc(s.key)}</span>
+                )}
+              </button>
+            );
+          })}
+          <div className="lg-rail-foot">
+            Situação dos cron jobs e dos domínios/SSL fica nos módulos próprios:{" "}
+            <Link to="/app/$module" params={{ module: "cron-jobs" }}>
+              Cron Jobs
+            </Link>{" "}
+            ·{" "}
+            <Link to="/app/$module" params={{ module: "dominios-ssl" }}>
+              Domínios/SSL
+            </Link>
+          </div>
+        </nav>
+
+        <section className="lg-panel">
+          <div className="lg-panel-h">
+            <b>
+              {head ? head.label : "Todas as fontes"}{" "}
+              <span>
+                · {rows.length.toLocaleString("pt-BR")} eventos
+                {head && (
+                  <>
+                    {" "}
+                    · <code>{head.table}</code>
+                  </>
+                )}
+              </span>
+            </b>
+            <div className="lg-seg" role="group" aria-label="Período">
+              {(
+                [
+                  ["24h", "24h"],
+                  ["7d", "7 dias"],
+                  ["all", "Tudo"],
+                ] as Array<[Period, string]>
+              ).map(([k, l]) => (
+                <button
+                  key={k}
+                  aria-pressed={period === k}
+                  onClick={() => {
+                    setPeriod(k);
+                    setLimit(PAGE);
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div className="lg-seg" role="group" aria-label="Status">
+              {(
+                [
+                  ["all", "Todos"],
+                  ["err", "Erros"],
+                ] as Array<["all" | "err", string]>
+              ).map(([k, l]) => (
+                <button
+                  key={k}
+                  aria-pressed={statusFilter === k}
+                  onClick={() => {
+                    setStatusFilter(k);
+                    setLimit(PAGE);
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            {src !== "all" && facetOptions.length > 1 && (
+              <select
+                className="lg-select"
+                aria-label="Filtro da fonte"
+                value={facet}
+                onChange={(e) => {
+                  setFacet(e.target.value);
+                  setLimit(PAGE);
+                }}
+              >
+                <option value="all">{FACET_LABEL[src] ?? "Todos"}</option>
+                {facetOptions.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            )}
+            <input
+              className="lg-input"
+              placeholder="Buscar evento, pessoa ou detalhe"
+              aria-label="Buscar nos logs"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setLimit(PAGE);
+              }}
+            />
+          </div>
+
+          <div className="lg-vol">
+            <div className="lg-vol-t">
+              <span>Volume por hora · últimas 24h</span>
+              <span>
+                <b>{errH}</b> {errH === 1 ? "erro" : "erros"}
+              </span>
+            </div>
+            <div className="lg-bars">
+              {hours.map((h) => (
+                <span
+                  key={h.a}
+                  title={`${fmtTime(h.a)} · ${h.n} eventos${h.e ? ` · ${h.e} ${h.e === 1 ? "erro" : "erros"}` : ""}`}
+                >
+                  {h.e > 0 && <i className="e" style={{ height: `${(h.e / maxH) * 100}%` }} />}
+                  <i style={{ height: `${((h.n - h.e) / maxH) * 100}%` }} />
+                </span>
+              ))}
+            </div>
+            <div className="lg-vol-ax">
+              <span>{fmtTime(now - 86_400_000)}</span>
+              <span>{fmtTime(now - 43_200_000)}</span>
+              <span>agora</span>
+            </div>
+          </div>
+
+          <div className="lg-tbl">
+            <table>
+              <thead>
+                <tr>
+                  <th>Quando</th>
+                  {src === "all" && <th>Fonte</th>}
+                  <th>Evento</th>
+                  <th>Quem</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.length === 0 ? (
+                  <tr>
+                    <td colSpan={colCount} className="lg-empty">
+                      {bySrc.length === 0
+                        ? "Nenhum evento registrado nesta fonte."
+                        : "Nenhum evento com esses filtros."}
+                    </td>
+                  </tr>
+                ) : (
+                  shown.map((e) => {
+                    const day = dayLabel(e.at, now);
+                    const sep = day !== lastDay;
+                    lastDay = day;
+                    const s = SRC_BY_KEY[e.src];
+                    const Icon = s.icon;
+                    const st = STATUS[e.status];
+                    return (
+                      <React.Fragment key={e.key}>
+                        {sep && (
+                          <tr className="day">
+                            <td colSpan={colCount}>{day}</td>
+                          </tr>
+                        )}
+                        <tr
+                          className={`row${e.status === "err" ? " err" : ""}`}
+                          tabIndex={0}
+                          onClick={() => openEvent(e.key)}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter") openEvent(e.key);
+                          }}
+                        >
+                          <td className="lg-when">
+                            {fmtTime(e.at)}
+                            <small>{fmtAgo(e.at, now)}</small>
+                          </td>
+                          {src === "all" && (
+                            <td>
+                              <span className="lg-src">
+                                <Icon size={14} />
+                                {s.label}
+                              </span>
+                            </td>
+                          )}
+                          <td className="lg-ev">
+                            <b>{e.title}</b>
+                            {e.sub && <small title={e.sub}>{e.sub}</small>}
+                          </td>
+                          <td className="lg-who" title={e.who}>
+                            {e.who}
+                          </td>
+                          <td>
+                            <span
+                              className="lg-pill"
+                              style={{ "--c": st.color } as React.CSSProperties}
+                            >
+                              {st.label}
+                            </span>
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          {rows.length > 0 && (
+            <div className="lg-more">
+              <span>
+                Mostrando {shown.length.toLocaleString("pt-BR")} de{" "}
+                {rows.length.toLocaleString("pt-BR")} · carrega os 200–500 mais recentes de cada
+                fonte
+              </span>
+              {rows.length > shown.length && (
+                <button className="lg-btn" onClick={() => setLimit((l) => l + PAGE)}>
+                  Mostrar mais
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <DetailSheet
+        open={sheetOpen && !!selected}
+        onOpenChange={setSheetOpen}
+        eyebrow={selected ? `${SRC_BY_KEY[selected.src].table} · ${fmtFull(selected.at)}` : ""}
+        title={selected?.title ?? ""}
+        badges={
+          selected && (
+            <>
+              <span
+                className="lg-pill"
+                style={{ "--c": STATUS[selected.status].color } as React.CSSProperties}
+              >
+                {STATUS[selected.status].label}
+              </span>
+              <span className="lg-tag">{SRC_BY_KEY[selected.src].label}</span>
+            </>
+          )
+        }
+        footer={
+          <button className="lg-btn" onClick={() => setSheetOpen(false)}>
+            Fechar
+          </button>
+        }
+      >
+        {selected && (
+          <div className="lg-root" style={{ gap: 20 }}>
+            <EventDetail event={selected} />
+          </div>
+        )}
+      </DetailSheet>
+    </div>
+  );
+}
+
+// ─── Detalhe do evento (painel lateral) ──────────────────────────────────────
+
+type Item = [string, React.ReactNode, boolean?];
+
+function ErrorBlock({ text }: { text: string | null | undefined }) {
+  if (!text) return null;
+  return (
+    <DetailSection title="Erro">
+      <pre className="lg-json err">{text}</pre>
+    </DetailSection>
+  );
+}
+
+function RawBlock({ data, title = "Dados brutos" }: { data: unknown; title?: string }) {
+  const rec = asRecord(data);
+  if (!rec || Object.keys(rec).length === 0) return null;
+  return (
+    <DetailSection title={title}>
+      <pre className="lg-json">{JSON.stringify(rec, null, 2)}</pre>
+    </DetailSection>
+  );
+}
+
+function EventDetail({ event }: { event: LogEvent }) {
+  switch (event.src) {
+    case "sysaudit": {
+      const l = event.raw as SystemAuditLog;
+      return (
+        <>
+          <ErrorBlock text={l.mensagem_erro} />
+          <DetailSection title="Ação">
+            <DetailList
+              items={[
+                ["Descrição", l.descricao],
+                ["Módulo", moduleLabel(l.modulo)],
+                ["Ação", SYS_ACTION_LABEL[l.acao] ?? l.acao],
+                [
+                  "Usuário",
+                  l.usuario_nome
+                    ? `${l.usuario_nome} (${l.usuario_email ?? "—"})`
+                    : (l.usuario_email ?? "—"),
+                ],
+              ]}
+            />
+          </DetailSection>
+          <RawBlock data={l.detalhes} />
+        </>
+      );
+    }
+    case "acessos":
+      return <AccessDetail log={event.raw as AccessLog} />;
+    case "imports": {
+      const l = event.raw as ImportLog;
+      return (
+        <>
+          {l.status === "error" && <ErrorBlock text={l.message} />}
+          <DetailSection title="Importação">
+            <DetailList
+              items={[
+                ["Módulo", moduleLabel(l.module)],
+                ["Arquivo", l.filename ?? "—", true],
+                ["Por", event.who],
+                ["Total de linhas", l.total_count.toLocaleString("pt-BR")],
+                ["Importadas", l.imported_count.toLocaleString("pt-BR")],
+                ["Ignoradas", l.ignored_count.toLocaleString("pt-BR")],
+                ...(l.status !== "error" && l.message ? ([["Mensagem", l.message]] as Item[]) : []),
+              ]}
+            />
+          </DetailSection>
+        </>
+      );
+    }
+    case "apis": {
+      const l = event.raw as ApiLog;
+      return (
+        <>
+          {l.status === "error" && <ErrorBlock text={l.message} />}
+          <DetailSection title="Chamada">
+            <DetailList
+              items={[
+                ["Provedor", API_PROVIDER_LABEL[l.provider] ?? l.provider],
+                ["Identificador", l.provider, true],
+                ["HTTP", l.http_status ?? "—", true],
+                ["Duração", fmtDuration(l.duration_ms), true],
+                ...(l.status !== "error" && l.message ? ([["Mensagem", l.message]] as Item[]) : []),
+              ]}
+            />
+          </DetailSection>
+        </>
+      );
+    }
+    case "emails": {
+      const l = event.raw as EmailLog;
+      return (
+        <>
+          <ErrorBlock text={l.error_message} />
+          <DetailSection title="E-mail">
+            <DetailList
+              items={[
+                ["Para", l.to_email],
+                ["Assunto", l.subject ?? "—"],
+                ["Template", l.template ?? "—", true],
+                ...(l.related_gmud_id ? ([["GMUD", l.related_gmud_id, true]] as Item[]) : []),
+              ]}
+            />
+          </DetailSection>
+        </>
+      );
+    }
+    case "audit":
+      return <CfAuditDetail log={event.raw as CfAuditLog} />;
+    case "gmud": {
+      const l = event.raw as GmudLog;
+      return (
+        <>
+          <DetailSection title="Evento">
+            <DetailList
+              items={[
+                ["Descrição", l.descricao],
+                ["GMUD", l.gmud_titulo ?? l.gmud_id ?? "—"],
+                ["Evento", GMUD_EVENT_LABEL[l.tipo_evento] ?? l.tipo_evento],
+                ["Usuário", l.usuario_nome ?? l.usuario_email ?? "sistema"],
+              ]}
+            />
+          </DetailSection>
+          <RawBlock data={l.detalhes} />
+        </>
+      );
+    }
+    case "vulns": {
+      const l = event.raw as VulnLog;
+      return (
+        <>
+          <DetailSection title="Evento">
+            <DetailList
+              items={[
+                ["Descrição", l.descricao],
+                ["FQDN", l.fqdn ?? "—", true],
+                ["Evento", VULN_EVENT_LABEL[l.tipo_evento] ?? l.tipo_evento],
+                ["Usuário", l.usuario_nome ?? l.usuario_email ?? "sistema"],
+              ]}
+            />
+          </DetailSection>
+          <RawBlock data={l.detalhes} />
+        </>
+      );
+    }
+  }
+}
+
+function AccessDetail({ log }: { log: AccessLog }) {
+  const [geo, setGeo] = React.useState<GeoResult | null | undefined>(() =>
+    log.ip && geoCache.has(log.ip) ? geoCache.get(log.ip) : undefined,
+  );
+  React.useEffect(() => {
+    if (!log.ip || isPrivateIp(log.ip) || geoCache.has(log.ip)) return;
+    let alive = true;
+    fetchGeo(log.ip).then((g) => alive && setGeo(g));
+    return () => {
+      alive = false;
+    };
+  }, [log.ip]);
+
+  const local = !log.ip || isPrivateIp(log.ip);
+  const isLogout = log.event_type === "logout";
+  return (
+    <>
+      <ErrorBlock text={log.error_message} />
+      <DetailSection title="Sessão">
+        <DetailList
+          items={[
+            ["Pessoa", log.full_name ?? "—"],
+            ["E-mail", log.email],
+            ["Papel", log.role ?? "—"],
+            isLogout
+              ? ["Motivo do logout", LOGOUT_REASON_LABEL[log.logout_reason ?? ""] ?? "—"]
+              : ["Método", LOGIN_METHOD_LABEL(log.login_method)],
+          ]}
+        />
+      </DetailSection>
+      <DetailSection title="Origem">
+        <DetailList
+          items={[
+            ["IP", log.ip ? `${log.ip}${local ? " (rede local)" : ""}` : "—", true],
+            [
+              "Localização",
+              local
+                ? "N/A (IP local)"
+                : geo === undefined
+                  ? "Buscando…"
+                  : geo === null
+                    ? "Não identificada"
+                    : `${countryFlag(geo.country_code)} ${geo.country_name} · ${geo.city}`,
+            ],
+            ...(geo ? ([["Provedor (ISP)", geo.org]] as Item[]) : []),
+            ["Dispositivo", `${parseDevice(log.user_agent)} · ${parseBrowser(log.user_agent)}`],
+            ["User agent", log.user_agent ?? "—", true],
+          ]}
+        />
+      </DetailSection>
+    </>
+  );
+}
+
+type ChangeEntry = { path: string; before: unknown; after: unknown };
+
+function CfAuditDetail({ log }: { log: CfAuditLog }) {
+  const d = asRecord(log.details) ?? {};
+  const show = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
+  const changes = Array.isArray(d.changes) ? (d.changes as ChangeEntry[]) : null;
+  let fields: Item[] = [];
+  let extra: React.ReactNode = null;
+
+  if (log.action === "purge_cache") {
+    const hosts = Array.isArray(d.hostnames) ? (d.hostnames as string[]) : [];
+    fields = [["Modo", d.purge_everything ? "Purge total da zona" : "Hostnames específicos"]];
+    if (!d.purge_everything && hosts.length)
+      extra = (
+        <DetailSection title="Hosts purgados">
+          <div className="lg-chips">
+            {hosts.map((h) => (
+              <span key={h} className="lg-tag" style={{ fontFamily: "var(--font-data)" }}>
+                {h}
+              </span>
+            ))}
+          </div>
+        </DetailSection>
+      );
+  } else if (log.action === "create_dns" || log.action === "update_dns") {
+    fields = [
+      ["Tipo", show(d.type), true],
+      ["Nome", show(d.name), true],
+      ["Conteúdo", show(d.content), true],
+      ["TTL", d.ttl === 1 ? "Auto" : show(d.ttl), true],
+      ["Proxy", d.proxied ? "Ativo" : "Desativado"],
+      ["Record ID", show(d.record_id), true],
+    ];
+  } else if (
+    log.action === "update_rule" ||
+    log.action === "toggle_rule" ||
+    log.action === "delete_rule"
+  ) {
+    fields = [
+      ["Categoria", show(d.category)],
+      ["Descrição", show(d.description)],
+      ...(log.action === "toggle_rule"
+        ? ([["Novo status", d.enabled ? "Habilitada" : "Desabilitada"]] as Item[])
+        : []),
+    ];
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col6">
-        <KpiCard
-          label="Total eventos"
-          value={logs.length}
-          color={T.accent}
-          icon={<LogIn style={{ width: 18, height: 18 }} />}
+    <>
+      {log.status === "error" && <ErrorBlock text={log.message} />}
+      <DetailSection title="Operação">
+        <DetailList
+          items={[
+            ["Operação", CF_ACTION_LABEL[log.action] ?? log.action],
+            ["Zona", log.zone_name ?? log.zone_id ?? "—", true],
+            ["Usuário", log.user_email ?? "—"],
+            ["Duração", fmtDuration(log.duration_ms), true],
+            ...(log.status !== "error" && log.message
+              ? ([["Mensagem", log.message]] as Item[])
+              : []),
+            ...fields,
+          ]}
         />
-        <KpiCard
-          label="Sucesso"
-          value={sucesso}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard label="Erros" value={erros} color={T.danger} icon={<XCircle style={{ width: 18, height: 18 }} />} />
-        <KpiCard
-          label="Via SSO (Azure)"
-          value={ssoCount}
-          color="#818CF8"
-          icon={<ShieldCheck style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Via E-mail/Senha"
-          value={emailCount}
-          color={T.accent}
-          icon={<KeyRound style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Convite (1º acesso)"
-          value={inviteCount}
-          color={T.warning}
-          icon={<UserPlus style={{ width: 18, height: 18 }} />}
-        />
-      </div>
-
-      <div className="logs-kpi-grid col4">
-        <KpiCard
-          label="Logouts totais"
-          value={logoutLogs.length}
-          color={T.neutral}
-          icon={<LogOut style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Logout manual"
-          value={logoutManualCount}
-          color={T.accent}
-          icon={<LogOut style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Logout p/ inatividade"
-          value={logoutInactivityCount}
-          color={T.warning}
-          icon={<Timer style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Logout p/ expiração (24h)"
-          value={logoutExpiredCount}
-          color={T.danger}
-          icon={<AlertCircle style={{ width: 18, height: 18 }} />}
-        />
-      </div>
-
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          Acessos ao Sistema
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length} de {logs.length} · atualiza em tempo real · clique na linha para detalhes
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            total={logs.length}
-            filtered={filtered.length}
-            filters={[
-              {
-                value: eventType,
-                onChange: setEventType,
-                options: [
-                  { value: "all", label: "Login e Logout" },
-                  { value: "login", label: "Somente Login" },
-                  { value: "logout", label: "Somente Logout" },
-                ],
-              },
-              {
-                value: status,
-                onChange: setStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "success", label: "Sucesso" },
-                  { value: "error", label: "Erro" },
-                ],
-              },
-              {
-                value: method,
-                onChange: setMethod,
-                options: [
-                  { value: "all", label: "Todos os métodos" },
-                  { value: "sso", label: "SSO (Azure AD)" },
-                  { value: "email", label: "E-mail / Senha" },
-                  { value: "invite", label: "Convite (1º acesso)" },
-                ],
-              },
-            ]}
-          />
-
-          {isLoading ? (
-            <div className="logs-loading">Carregando…</div>
-          ) : filtered.length === 0 ? (
-            <div className="logs-empty">Nenhum acesso registrado.</div>
-          ) : (
-            <div className="logs-table-wrap">
-              <table className="logs-table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Evento</th>
-                    <th>E-mail</th>
-                    <th>Nome</th>
-                    <th>Papel</th>
-                    <th>Método / Motivo</th>
-                    <th>Status</th>
-                    <th style={{ width: 28 }} />
+      </DetailSection>
+      {extra}
+      {(log.action === "update_dns" || log.action === "update_rule") && (
+        <DetailSection title="O que mudou">
+          {changes && changes.length ? (
+            <table className="lg-chg">
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Antes</th>
+                  <th>Depois</th>
+                </tr>
+              </thead>
+              <tbody>
+                {changes.map((c) => (
+                  <tr key={c.path}>
+                    <td>{c.path}</td>
+                    <td className="b">{show(c.before)}</td>
+                    <td className="a">{show(c.after)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((l) => {
-                    const isOpen = expandedId === l.id;
-                    const geo = l.ip ? geoData[l.ip] : undefined;
-                    const device = parseDevice(l.user_agent);
-                    const browser = parseBrowser(l.user_agent);
-
-                    return (
-                      <React.Fragment key={l.id}>
-                        <tr style={{ cursor: "pointer" }} onClick={() => handleExpand(l)}>
-                          <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                            {fmt(l.created_at)}
-                          </td>
-                          <td>
-                            <EventTypeBadge type={l.event_type === "logout" ? "logout" : "login"} />
-                          </td>
-                          <td style={{ fontSize: 12, fontWeight: 500 }}>{l.email}</td>
-                          <td className="muted" style={{ fontSize: 11 }}>
-                            {l.full_name ?? "—"}
-                          </td>
-                          <td>
-                            {l.role ? (
-                              <LogsBadge
-                                tone={
-                                  l.role === "admin" || l.role === "super_admin"
-                                    ? "error"
-                                    : l.role === "analista"
-                                      ? "warning"
-                                      : "info"
-                                }
-                              >
-                                {l.role === "admin"
-                                  ? "Admin"
-                                  : l.role === "super_admin"
-                                    ? "Super Admin"
-                                    : l.role === "analista"
-                                      ? "Analista"
-                                      : "Visualizador"}
-                              </LogsBadge>
-                            ) : (
-                              <span style={{ color: T.textMuted, fontSize: 11 }}>—</span>
-                            )}
-                          </td>
-                          <td>
-                            {l.event_type === "logout" ? (
-                              <LogoutReasonBadge reason={l.logout_reason} />
-                            ) : (
-                              <MethodBadge method={l.login_method} />
-                            )}
-                          </td>
-                          <td>
-                            <LogsBadge tone={l.status === "success" ? "success" : "error"}>
-                              {l.status === "success" ? "Sucesso" : "Erro"}
-                            </LogsBadge>
-                          </td>
-                          <td style={{ textAlign: "center", color: T.textMuted, fontSize: 10 }}>
-                            {isOpen ? "▲" : "▼"}
-                          </td>
-                        </tr>
-
-                        {isOpen && (
-                          <tr className="logs-expand-row">
-                            <td colSpan={8}>
-                              <div className="logs-detail-section">
-                                {/* ── Cards de info ── */}
-                                <div className="logs-detail-cards">
-                                  {/* IP */}
-                                  <div className="logs-detail-card" style={{ "--dc": T.accent } as React.CSSProperties}>
-                                    <div className="logs-detail-card-hd">
-                                      <MapPin style={{ width: 10, height: 10 }} />
-                                      IP de Origem
-                                    </div>
-                                    <div className="logs-detail-card-val mono">{l.ip ?? "—"}</div>
-                                    {l.ip && isPrivateIp(l.ip) && (
-                                      <div className="logs-detail-card-sub" style={{ color: T.warning }}>
-                                        rede local / dev
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Localização */}
-                                  <div className="logs-detail-card" style={{ "--dc": T.info } as React.CSSProperties}>
-                                    <div className="logs-detail-card-hd">
-                                      <Globe style={{ width: 10, height: 10 }} />
-                                      Localização
-                                    </div>
-                                    {!l.ip || isPrivateIp(l.ip) ? (
-                                      <div
-                                        className="logs-detail-card-val"
-                                        style={{ color: T.textMuted, fontWeight: 400 }}
-                                      >
-                                        N/A (IP local)
-                                      </div>
-                                    ) : geo === undefined ? (
-                                      <div
-                                        className="logs-detail-card-val"
-                                        style={{
-                                          color: T.textMuted,
-                                          fontWeight: 400,
-                                          fontSize: 11,
-                                        }}
-                                      >
-                                        Buscando…
-                                      </div>
-                                    ) : geo === null ? (
-                                      <div
-                                        className="logs-detail-card-val"
-                                        style={{ color: T.textMuted, fontWeight: 400 }}
-                                      >
-                                        Não identificado
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <div className="logs-detail-card-val">
-                                          {countryFlag(geo.country_code)} {geo.country_name}
-                                        </div>
-                                        <div className="logs-detail-card-sub">{geo.city}</div>
-                                      </>
-                                    )}
-                                  </div>
-
-                                  {/* ISP / Provedor */}
-                                  {geo && (
-                                    <div
-                                      className="logs-detail-card"
-                                      style={{ "--dc": "#6366F1" } as React.CSSProperties}
-                                    >
-                                      <div className="logs-detail-card-hd">
-                                        <Wifi style={{ width: 10, height: 10 }} />
-                                        Provedor (ISP)
-                                      </div>
-                                      <div className="logs-detail-card-val" style={{ fontSize: 11 }}>
-                                        {geo.org}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Dispositivo */}
-                                  <div
-                                    className="logs-detail-card"
-                                    style={{ "--dc": T.warning } as React.CSSProperties}
-                                  >
-                                    <div className="logs-detail-card-hd">
-                                      {/phone|iphone|android/i.test(device) ? (
-                                        <Smartphone style={{ width: 10, height: 10 }} />
-                                      ) : (
-                                        <Laptop style={{ width: 10, height: 10 }} />
-                                      )}
-                                      Dispositivo
-                                    </div>
-                                    <div className="logs-detail-card-val">{device}</div>
-                                    <div className="logs-detail-card-sub">via {browser}</div>
-                                  </div>
-                                </div>
-
-                                {/* ── Mensagem de erro ── */}
-                                {l.error_message && (
-                                  <div className="logs-detail-error">
-                                    <div className="logs-detail-error-hd">
-                                      <AlertCircle style={{ width: 11, height: 11 }} />
-                                      Motivo do Erro
-                                    </div>
-                                    <div className="logs-detail-error-msg">{l.error_message}</div>
-                                  </div>
-                                )}
-
-                                {/* ── User Agent ── */}
-                                <div className="logs-detail-ua">
-                                  <div className="logs-detail-ua-hd">
-                                    <Terminal style={{ width: 10, height: 10 }} />
-                                    User Agent
-                                  </div>
-                                  <div className="logs-detail-ua-val">{l.user_agent ?? "—"}</div>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{ fontSize: 12.5, color: "var(--v2-fg-3)" }}>
+              Nenhum campo alterado (reenviado igual).
             </div>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── GmudLogsTab ──────────────────────────────────────────────────────────────
-
-const GMUD_EVENT_LABELS: Record<
-  string,
-  { label: string; icon: React.ReactNode; tone: "success" | "error" | "warning" | "info" | "muted" }
-> = {
-  criacao: { label: "Criação", icon: <Plus className="size-3.5" />, tone: "info" },
-  aprovacao: { label: "Aprovação", icon: <CheckCircle2 className="size-3.5" />, tone: "success" },
-  rejeicao: { label: "Rejeição", icon: <XCircle className="size-3.5" />, tone: "error" },
-  mudanca_status: {
-    label: "Mudança de Status",
-    icon: <RefreshCw className="size-3.5" />,
-    tone: "warning",
-  },
-  exclusao: { label: "Exclusão", icon: <Trash2 className="size-3.5" />, tone: "error" },
-  email_enviado: { label: "E-mail Enviado", icon: <Mail className="size-3.5" />, tone: "success" },
-  email_erro: { label: "Erro de E-mail", icon: <Mail className="size-3.5" />, tone: "error" },
-  erro: { label: "Erro", icon: <AlertTriangle className="size-3.5" />, tone: "error" },
-};
-
-function GmudLogsTab({ logs, isLoading }: { logs: GmudLog[]; isLoading: boolean }) {
-  const [filterTipo, setFilterTipo] = React.useState("all");
-  const [filterStatus, setFilterStatus] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-
-  const filtered = React.useMemo(() => {
-    return logs.filter((l) => {
-      if (filterTipo !== "all" && l.tipo_evento !== filterTipo) return false;
-      if (filterStatus !== "all" && l.status !== filterStatus) return false;
-      if (search.trim()) {
-        const s = search.toLowerCase();
-        if (
-          !l.gmud_titulo?.toLowerCase().includes(s) &&
-          !l.descricao?.toLowerCase().includes(s) &&
-          !l.usuario_email?.toLowerCase().includes(s)
-        )
-          return false;
-      }
-      return true;
-    });
-  }, [logs, filterTipo, filterStatus, search]);
-
-  const total = logs.length;
-  const aprovados = logs.filter((l) => l.tipo_evento === "aprovacao").length;
-  const rejeitados = logs.filter((l) => l.tipo_evento === "rejeicao").length;
-  const erros = logs.filter((l) => l.status === "error").length;
-  const emailsEnv = logs.filter((l) => l.tipo_evento === "email_enviado").length;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col5">
-        <KpiCard
-          label="Total eventos"
-          value={total}
-          color={T.accent}
-          icon={<GitBranch style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Aprovações"
-          value={aprovados}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Rejeições"
-          value={rejeitados}
-          color={T.danger}
-          icon={<XCircle style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="E-mails enviados"
-          value={emailsEnv}
-          color={T.accent}
-          icon={<Mail style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Erros"
-          value={erros}
-          color={T.danger}
-          icon={<AlertTriangle style={{ width: 18, height: 18 }} />}
-        />
-      </div>
-
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          Logs de GMUD
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length} de {total}
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            total={total}
-            filtered={filtered.length}
-            filters={[
-              {
-                value: filterTipo,
-                onChange: setFilterTipo,
-                options: [
-                  { value: "all", label: "Todos os tipos" },
-                  ...Object.entries(GMUD_EVENT_LABELS).map(([k, v]) => ({
-                    value: k,
-                    label: v.label,
-                  })),
-                ],
-              },
-              {
-                value: filterStatus,
-                onChange: setFilterStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "success", label: "Sucesso" },
-                  { value: "error", label: "Erro" },
-                  { value: "warning", label: "Atenção" },
-                  { value: "info", label: "Informação" },
-                ],
-              },
-            ]}
-          />
-          <LogsTable
-            isLoading={isLoading}
-            empty="Nenhum log encontrado."
-            headers={["Data", "Tipo", "GMUD", "Descrição", "Usuário", "Status"]}
-          >
-            {filtered.map((l) => {
-              const ev = GMUD_EVENT_LABELS[l.tipo_evento] ?? {
-                label: l.tipo_evento,
-                icon: <Clock className="size-3.5" />,
-                tone: "muted" as const,
-              };
-              return (
-                <tr key={l.id}>
-                  <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                    {new Date(l.created_at).toLocaleString("pt-BR")}
-                  </td>
-                  <td>
-                    <LogsBadge tone={ev.tone}>{ev.label}</LogsBadge>
-                  </td>
-                  <td style={{ maxWidth: 180 }}>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        display: "block",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={l.gmud_titulo ?? "—"}
-                    >
-                      {l.gmud_titulo ?? <span style={{ color: T.textMuted }}>—</span>}
-                    </span>
-                    {l.gmud_id && (
-                      <span className="mono muted" style={{ fontSize: 10 }}>
-                        {l.gmud_id.slice(0, 8)}
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ maxWidth: 280 }}>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: T.textMuted,
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {l.descricao}
-                    </span>
-                    {l.detalhes && Object.keys(l.detalhes as object).length > 0 && (
-                      <details style={{ marginTop: 2 }}>
-                        <summary style={{ cursor: "pointer", fontSize: 10, color: T.accent }}>ver detalhes</summary>
-                        <pre
-                          style={{
-                            fontSize: 10,
-                            background: T.surfaceAlt,
-                            borderRadius: 4,
-                            padding: 6,
-                            marginTop: 4,
-                            overflow: "auto",
-                            maxHeight: 96,
-                            whiteSpace: "pre-wrap",
-                            color: T.textMuted,
-                          }}
-                        >
-                          {JSON.stringify(l.detalhes as Record<string, unknown>, null, 2)}
-                        </pre>
-                      </details>
-                    )}
-                  </td>
-                  <td style={{ fontSize: 11, color: T.textMuted }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <UserCheck style={{ width: 11, height: 11, flexShrink: 0 }} />
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                        title={l.usuario_email ?? ""}
-                      >
-                        {l.usuario_nome ?? l.usuario_email ?? <em>sistema</em>}
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <LogsBadge
-                      tone={
-                        l.status === "success"
-                          ? "success"
-                          : l.status === "error"
-                            ? "error"
-                            : l.status === "warning"
-                              ? "warning"
-                              : "info"
-                      }
-                    >
-                      {l.status === "success"
-                        ? "Sucesso"
-                        : l.status === "error"
-                          ? "Erro"
-                          : l.status === "warning"
-                            ? "Atenção"
-                            : "Info"}
-                    </LogsBadge>
-                  </td>
-                </tr>
-              );
-            })}
-          </LogsTable>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── VulnsLogsTab ─────────────────────────────────────────────────────────────
-
-const VULN_EVENT_LABELS: Record<
-  string,
-  { label: string; icon: React.ReactNode; tone: "success" | "error" | "warning" | "info" | "muted" }
-> = {
-  mudanca_status: {
-    label: "Mudança de Status",
-    icon: <RefreshCw className="size-3.5" />,
-    tone: "info",
-  },
-  mudanca_departamento: {
-    label: "Depto. Responsável",
-    icon: <UserCheck className="size-3.5" />,
-    tone: "warning",
-  },
-  solicitacao_aprovacao: {
-    label: "Solicitação Aprovação",
-    icon: <Clock className="size-3.5" />,
-    tone: "warning",
-  },
-  aprovacao: { label: "Aprovação", icon: <CheckCircle2 className="size-3.5" />, tone: "success" },
-  rejeicao: { label: "Rejeição", icon: <XCircle className="size-3.5" />, tone: "error" },
-  criacao: { label: "Criação", icon: <Plus className="size-3.5" />, tone: "info" },
-  mudanca_data: {
-    label: "Mudança de Data",
-    icon: <RefreshCw className="size-3.5" />,
-    tone: "muted",
-  },
-};
-
-function VulnsLogsTab({ logs, isLoading }: { logs: VulnLog[]; isLoading: boolean }) {
-  const [filterTipo, setFilterTipo] = React.useState("all");
-  const [filterStatus, setFilterStatus] = React.useState("all");
-  const [search, setSearch] = React.useState("");
-
-  const filtered = React.useMemo(
-    () =>
-      logs.filter((l) => {
-        if (filterTipo !== "all" && l.tipo_evento !== filterTipo) return false;
-        if (filterStatus !== "all" && l.status !== filterStatus) return false;
-        if (search.trim()) {
-          const s = search.toLowerCase();
-          return (
-            (l.fqdn ?? "").toLowerCase().includes(s) ||
-            (l.descricao ?? "").toLowerCase().includes(s) ||
-            (l.usuario_email ?? "").toLowerCase().includes(s)
-          );
-        }
-        return true;
-      }),
-    [logs, filterTipo, filterStatus, search],
-  );
-
-  const total = logs.length;
-  const aprovacoes = logs.filter((l) => l.tipo_evento === "aprovacao").length;
-  const rejeicoes = logs.filter((l) => l.tipo_evento === "rejeicao").length;
-  const erros = logs.filter((l) => l.status === "error").length;
-  const deptChanges = logs.filter((l) => l.tipo_evento === "mudanca_departamento").length;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col5">
-        <KpiCard
-          label="Total eventos"
-          value={total}
-          color={T.accent}
-          icon={<GitBranch style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Aprovações"
-          value={aprovacoes}
-          color={T.success}
-          icon={<CheckCircle2 style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Rejeições"
-          value={rejeicoes}
-          color={T.danger}
-          icon={<XCircle style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Mudança Depto."
-          value={deptChanges}
-          color={T.warning}
-          icon={<UserCheck style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard
-          label="Erros"
-          value={erros}
-          color={T.danger}
-          icon={<AlertTriangle style={{ width: 18, height: 18 }} />}
-        />
-      </div>
-
-      <div className="logs-panel">
-        <div className="logs-panel-header">
-          Logs de Vulnerabilidades
-          <span style={{ color: T.textSubtle, fontWeight: 400 }}>
-            {filtered.length} de {total}
-          </span>
-        </div>
-        <div className="logs-panel-body">
-          <LogsFilters
-            search={search}
-            onSearch={setSearch}
-            total={total}
-            filtered={filtered.length}
-            filters={[
-              {
-                value: filterTipo,
-                onChange: setFilterTipo,
-                options: [
-                  { value: "all", label: "Todos os tipos" },
-                  ...Object.entries(VULN_EVENT_LABELS).map(([k, v]) => ({
-                    value: k,
-                    label: v.label,
-                  })),
-                ],
-              },
-              {
-                value: filterStatus,
-                onChange: setFilterStatus,
-                options: [
-                  { value: "all", label: "Todos os status" },
-                  { value: "success", label: "Sucesso" },
-                  { value: "error", label: "Erro" },
-                  { value: "info", label: "Informação" },
-                  { value: "warning", label: "Atenção" },
-                ],
-              },
-            ]}
-          />
-          <LogsTable
-            isLoading={isLoading}
-            empty="Nenhum log de vulnerabilidade encontrado."
-            headers={["Data/Hora", "Tipo", "Host / FQDN", "Descrição", "Usuário", "Depto.", "Severidade", "Status"]}
-          >
-            {filtered.map((l) => {
-              const ev = VULN_EVENT_LABELS[l.tipo_evento] ?? {
-                label: l.tipo_evento,
-                icon: <Clock className="size-3.5" />,
-                tone: "muted" as const,
-              };
-              const det = l.detalhes ?? {};
-              return (
-                <tr key={l.id}>
-                  <td className="mono muted" style={{ whiteSpace: "nowrap", fontSize: 11 }}>
-                    {new Date(l.created_at).toLocaleString("pt-BR")}
-                  </td>
-                  <td>
-                    <LogsBadge tone={ev.tone}>{ev.label}</LogsBadge>
-                  </td>
-                  <td className="mono" style={{ fontWeight: 600, fontSize: 11 }}>
-                    {l.fqdn ?? <span style={{ color: T.textMuted }}>—</span>}
-                  </td>
-                  <td style={{ maxWidth: 260 }}>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: T.textMuted,
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {l.descricao}
-                    </span>
-                    {Object.keys(det).length > 0 && (
-                      <details style={{ marginTop: 2 }}>
-                        <summary style={{ cursor: "pointer", fontSize: 10, color: T.accent }}>ver detalhes</summary>
-                        <pre
-                          style={{
-                            fontSize: 10,
-                            background: T.surfaceAlt,
-                            borderRadius: 4,
-                            padding: 6,
-                            marginTop: 4,
-                            overflow: "auto",
-                            maxHeight: 96,
-                            whiteSpace: "pre-wrap",
-                            color: T.textMuted,
-                          }}
-                        >
-                          {JSON.stringify(det as Record<string, unknown>, null, 2)}
-                        </pre>
-                      </details>
-                    )}
-                  </td>
-                  <td style={{ fontSize: 11, color: T.textMuted }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <UserCheck style={{ width: 11, height: 11, flexShrink: 0 }} />
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                        title={l.usuario_email ?? ""}
-                      >
-                        {l.usuario_nome ?? l.usuario_email ?? <em>sistema</em>}
-                      </span>
-                    </div>
-                  </td>
-                  <td style={{ fontSize: 11, color: T.textMuted }}>
-                    {(det as any).department ?? (det as any).responsible ?? "—"}
-                  </td>
-                  <td>
-                    {(det as any).severity ? (
-                      <LogsBadge
-                        tone={
-                          (det as any).severity === "Crítica" || (det as any).severity === "Alta"
-                            ? "error"
-                            : (det as any).severity === "Média"
-                              ? "warning"
-                              : "muted"
-                        }
-                      >
-                        {(det as any).severity}
-                      </LogsBadge>
-                    ) : (
-                      <span style={{ color: T.textMuted, fontSize: 11 }}>—</span>
-                    )}
-                  </td>
-                  <td>
-                    <LogsBadge
-                      tone={
-                        l.status === "success"
-                          ? "success"
-                          : l.status === "error"
-                            ? "error"
-                            : l.status === "warning"
-                              ? "warning"
-                              : "info"
-                      }
-                    >
-                      {l.status === "success"
-                        ? "Sucesso"
-                        : l.status === "error"
-                          ? "Erro"
-                          : l.status === "warning"
-                            ? "Atenção"
-                            : "Info"}
-                    </LogsBadge>
-                  </td>
-                </tr>
-              );
-            })}
-          </LogsTable>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── CronJobsTab ──────────────────────────────────────────────────────────────
-
-function fmtInterval(minutes: number): string {
-  if (minutes % 60 === 0) return `${minutes / 60}h`;
-  if (minutes < 60) return `${minutes}min`;
-  return `${(minutes / 60).toFixed(1)}h`;
-}
-
-function CronJobsTab({ logs, isLoading }: { logs: CronJobRun[]; isLoading: boolean }) {
-  const ok = logs.filter((j) => getCronHealth(j).tone === "success").length;
-  const issues = logs.length - ok;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="logs-kpi-grid col3">
-        <KpiCard
-          label="Jobs monitorados"
-          value={logs.length}
-          color={T.accent}
-          icon={<Timer style={{ width: 18, height: 18 }} />}
-        />
-        <KpiCard label="OK" value={ok} color={T.success} icon={<CheckCircle2 style={{ width: 18, height: 18 }} />} />
-        <KpiCard
-          label="Atrasados / com erro"
-          value={issues}
-          color={T.danger}
-          icon={<AlertTriangle style={{ width: 18, height: 18 }} />}
-        />
-      </div>
-
-      {isLoading ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "48px 0",
-            color: "#6B7280",
-            fontSize: 13,
-            fontFamily: "'DM Sans',sans-serif",
-          }}
-        >
-          Carregando jobs...
-        </div>
-      ) : logs.length === 0 ? (
-        <div className="logs-panel">
-          <div className="logs-panel-body">
-            <div style={{ textAlign: "center", padding: "40px 0", color: "#6B7280", fontSize: 13 }}>
-              Nenhum cron job monitorado.
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="logs-cron-grid">
-          {logs.map((j) => {
-            const { tone, label } = getCronHealth(j);
-            const cardColor = tone === "success" ? T.success : tone === "warning" ? T.warning : T.danger;
-            const elapsed = j.last_attempt_at ? Date.now() - new Date(j.last_attempt_at).getTime() : null;
-            const expectedMs = j.expected_interval_minutes * 60 * 1000;
-            const pct = elapsed !== null ? Math.min(100, (elapsed / expectedMs) * 100) : 100;
-            const barColor = pct < 70 ? T.success : pct < 100 ? T.warning : T.danger;
-
-            return (
-              <div key={j.job_name} className="logs-cron-card" style={{ "--cc": cardColor } as React.CSSProperties}>
-                {/* Header */}
-                <div className="logs-cron-card-hd">
-                  <div className="logs-cron-card-left">
-                    <div
-                      className={`logs-cron-dot${tone === "success" ? " pulse" : ""}`}
-                      style={{ "--cc": cardColor } as React.CSSProperties}
-                    />
-                    <span className="logs-cron-name">{j.label}</span>
-                  </div>
-                  <div className="logs-cron-badges">
-                    <LogsBadge tone={tone as any}>{label}</LogsBadge>
-                    {j.last_trigger && (
-                      <LogsBadge tone="muted">{j.last_trigger === "cron" ? "Auto" : "Manual"}</LogsBadge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Body */}
-                <div className="logs-cron-body">
-                  {/* Stats */}
-                  <div className="logs-cron-stats">
-                    <div className="logs-cron-stat">
-                      <div className="logs-cron-stat-lbl">
-                        <Clock size={9} />
-                        Última tentativa
-                      </div>
-                      <div className="logs-cron-stat-val">{fmtDateTime(j.last_attempt_at)}</div>
-                    </div>
-                    <div className="logs-cron-stat">
-                      <div className="logs-cron-stat-lbl">
-                        <CheckCircle2 size={9} />
-                        Último sucesso
-                      </div>
-                      <div className="logs-cron-stat-val">{fmtDateTime(j.last_success_at)}</div>
-                    </div>
-                    <div className="logs-cron-stat">
-                      <div className="logs-cron-stat-lbl">
-                        <Timer size={9} />
-                        Intervalo
-                      </div>
-                      <div className="logs-cron-stat-val large" style={{ color: cardColor }}>
-                        {fmtInterval(j.expected_interval_minutes)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Freshness bar */}
-                  <div>
-                    <div className="logs-cron-bar-label">
-                      <span>Atualidade da execução</span>
-                      <span style={{ color: barColor, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
-                    </div>
-                    <div className="logs-cron-bar-wrap">
-                      <div
-                        className="logs-cron-bar"
-                        style={{ width: `${pct}%`, "--bar-color": barColor } as React.CSSProperties}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Technical job name */}
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: "#6B7280",
-                      fontFamily: "'IBM Plex Mono',monospace",
-                      background: T.surfaceAlt,
-                      borderRadius: 5,
-                      padding: "4px 8px",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      border: `1px solid ${T.border}`,
-                    }}
-                  >
-                    {j.job_name}
-                  </div>
-
-                  {/* Error panel */}
-                  {j.last_error && (
-                    <div className="logs-cron-error">
-                      <div className="logs-cron-error-hd">
-                        <AlertCircle size={10} />
-                        Último erro registrado
-                      </div>
-                      <div className="logs-cron-error-msg">{j.last_error}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        </DetailSection>
       )}
-    </div>
+      {!fields.length && !extra && <RawBlock data={log.details} />}
+    </>
   );
-}
-
-// ─── Legacy KpiTile (mantido para compatibilidade com outros imports externos) ─
-export function KpiTile({
-  label,
-  value,
-  color,
-  icon,
-}: {
-  label: string;
-  value: string | number;
-  color: string;
-  icon?: React.ReactNode;
-}) {
-  return <KpiCard label={label} value={value} color={color} icon={icon} />;
 }

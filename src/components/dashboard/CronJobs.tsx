@@ -4,303 +4,119 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
+import { dialogStyle } from "./ColaboradoresPanel";
 import { type CronJobRun, getCronHealth, fmtDateTime } from "./CronHealthBadge";
 import { toggleCronJob, createCronJobEntry, updateCronJobEntry } from "@/lib/cron-jobs.functions";
-import {
-  Timer,
-  CheckCircle2,
-  AlertTriangle,
-  AlertCircle,
-  Clock,
-  Plus,
-  X,
-  Power,
-  Pencil,
-  Save,
-  Hourglass,
-  CalendarClock,
-} from "lucide-react";
-
-// ─── Design Tokens (espelho do módulo Logs) ────────────────────────────────────
-const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  surfaceHover: "#161C2E",
-  border: "#1E2640",
-  borderHi: "#2A3560",
-  accent: "#3B82F6",
-  accentGlow: "rgba(59,130,246,0.15)",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
-};
+import { AlertTriangle, Check, Plus } from "lucide-react";
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .cj-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
+  .cj-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
   .cj-root * { box-sizing:border-box; }
+  .cj-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .cj-ph { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .cj-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .cj-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
 
-  /* ── Page header ── */
-  .cj-page-header {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:16px 22px; display:flex; align-items:center; justify-content:space-between;
-    margin-bottom:4px;
-  }
-  .cj-page-title {
-    font-size:14px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em;
-  }
-  .cj-page-sub { font-size:12px; color:${T.textMuted}; margin-top:3px; line-height:1.5; }
+  .cj-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .cj-kpi { padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); min-width:0; text-align:left; background:transparent; border:0; color:inherit; font:inherit; position:relative; }
+  button.cj-kpi { cursor:pointer; }
+  button.cj-kpi:hover { background:var(--v2-hover); }
+  button.cj-kpi[aria-pressed="true"]::after { content:""; position:absolute; left:18px; right:18px; bottom:0; height:2px; background:var(--v2-accent); border-radius:2px; }
+  .cj-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .cj-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .cj-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .cj-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
 
-  .cj-stat-pill {
-    display:inline-flex; align-items:center; gap:5px; padding:4px 10px;
-    border-radius:5px; font-size:10px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
-  }
-  .cj-stat-pill.ok   { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .cj-stat-pill.err  { background:${T.dangerBg};  color:${T.danger};  border:1px solid rgba(239,68,68,0.2); }
-  .cj-stat-pill.info { background:${T.accentSoft}; color:${T.accent}; border:1px solid rgba(59,130,246,0.2); }
-  .cj-stat-dot { width:5px; height:5px; border-radius:50%; background:currentColor; flex-shrink:0; }
+  .cj-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
+  .cj-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .cj-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .cj-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .cj-btn.primary:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .cj-btn.ghost { border-color:transparent; background:transparent; }
+  .cj-input, .cj-select { width:100%; height:34px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg); font-size:13px; font-family:var(--font-ui); outline:none; }
+  .cj-input:focus, .cj-select:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .cj-field { display:grid; gap:6px; min-width:0; font-size:12.5px; font-weight:500; color:var(--v2-fg-2); }
+  .cj-field small { font-size:12px; font-weight:400; color:var(--v2-fg-3); }
 
-  /* ── KPI grid ── */
-  .cj-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
-  .cj-kpi-card {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:14px 16px; display:flex; flex-direction:column; gap:6px;
-    position:relative; overflow:hidden; transition:border-color 0.2s;
-  }
-  .cj-kpi-card:hover { border-color:${T.borderHi}; }
-  .cj-kpi-card::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:2px;
-    background:var(--kpi-color,${T.accent});
-  }
-  .cj-kpi-label {
-    font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-  }
-  .cj-kpi-value {
-    font-size:22px; font-weight:700; font-family:'Space Grotesk',sans-serif;
-    color:var(--kpi-color,${T.accent}); line-height:1; display:flex; align-items:center; gap:7px;
-  }
+  .cj-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .cj-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+  .cj-tag { display:inline-flex; align-items:center; height:20px; padding:0 7px; border-radius:5px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font-size:11.5px; color:var(--v2-fg-2); white-space:nowrap; }
+  .cj-tag.alert { color:color-mix(in oklch, var(--v2-high) 80%, var(--v2-fg)); border-color:color-mix(in oklch, var(--v2-high) 40%, transparent); }
+  .cj-seg { display:inline-flex; padding:2px; gap:2px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); }
+  .cj-seg button { height:28px; padding:0 10px; border:0; border-radius:6px; background:transparent; color:var(--v2-fg-2); font:500 13px var(--font-ui); cursor:pointer; white-space:nowrap; }
+  .cj-seg button:hover { color:var(--v2-fg); }
+  .cj-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); box-shadow:0 0 0 1px var(--v2-line); }
 
-  /* ── Cron cards ── */
-  .cj-grid {
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(480px,1fr)); gap:14px;
-  }
-  .cj-card {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    overflow:hidden; border-left:3px solid var(--cc,${T.border});
-    display:flex; flex-direction:column;
-    transition:border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
-  }
-  .cj-card:hover { box-shadow:0 0 0 1px ${T.borderHi}; }
-  .cj-card.disabled { opacity:0.55; }
+  /* ── Linha do tempo ── */
+  .cj-tl { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; min-width:0; }
+  .cj-tl-h { display:flex; gap:8px 12px; align-items:center; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .cj-tl-h > b { font-size:14px; font-weight:600; }
+  .cj-tl-h > b span { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
+  .cj-tl-h .cj-input { margin-left:auto; width:200px; max-width:100%; }
+  .cj-tl-scroll { overflow-x:auto; }
+  .cj-tl-grid { min-width:900px; display:grid; grid-template-columns:250px minmax(0, 1fr) 64px; }
+  .cj-tl-grid > * { min-width:0; }
+  .cj-tl-axis { position:relative; height:30px; border-bottom:1px solid var(--v2-line); }
+  .cj-tl-axis span { position:absolute; top:9px; transform:translateX(-50%); font:500 11px var(--font-data); color:var(--v2-fg-3); white-space:nowrap; }
+  .cj-tl-axis span.now { color:var(--v2-accent); font-weight:600; }
+  .cj-tl-gh { grid-column:1 / -1; padding:10px 18px 6px; font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--v2-fg-3); background:var(--v2-surface-2); border-bottom:1px solid var(--v2-line); }
+  .cj-tl-empty { grid-column:1 / -1; padding:24px 18px; color:var(--v2-fg-3); font-size:13px; }
+  .cj-tl-row { display:contents; cursor:pointer; }
+  .cj-tl-row > div { border-bottom:1px solid var(--v2-line); min-height:52px; }
+  .cj-tl-row:hover > div, .cj-tl-row:focus-visible > div { background:var(--v2-hover); }
+  .cj-tl-row:focus-visible { outline:none; }
+  .cj-tl-name { display:flex; gap:10px; align-items:center; padding:8px 12px 8px 18px; }
+  .cj-tl-name .dot { width:9px; height:9px; border-radius:50%; background:var(--c); flex:none; box-shadow:0 0 0 3px color-mix(in oklch, var(--c) 20%, transparent); }
+  .cj-tl-name b { display:block; font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cj-tl-name small { display:block; font:400 11.5px var(--font-data); color:var(--v2-fg-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cj-tl-row.off .cj-tl-name, .cj-tl-row.off .cj-tl-track { opacity:0.45; }
+  .cj-tl-track { position:relative; }
+  .cj-tl-track > svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .cj-tl-track .vl { position:absolute; top:0; bottom:0; width:1px; background:var(--v2-line); opacity:0.6; }
+  .cj-tl-track .base { position:absolute; left:0; right:0; top:50%; height:1px; background:var(--v2-line); }
+  .cj-tl-track .nowl { position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:var(--v2-accent); opacity:0.7; }
+  .cj-tl-track .fut1 { position:absolute; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; border:1.5px dashed var(--v2-fg-3); background:var(--v2-surface); }
+  .cj-tl-track .last { position:absolute; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:var(--c); border:2px solid var(--v2-surface); box-shadow:0 0 0 1px var(--c); z-index:2; }
+  .cj-tl-track .gap { position:absolute; top:50%; height:18px; margin-top:-9px; border-radius:3px; background:repeating-linear-gradient(135deg, color-mix(in oklch, var(--v2-crit) 35%, transparent) 0 4px, transparent 4px 8px); border:1px solid color-mix(in oklch, var(--v2-crit) 45%, transparent); }
+  .cj-tl-track .edge { position:absolute; left:4px; top:50%; transform:translateY(-50%); font:500 11px var(--font-data); color:var(--v2-crit); background:var(--v2-surface); padding:0 4px; z-index:2; white-space:nowrap; }
+  .cj-tl-row:hover .edge { background:var(--v2-hover); }
+  .cj-tl-sw { display:grid; place-items:center; }
+  .cj-tl-leg { display:flex; flex-wrap:wrap; gap:6px 16px; padding:10px 18px; font-size:12px; color:var(--v2-fg-3); }
+  .cj-tl-leg span { display:inline-flex; gap:6px; align-items:center; }
+  .cj-tl-leg i { display:inline-block; }
 
-  .cj-card-hd {
-    padding:14px 20px 12px; display:flex; align-items:center;
-    justify-content:space-between; gap:8px; border-bottom:1px solid ${T.border};
-  }
-  .cj-card-left { display:flex; align-items:center; gap:9px; min-width:0; }
-  .cj-dot {
-    width:9px; height:9px; border-radius:50%; flex-shrink:0;
-    background:var(--cc,${T.neutral}); position:relative;
-  }
-  .cj-dot.pulse::after {
-    content:''; position:absolute; inset:-3px; border-radius:50%;
-    border:2px solid var(--cc,${T.neutral}); opacity:0;
-    animation:cjRing 2.2s ease-out infinite;
-  }
-  @keyframes cjRing {
-    0%   { transform:scale(0.6); opacity:0.7; }
-    100% { transform:scale(1.8); opacity:0; }
-  }
-  .cj-name {
-    font-size:13px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; white-space:nowrap;
-    overflow:hidden; text-overflow:ellipsis;
-  }
-  .cj-card-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  /* ── Listas ── */
+  .cj-duo { display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:16px; }
+  .cj-lst { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; }
+  .cj-lst h3 { margin:0; padding:12px 18px; font-size:14px; font-weight:600; border-bottom:1px solid var(--v2-line); }
+  .cj-lst h3 span { font-weight:400; font-size:12.5px; color:var(--v2-fg-3); }
+  .cj-lst ol { list-style:none; margin:0; padding:4px 0; }
+  .cj-lst li { display:grid; grid-template-columns:84px minmax(0, 1fr) auto; gap:12px; align-items:center; padding:8px 18px; cursor:pointer; }
+  .cj-lst li.prob { grid-template-columns:120px minmax(0, 1fr); }
+  .cj-lst li:hover { background:var(--v2-hover); }
+  .cj-lst .t { font:500 13px var(--font-data); }
+  .cj-lst .t small { display:block; font-weight:400; font-size:11px; color:var(--v2-fg-3); }
+  .cj-lst li b { font-size:13px; font-weight:500; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cj-lst .e { display:block; font:400 12px var(--font-data); color:var(--v2-fg-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cj-lst .empty { padding:20px 18px; color:var(--v2-fg-3); font-size:13px; }
 
-  /* ── Badges ── */
-  .cj-badge {
-    display:inline-flex; align-items:center; gap:4px; padding:2px 7px;
-    border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace;
-  }
-  .cj-badge.success { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .cj-badge.warning { background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.2); }
-  .cj-badge.danger  { background:${T.dangerBg};  color:${T.danger};  border:1px solid rgba(239,68,68,0.2); }
-  .cj-badge.muted   { background:rgba(107,114,128,0.1); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2); }
-
-  /* ── Toggle row ── */
-  .cj-toggle-row {
-    display:flex; align-items:center; gap:8px;
-    font-size:10px; font-family:'IBM Plex Mono',monospace;
-    color:${T.textMuted}; white-space:nowrap;
-  }
-  .cj-toggle-label { font-size:9px; text-transform:uppercase; letter-spacing:0.1em; }
-
-  /* ── Card body ── */
-  .cj-card-body { padding:16px 20px; display:flex; flex-direction:column; gap:14px; }
-  .cj-stats { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px; }
-  .cj-stat { display:flex; flex-direction:column; gap:4px; }
-  .cj-stat-lbl {
-    display:flex; align-items:center; gap:4px; font-size:9px;
-    font-family:'IBM Plex Mono',monospace; text-transform:uppercase;
-    letter-spacing:0.1em; color:${T.textMuted};
-  }
-  .cj-stat-val { font-size:11px; font-family:'IBM Plex Mono',monospace; color:${T.textSecondary}; font-weight:500; }
-  .cj-stat-val.large {
-    font-size:15px; font-family:'Space Grotesk',sans-serif;
-    font-weight:700; color:var(--cc,${T.accent});
-  }
-
-  /* ── Freshness bar ── */
-  .cj-bar-wrap { height:4px; background:${T.border}; border-radius:2px; overflow:hidden; }
-  .cj-bar { height:100%; border-radius:2px; transition:width 0.6s ease; background:var(--bar-color,${T.success}); }
-  .cj-bar-label {
-    display:flex; justify-content:space-between; align-items:center;
-    font-size:9px; font-family:'IBM Plex Mono',monospace;
-    color:${T.textMuted}; margin-bottom:5px;
-  }
-
-  /* ── Job name chip ── */
-  .cj-jobname {
-    font-size:10px; color:#6B7280;
-    font-family:'IBM Plex Mono',monospace;
-    background:${T.surfaceAlt}; border-radius:5px; padding:4px 6px 4px 8px;
-    border:1px solid ${T.border};
-    display:flex; align-items:center; justify-content:space-between; gap:8px;
-  }
-  .cj-jobname-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .cj-jobname-kind {
-    flex-shrink:0; font-size:8px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; padding:2px 6px; border-radius:4px;
-    font-family:'IBM Plex Mono',monospace;
-  }
-  .cj-jobname-kind.sync  { background:${T.accentSoft}; color:${T.accent}; }
-  .cj-jobname-kind.alert { background:${T.warningBg};  color:${T.warning}; }
-
-  /* ── Error panel ── */
-  .cj-error {
-    background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2);
-    border-radius:7px; padding:10px 12px; border-left:3px solid ${T.danger};
-  }
-  .cj-error-hd {
-    display:flex; align-items:center; gap:5px; margin-bottom:5px;
-    font-size:9px; font-family:'IBM Plex Mono',monospace;
-    text-transform:uppercase; letter-spacing:0.1em; color:${T.danger};
-  }
-  .cj-error-msg {
-    font-size:11px; color:${T.danger}; font-family:'IBM Plex Mono',monospace;
-    line-height:1.5; word-break:break-word;
-  }
-
-  /* ── Inline edit panel ── */
-  .cj-edit-panel {
-    background:${T.surfaceAlt}; border-top:1px solid ${T.border};
-    padding:14px 20px; display:flex; flex-direction:column; gap:12px;
-    animation:cjFadeIn 0.15s ease;
-  }
-  @keyframes cjFadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
-  .cj-edit-panel-title {
-    font-size:10px; font-weight:700; text-transform:uppercase;
-    letter-spacing:0.1em; color:${T.accent}; font-family:'IBM Plex Mono',monospace;
-    display:flex; align-items:center; gap:5px;
-  }
-  .cj-edit-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .cj-edit-actions { display:flex; justify-content:flex-end; gap:8px; }
-
-  /* ── Modal overlay ── */
-  .cj-overlay {
-    position:fixed; inset:0; background:rgba(0,0,0,0.7);
-    display:flex; align-items:center; justify-content:center;
-    z-index:9999; padding:16px;
-  }
-  .cj-modal {
-    background:#0D1117; border:1px solid ${T.border}; border-radius:12px;
-    width:100%; max-width:540px; display:flex; flex-direction:column; gap:0;
-    box-shadow:0 24px 48px rgba(0,0,0,0.5);
-  }
-  .cj-modal-hd {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:18px 22px 14px; border-bottom:1px solid ${T.border};
-  }
-  .cj-modal-title {
-    font-size:13px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif;
-  }
-  .cj-modal-body { padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
-  .cj-modal-footer {
-    padding:14px 22px; border-top:1px solid ${T.border};
-    display:flex; justify-content:flex-end; gap:8px;
-  }
-  .cj-field { display:flex; flex-direction:column; gap:6px; }
-  .cj-field-label {
-    font-size:10px; font-weight:700; text-transform:uppercase;
-    letter-spacing:0.1em; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-  }
-  .cj-input, .cj-select {
-    background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:6px;
-    padding:8px 12px; font-size:12px; color:${T.textPrimary};
-    font-family:'IBM Plex Mono',monospace; outline:none; width:100%;
-    transition:border-color 0.15s;
-  }
-  .cj-input:focus, .cj-select:focus { border-color:rgba(59,130,246,0.5); }
-  .cj-input::placeholder { color:${T.textSubtle}; }
-  .cj-btn {
-    display:inline-flex; align-items:center; gap:6px;
-    padding:8px 16px; border-radius:7px; font-size:12px; font-weight:600;
-    cursor:pointer; border:none; font-family:'DM Sans',sans-serif;
-    transition:filter 0.15s, opacity 0.15s;
-  }
-  .cj-btn:disabled { opacity:0.5; cursor:not-allowed; }
-  .cj-btn.primary { background:${T.accent}; color:#fff; }
-  .cj-btn.primary:hover:not(:disabled) { filter:brightness(1.1); }
-  .cj-btn.ghost {
-    background:transparent; color:${T.textMuted};
-    border:1px solid ${T.border};
-  }
-  .cj-btn.ghost:hover:not(:disabled) { color:${T.textPrimary}; border-color:${T.borderHi}; }
-  .cj-btn.accent-outline {
-    background:transparent; color:${T.accent};
-    border:1px solid rgba(59,130,246,0.35);
-  }
-  .cj-btn.accent-outline:hover:not(:disabled) { background:${T.accentSoft}; }
-
-  /* ── Module list in modal ── */
-  .cj-module-list {
-    display:flex; flex-direction:column; gap:4px; max-height:240px; overflow-y:auto;
-  }
-  .cj-module-item {
-    display:flex; align-items:center; gap:10px; padding:9px 12px;
-    border:1px solid ${T.border}; border-radius:7px; cursor:pointer;
-    background:${T.surfaceAlt}; transition:border-color 0.12s, background 0.12s;
-  }
-  .cj-module-item:hover { border-color:${T.borderHi}; background:${T.surfaceHover}; }
-  .cj-module-item.selected {
-    border-color:rgba(59,130,246,0.45); background:${T.accentSoft};
-  }
-  .cj-module-item-name { font-size:12px; font-weight:600; color:${T.textPrimary}; flex:1; }
-  .cj-module-item-mod { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-
-  /* ── Empty / loading ── */
-  .cj-empty { padding:48px 0; text-align:center; color:${T.textMuted}; font-size:13px; }
-
-  /* ── Scrollbar ── */
-  .cj-root ::-webkit-scrollbar { width:4px; height:4px; }
-  .cj-root ::-webkit-scrollbar-track { background:transparent; }
-  .cj-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
+  .cj-errbox { padding:10px 12px; border-radius:8px; background:color-mix(in oklch, var(--v2-crit) 9%, transparent); border:1px solid color-mix(in oklch, var(--v2-crit) 28%, transparent); font:400 12.5px var(--font-data); color:var(--v2-fg-2); overflow-wrap:anywhere; white-space:pre-wrap; }
+  .cj-mods { display:grid; gap:6px; max-height:280px; overflow-y:auto; }
+  .cj-mods button { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:2px 10px; align-items:center; padding:9px 12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface); color:var(--v2-fg); font:13px var(--font-ui); text-align:left; cursor:pointer; }
+  .cj-mods button:hover { background:var(--v2-hover); }
+  .cj-mods button[aria-pressed="true"] { border-color:var(--v2-accent); background:color-mix(in oklch, var(--v2-accent) 10%, transparent); }
+  .cj-mods b { font-weight:500; }
+  .cj-mods small { grid-column:1; font-size:12px; color:var(--v2-fg-3); font-weight:400; }
+  .cj-mods svg { grid-row:1 / span 2; grid-column:2; color:var(--v2-accent); }
 `;
 
 // ─── Módulos com função de alertas / sincronização ─────────────────────────────
@@ -443,7 +259,9 @@ const KNOWN_MODULES = [
 ];
 
 // Lookup rápido job_name → tipo, usado pra rotular os cards existentes (que vêm do banco, sem esse campo)
-const JOB_KIND: Record<string, "sync" | "alert"> = Object.fromEntries(KNOWN_MODULES.map((m) => [m.jobName, m.kind]));
+const JOB_KIND: Record<string, "sync" | "alert"> = Object.fromEntries(
+  KNOWN_MODULES.map((m) => [m.jobName, m.kind]),
+);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -464,7 +282,187 @@ function fmtDuration(ms: number | null | undefined): string {
   return `${hours}h ${minutes % 60}m`;
 }
 
+const INTERVAL_OPTIONS: Array<[number, string]> = [
+  [15, "15 minutos"],
+  [30, "30 minutos"],
+  [60, "1 hora"],
+  [120, "2 horas"],
+  [240, "4 horas"],
+  [480, "8 horas"],
+  [720, "12 horas"],
+  [1440, "24 horas (diário)"],
+  [10080, "7 dias (semanal)"],
+];
+
+const MIN = 60_000;
+// Mesmo limiar do getCronHealth para considerar o job atrasado
+const STALE_BUFFER_MS = 60 * MIN;
+// Janela da linha do tempo: últimas 24h → agora → próximas 12h
+const PAST_MS = 24 * 60 * MIN;
+const FUTURE_MS = 12 * 60 * MIN;
+const AXIS_HOURS = [-24, -18, -12, -6, 0, 6, 12];
+
+function fmtFreq(minutes: number) {
+  if (minutes === 1440) return "diário";
+  if (minutes === 10080) return "semanal";
+  return `a cada ${fmtInterval(minutes)}`;
+}
+
+function fmtRel(ms: number) {
+  const m = Math.round(Math.abs(ms) / MIN);
+  if (m < 60) return `${m} min`;
+  if (m < 1440) return `${Math.round(m / 60)}h`;
+  return `${Math.round(m / 1440)}d`;
+}
+
+const fmtHour = (t: number) =>
+  new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+type StatusKey = "ok" | "bad" | "off";
+type Status = { key: StatusKey; label: string; color: string };
+
+// Traduz o getCronHealth para a situação exibida (com "Desativado" à parte)
+function statusOf(job: CronJobRun, enabled: boolean): Status {
+  if (!enabled) return { key: "off", label: "Desativado", color: "var(--v2-fg-3)" };
+  const { tone, label } = getCronHealth(job);
+  if (tone === "success") return { key: "ok", label: "No prazo", color: "var(--v2-ok)" };
+  if (label.startsWith("Em execução"))
+    return { key: "ok", label: "Em execução", color: "var(--v2-low)" };
+  if (tone === "danger") {
+    return {
+      key: "bad",
+      label: job.last_attempt_at ? "Atrasado" : "Nunca executado",
+      color: "var(--v2-crit)",
+    };
+  }
+  return {
+    key: "bad",
+    label: label === "Cron interrompido" ? "Interrompido" : "Com erro",
+    color: "var(--v2-high)",
+  };
+}
+
+function isStale(job: CronJobRun, now: number) {
+  if (!job.last_attempt_at) return true;
+  return (
+    now - new Date(job.last_attempt_at).getTime() >
+    job.expected_interval_minutes * MIN + STALE_BUFFER_MS
+  );
+}
+
+// ─── Linha do tempo de um job ─────────────────────────────────────────────────
+
+function TimelineTrack({
+  job,
+  status,
+  enabled,
+  dispatches,
+  now,
+}: {
+  job: CronJobRun;
+  status: Status;
+  enabled: boolean;
+  dispatches: number[];
+  now: number;
+}) {
+  const t0 = now - PAST_MS;
+  const t1 = now + FUTURE_MS;
+  const x = (t: number) => ((t - t0) / (t1 - t0)) * 100;
+  const span = job.expected_interval_minutes * MIN;
+  const last = job.last_attempt_at ? new Date(job.last_attempt_at).getTime() : null;
+  const next = last !== null ? last + span : null;
+  const stale = enabled && isStale(job, now);
+
+  // Execuções previstas (só para jobs ativos e sem atraso)
+  const future: number[] = [];
+  if (enabled && next !== null && !stale) {
+    for (let t = Math.max(next, now); t <= t1 && future.length < 400; t += span) future.push(t);
+  }
+  const dense = future.length > 24;
+  // Disparos do agendador (cron_http_dispatch_log) — um path só por linha
+  const dispPath = dispatches
+    .filter((t) => t >= t0 && t <= now)
+    .map((t) => `M${(x(t) * 10).toFixed(1)} 15V29`)
+    .join("");
+  const futPath = dense ? future.map((t) => `M${(x(t) * 10).toFixed(1)} 17V27`).join("") : "";
+
+  return (
+    <div className="cj-tl-track">
+      {AXIS_HOURS.map((h) => (
+        <i key={h} className="vl" style={{ left: `${x(now + h * 60 * MIN)}%` }} />
+      ))}
+      <i className="base" />
+      <svg viewBox="0 0 1000 44" preserveAspectRatio="none" aria-hidden="true">
+        {dispPath && (
+          <path
+            d={dispPath}
+            stroke="var(--v2-fg-3)"
+            strokeOpacity={0.6}
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        {futPath && (
+          <path
+            d={futPath}
+            stroke="var(--v2-fg-3)"
+            strokeOpacity={0.4}
+            strokeWidth={1}
+            strokeDasharray="2 2"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+      </svg>
+      {stale && next !== null && (
+        <i
+          className="gap"
+          style={{ left: `${Math.max(0, x(next))}%`, width: `${x(now) - Math.max(0, x(next))}%` }}
+          title={`Deveria ter rodado em ${fmtDateTime(new Date(next).toISOString())}`}
+        />
+      )}
+      {!dense &&
+        future.map((t) => (
+          <i
+            key={t}
+            className="fut1"
+            style={{ left: `${x(t)}%` }}
+            title={`Prevista ${fmtDateTime(new Date(t).toISOString())}`}
+          />
+        ))}
+      {dense && (
+        <i
+          className="fut1"
+          style={{ left: `${x(future[0])}%` }}
+          title={`Próxima ${fmtDateTime(new Date(future[0]).toISOString())}`}
+        />
+      )}
+      <i className="nowl" style={{ left: `${x(now)}%` }} />
+      {last === null ? (
+        <i className="edge" style={enabled ? undefined : { color: "var(--v2-fg-3)" }}>
+          nunca executado
+        </i>
+      ) : last < t0 ? (
+        <i
+          className="edge"
+          style={enabled ? undefined : { color: "var(--v2-fg-3)" }}
+          title="Última execução fora da janela de 24h"
+        >
+          ◀ {fmtDateTime(job.last_attempt_at)}
+        </i>
+      ) : (
+        <i
+          className="last"
+          style={{ left: `${x(last)}%`, "--c": status.color } as React.CSSProperties}
+          title={`Última execução: ${fmtDateTime(job.last_attempt_at)} · ${fmtDuration(job.last_duration_ms)}`}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── CronJobsDashboard ────────────────────────────────────────────────────────
+
+type Filter = "all" | StatusKey;
 
 export function CronJobsDashboard() {
   const queryClient = useQueryClient();
@@ -482,18 +480,57 @@ export function CronJobsDashboard() {
     refetchInterval: 60_000,
   });
 
+  // Disparos do pg_cron nas últimas 24h (só admin lê; jobs agendados antes do log não aparecem)
+  const { data: dispatchLog = [] } = useQuery({
+    queryKey: ["cron-dispatch-log"],
+    queryFn: async () => {
+      const since = new Date(Date.now() - PAST_MS).toISOString();
+      const { data, error } = await supabase
+        .from("cron_http_dispatch_log")
+        .select("job_name, dispatched_at")
+        .gte("dispatched_at", since)
+        .order("dispatched_at", { ascending: false })
+        .limit(5000);
+      if (error) return [];
+      return data ?? [];
+    },
+    refetchInterval: 60_000,
+  });
+
+  const dispatches = React.useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const d of dispatchLog) {
+      const list = map.get(d.job_name) ?? [];
+      list.push(new Date(d.dispatched_at).getTime());
+      map.set(d.job_name, list);
+    }
+    return map;
+  }, [dispatchLog]);
+
+  // "Agora" da linha do tempo — avança a cada minuto
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const [filter, setFilter] = React.useState<Filter>("all");
+  const [search, setSearch] = React.useState("");
+
   // Optimistic enabled state per job
   const [pendingToggles, setPendingToggles] = React.useState<Record<string, boolean>>({});
 
-  // Inline edit state per job
-  const [editingJob, setEditingJob] = React.useState<string | null>(null);
+  // Painel lateral (detalhe + edição)
+  const [openJob, setOpenJob] = React.useState<string | null>(null);
   const [editLabel, setEditLabel] = React.useState("");
   const [editInterval, setEditInterval] = React.useState(1440);
   const [saving, setSaving] = React.useState(false);
 
   // Modal state
   const [modalOpen, setModalOpen] = React.useState(false);
-  const [selectedModule, setSelectedModule] = React.useState<(typeof KNOWN_MODULES)[number] | null>(null);
+  const [selectedModule, setSelectedModule] = React.useState<(typeof KNOWN_MODULES)[number] | null>(
+    null,
+  );
   const [customLabel, setCustomLabel] = React.useState("");
   const [customInterval, setCustomInterval] = React.useState(1440);
   const [customHookPath, setCustomHookPath] = React.useState("");
@@ -508,10 +545,6 @@ export function CronJobsDashboard() {
     setCustomInterval(1440);
     setCustomHookPath("");
     setModalOpen(true);
-  }
-
-  function closeModal() {
-    setModalOpen(false);
   }
 
   async function handleToggle(job: CronJobRun, newEnabled: boolean) {
@@ -555,8 +588,10 @@ export function CronJobsDashboard() {
         },
       });
       await queryClient.invalidateQueries({ queryKey: ["cron-job-runs"] });
-      toast.success(`Cron job registrado e agendado (${(res as any).schedule ?? ""})`);
-      closeModal();
+      toast.success(
+        `Cron job registrado e agendado (${(res as { schedule?: string }).schedule ?? ""})`,
+      );
+      setModalOpen(false);
     } catch (e: unknown) {
       toast.error(String(e instanceof Error ? e.message : e));
     } finally {
@@ -564,14 +599,10 @@ export function CronJobsDashboard() {
     }
   }
 
-  function openEdit(job: CronJobRun) {
-    setEditingJob(job.job_name);
+  function openDetail(job: CronJobRun) {
+    setOpenJob(job.job_name);
     setEditLabel(job.label);
     setEditInterval(job.expected_interval_minutes);
-  }
-
-  function closeEdit() {
-    setEditingJob(null);
   }
 
   async function handleUpdate(job: CronJobRun) {
@@ -586,7 +617,7 @@ export function CronJobsDashboard() {
       });
       await queryClient.invalidateQueries({ queryKey: ["cron-job-runs"] });
       toast.success(`Cron "${editLabel.trim()}" atualizado`);
-      closeEdit();
+      setOpenJob(null);
     } catch (e: unknown) {
       toast.error(String(e instanceof Error ? e.message : e));
     } finally {
@@ -596,448 +627,545 @@ export function CronJobsDashboard() {
 
   function getEnabled(job: CronJobRun): boolean {
     if (job.job_name in pendingToggles) return pendingToggles[job.job_name];
-    return (job as unknown as { enabled?: boolean }).enabled !== false; // default true when column not yet present
+    return job.enabled !== false; // default true when column not yet present
   }
 
-  const ok = jobs.filter((j) => getCronHealth(j).tone === "success").length;
-  const issues = jobs.length - ok;
-  const activeCount = jobs.filter((j) => getEnabled(j)).length;
+  if (isLoading) return <ModuleLoading />;
+
+  const items = jobs.map((j) => {
+    const enabled = getEnabled(j);
+    return { job: j, enabled, status: statusOf(j, enabled), kind: JOB_KIND[j.job_name] ?? "sync" };
+  });
+  const count = (k: StatusKey) => items.filter((i) => i.status.key === k).length;
+  const okCount = count("ok");
+  const badCount = count("bad");
+  const offCount = count("off");
+  const syncTotal = items.filter((i) => i.kind === "sync").length;
+
+  const q = search.trim().toLowerCase();
+  const order: Record<StatusKey, number> = { bad: 0, ok: 1, off: 2 };
+  const rows = items
+    .filter((i) => filter === "all" || i.status.key === filter)
+    .filter((i) => !q || `${i.job.label} ${i.job.job_name}`.toLowerCase().includes(q))
+    .sort((a, b) => order[a.status.key] - order[b.status.key]);
+  const syncRows = rows.filter((i) => i.kind === "sync");
+  const alertRows = rows.filter((i) => i.kind === "alert");
+
+  const upcoming = items
+    .filter((i) => i.enabled && i.job.last_attempt_at)
+    .map((i) => ({
+      ...i,
+      next: new Date(i.job.last_attempt_at!).getTime() + i.job.expected_interval_minutes * MIN,
+    }))
+    .sort((a, b) => a.next - b.next)
+    .slice(0, 6);
+  const problems = items.filter((i) => i.status.key === "bad");
+
+  const selected = items.find((i) => i.job.job_name === openJob) ?? null;
+  const t0 = now - PAST_MS;
+  const axisX = (t: number) => ((t - t0) / (PAST_MS + FUTURE_MS)) * 100;
+
+  const kpiFilter = (k: StatusKey) => setFilter((f) => (f === k ? "all" : k));
+
+  const renderRow = (i: (typeof items)[number]) => (
+    <div
+      key={i.job.job_name}
+      className={`cj-tl-row${i.enabled ? "" : " off"}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => openDetail(i.job)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openDetail(i.job);
+        }
+      }}
+    >
+      <div
+        className="cj-tl-name"
+        style={{ "--c": i.status.color } as React.CSSProperties}
+        title={i.status.label}
+      >
+        <span className="dot" />
+        <div style={{ minWidth: 0 }}>
+          <b>{i.job.label}</b>
+          <small>
+            {i.job.job_name} · {fmtFreq(i.job.expected_interval_minutes)}
+          </small>
+        </div>
+      </div>
+      <TimelineTrack
+        job={i.job}
+        status={i.status}
+        enabled={i.enabled}
+        dispatches={dispatches.get(i.job.job_name) ?? []}
+        now={now}
+      />
+      <div
+        className="cj-tl-sw"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <Switch
+          checked={i.enabled}
+          onCheckedChange={(v) => handleToggle(i.job, v)}
+          aria-label={`${i.enabled ? "Desativar" : "Ativar"} ${i.job.label}`}
+        />
+      </div>
+    </div>
+  );
 
   return (
-    <div className="cj-root" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="cj-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Page header ── */}
-      <div className="cj-page-header">
+      <div className="cj-ph">
         <div>
-          <div className="cj-page-title">Cron Jobs</div>
-          <div className="cj-page-sub">
-            Gerenciamento de tarefas agendadas — alertas, sincronizações e verificações automáticas.
+          <h1 className="cj-ph-title">Cron Jobs</h1>
+          <p className="cj-ph-sub">
+            Tarefas agendadas: sincronizações, verificações e alertas automáticos · atualiza a cada
+            minuto
+          </p>
+        </div>
+        <button className="cj-btn primary" onClick={openModal}>
+          <Plus size={14} />
+          Novo cron
+        </button>
+      </div>
+
+      <div className="cj-kpis">
+        <div className="cj-kpi">
+          <span className="cj-kpi-label">Jobs monitorados</span>
+          <span className="cj-kpi-value">{jobs.length}</span>
+          <span className="cj-kpi-foot">
+            {syncTotal} sincronizações · {jobs.length - syncTotal} alertas
+          </span>
+        </div>
+        <button className="cj-kpi" aria-pressed={filter === "ok"} onClick={() => kpiFilter("ok")}>
+          <span className="cj-kpi-label">
+            <span className="cj-sw" style={{ background: "var(--v2-ok)" }} />
+            No prazo
+          </span>
+          <span className="cj-kpi-value">{okCount}</span>
+          <span className="cj-kpi-foot">rodaram dentro do intervalo</span>
+        </button>
+        <button className="cj-kpi" aria-pressed={filter === "bad"} onClick={() => kpiFilter("bad")}>
+          <span className="cj-kpi-label">
+            {badCount > 0 && <span className="cj-sw" style={{ background: "var(--v2-crit)" }} />}
+            Atrasados ou com erro
+          </span>
+          <span className="cj-kpi-value">{badCount}</span>
+          <span className="cj-kpi-foot">precisam de atenção</span>
+        </button>
+        <button className="cj-kpi" aria-pressed={filter === "off"} onClick={() => kpiFilter("off")}>
+          <span className="cj-kpi-label">Desativados</span>
+          <span className="cj-kpi-value">{offCount}</span>
+          <span className="cj-kpi-foot">não estão rodando</span>
+        </button>
+      </div>
+
+      <section className="cj-tl">
+        <div className="cj-tl-h">
+          <b>
+            Linha do tempo <span>· últimas 24h e próximas 12h</span>
+          </b>
+          <div className="cj-seg" role="group" aria-label="Situação">
+            {(
+              [
+                ["all", "Todos"],
+                ["bad", "Com problema"],
+                ["ok", "No prazo"],
+                ["off", "Desativados"],
+              ] as Array<[Filter, string]>
+            ).map(([k, l]) => (
+              <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <input
+            className="cj-input"
+            placeholder="Buscar job"
+            aria-label="Buscar job"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="cj-tl-scroll">
+          <div className="cj-tl-grid">
+            <div />
+            <div className="cj-tl-axis">
+              {AXIS_HOURS.map((h) => (
+                <span
+                  key={h}
+                  className={h === 0 ? "now" : undefined}
+                  style={{ left: `${axisX(now + h * 60 * MIN)}%` }}
+                >
+                  {h === 0 ? "agora" : fmtHour(now + h * 60 * MIN)}
+                </span>
+              ))}
+            </div>
+            <div />
+            {syncRows.length > 0 && (
+              <>
+                <div className="cj-tl-gh">Sincronizações · {syncRows.length}</div>
+                {syncRows.map(renderRow)}
+              </>
+            )}
+            {alertRows.length > 0 && (
+              <>
+                <div className="cj-tl-gh">Alertas e verificações · {alertRows.length}</div>
+                {alertRows.map(renderRow)}
+              </>
+            )}
+            {rows.length === 0 && (
+              <div className="cj-tl-empty">
+                {jobs.length === 0
+                  ? "Nenhum cron job monitorado ainda."
+                  : "Nenhum job encontrado com esse filtro."}
+              </div>
+            )}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-          <span className="cj-stat-pill info">
-            <span className="cj-stat-dot" />
-            {jobs.length} jobs
+        <div className="cj-tl-leg">
+          <span>
+            <i style={{ width: 12, height: 12, borderRadius: "50%", background: "var(--v2-ok)" }} />
+            Última execução (cor = situação)
           </span>
-          <span className="cj-stat-pill ok">
-            <span className="cj-stat-dot" />
-            {ok} ok
+          <span>
+            <i style={{ width: 2, height: 12, background: "var(--v2-fg-3)" }} />
+            Disparos do agendador
           </span>
-          {issues > 0 && (
-            <span className="cj-stat-pill err">
-              <span className="cj-stat-dot" />
-              {issues} problema{issues !== 1 ? "s" : ""}
-            </span>
-          )}
-          <button className="cj-btn accent-outline" onClick={openModal}>
-            <Plus style={{ width: 14, height: 14 }} />
-            Novo Cron
-          </button>
+          <span>
+            <i
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                border: "1.5px dashed var(--v2-fg-3)",
+              }}
+            />
+            Previstas
+          </span>
+          <span>
+            <i
+              style={{
+                width: 18,
+                height: 10,
+                borderRadius: 2,
+                background:
+                  "repeating-linear-gradient(135deg, color-mix(in oklch, var(--v2-crit) 45%, transparent) 0 3px, transparent 3px 6px)",
+              }}
+            />
+            Atraso
+          </span>
         </div>
-      </div>
+      </section>
 
-      {/* ── KPI cards ── */}
-      <div className="cj-kpi-grid">
-        <div className="cj-kpi-card" style={{ "--kpi-color": T.accent } as React.CSSProperties}>
-          <span className="cj-kpi-label">Jobs monitorados</span>
-          <span className="cj-kpi-value">
-            <Timer style={{ width: 18, height: 18 }} />
-            {jobs.length}
-          </span>
-        </div>
-        <div className="cj-kpi-card" style={{ "--kpi-color": T.success } as React.CSSProperties}>
-          <span className="cj-kpi-label">Ativos</span>
-          <span className="cj-kpi-value">
-            <Power style={{ width: 18, height: 18 }} />
-            {activeCount}
-          </span>
-        </div>
-        <div className="cj-kpi-card" style={{ "--kpi-color": T.success } as React.CSSProperties}>
-          <span className="cj-kpi-label">OK (no prazo)</span>
-          <span className="cj-kpi-value">
-            <CheckCircle2 style={{ width: 18, height: 18 }} />
-            {ok}
-          </span>
-        </div>
-        <div className="cj-kpi-card" style={{ "--kpi-color": T.danger } as React.CSSProperties}>
-          <span className="cj-kpi-label">Atrasados / com erro</span>
-          <span className="cj-kpi-value">
-            <AlertTriangle style={{ width: 18, height: 18 }} />
-            {issues}
-          </span>
-        </div>
-      </div>
-
-      {/* ── Cards ── */}
-      {isLoading ? (
-        <div className="cj-empty">Carregando cron jobs…</div>
-      ) : jobs.length === 0 ? (
-        <div className="cj-empty">
-          Nenhum cron job monitorado.{" "}
-          <button
-            className="cj-btn accent-outline"
-            onClick={openModal}
-            style={{ display: "inline-flex", marginLeft: 8 }}
-          >
-            <Plus style={{ width: 13, height: 13 }} /> Registrar primeiro job
-          </button>
-        </div>
-      ) : (
-        <div className="cj-grid">
-          {jobs.map((j) => {
-            const { tone, label: healthLabel } = getCronHealth(j);
-            const cardColor = tone === "success" ? T.success : tone === "warning" ? T.warning : T.danger;
-            const elapsed = j.last_attempt_at ? Date.now() - new Date(j.last_attempt_at).getTime() : null;
-            const expectedMs = j.expected_interval_minutes * 60 * 1000;
-            const pct = elapsed !== null ? Math.min(100, (elapsed / expectedMs) * 100) : 100;
-            const barColor = pct < 70 ? T.success : pct < 100 ? T.warning : T.danger;
-            const enabled = getEnabled(j);
-            const nextRun = j.last_attempt_at ? new Date(new Date(j.last_attempt_at).getTime() + expectedMs) : null;
-            const nextRunOverdue = nextRun !== null && nextRun.getTime() < Date.now();
-            const kind = JOB_KIND[j.job_name];
-
-            return (
-              <div
-                key={j.job_name}
-                className={`cj-card${enabled ? "" : " disabled"}`}
-                style={{ "--cc": cardColor } as React.CSSProperties}
-              >
-                {/* Header */}
-                <div className="cj-card-hd">
-                  <div className="cj-card-left">
-                    <div
-                      className={`cj-dot${tone === "success" && enabled ? " pulse" : ""}`}
-                      style={{ "--cc": enabled ? cardColor : T.neutral } as React.CSSProperties}
-                    />
-                    <span className="cj-name">{j.label}</span>
-                  </div>
-
-                  <div className="cj-card-right">
-                    {/* Health badge */}
-                    <span className={`cj-badge ${tone}`}>{healthLabel}</span>
-
-                    {/* Trigger badge */}
-                    {j.last_trigger && (
-                      <span className="cj-badge muted">{j.last_trigger === "cron" ? "Auto" : "Manual"}</span>
+      <div className="cj-duo">
+        <section className="cj-lst">
+          <h3>
+            Próximas execuções <span>· ativos</span>
+          </h3>
+          {upcoming.length ? (
+            <ol>
+              {upcoming.map((i) => (
+                <li key={i.job.job_name} onClick={() => openDetail(i.job)}>
+                  <span className="t">
+                    {i.status.label === "Atrasado" ? (
+                      <span style={{ color: "var(--v2-crit)" }}>atrasado</span>
+                    ) : i.next < now ? (
+                      "agora"
+                    ) : (
+                      fmtHour(i.next)
                     )}
-
-                    {/* Edit button */}
-                    <button
-                      className="cj-btn ghost"
-                      style={{
-                        padding: "4px 8px",
-                        border: `1px solid ${editingJob === j.job_name ? T.accent : T.border}`,
-                        color: editingJob === j.job_name ? T.accent : T.textMuted,
-                      }}
-                      onClick={() => (editingJob === j.job_name ? closeEdit() : openEdit(j))}
-                      title="Editar cron job"
-                    >
-                      <Pencil style={{ width: 12, height: 12 }} />
-                    </button>
-
-                    {/* Enabled toggle */}
-                    <div className="cj-toggle-row">
-                      <span className="cj-toggle-label" style={{ color: enabled ? T.success : T.textMuted }}>
-                        {enabled ? "Ativo" : "Inativo"}
-                      </span>
-                      <Switch checked={enabled} onCheckedChange={(v) => handleToggle(j, v)} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Body */}
-                <div className="cj-card-body">
-                  {/* Stats */}
-                  <div className="cj-stats">
-                    <div className="cj-stat">
-                      <div className="cj-stat-lbl">
-                        <Clock size={9} />
-                        Última tentativa
-                      </div>
-                      <div className="cj-stat-val">{fmtDateTime(j.last_attempt_at)}</div>
-                    </div>
-                    <div className="cj-stat">
-                      <div className="cj-stat-lbl">
-                        <CheckCircle2 size={9} />
-                        Último sucesso
-                      </div>
-                      <div className="cj-stat-val">{fmtDateTime(j.last_success_at)}</div>
-                    </div>
-                    <div className="cj-stat">
-                      <div className="cj-stat-lbl">
-                        <Hourglass size={9} />
-                        Duração sync
-                      </div>
-                      <div className="cj-stat-val">{fmtDuration(j.last_duration_ms)}</div>
-                    </div>
-                    <div className="cj-stat">
-                      <div className="cj-stat-lbl">
-                        <Timer size={9} />
-                        Intervalo
-                      </div>
-                      <div className="cj-stat-val large" style={{ color: enabled ? cardColor : T.neutral }}>
-                        {fmtInterval(j.expected_interval_minutes)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Próxima execução */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      gap: 6,
-                      fontSize: 9,
-                      fontFamily: "'IBM Plex Mono',monospace",
-                      textTransform: "uppercase" as const,
-                      letterSpacing: "0.1em",
-                      color: T.textMuted,
-                    }}
-                  >
-                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <CalendarClock size={9} />
-                      Próxima execução
-                    </span>
+                    <small>
+                      {i.next < now ? `há ${fmtRel(now - i.next)}` : `em ${fmtRel(i.next - now)}`}
+                    </small>
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <b>{i.job.label}</b>
+                    <span className="e">{i.job.job_name}</span>
+                  </span>
+                  <span className={`cj-tag${i.kind === "alert" ? " alert" : ""}`}>
+                    {i.kind === "sync" ? "Sync" : "Alerta"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="empty">Nenhum job ativo com execução registrada.</div>
+          )}
+        </section>
+        <section className="cj-lst">
+          <h3>
+            Precisam de atenção <span>· {problems.length}</span>
+          </h3>
+          {problems.length ? (
+            <ol>
+              {problems.map((i) => (
+                <li key={i.job.job_name} className="prob" onClick={() => openDetail(i.job)}>
+                  <span>
                     <span
-                      style={{
-                        fontWeight: 600,
-                        color: !enabled
-                          ? T.neutral
-                          : nextRunOverdue
-                            ? T.danger
-                            : nextRun
-                              ? T.textSecondary
-                              : T.textMuted,
-                      }}
+                      className="cj-pill"
+                      style={{ "--c": i.status.color } as React.CSSProperties}
                     >
-                      {nextRun ? fmtDateTime(nextRun.toISOString()) : "—"}
+                      {i.status.label}
                     </span>
-                  </div>
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <b>{i.job.label}</b>
+                    <span className="e" title={i.job.last_error ?? undefined}>
+                      {i.job.last_error ||
+                        (i.job.last_attempt_at
+                          ? `sem execução desde ${fmtDateTime(i.job.last_attempt_at)}`
+                          : "nunca executado")}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="empty">Tudo rodando dentro do prazo.</div>
+          )}
+        </section>
+      </div>
 
-                  {/* Freshness bar */}
-                  <div>
-                    <div className="cj-bar-label">
-                      <span>Atualidade da execução</span>
-                      <span style={{ color: enabled ? barColor : T.neutral, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
-                    </div>
-                    <div className="cj-bar-wrap">
-                      <div
-                        className="cj-bar"
-                        style={
-                          {
-                            width: `${pct}%`,
-                            "--bar-color": enabled ? barColor : T.neutral,
-                          } as React.CSSProperties
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  {/* Job name chip */}
-                  <div className="cj-jobname">
-                    <span className="cj-jobname-text">{j.job_name}</span>
-                    {kind && <span className={`cj-jobname-kind ${kind}`}>{kind === "sync" ? "Sync" : "Alerta"}</span>}
-                  </div>
-
-                  {/* Error panel */}
-                  {j.last_error && (
-                    <div className="cj-error">
-                      <div className="cj-error-hd">
-                        <AlertCircle size={10} />
-                        Último erro registrado
-                      </div>
-                      <div className="cj-error-msg">{j.last_error}</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Inline edit panel ── */}
-                {editingJob === j.job_name && (
-                  <div className="cj-edit-panel">
-                    <div className="cj-edit-panel-title">
-                      <Pencil size={10} />
-                      Editar cron job
-                    </div>
-
-                    <div className="cj-edit-row">
-                      <div className="cj-field">
-                        <span className="cj-field-label">Nome (label)</span>
-                        <input
-                          className="cj-input"
-                          type="text"
-                          value={editLabel}
-                          onChange={(e) => setEditLabel(e.target.value)}
-                          placeholder="Nome do job"
-                        />
-                      </div>
-
-                      <div className="cj-field">
-                        <span className="cj-field-label">Intervalo esperado</span>
-                        <select
-                          className="cj-select"
-                          value={editInterval}
-                          onChange={(e) => setEditInterval(Number(e.target.value))}
-                        >
-                          <option value={15}>15 minutos</option>
-                          <option value={30}>30 minutos</option>
-                          <option value={60}>1 hora</option>
-                          <option value={120}>2 horas</option>
-                          <option value={240}>4 horas</option>
-                          <option value={480}>8 horas</option>
-                          <option value={720}>12 horas</option>
-                          <option value={1440}>24 horas (diário)</option>
-                          <option value={10080}>7 dias (semanal)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="cj-edit-actions">
-                      <button className="cj-btn ghost" onClick={closeEdit} disabled={saving}>
-                        <X style={{ width: 12, height: 12 }} />
-                        Cancelar
-                      </button>
-                      <button
-                        className="cj-btn primary"
-                        onClick={() => handleUpdate(j)}
-                        disabled={saving || !editLabel.trim()}
-                      >
-                        <Save style={{ width: 12, height: 12 }} />
-                        {saving ? "Salvando…" : "Salvar"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Modal Novo Cron ── */}
-      {modalOpen && (
-        <div className="cj-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="cj-modal">
-            <div className="cj-modal-hd">
-              <div className="cj-modal-title">Registrar novo Cron Job</div>
-              <button className="cj-btn ghost" onClick={closeModal} style={{ padding: "4px 8px", border: "none" }}>
-                <X style={{ width: 14, height: 14 }} />
+      {/* ── Detalhe / edição ── */}
+      <DetailSheet
+        open={!!selected}
+        onOpenChange={(o) => !o && setOpenJob(null)}
+        eyebrow={selected?.job.job_name}
+        title={selected?.job.label ?? ""}
+        badges={
+          selected && (
+            <>
+              <span
+                className="cj-pill"
+                style={{ "--c": selected.status.color } as React.CSSProperties}
+              >
+                {selected.status.label}
+              </span>
+              <span className={`cj-tag${selected.kind === "alert" ? " alert" : ""}`}>
+                {selected.kind === "sync" ? "Sincronização" : "Alerta"}
+              </span>
+            </>
+          )
+        }
+        footer={
+          selected && (
+            <>
+              <button
+                className="cj-btn ghost"
+                style={{ marginRight: "auto" }}
+                onClick={() => setOpenJob(null)}
+              >
+                Fechar
               </button>
-            </div>
-
-            <div className="cj-modal-body">
-              {/* Module selection */}
-              {availableModules.length > 0 && (
-                <div className="cj-field">
-                  <span className="cj-field-label">Módulo / função</span>
-                  <div className="cj-module-list">
-                    {availableModules.map((m) => (
-                      <div
-                        key={m.jobName}
-                        className={`cj-module-item${selectedModule?.jobName === m.jobName ? " selected" : ""}`}
-                        onClick={() => {
-                          setSelectedModule(m);
-                          setCustomLabel(m.label);
-                          setCustomInterval(m.defaultInterval);
-                          setCustomHookPath(m.hookPath);
-                        }}
-                      >
-                        <div style={{ flex: 1 }}>
-                          <div className="cj-module-item-name">{m.label}</div>
-                          <div className="cj-module-item-mod">
-                            {m.module} · a cada {fmtInterval(m.defaultInterval)}
-                          </div>
-                        </div>
-                        {selectedModule?.jobName === m.jobName && (
-                          <CheckCircle2 style={{ width: 14, height: 14, color: T.accent, flexShrink: 0 }} />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {availableModules.length === 0 && (
-                <p style={{ fontSize: 12, color: T.textMuted, margin: 0, fontFamily: "'IBM Plex Mono',monospace" }}>
-                  Todos os módulos conhecidos já possuem cron jobs registrados. Preencha os campos abaixo para registrar
-                  um job personalizado.
-                </p>
-              )}
-
-              {/* Label */}
-              <div className="cj-field">
-                <span className="cj-field-label">Nome (label)</span>
-                <input
-                  className="cj-input"
-                  type="text"
-                  placeholder="Ex: Meu Job de Sincronização"
-                  value={customLabel}
-                  onChange={(e) => setCustomLabel(e.target.value)}
-                />
-              </div>
-
-              {/* Hook path — oculto quando módulo selecionado, visível para custom */}
-              {!selectedModule && (
-                <div className="cj-field">
-                  <span className="cj-field-label">Caminho do hook</span>
+              <button
+                className="cj-btn primary"
+                onClick={() => handleUpdate(selected.job)}
+                disabled={saving || !editLabel.trim()}
+              >
+                <Check size={14} />
+                {saving ? "Salvando…" : "Salvar"}
+              </button>
+            </>
+          )
+        }
+      >
+        {selected && (
+          <div className="cj-root" style={{ gap: 20 }}>
+            {selected.job.last_error && (
+              <DetailSection title="Último erro">
+                <div className="cj-errbox">{selected.job.last_error}</div>
+              </DetailSection>
+            )}
+            <DetailSection title="Execuções">
+              <DetailList
+                items={[
+                  [
+                    "Última tentativa",
+                    selected.job.last_attempt_at
+                      ? `${fmtDateTime(selected.job.last_attempt_at)}${
+                          selected.job.last_trigger
+                            ? ` · ${selected.job.last_trigger === "cron" ? "automática" : "manual"}`
+                            : ""
+                        }`
+                      : "nunca",
+                  ],
+                  ["Último sucesso", fmtDateTime(selected.job.last_success_at)],
+                  ["Duração", fmtDuration(selected.job.last_duration_ms), true],
+                  [
+                    "Próxima prevista",
+                    !selected.enabled
+                      ? "desativado"
+                      : selected.job.last_attempt_at
+                        ? fmtDateTime(
+                            new Date(
+                              new Date(selected.job.last_attempt_at).getTime() +
+                                selected.job.expected_interval_minutes * MIN,
+                            ).toISOString(),
+                          )
+                        : "—",
+                  ],
+                  [
+                    "Disparos (24h)",
+                    dispatches.has(selected.job.job_name)
+                      ? String(dispatches.get(selected.job.job_name)!.length)
+                      : "sem registro no log",
+                  ],
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title="Configuração">
+              <div style={{ display: "grid", gap: 12 }}>
+                <label className="cj-field">
+                  Nome
                   <input
                     className="cj-input"
-                    type="text"
-                    placeholder="/api/public/hooks/meu-hook"
-                    value={customHookPath}
-                    onChange={(e) => setCustomHookPath(e.target.value)}
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
                   />
-                </div>
-              )}
-
-              {/* Interval */}
-              <div className="cj-field">
-                <span className="cj-field-label">Intervalo esperado</span>
-                <select
-                  className="cj-select"
-                  value={customInterval}
-                  onChange={(e) => setCustomInterval(Number(e.target.value))}
-                >
-                  <option value={15}>15 minutos</option>
-                  <option value={30}>30 minutos</option>
-                  <option value={60}>1 hora</option>
-                  <option value={120}>2 horas</option>
-                  <option value={240}>4 horas</option>
-                  <option value={480}>8 horas</option>
-                  <option value={720}>12 horas</option>
-                  <option value={1440}>24 horas (diário)</option>
-                  <option value={10080}>7 dias (semanal)</option>
-                </select>
+                </label>
+                <label className="cj-field">
+                  Intervalo esperado
+                  <select
+                    className="cj-select"
+                    value={editInterval}
+                    onChange={(e) => setEditInterval(Number(e.target.value))}
+                  >
+                    {!INTERVAL_OPTIONS.some(([v]) => v === editInterval) && (
+                      <option value={editInterval}>{fmtInterval(editInterval)}</option>
+                    )}
+                    {INTERVAL_OPTIONS.map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                  <small>
+                    Reagenda o job no pg_cron e define quando ele passa a contar como atrasado
+                  </small>
+                </label>
               </div>
-
-              {/* Info sobre o que acontece */}
-              <p
-                style={{
-                  fontSize: 11,
-                  color: T.textMuted,
-                  margin: 0,
-                  lineHeight: 1.5,
-                  fontFamily: "'IBM Plex Mono',monospace",
-                }}
-              >
-                {selectedModule
-                  ? `Cria a entrada de monitoramento e agenda o job real no pg_cron. Hook: ${selectedModule.hookPath}`
-                  : "Cria a entrada de monitoramento e agenda o job real no pg_cron chamando o caminho do hook informado."}
-              </p>
-            </div>
-
-            <div className="cj-modal-footer">
-              <button className="cj-btn ghost" onClick={closeModal} disabled={creating}>
-                Cancelar
-              </button>
-              <button className="cj-btn primary" onClick={handleCreate} disabled={creating || !customLabel.trim()}>
-                {creating ? "Registrando…" : "Registrar Job"}
-              </button>
-            </div>
+            </DetailSection>
           </div>
-        </div>
-      )}
+        )}
+      </DetailSheet>
+
+      {/* ── Novo cron ── */}
+      <Dialog open={modalOpen} onOpenChange={(o) => !creating && setModalOpen(o)}>
+        <DialogContent className="font-ui sm:max-w-lg" style={dialogStyle}>
+          <DialogHeader>
+            <DialogTitle>Registrar novo cron</DialogTitle>
+          </DialogHeader>
+          <div className="cj-root" style={{ gap: 14 }}>
+            <div className="cj-field">
+              Módulo / função
+              <div className="cj-mods">
+                {availableModules.map((m) => {
+                  const on = selectedModule?.jobName === m.jobName;
+                  return (
+                    <button
+                      key={m.jobName}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => {
+                        setSelectedModule(m);
+                        setCustomLabel(m.label);
+                        setCustomInterval(m.defaultInterval);
+                        setCustomHookPath(m.hookPath);
+                      }}
+                    >
+                      <b>{m.label}</b>
+                      {on && <Check size={14} />}
+                      <small>
+                        {m.module} · {fmtFreq(m.defaultInterval)}
+                      </small>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  aria-pressed={!selectedModule}
+                  onClick={() => {
+                    setSelectedModule(null);
+                    setCustomHookPath("");
+                  }}
+                >
+                  <b>Personalizado</b>
+                  {!selectedModule && <Check size={14} />}
+                  <small>Informe o caminho do hook</small>
+                </button>
+              </div>
+            </div>
+            <label className="cj-field">
+              Nome
+              <input
+                className="cj-input"
+                placeholder="Ex.: Meu job de sincronização"
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+              />
+            </label>
+            {!selectedModule && (
+              <label className="cj-field">
+                Caminho do hook
+                <input
+                  className="cj-input"
+                  placeholder="/api/public/hooks/meu-hook"
+                  value={customHookPath}
+                  onChange={(e) => setCustomHookPath(e.target.value)}
+                />
+                <small>Rota pública em src/routes/api/public/hooks</small>
+              </label>
+            )}
+            <label className="cj-field">
+              Intervalo esperado
+              <select
+                className="cj-select"
+                value={customInterval}
+                onChange={(e) => setCustomInterval(Number(e.target.value))}
+              >
+                {!INTERVAL_OPTIONS.some(([v]) => v === customInterval) && (
+                  <option value={customInterval}>{fmtInterval(customInterval)}</option>
+                )}
+                {INTERVAL_OPTIONS.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p
+              className="cj-ph-sub"
+              style={{ margin: 0, display: "flex", gap: 6, alignItems: "flex-start" }}
+            >
+              <AlertTriangle size={13} style={{ flex: "none", marginTop: 2 }} />
+              {selectedModule
+                ? `Cria a entrada de monitoramento e agenda o job no pg_cron. Hook: ${selectedModule.hookPath}`
+                : "Cria a entrada de monitoramento e agenda o job no pg_cron chamando o hook informado."}
+            </p>
+          </div>
+          <DialogFooter>
+            <button
+              className="cj-btn ghost"
+              onClick={() => setModalOpen(false)}
+              disabled={creating}
+            >
+              Cancelar
+            </button>
+            <button
+              className="cj-btn primary"
+              onClick={handleCreate}
+              disabled={creating || !customLabel.trim()}
+            >
+              {creating ? "Registrando…" : "Registrar e agendar"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

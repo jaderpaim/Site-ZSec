@@ -2,303 +2,244 @@ import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { getSsoConfig, upsertSsoConfig } from "@/lib/sso.functions";
 import { useAuth } from "@/lib/auth-context";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import {
-  Loader2,
-  Shield,
-  Server,
-  X,
-  Plus,
-  Copy,
-  KeyRound,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Link2,
-  Save,
-} from "lucide-react";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
+import { AlertTriangle, Check, ChevronDown, Copy, Plus, X } from "lucide-react";
 
-// ── Design Tokens ──────────────────────────────────────────────────────────────
-const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
-  accent: "#3B82F6",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  textSubtle: "#475569",
+const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
+
+type FormState = {
+  oauthEnabled: boolean;
+  samlEnabled: boolean;
+  ldapEnabled: boolean;
+  tenant: string;
+  clientId: string;
+  samlUrl: string;
+  ldapHost: string;
+  ldapPort: string;
+  ldapBaseDn: string;
+  ldapBindDn: string;
+  domains: string[];
 };
 
-const SECTION_ACCENT = {
-  oauth: { color: "#0078D4", bg: "rgba(0,120,212,0.10)", border: "rgba(0,120,212,0.25)" },
-  domains: { color: "#6366F1", bg: "rgba(99,102,241,0.10)", border: "rgba(99,102,241,0.25)" },
-  saml: { color: "#10B981", bg: "rgba(16,185,129,0.10)", border: "rgba(16,185,129,0.25)" },
-  ldap: { color: "#F59E0B", bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.25)" },
+const EMPTY: FormState = {
+  oauthEnabled: false,
+  samlEnabled: false,
+  ldapEnabled: false,
+  tenant: "",
+  clientId: "",
+  samlUrl: "",
+  ldapHost: "",
+  ldapPort: "",
+  ldapBaseDn: "",
+  ldapBindDn: "",
+  domains: [],
 };
 
-// ── Inline CSS ─────────────────────────────────────────────────────────────────
+type SsoRow = {
+  oauth_enabled?: boolean | null;
+  saml_enabled?: boolean | null;
+  ldap_enabled?: boolean | null;
+  azure_tenant_id?: string | null;
+  azure_client_id?: string | null;
+  saml_metadata_url?: string | null;
+  ldap_host?: string | null;
+  ldap_port?: number | null;
+  ldap_base_dn?: string | null;
+  ldap_bind_dn?: string | null;
+  allowed_domains?: string[] | null;
+};
+
+function fromConfig(c: SsoRow | null | undefined): FormState {
+  if (!c) return EMPTY;
+  return {
+    oauthEnabled: !!c.oauth_enabled,
+    samlEnabled: !!c.saml_enabled,
+    ldapEnabled: !!c.ldap_enabled,
+    tenant: c.azure_tenant_id ?? "",
+    clientId: c.azure_client_id ?? "",
+    samlUrl: c.saml_metadata_url ?? "",
+    ldapHost: c.ldap_host ?? "",
+    ldapPort: c.ldap_port ? String(c.ldap_port) : "",
+    ldapBaseDn: c.ldap_base_dn ?? "",
+    ldapBindDn: c.ldap_bind_dn ?? "",
+    domains: c.allowed_domains ?? [],
+  };
+}
+
+function fmtAgo(iso: string | null | undefined) {
+  if (!iso) return null;
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (m < 60) return `há ${m} min`;
+  if (m < 1440) return `há ${Math.round(m / 60)}h`;
+  return `há ${Math.round(m / 1440)}d`;
+}
+
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .sso-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
+  .sso-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
   .sso-root * { box-sizing:border-box; }
+  .sso-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .sso-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .sso-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
 
-  /* ── Page header ── */
-  .sso-page-header {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:16px 22px; display:flex; align-items:center; justify-content:space-between;
-  }
-  .sso-page-title {
-    font-size:14px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em;
-  }
-  .sso-page-sub { font-size:12px; color:${T.textMuted}; margin-top:3px; line-height:1.5; }
-  .sso-status-bar { display:flex; align-items:center; gap:10px; flex-shrink:0; }
-  .sso-status-pill {
-    display:inline-flex; align-items:center; gap:5px; padding:4px 10px;
-    border-radius:5px; font-size:10px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
-  }
-  .sso-status-pill.ok  { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .sso-status-pill.off { background:rgba(107,114,128,0.1); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2); }
-  .sso-status-pill.warn { background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.2); }
-  .sso-status-dot { width:5px; height:5px; border-radius:50%; background:currentColor; }
+  .sso-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .sso-kpi { padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); min-width:0; }
+  .sso-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .sso-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .sso-kpi-value.word { font-size:22px; padding:3px 0; }
+  .sso-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .sso-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
 
-  /* ── Grid ── */
-  .sso-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .sso-two { display:grid; grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr); gap:16px; align-items:start; }
+  @media (max-width: 1000px) { .sso-two { grid-template-columns:minmax(0, 1fr); } }
+  .sso-col { display:grid; gap:16px; min-width:0; }
+  .sso-card { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; }
+  .sso-card-h { display:flex; gap:12px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--v2-line); }
+  .sso-card-h b { display:block; font-size:14px; font-weight:600; }
+  .sso-card-h small { display:block; font-size:12.5px; color:var(--v2-fg-3); }
+  .sso-card-h .r { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  .sso-card-b { display:grid; gap:14px; padding:16px 18px; }
+  .sso-ms { width:34px; height:34px; display:grid; grid-template-columns:1fr 1fr; gap:2px; padding:7px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); flex:none; }
+  .sso-ms i:nth-child(1) { background:#f25022; }
+  .sso-ms i:nth-child(2) { background:#7fba00; }
+  .sso-ms i:nth-child(3) { background:#00a4ef; }
+  .sso-ms i:nth-child(4) { background:#ffb900; }
 
-  /* ── Section card ── */
-  .sso-card {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:12px;
-    overflow:hidden; display:flex; flex-direction:column;
-    transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  .sso-card:hover { border-color:${T.borderHi}; box-shadow:0 8px 32px rgba(0,0,0,0.3); }
+  .sso-g2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width: 600px) { .sso-g2 { grid-template-columns:1fr; } }
+  .sso-field { display:grid; gap:6px; font-size:12.5px; font-weight:500; color:var(--v2-fg-2); min-width:0; }
+  .sso-field small { font-size:12px; font-weight:400; color:var(--v2-fg-3); line-height:1.5; }
+  .sso-input { width:100%; height:34px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg); font-size:13px; font-family:var(--font-ui); outline:none; min-width:0; }
+  .sso-input.mono { font-family:var(--font-data); font-size:12.5px; }
+  .sso-input:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .sso-row { display:flex; gap:6px; }
+  .sso-row .sso-input { flex:1; }
+  .sso-togrow { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); }
+  .sso-togrow b { display:block; font-size:13px; font-weight:500; }
+  .sso-togrow small { display:block; font-size:12px; color:var(--v2-fg-3); }
+  .sso-secrets { display:grid; gap:6px; }
+  .sso-secrets div { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:8px 12px; border:1px solid var(--v2-line); border-radius:8px; font:12.5px var(--font-data); }
 
-  .sso-card-header {
-    padding:16px 20px 14px; background:${T.surfaceAlt};
-    border-bottom:1px solid ${T.border};
-    display:flex; align-items:center; justify-content:space-between;
-    position:relative; overflow:hidden;
-  }
-  .sso-card-header::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:2px;
-    background:var(--sec-color, ${T.accent});
-  }
-  .sso-card-header-left { display:flex; align-items:center; gap:10px; }
+  .sso-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
+  .sso-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .sso-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .sso-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .sso-btn.primary:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .sso-btn.ghost { border-color:transparent; background:transparent; }
+  .sso-btn.icon { width:34px; padding:0; justify-content:center; }
 
-  .sso-icon-wrap {
-    width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center;
-    background:var(--sec-bg, ${T.accentSoft}); border:1px solid var(--sec-border, rgba(59,130,246,0.2));
-    flex-shrink:0;
-  }
+  .sso-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); font-family:var(--font-ui); }
+  .sso-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
 
-  .sso-section-name {
-    font-size:14px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em;
-  }
-  .sso-section-sub {
-    display:inline-flex; align-items:center; gap:4px;
-    font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-    margin-top:2px; letter-spacing:0.04em;
-  }
+  .sso-check > div { display:grid; grid-template-columns:20px minmax(0, 1fr); gap:10px; padding:10px 18px; border-top:1px solid var(--v2-line); font-size:13px; align-items:start; }
+  .sso-check > div:first-child { border-top:0; }
+  .sso-check b { font-weight:500; }
+  .sso-check small { display:block; font-size:12px; color:var(--v2-fg-3); }
+  .sso-ic { width:18px; height:18px; border-radius:50%; display:grid; place-items:center; margin-top:1px; }
+  .sso-ic.ok { background:color-mix(in oklch, var(--v2-ok) 18%, transparent); color:var(--v2-ok); }
+  .sso-ic.no { background:color-mix(in oklch, var(--v2-med) 18%, transparent); color:var(--v2-med); }
 
-  .sso-badge {
-    display:inline-flex; align-items:center; gap:4px; padding:3px 8px;
-    border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
-  }
-  .sso-badge.yes  { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .sso-badge.off  { background:rgba(107,114,128,0.1); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2); }
-  .sso-badge.warn { background:${T.warningBg}; color:${T.warning}; border:1px solid rgba(245,158,11,0.2); }
+  .sso-tags { display:flex; flex-wrap:wrap; gap:6px; }
+  .sso-tag { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 6px 0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); font:12.5px var(--font-data); }
+  .sso-tag button { width:20px; height:20px; border:0; border-radius:4px; background:transparent; color:var(--v2-fg-3); cursor:pointer; display:grid; place-items:center; }
+  .sso-tag button:hover { background:var(--v2-hover); color:var(--v2-crit); }
+  .sso-empty { font-size:13px; color:var(--v2-fg-3); }
 
-  /* ── Card body ── */
-  .sso-card-body { padding:18px 20px; display:flex; flex-direction:column; gap:14px; flex:1; }
+  .sso-flow { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; padding:14px 18px 18px; }
+  @media (max-width: 760px) { .sso-flow { grid-template-columns:1fr 1fr; } }
+  .sso-flow div { display:grid; grid-template-rows:auto auto 1fr; gap:6px; font-size:12.5px; color:var(--v2-fg-2); align-content:start; }
+  .sso-flow b { font-size:12.5px; color:var(--v2-fg); font-weight:600; }
+  .sso-flow .n { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-accent); font:600 11.5px var(--font-data); }
 
-  /* ── Toggle row ── */
-  .sso-toggle-row {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:10px 14px; background:${T.surfaceAlt}; border-radius:7px;
-    border:1px solid ${T.border};
-  }
-  .sso-toggle-label { font-size:12px; font-weight:600; color:${T.textSecondary}; }
-  .sso-toggle-hint  { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:1px; }
+  .sso-sec-h { display:flex; align-items:baseline; gap:8px; margin:4px 0 -6px; font-size:15px; font-weight:600; }
+  .sso-sec-h span { font-size:12.5px; font-weight:400; color:var(--v2-fg-3); }
+  .sso-others { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  @media (max-width: 900px) { .sso-others { grid-template-columns:1fr; } }
+  .sso-oc { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; }
+  .sso-oc summary { list-style:none; display:flex; gap:12px; align-items:center; padding:14px 18px; cursor:pointer; }
+  .sso-oc summary::-webkit-details-marker { display:none; }
+  .sso-oc summary b { display:block; font-size:14px; font-weight:600; }
+  .sso-oc summary small { display:block; font-size:12.5px; color:var(--v2-fg-3); }
+  .sso-oc summary .r { margin-left:auto; display:flex; gap:8px; align-items:center; color:var(--v2-fg-3); }
+  .sso-oc summary .r svg { transition:transform .15s; }
+  .sso-oc[open] summary .r svg { transform:rotate(180deg); }
+  .sso-oc[open] summary { border-bottom:1px solid var(--v2-line); }
+  .sso-note { display:flex; gap:8px; padding:10px 12px; border-radius:8px; background:color-mix(in oklch, var(--v2-med) 9%, transparent); border:1px solid color-mix(in oklch, var(--v2-med) 30%, transparent); font-size:12.5px; color:var(--v2-fg-2); line-height:1.5; }
+  .sso-note svg { color:var(--v2-med); flex:none; margin-top:2px; }
 
-  /* ── Field ── */
-  .sso-field { display:flex; flex-direction:column; gap:5px; }
-  .sso-field-label {
-    font-size:9px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-  }
-  .sso-field-helper { font-size:10px; color:${T.textSubtle}; line-height:1.5; margin-top:1px; }
-
-  /* ── Input override ── */
-  .sso-root input[type="text"],
-  .sso-root input[type="password"],
-  .sso-root input[type="number"],
-  .sso-root input:not([type]) {
-    background:${T.surfaceAlt} !important; border-color:${T.border} !important;
-    color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace !important;
-    font-size:12px !important; border-radius:6px !important;
-    transition:border-color 0.15s, box-shadow 0.15s !important;
-  }
-  .sso-root input:focus {
-    border-color:rgba(59,130,246,0.5) !important; outline:none !important;
-    box-shadow:0 0 0 2px rgba(59,130,246,0.1) !important;
-  }
-  .sso-root input::placeholder { color:${T.textSubtle} !important; }
-
-  /* ── Info box ── */
-  .sso-info {
-    padding:10px 13px; border-radius:7px; font-size:11px; line-height:1.55;
-    display:flex; gap:9px; align-items:flex-start;
-  }
-  .sso-info.neutral { background:${T.surfaceAlt}; border:1px solid ${T.border}; color:${T.textSecondary}; }
-  .sso-info.warn    { background:${T.warningBg}; border:1px solid rgba(245,158,11,0.2); color:${T.warning}; }
-
-  /* ── Copy row ── */
-  .sso-copy-row { display:flex; gap:8px; align-items:center; }
-  .sso-copy-row input { flex:1; }
-  .sso-copy-btn {
-    flex-shrink:0; width:34px; height:34px; border-radius:6px; border:1px solid ${T.border};
-    background:${T.surfaceAlt}; color:${T.textMuted}; display:flex; align-items:center; justify-content:center;
-    cursor:pointer; transition:all 0.15s;
-  }
-  .sso-copy-btn:hover { border-color:${T.borderHi}; color:${T.textSecondary}; }
-
-  /* ── Domain tags ── */
-  .sso-tags { display:flex; flex-wrap:wrap; gap:7px; min-height:28px; }
-  .sso-tag {
-    display:inline-flex; align-items:center; gap:6px; padding:4px 10px;
-    border-radius:20px; background:var(--sec-bg); border:1px solid var(--sec-border);
-    font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--sec-color);
-  }
-  .sso-tag-rm {
-    background:none; border:none; cursor:pointer; padding:0; line-height:0;
-    color:${T.textMuted}; transition:color 0.1s;
-  }
-  .sso-tag-rm:hover { color:${T.danger}; }
-  .sso-tag-empty { font-size:11px; color:${T.textSubtle}; font-family:'IBM Plex Mono',monospace; align-self:center; }
-
-  /* ── Add domain row ── */
-  .sso-add-row { display:flex; gap:8px; }
-  .sso-add-row input { flex:1; }
-  .sso-add-btn {
-    display:inline-flex; align-items:center; gap:5px; padding:0 14px; height:36px;
-    border-radius:6px; border:1px solid var(--sec-border); background:var(--sec-bg);
-    color:var(--sec-color); font-size:12px; font-weight:600; cursor:pointer;
-    font-family:'DM Sans',sans-serif; white-space:nowrap; transition:all 0.15s;
-  }
-  .sso-add-btn:hover { filter:brightness(1.2); }
-
-  /* ── Save button ── */
-  .sso-save-btn {
-    display:inline-flex; align-items:center; justify-content:center; gap:7px;
-    width:100%; padding:11px 16px; border-radius:8px;
-    background:rgba(59,130,246,0.10); border:1px solid rgba(59,130,246,0.35);
-    color:${T.accent}; font-size:13px; font-weight:700; cursor:pointer;
-    font-family:'DM Sans',sans-serif; transition:all 0.15s; margin-top:4px;
-  }
-  .sso-save-btn:hover:not(:disabled) { filter:brightness(1.15); box-shadow:0 0 20px rgba(0,0,0,0.2); }
-  .sso-save-btn:disabled { opacity:0.45; cursor:not-allowed; }
-
-  /* ── Divider ── */
-  .sso-divider { height:1px; background:${T.border}; }
-
-  /* ── Sub label ── */
-  .sso-sub-label {
-    font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-    display:flex; align-items:center; gap:6px;
-  }
-  .sso-sub-label::after { content:''; flex:1; height:1px; background:${T.border}; }
-
-  /* ── Spin ── */
-  @keyframes sso-spin { to{transform:rotate(360deg)} }
-  .sso-spin { animation:sso-spin 0.7s linear infinite; }
+  .sso-savebar { position:sticky; bottom:12px; z-index:5; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 16px; background:color-mix(in oklch, var(--v2-surface) 92%, transparent); backdrop-filter:blur(6px); border:1px solid var(--v2-line); border-radius:12px; font-size:13px; color:var(--v2-fg-2); }
+  .sso-savebar .dot { width:8px; height:8px; border-radius:50%; background:var(--v2-med); display:inline-block; margin-right:8px; }
 `;
 
-// ══════════════════════════════════════════════════════════════════════════════
 export function SsoLdapDashboard() {
   const { role } = useAuth();
   const qc = useQueryClient();
   const get = useServerFn(getSsoConfig);
   const upsert = useServerFn(upsertSsoConfig);
+  const isAdmin = role === "admin" || role === "super_admin";
 
-  const q = useQuery({
-    queryKey: ["sso-config"],
-    queryFn: () => get(),
-    enabled: role === "admin" || role === "super_admin",
+  const q = useQuery({ queryKey: ["sso-config"], queryFn: () => get(), enabled: isAdmin });
+
+  // Logins dos últimos 30 dias (método e resultado) para os indicadores
+  const loginsQ = useQuery({
+    queryKey: ["sso-logins-30d"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+      const { data, error } = await supabase
+        .from("auth_access_logs")
+        .select("login_method, status, created_at")
+        .eq("event_type", "login")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        login_method: string | null;
+        status: string;
+        created_at: string;
+      }>;
+    },
   });
 
-  const [oauthEnabled, setOauthEnabled] = React.useState(false);
-  const [samlEnabled, setSamlEnabled] = React.useState(false);
-  const [ldapEnabled, setLdapEnabled] = React.useState(false);
-  const [tenant, setTenant] = React.useState("");
-  const [clientId, setClientId] = React.useState("");
-  const [samlUrl, setSamlUrl] = React.useState("");
-  const [ldapHost, setLdapHost] = React.useState("");
-  const [ldapPort, setLdapPort] = React.useState<number | "">("");
-  const [ldapBaseDn, setLdapBaseDn] = React.useState("");
-  const [ldapBindDn, setLdapBindDn] = React.useState("");
-  const [domains, setDomains] = React.useState<string[]>([]);
+  const saved = React.useMemo(() => fromConfig(q.data?.config as SsoRow | null), [q.data]);
+  const [form, setForm] = React.useState<FormState>(EMPTY);
   const [newDomain, setNewDomain] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
-    const c = q.data?.config;
-    if (c) {
-      setOauthEnabled(!!c.oauth_enabled);
-      setSamlEnabled(!!c.saml_enabled);
-      setLdapEnabled(!!c.ldap_enabled);
-      setTenant(c.azure_tenant_id ?? "");
-      setClientId(c.azure_client_id ?? "");
-      setSamlUrl(c.saml_metadata_url ?? "");
-      setLdapHost(c.ldap_host ?? "");
-      setLdapPort(c.ldap_port ?? "");
-      setLdapBaseDn(c.ldap_base_dn ?? "");
-      setLdapBindDn(c.ldap_bind_dn ?? "");
-      setDomains((c.allowed_domains as string[]) ?? []);
-    }
-  }, [q.data]);
+    setForm(saved);
+  }, [saved]);
 
-  if (role !== "admin" && role !== "super_admin") {
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+  const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+
+  if (!isAdmin) {
     return (
       <div className="sso-root">
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
         <div className="sso-card">
-          <div className="sso-card-body">
-            <p style={{ fontSize: 13, color: T.textMuted }}>
-              Apenas administradores globais podem visualizar/editar esta página.
-            </p>
+          <div className="sso-card-b sso-empty">
+            Apenas administradores globais podem visualizar ou editar esta página.
           </div>
         </div>
       </div>
     );
   }
+  if (q.isLoading) return <ModuleLoading />;
 
   function addDomain() {
     const d = newDomain.trim().toLowerCase();
     if (!d) return;
-    if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(d)) {
+    if (!DOMAIN_RE.test(d)) {
       toast.error("Domínio inválido");
       return;
     }
-    if (domains.includes(d)) return;
-    setDomains([...domains, d]);
+    if (!form.domains.includes(d)) set("domains", [...form.domains, d]);
     setNewDomain("");
   }
 
@@ -307,381 +248,500 @@ export function SsoLdapDashboard() {
     try {
       await upsert({
         data: {
-          oauth_enabled: oauthEnabled,
-          saml_enabled: samlEnabled,
-          ldap_enabled: ldapEnabled,
-          azure_tenant_id: tenant || null,
-          azure_client_id: clientId || null,
-          saml_metadata_url: samlUrl || null,
-          ldap_host: ldapHost || null,
-          ldap_port: ldapPort === "" ? null : Number(ldapPort),
-          ldap_base_dn: ldapBaseDn || null,
-          ldap_bind_dn: ldapBindDn || null,
-          allowed_domains: domains,
+          oauth_enabled: form.oauthEnabled,
+          saml_enabled: form.samlEnabled,
+          ldap_enabled: form.ldapEnabled,
+          azure_tenant_id: form.tenant.trim() || null,
+          azure_client_id: form.clientId.trim() || null,
+          saml_metadata_url: form.samlUrl.trim() || null,
+          ldap_host: form.ldapHost.trim() || null,
+          ldap_port: form.ldapPort === "" ? null : Number(form.ldapPort),
+          ldap_base_dn: form.ldapBaseDn.trim() || null,
+          ldap_bind_dn: form.ldapBindDn.trim() || null,
+          allowed_domains: form.domains,
         },
       });
       toast.success("Configuração salva");
       qc.invalidateQueries({ queryKey: ["sso-config"] });
       qc.invalidateQueries({ queryKey: ["sso-public-config"] });
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
   }
 
   const redirectUri = q.data?.redirectUri ?? "";
-  const secretsOk = q.data?.hasAzureClientSecret && q.data?.hasStateSecret;
-  const activeCount = [oauthEnabled, samlEnabled, ldapEnabled].filter(Boolean).length;
+  const hasIds = !!form.tenant.trim() && !!form.clientId.trim();
+  const checks: Array<[boolean, string, string]> = [
+    [hasIds, "Tenant ID e Client ID preenchidos", "App Registration no Microsoft Entra ID"],
+    [
+      !!q.data?.hasAzureClientSecret,
+      "AZURE_CLIENT_SECRET configurado",
+      "variável de ambiente do servidor",
+    ],
+    [
+      !!q.data?.hasStateSecret,
+      "SSO_STATE_SECRET configurado",
+      "assina o state do login (proteção anti-CSRF)",
+    ],
+    [
+      form.domains.length > 0,
+      "Ao menos um domínio permitido",
+      form.domains.length
+        ? `${form.domains.length} ${form.domains.length === 1 ? "domínio" : "domínios"}`
+        : "sem domínio, ninguém é enviado ao SSO",
+    ],
+    [
+      form.oauthEnabled,
+      "SSO Microsoft habilitado",
+      form.oauthEnabled ? "aparece na tela de login" : "login só por e-mail e senha",
+    ],
+  ];
+  const readyCount = checks.filter((c) => c[0]).length;
+  const ready = readyCount === checks.length;
+  const savedReady = ready && !dirty;
+
+  const logins = loginsQ.data ?? [];
+  const okLogins = logins.filter((l) => l.status === "success");
+  const ssoOk = okLogins.filter((l) => l.login_method === "sso_azure").length;
+  const ssoFails = logins.filter((l) => l.login_method === "sso_azure" && l.status === "error");
+  const ssoShare = okLogins.length ? Math.round((ssoOk / okLogins.length) * 100) : 0;
+
+  const ssoState = !saved.oauthEnabled ? "Desligado" : savedReady ? "Ativo" : "Incompleto";
+  const ssoColor =
+    ssoState === "Ativo"
+      ? "var(--v2-ok)"
+      : ssoState === "Incompleto"
+        ? "var(--v2-med)"
+        : "var(--v2-fg-3)";
 
   return (
-    <div className="sso-root" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="sso-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Page header ── */}
-      <div className="sso-page-header">
-        <div>
-          <div className="sso-page-title">SSO / LDAP</div>
-          <div className="sso-page-sub">
-            Configure autenticação centralizada via Microsoft Entra ID, SAML 2.0 ou LDAP.
-          </div>
+      <div>
+        <h1 className="sso-ph-title">SSO / LDAP</h1>
+        <p className="sso-ph-sub">Login centralizado com a conta corporativa Microsoft</p>
+      </div>
+
+      <div className="sso-kpis">
+        <div className="sso-kpi">
+          <span className="sso-kpi-label">
+            <span className="sso-sw" style={{ background: ssoColor }} />
+            SSO Microsoft
+          </span>
+          <span className="sso-kpi-value word">{ssoState}</span>
+          <span className="sso-kpi-foot">
+            {readyCount} de {checks.length} itens prontos
+          </span>
         </div>
-        <div className="sso-status-bar">
-          <span className={`sso-status-pill ${activeCount > 0 ? "ok" : "off"}`}>
-            <span className="sso-status-dot" />
-            {activeCount} ativo{activeCount !== 1 ? "s" : ""}
+        <div className="sso-kpi">
+          <span className="sso-kpi-label">Logins via SSO · 30 dias</span>
+          <span className="sso-kpi-value">{ssoOk.toLocaleString("pt-BR")}</span>
+          <span className="sso-kpi-foot">
+            {okLogins.length ? `${ssoShare}% dos logins com sucesso` : "nenhum login no período"}
           </span>
-          <span className={`sso-status-pill ${secretsOk ? "ok" : "warn"}`}>
-            <span className="sso-status-dot" />
-            {secretsOk ? "secrets ok" : "secrets pendentes"}
+        </div>
+        <div className="sso-kpi">
+          <span className="sso-kpi-label">
+            {ssoFails.length > 0 && (
+              <span className="sso-sw" style={{ background: "var(--v2-crit)" }} />
+            )}
+            Falhas de SSO · 30 dias
           </span>
-          <span className={`sso-status-pill ${domains.length > 0 ? "ok" : "off"}`}>
-            <span className="sso-status-dot" />
-            {domains.length} domínio{domains.length !== 1 ? "s" : ""}
+          <span className="sso-kpi-value">{ssoFails.length}</span>
+          <span className="sso-kpi-foot">
+            {ssoFails.length
+              ? `última ${fmtAgo(ssoFails[0].created_at)} · detalhes na Central de Logs`
+              : "nenhuma falha"}
           </span>
+        </div>
+        <div className="sso-kpi">
+          <span className="sso-kpi-label">Domínios permitidos</span>
+          <span className="sso-kpi-value">{saved.domains.length}</span>
+          <span className="sso-kpi-foot">e-mails desses domínios vão para o SSO</span>
         </div>
       </div>
 
-      {/* ── Grid row 1: OAuth + Domínios ── */}
-      <div className="sso-grid">
-        {/* OAuth Microsoft */}
-        <SsoCard accent={SECTION_ACCENT.oauth}>
-          <div className="sso-card-header">
-            <div className="sso-card-header-left">
-              <div className="sso-icon-wrap">
-                <Shield size={16} style={{ color: SECTION_ACCENT.oauth.color }} />
-              </div>
-              <div>
-                <div className="sso-section-name">SSO Microsoft</div>
-                <div className="sso-section-sub">
-                  <Link2 size={9} /> OAuth 2.0 / Entra ID
-                </div>
-              </div>
-            </div>
-            <span className={`sso-badge ${oauthEnabled ? "yes" : "off"}`}>
-              {oauthEnabled ? (
-                <>
-                  <CheckCircle2 size={10} /> Ativo
-                </>
-              ) : (
-                <>
-                  <AlertCircle size={10} /> Inativo
-                </>
-              )}
-            </span>
-          </div>
-          <div className="sso-card-body">
-            <div className="sso-toggle-row">
-              <div>
-                <div className="sso-toggle-label">Habilitar SSO Microsoft</div>
-                <div className="sso-toggle-hint">
-                  {oauthEnabled ? "Login via conta Microsoft ativo" : "Desabilitado — login por senha"}
-                </div>
-              </div>
-              <Switch checked={oauthEnabled} onCheckedChange={setOauthEnabled} />
-            </div>
-
-            <div className="sso-field">
-              <span className="sso-field-label">Tenant ID</span>
-              <Input
-                value={tenant}
-                onChange={(e) => setTenant(e.target.value)}
-                placeholder="00000000-0000-0000-0000-000000000000"
-              />
-            </div>
-
-            <div className="sso-field">
-              <span className="sso-field-label">Client ID (Application ID)</span>
-              <Input
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="00000000-0000-0000-0000-000000000000"
-              />
-            </div>
-
-            <div className="sso-field">
-              <span className="sso-field-label">Redirect URI</span>
-              <div className="sso-copy-row">
-                <Input value={redirectUri} readOnly />
-                <button
-                  className="sso-copy-btn"
-                  type="button"
-                  title="Copiar"
-                  onClick={() => {
-                    navigator.clipboard.writeText(redirectUri);
-                    toast.success("Copiado");
-                  }}
-                >
-                  <Copy size={13} />
-                </button>
-              </div>
-              <span className="sso-field-helper">Registre esta URI no Azure App Registration → Authentication.</span>
-            </div>
-
-            <div className="sso-info neutral">
-              <KeyRound size={14} style={{ color: T.warning, flexShrink: 0, marginTop: 1 }} />
+      <div className="sso-two">
+        <div className="sso-col">
+          <section className="sso-card">
+            <div className="sso-card-h">
+              <span className="sso-ms" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
               <span>
-                <b>AZURE_CLIENT_SECRET</b> e <b>SSO_STATE_SECRET</b> são configurados via Secrets do projeto. Status:{" "}
-                <span style={{ color: secretsOk ? T.success : T.warning }}>
-                  {secretsOk ? "✓ configurados" : "⚠ pendentes"}
+                <b>Microsoft Entra ID</b>
+                <small>OAuth 2.0 / OpenID Connect</small>
+              </span>
+              <span className="r">
+                <span
+                  className="sso-pill"
+                  style={
+                    {
+                      "--c": form.oauthEnabled ? "var(--v2-ok)" : "var(--v2-fg-3)",
+                    } as React.CSSProperties
+                  }
+                >
+                  {form.oauthEnabled ? "Ativo" : "Desligado"}
                 </span>
               </span>
             </div>
-          </div>
-        </SsoCard>
-
-        {/* Domínios */}
-        <SsoCard accent={SECTION_ACCENT.domains}>
-          <div className="sso-card-header">
-            <div className="sso-card-header-left">
-              <div className="sso-icon-wrap">
-                <Shield size={16} style={{ color: SECTION_ACCENT.domains.color }} />
-              </div>
-              <div>
-                <div className="sso-section-name">Domínios Permitidos</div>
-                <div className="sso-section-sub">
-                  <Link2 size={9} /> Filtro por e-mail
-                </div>
-              </div>
-            </div>
-            <span className={`sso-badge ${domains.length > 0 ? "yes" : "off"}`}>
-              {domains.length > 0 ? (
-                <>
-                  <CheckCircle2 size={10} /> {domains.length} domínio{domains.length !== 1 ? "s" : ""}
-                </>
-              ) : (
-                <>
-                  <AlertCircle size={10} /> Nenhum
-                </>
-              )}
-            </span>
-          </div>
-          <div className="sso-card-body">
-            <div className="sso-info neutral" style={{ marginBottom: 0 }}>
-              <span style={{ color: T.textMuted, fontSize: 11, lineHeight: 1.55 }}>
-                Apenas e-mails desses domínios são direcionados ao SSO. Os demais continuam com senha.
-              </span>
-            </div>
-
-            <div className="sso-tags">
-              {domains.length === 0 ? (
-                <span className="sso-tag-empty">Nenhum domínio cadastrado.</span>
-              ) : (
-                domains.map((d) => (
-                  <span key={d} className="sso-tag">
-                    {d}
-                    <button
-                      type="button"
-                      className="sso-tag-rm"
-                      onClick={() => setDomains(domains.filter((x) => x !== d))}
-                    >
-                      <X size={11} />
-                    </button>
-                  </span>
-                ))
-              )}
-            </div>
-
-            <div className="sso-add-row">
-              <Input
-                value={newDomain}
-                onChange={(e) => setNewDomain(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addDomain();
-                  }
-                }}
-                placeholder="empresa.com"
-              />
-              <button type="button" className="sso-add-btn" onClick={addDomain}>
-                <Plus size={13} /> Adicionar
-              </button>
-            </div>
-          </div>
-        </SsoCard>
-      </div>
-
-      {/* ── Grid row 2: SAML + LDAP ── */}
-      <div className="sso-grid">
-        {/* SAML */}
-        <SsoCard accent={SECTION_ACCENT.saml}>
-          <div className="sso-card-header">
-            <div className="sso-card-header-left">
-              <div className="sso-icon-wrap">
-                <Shield size={16} style={{ color: SECTION_ACCENT.saml.color }} />
-              </div>
-              <div>
-                <div className="sso-section-name">SAML 2.0</div>
-                <div className="sso-section-sub">
-                  <Link2 size={9} /> Federação de identidade
-                </div>
-              </div>
-            </div>
-            <span className={`sso-badge ${samlEnabled ? "yes" : "off"}`}>
-              {samlEnabled ? (
-                <>
-                  <CheckCircle2 size={10} /> Ativo
-                </>
-              ) : (
-                <>
-                  <AlertCircle size={10} /> Inativo
-                </>
-              )}
-            </span>
-          </div>
-          <div className="sso-card-body">
-            <div className="sso-toggle-row">
-              <div>
-                <div className="sso-toggle-label">Habilitar SAML</div>
-                <div className="sso-toggle-hint">{samlEnabled ? "Federação SAML habilitada" : "Desabilitado"}</div>
-              </div>
-              <Switch checked={samlEnabled} onCheckedChange={setSamlEnabled} />
-            </div>
-
-            <div className="sso-field">
-              <span className="sso-field-label">Metadata URL do IdP</span>
-              <Input
-                value={samlUrl}
-                onChange={(e) => setSamlUrl(e.target.value)}
-                placeholder="https://idp.empresa.com/metadata.xml"
-              />
-              <span className="sso-field-helper">URL do arquivo de metadados do seu Identity Provider.</span>
-            </div>
-
-            <div className="sso-info warn">
-              <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-              <span>Configuração salva. O fluxo SAML completo será habilitado em iteração futura.</span>
-            </div>
-          </div>
-        </SsoCard>
-
-        {/* LDAP */}
-        <SsoCard accent={SECTION_ACCENT.ldap}>
-          <div className="sso-card-header">
-            <div className="sso-card-header-left">
-              <div className="sso-icon-wrap">
-                <Server size={16} style={{ color: SECTION_ACCENT.ldap.color }} />
-              </div>
-              <div>
-                <div className="sso-section-name">LDAP</div>
-                <div className="sso-section-sub">
-                  <Link2 size={9} /> Active Directory / OpenLDAP
-                </div>
-              </div>
-            </div>
-            <span className={`sso-badge ${ldapEnabled ? "yes" : "off"}`}>
-              {ldapEnabled ? (
-                <>
-                  <CheckCircle2 size={10} /> Ativo
-                </>
-              ) : (
-                <>
-                  <AlertCircle size={10} /> Inativo
-                </>
-              )}
-            </span>
-          </div>
-          <div className="sso-card-body">
-            <div className="sso-toggle-row">
-              <div>
-                <div className="sso-toggle-label">Habilitar LDAP</div>
-                <div className="sso-toggle-hint">{ldapEnabled ? "Autenticação LDAP habilitada" : "Desabilitado"}</div>
-              </div>
-              <Switch checked={ldapEnabled} onCheckedChange={setLdapEnabled} />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10 }}>
-              <div className="sso-field">
-                <span className="sso-field-label">Host</span>
-                <Input value={ldapHost} onChange={(e) => setLdapHost(e.target.value)} placeholder="ldap.empresa.com" />
-              </div>
-              <div className="sso-field" style={{ width: 90 }}>
-                <span className="sso-field-label">Porta</span>
-                <Input
-                  type="number"
-                  value={ldapPort}
-                  onChange={(e) => setLdapPort(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="636"
+            <div className="sso-card-b">
+              <div className="sso-togrow">
+                <span>
+                  <b>Entrar com Microsoft</b>
+                  <small>
+                    {form.oauthEnabled
+                      ? "E-mails dos domínios permitidos são enviados para a Microsoft"
+                      : "Todos entram com e-mail e senha"}
+                  </small>
+                </span>
+                <Switch
+                  checked={form.oauthEnabled}
+                  onCheckedChange={(v) => set("oauthEnabled", v)}
+                  aria-label="Entrar com Microsoft"
                 />
               </div>
+              <div className="sso-g2">
+                <label className="sso-field">
+                  Tenant ID
+                  <input
+                    className="sso-input mono"
+                    value={form.tenant}
+                    onChange={(e) => set("tenant", e.target.value)}
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                  />
+                </label>
+                <label className="sso-field">
+                  Client ID (Application ID)
+                  <input
+                    className="sso-input mono"
+                    value={form.clientId}
+                    onChange={(e) => set("clientId", e.target.value)}
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                  />
+                </label>
+              </div>
+              <div className="sso-field">
+                Redirect URI
+                <div className="sso-row">
+                  <input
+                    className="sso-input mono"
+                    value={redirectUri}
+                    readOnly
+                    aria-label="Redirect URI"
+                  />
+                  <button
+                    type="button"
+                    className="sso-btn icon"
+                    title="Copiar"
+                    aria-label="Copiar Redirect URI"
+                    onClick={() => {
+                      navigator.clipboard.writeText(redirectUri).then(
+                        () => toast.success("Copiado"),
+                        () => toast.error("Não foi possível copiar"),
+                      );
+                    }}
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+                <small>Cadastre em App Registration → Authentication → Web → Redirect URIs.</small>
+              </div>
+              <div className="sso-field">
+                Segredos do servidor
+                <div className="sso-secrets">
+                  {(
+                    [
+                      ["AZURE_CLIENT_SECRET", q.data?.hasAzureClientSecret],
+                      ["SSO_STATE_SECRET", q.data?.hasStateSecret],
+                    ] as Array<[string, boolean | undefined]>
+                  ).map(([name, ok]) => (
+                    <div key={name}>
+                      <span>{name}</span>
+                      <span
+                        className="sso-pill"
+                        style={
+                          { "--c": ok ? "var(--v2-ok)" : "var(--v2-med)" } as React.CSSProperties
+                        }
+                      >
+                        {ok ? "Configurado" : "Pendente"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <small>
+                  Ficam nas variáveis de ambiente do servidor, nunca no banco nem nesta tela.
+                </small>
+              </div>
             </div>
+          </section>
 
-            <div className="sso-field">
-              <span className="sso-field-label">Base DN</span>
-              <Input
-                value={ldapBaseDn}
-                onChange={(e) => setLdapBaseDn(e.target.value)}
-                placeholder="dc=empresa,dc=com"
-              />
+          <section className="sso-card">
+            <div className="sso-card-h">
+              <span>
+                <b>Como o login funciona</b>
+                <small>do e-mail digitado até a sessão no Z-Sec</small>
+              </span>
             </div>
+            <div className="sso-flow">
+              {[
+                ["E-mail", "A pessoa digita o e-mail na tela de login"],
+                ["Domínio", "Se for de um domínio permitido, vai para a Microsoft"],
+                [
+                  "Microsoft",
+                  "Autentica com a conta corporativa e as políticas do Entra (ex.: MFA)",
+                ],
+                ["Retorno", "A Redirect URI valida o state e abre a sessão"],
+              ].map(([t, d], i) => (
+                <div key={t}>
+                  <span className="n">{i + 1}</span>
+                  <b>{t}</b>
+                  <span>{d}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
 
-            <div className="sso-field">
-              <span className="sso-field-label">Bind DN</span>
-              <Input
-                value={ldapBindDn}
-                onChange={(e) => setLdapBindDn(e.target.value)}
-                placeholder="cn=svc,dc=empresa,dc=com"
-              />
+        <div className="sso-col">
+          <section className="sso-card">
+            <div className="sso-card-h">
+              <span>
+                <b>Prontidão</b>
+                <small>o que falta para o SSO funcionar</small>
+              </span>
+              <span className="r">
+                <span
+                  className="sso-pill"
+                  style={{ "--c": ready ? "var(--v2-ok)" : "var(--v2-med)" } as React.CSSProperties}
+                >
+                  {ready ? "Pronto" : "Pendente"}
+                </span>
+              </span>
             </div>
+            <div className="sso-check">
+              {checks.map(([ok, title, sub]) => (
+                <div key={title}>
+                  <span className={`sso-ic ${ok ? "ok" : "no"}`}>
+                    {ok ? <Check size={12} /> : <AlertTriangle size={11} />}
+                  </span>
+                  <span>
+                    <b>{title}</b>
+                    <small>{sub}</small>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
 
-            <div className="sso-info warn">
-              <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-              <span>Autenticação LDAP via gateway dedicado será habilitada em iteração futura.</span>
+          <section className="sso-card">
+            <div className="sso-card-h">
+              <span>
+                <b>Domínios permitidos</b>
+                <small>só e-mails destes domínios vão para o SSO; os demais usam senha</small>
+              </span>
             </div>
-          </div>
-        </SsoCard>
+            <div className="sso-card-b">
+              <div className="sso-tags">
+                {form.domains.length === 0 ? (
+                  <span className="sso-empty">Nenhum domínio cadastrado.</span>
+                ) : (
+                  form.domains.map((d) => (
+                    <span key={d} className="sso-tag">
+                      {d}
+                      <button
+                        type="button"
+                        aria-label={`Remover ${d}`}
+                        onClick={() =>
+                          set(
+                            "domains",
+                            form.domains.filter((x) => x !== d),
+                          )
+                        }
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+              <div className="sso-row">
+                <input
+                  className="sso-input"
+                  value={newDomain}
+                  onChange={(e) => setNewDomain(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addDomain();
+                    }
+                  }}
+                  placeholder="empresa.com.br"
+                  aria-label="Novo domínio"
+                />
+                <button type="button" className="sso-btn" onClick={addDomain}>
+                  <Plus size={14} />
+                  Adicionar
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
 
-      {/* ── Save ── */}
-      <button className="sso-save-btn" onClick={save} disabled={saving}>
-        {saving ? <Loader2 size={15} className="sso-spin" /> : <Save size={15} />}
-        {saving ? "Salvando…" : "Salvar configuração"}
-      </button>
-    </div>
-  );
-}
+      <div className="sso-sec-h">
+        Outros métodos <span>· configuração guardada, login ainda não disponível</span>
+      </div>
+      <div className="sso-others">
+        <details className="sso-oc">
+          <summary>
+            <span>
+              <b>SAML 2.0</b>
+              <small>Federação com outro provedor de identidade</small>
+            </span>
+            <span className="r">
+              <span className="sso-pill" style={{ "--c": "var(--v2-fg-3)" } as React.CSSProperties}>
+                Em breve
+              </span>
+              <ChevronDown size={14} />
+            </span>
+          </summary>
+          <div className="sso-card-b">
+            <div className="sso-note">
+              <AlertTriangle size={13} />
+              <span>
+                O fluxo SAML ainda não foi implementado. O que for salvo aqui fica guardado para
+                quando existir.
+              </span>
+            </div>
+            <div className="sso-togrow">
+              <span>
+                <b>Habilitar SAML</b>
+                <small>
+                  {form.samlEnabled ? "Habilitado (sem efeito no login por enquanto)" : "Desligado"}
+                </small>
+              </span>
+              <Switch
+                checked={form.samlEnabled}
+                onCheckedChange={(v) => set("samlEnabled", v)}
+                aria-label="Habilitar SAML"
+              />
+            </div>
+            <label className="sso-field">
+              Metadata URL do IdP
+              <input
+                className="sso-input"
+                value={form.samlUrl}
+                onChange={(e) => set("samlUrl", e.target.value)}
+                placeholder="https://idp.empresa.com/metadata.xml"
+              />
+            </label>
+          </div>
+        </details>
 
-// ── Wrapper que injeta as CSS vars de accent ───────────────────────────────────
-function SsoCard({
-  accent,
-  children,
-}: {
-  accent: { color: string; bg: string; border: string };
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="sso-card"
-      style={
-        {
-          "--sec-color": accent.color,
-          "--sec-bg": accent.bg,
-          "--sec-border": accent.border,
-        } as React.CSSProperties
-      }
-    >
-      {children}
+        <details className="sso-oc">
+          <summary>
+            <span>
+              <b>LDAP</b>
+              <small>Active Directory / OpenLDAP</small>
+            </span>
+            <span className="r">
+              <span className="sso-pill" style={{ "--c": "var(--v2-fg-3)" } as React.CSSProperties}>
+                Em breve
+              </span>
+              <ChevronDown size={14} />
+            </span>
+          </summary>
+          <div className="sso-card-b">
+            <div className="sso-note">
+              <AlertTriangle size={13} />
+              <span>A autenticação LDAP via gateway dedicado ainda não foi implementada.</span>
+            </div>
+            <div className="sso-togrow">
+              <span>
+                <b>Habilitar LDAP</b>
+                <small>
+                  {form.ldapEnabled ? "Habilitado (sem efeito no login por enquanto)" : "Desligado"}
+                </small>
+              </span>
+              <Switch
+                checked={form.ldapEnabled}
+                onCheckedChange={(v) => set("ldapEnabled", v)}
+                aria-label="Habilitar LDAP"
+              />
+            </div>
+            <div className="sso-g2">
+              <label className="sso-field">
+                Host
+                <input
+                  className="sso-input mono"
+                  value={form.ldapHost}
+                  onChange={(e) => set("ldapHost", e.target.value)}
+                  placeholder="ldap.empresa.com"
+                />
+              </label>
+              <label className="sso-field">
+                Porta
+                <input
+                  className="sso-input mono"
+                  type="number"
+                  value={form.ldapPort}
+                  onChange={(e) => set("ldapPort", e.target.value)}
+                  placeholder="636"
+                />
+              </label>
+            </div>
+            <label className="sso-field">
+              Base DN
+              <input
+                className="sso-input mono"
+                value={form.ldapBaseDn}
+                onChange={(e) => set("ldapBaseDn", e.target.value)}
+                placeholder="dc=empresa,dc=com"
+              />
+            </label>
+            <label className="sso-field">
+              Bind DN
+              <input
+                className="sso-input mono"
+                value={form.ldapBindDn}
+                onChange={(e) => set("ldapBindDn", e.target.value)}
+                placeholder="cn=svc,dc=empresa,dc=com"
+              />
+            </label>
+          </div>
+        </details>
+      </div>
+
+      <div className="sso-savebar">
+        <span>
+          {dirty ? (
+            <>
+              <span className="dot" />
+              Alterações não salvas
+            </>
+          ) : (
+            "Tudo salvo"
+          )}
+        </span>
+        <span style={{ display: "flex", gap: 8 }}>
+          {dirty && (
+            <button className="sso-btn ghost" onClick={() => setForm(saved)} disabled={saving}>
+              Descartar
+            </button>
+          )}
+          <button className="sso-btn primary" onClick={save} disabled={saving || !dirty}>
+            <Check size={14} />
+            {saving ? "Salvando…" : "Salvar configuração"}
+          </button>
+        </span>
+      </div>
     </div>
   );
 }

@@ -1,282 +1,88 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { gmudMetrics } from "@/lib/gmud.functions";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import {
-  Maximize2,
-  Minimize2,
-  GripHorizontal,
-  Activity,
-  CheckCircle2,
-  Clock,
-  RotateCcw,
-  AlertTriangle,
-} from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { gmudMetrics, listGmuds } from "@/lib/gmud.functions";
+import { useAuth } from "@/lib/auth-context";
+import type { GmudRow } from "./gmud-shared";
 
-// ── Design Tokens ──────────────────────────────────────────────────────────────
-const T = {
-  surface: "#0F1420",
-  surfaceAlt: "#131825",
-  border: "#1E2640",
-  borderHi: "#2A3560",
-  accent: "#3B82F6",
-  accentGlow: "rgba(59,130,246,0.15)",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  purple: "#A78BFA",
-  purpleBg: "rgba(167,139,250,0.10)",
-  neutral: "#6B7280",
-  textPrimary: "#F1F5F9",
-  textSecondary: "#F1F5F9",
-  textMuted: "#F1F5F9",
-  textSubtle: "#F1F5F9",
-  chartGrid: "rgba(30,38,64,0.7)",
-  chartAxis: "#334155",
-  chartTick: "#64748B",
-};
+// Estilos: classes gm-* definidas em GmudReal.tsx (casco do módulo).
 
-const tipoColor: Record<string, string> = {
-  Normal: T.accent,
-  Prioritária: T.warning,
-  Emergencial: T.danger,
-};
+const SERIES = [
+  { key: "v", name: "Criadas", color: "var(--v2-accent)" },
+  { key: "concluidas", name: "Concluídas", color: "var(--v2-ok)" },
+  { key: "rollback", name: "Rollback", color: "var(--v2-high)" },
+  { key: "rejeitadas", name: "Rejeitadas", color: "var(--v2-crit)" },
+] as const;
 
-// ── CSS ────────────────────────────────────────────────────────────────────────
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+const TIPOS = [
+  { name: "Normal", color: "var(--v2-accent)", hint: "planejadas, seguem a cadeia completa" },
+  { name: "Prioritária", color: "var(--v2-med)", hint: "precisam entrar na próxima janela" },
+  { name: "Emergencial", color: "var(--v2-crit)", hint: "correção imediata de incidente" },
+] as const;
 
-  .gdt-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; display:flex; flex-direction:column; gap:16px; }
-  .gdt-root * { box-sizing:border-box; }
-
-  /* scrollbar */
-  .gdt-root ::-webkit-scrollbar       { width:4px; height:4px; }
-  .gdt-root ::-webkit-scrollbar-track { background:transparent; }
-  .gdt-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
-
-  /* recharts overrides */
-  .gdt-root .recharts-cartesian-axis-tick-value { fill:${T.chartTick} !important; font-size:10px; font-family:'IBM Plex Mono',monospace; }
-  .gdt-root .recharts-text { fill:${T.chartTick} !important; }
-  .gdt-root .recharts-legend-item-text { color:${T.textSecondary} !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
-
-  /* ── Period selector ── */
-  .gdt-period-bar {
-    display:flex; align-items:center; justify-content:flex-end; gap:6px;
-  }
-  .gdt-period-btn {
-    padding:5px 14px; border-radius:6px; font-size:11px; font-weight:600;
-    border:1px solid ${T.border}; cursor:pointer; font-family:'IBM Plex Mono',monospace;
-    transition:all 0.15s; color:${T.textMuted}; background:transparent; letter-spacing:0.04em;
-  }
-  .gdt-period-btn.active { background:${T.accentGlow}; border-color:rgba(59,130,246,0.4); color:${T.accent}; }
-  .gdt-period-btn:hover:not(.active) { border-color:${T.borderHi}; color:${T.textSecondary}; }
-
-  /* ── KPI strip ── */
-  .gdt-kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
-  .gdt-kpi {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:14px 18px; position:relative; overflow:hidden; transition:border-color 0.2s;
-  }
-  .gdt-kpi:hover { border-color:${T.borderHi}; }
-  .gdt-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kc,${T.accent}); }
-  .gdt-kpi-icon  { position:absolute; top:10px; right:10px; width:40px; height:40px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:var(--ki-bg,rgba(59,130,246,0.18)); }
-  .gdt-kpi-label { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-bottom:5px; }
-  .gdt-kpi-value { font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; line-height:1; color:var(--kc,${T.textPrimary}); }
-  .gdt-kpi-sub   { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:11px; font-family:'IBM Plex Mono',monospace; }
-
-  /* ── Block card ── */
-  .gdt-block {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    display:flex; flex-direction:column; min-height:200px; resize:vertical; overflow:auto;
-    transition:border-color 0.2s;
-  }
-  .gdt-block:hover { border-color:${T.borderHi}; }
-
-  .gdt-block-hdr {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:10px 16px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border};
-    cursor:grab; user-select:none; flex-shrink:0; border-radius:10px 10px 0 0;
-  }
-  .gdt-block-hdr:active { cursor:grabbing; }
-  .gdt-block-title { display:flex; align-items:center; gap:7px; font-size:11px; font-weight:600; color:${T.textMuted}; text-transform:uppercase; letter-spacing:0.09em; font-family:'IBM Plex Mono',monospace; }
-
-  .gdt-resize-ctrl { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.15s; }
-  .gdt-block:hover .gdt-resize-ctrl { opacity:1; }
-  .gdt-resize-btn { padding:2px; border:none; background:transparent; color:${T.textMuted}; cursor:pointer; border-radius:3px; line-height:0; transition:color 0.15s,background 0.15s; }
-  .gdt-resize-btn:hover { color:${T.textPrimary}; background:rgba(255,255,255,0.07); }
-  .gdt-resize-btn:disabled { opacity:0.25; cursor:default; }
-
-  .gdt-block-body { flex:1; padding:16px; }
-
-  /* ── Tipo filter chip ── */
-  .gdt-tipo-chip {
-    display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:4px;
-    font-size:10px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase;
-    font-family:'IBM Plex Mono',monospace; cursor:pointer; transition:all 0.15s;
-  }
-  .gdt-tipo-chip:hover { filter:brightness(1.2); }
-
-  /* ── Horizontal bar chart (Tipo) ── */
-  .gdt-tipo-bars { display:flex; flex-direction:column; gap:0; padding:0; width:100%; }
-  .gdt-tipo-row  { display:flex; align-items:center; gap:10px; cursor:pointer; border-radius:6px; padding:10px 6px; transition:background 0.1s; flex:1; }
-  .gdt-tipo-row:hover { background:rgba(59,130,246,0.05); }
-  .gdt-tipo-row.active { background:rgba(59,130,246,0.06); }
-  .gdt-tipo-row-label {
-    font-size:13px; color:${T.textSecondary}; width:104px; flex-shrink:0;
-    font-family:'DM Sans',sans-serif; font-weight:500;
-    transition:color 0.15s;
-  }
-  .gdt-tipo-row.active .gdt-tipo-row-label { color:${T.textPrimary}; font-weight:600; }
-  .gdt-tipo-track {
-    flex:1; height:26px; background:rgba(30,38,64,0.55);
-    border-radius:5px; overflow:hidden; position:relative;
-  }
-  .gdt-tipo-fill {
-    height:100%; border-radius:5px;
-    display:flex; align-items:center; padding-left:9px;
-    min-width:40px; transition:width 0.5s ease;
-  }
-  .gdt-tipo-fill-label {
-    font-size:11px; font-weight:700; color:rgba(255,255,255,0.95);
-    font-family:'IBM Plex Mono',monospace; letter-spacing:0.04em; white-space:nowrap;
-  }
-  .gdt-tipo-count {
-    font-size:13px; font-weight:700; font-family:'IBM Plex Mono',monospace;
-    color:${T.textPrimary}; width:40px; text-align:right; flex-shrink:0;
-  }
-  .gdt-tipo-total {
-    margin-top:16px; padding-top:12px; border-top:1px solid ${T.border};
-    display:flex; align-items:center; justify-content:space-between;
-    font-size:10px; font-family:'IBM Plex Mono',monospace;
-    color:${T.textMuted}; letter-spacing:0.08em; text-transform:uppercase;
-  }
-  .gdt-tipo-total-val {
-    font-size:18px; font-weight:700; font-family:'Space Grotesk',sans-serif;
-    letter-spacing:-0.02em; color:${T.textPrimary};
-  }
-
-  /* ── Tooltip ── */
-  .gdt-tooltip { background:${T.surface}; border:1px solid ${T.borderHi}; border-radius:8px; padding:10px 14px; font-family:'DM Sans',sans-serif; box-shadow:0 20px 40px rgba(0,0,0,0.5); min-width:150px; }
-  .gdt-tooltip-label { font-size:10px; font-family:'IBM Plex Mono',monospace; color:${T.textMuted}; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
-  .gdt-tooltip-row   { display:flex; align-items:center; gap:6px; font-size:12px; margin-bottom:3px; }
-  .gdt-tooltip-dot   { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
-  .gdt-tooltip-name  { color:${T.textSecondary}; font-size:11px; }
-  .gdt-tooltip-val   { color:${T.textPrimary}; font-weight:700; font-family:'IBM Plex Mono',monospace; margin-left:auto; }
-
-  /* ── Gargalos table ── */
-  .gdt-panel { background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; overflow:hidden; }
-  .gdt-panel-hdr { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; }
-  .gdt-panel-title { display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .gdt-table { width:100%; border-collapse:collapse; }
-  .gdt-table th { padding:8px 14px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; }
-  .gdt-table th.right { text-align:right; }
-  .gdt-table td { padding:10px 14px; border-bottom:1px solid rgba(30,38,64,0.4); font-size:12px; color:${T.textPrimary}; }
-  .gdt-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
-  .gdt-table tbody tr:last-child td { border-bottom:none; }
-  .gdt-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
-  .gdt-table .dim  { color:${T.textMuted}; }
-
-  /* ── Empty ── */
-  .gdt-empty { padding:32px; text-align:center; color:${T.textMuted}; font-size:12px; font-family:'DM Sans',sans-serif; }
-`;
-
-// ── Custom tooltip ─────────────────────────────────────────────────────────────
-function ExecTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="gdt-tooltip">
-      <div className="gdt-tooltip-label">{label}</div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} className="gdt-tooltip-row">
-          <div className="gdt-tooltip-dot" style={{ background: p.color }} />
-          <span className="gdt-tooltip-name">{p.name}</span>
-          <span className="gdt-tooltip-val">{p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
+function fmtShort(s: string | null) {
+  if (!s) return "—";
+  return new Date(s).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+/** Horas → "36 h" até 48 h; acima disso em dias ("109 d"). */
+function fmtHoras(h: number) {
+  return h <= 48 ? `${h} h` : `${Math.round(h / 24)} d`;
+}
+function ago(s: string) {
+  const h = Math.max(0, Math.round((Date.now() - new Date(s).getTime()) / 3_600_000));
+  return h < 24 ? `há ${h} h` : `há ${Math.round(h / 24)} d`;
 }
 
-// ── Resizable block ────────────────────────────────────────────────────────────
-const COL_SIZES = ["col-span-1", "col-span-2", "col-span-3"] as const;
-type ColSize = (typeof COL_SIZES)[number];
-
-function Block({
-  title,
-  children,
-  chartHeight = 260,
-  defaultSize = "col-span-1" as ColSize,
-  extra,
+function VolTooltip({
+  active,
+  payload,
+  label,
 }: {
-  title: React.ReactNode;
-  children: React.ReactNode;
-  chartHeight?: number;
-  defaultSize?: ColSize;
-  extra?: React.ReactNode;
+  active?: boolean;
+  label?: string;
+  payload?: Array<{ dataKey: string; value: number }>;
 }) {
-  const [size, setSize] = React.useState<ColSize>(defaultSize);
+  if (!active || !payload?.length) return null;
+  const get = (k: string) => payload.find((p) => p.dataKey === k)?.value ?? 0;
   return (
-    <div className={`${size} gdt-block`} style={{ minHeight: chartHeight + 52 }}>
-      <div className="gdt-block-hdr">
-        <div className="gdt-block-title">
-          <GripHorizontal size={11} color={T.textMuted} />
-          <span>{title}</span>
-          {extra}
-        </div>
-        <div className="gdt-resize-ctrl">
-          <button
-            className="gdt-resize-btn"
-            disabled={size === COL_SIZES[0]}
-            onClick={() => setSize(COL_SIZES[Math.max(0, COL_SIZES.indexOf(size) - 1)])}
-          >
-            <Minimize2 size={11} />
-          </button>
-          <button
-            className="gdt-resize-btn"
-            disabled={size === COL_SIZES[2]}
-            onClick={() => setSize(COL_SIZES[Math.min(2, COL_SIZES.indexOf(size) + 1)])}
-          >
-            <Maximize2 size={11} />
-          </button>
-        </div>
-      </div>
-      <div className="gdt-block-body" style={{ height: chartHeight }}>
-        {children}
-      </div>
+    <div className="gm-tip">
+      <b>{label}</b>
+      <span>
+        Criadas {get("v")} · Concluídas {get("concluidas")}
+      </span>
+      <span>
+        Rollback {get("rollback")} · Rejeitadas {get("rejeitadas")}
+      </span>
     </div>
   );
 }
 
-// ── Axis props ─────────────────────────────────────────────────────────────────
-const axisProps = {
-  stroke: T.chartAxis,
-  fontSize: 10,
-  tick: { fill: T.chartTick, fontFamily: "'IBM Plex Mono',monospace" },
-  tickLine: false,
-  axisLine: { stroke: T.chartAxis },
-};
-
-// ── DASHBOARD TAB ──────────────────────────────────────────────────────────────
-export function GmudDashboardTab() {
+export function GmudDashboardTab({
+  days,
+  onOpen,
+  onGoToList,
+}: {
+  days: number;
+  onOpen: (g: GmudRow) => void;
+  onGoToList: (f: { status?: string; tipo?: string }) => void;
+}) {
   // ── back-end UNCHANGED ────────────────────────────────────────────────────
   const metrics = useServerFn(gmudMetrics);
-  const [days, setDays] = React.useState(30);
-  const [tipoFilter, setTipoFilter] = React.useState<string | null>(null);
-
-  function handleTipoClick(tipo: string | null) {
-    setTipoFilter((prev) => {
-      const next = prev === tipo ? null : tipo;
-      window.dispatchEvent(new CustomEvent("gmud-tipo-filter", { detail: next }));
-      return next;
-    });
-  }
-
   const q = useQuery({
     queryKey: ["gmud-metrics", days],
     queryFn: () => metrics({ data: { days } }),
@@ -285,268 +91,306 @@ export function GmudDashboardTab() {
   const m = q.data;
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Pendências independem do período: uma GMUD parada há 40 dias continua aqui.
+  const list = useServerFn(listGmuds);
+  const pendQ = useQuery({
+    queryKey: ["gmuds", "all"],
+    queryFn: () => list({ data: { status: "all", tipo: "all" } }),
+    refetchInterval: 60_000,
+  });
+  const { user } = useAuth();
+  const myEmail = (user?.email ?? "").toLowerCase();
+
+  const att = React.useMemo(() => {
+    const all = (pendQ.data ?? []) as GmudRow[];
+    const now = Date.now();
+    const emAprov = all.filter((g) => g.status_geral === "Em Aprovação");
+    const isMine = (g: GmudRow) =>
+      (g.aprovadores ?? []).some(
+        (a) => a.ativo && (a.email_aprovador ?? "").toLowerCase() === myEmail,
+      );
+    return {
+      emAprov: emAprov.length,
+      mine: emAprov.filter(isMine),
+      semResultado: all
+        .filter(
+          (g) =>
+            g.status_geral === "Aprovada" && g.data_fim && new Date(g.data_fim).getTime() < now,
+        )
+        .sort((a, b) => (a.data_fim ?? "").localeCompare(b.data_fim ?? "")),
+      paradas: emAprov
+        .filter((g) => !isMine(g) && now - new Date(g.created_at).getTime() > 86_400_000)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    };
+  }, [pendQ.data, myEmail]);
+
   const tiposData = m?.tipos ?? [];
+  const tiposTotal = tiposData.reduce((s, t) => s + t.value, 0);
+  const taxa = m?.taxaSucesso ?? 0;
+  const taxaColor = taxa >= 90 ? "var(--v2-ok)" : taxa >= 75 ? "var(--v2-med)" : "var(--v2-crit)";
 
-  const [tipoColSize, setTipoColSize] = React.useState<ColSize>("col-span-1");
-
-  const PERIOD_OPTIONS = [
-    { value: 7, label: "7d" },
-    { value: 30, label: "30d" },
-    { value: 90, label: "90d" },
-    { value: 180, label: "180d" },
-  ];
+  const feedSection = (
+    title: string,
+    items: GmudRow[],
+    kind: "" | "warn",
+    icon: React.ReactNode,
+    line: (g: GmudRow) => string,
+  ) =>
+    items.length > 0 && (
+      <>
+        <div className="gm-sub-h">
+          {title} · {items.length}
+        </div>
+        <div className="gm-feed">
+          {items.map((g) => (
+            <button key={g.id} type="button" onClick={() => onOpen(g)}>
+              <span className={`ic ${kind}`}>{icon}</span>
+              <span style={{ minWidth: 0 }}>
+                <b>{g.titulo}</b>
+                <small>{line(g)}</small>
+              </span>
+              <span className="age">{ago(g.created_at)}</span>
+            </button>
+          ))}
+        </div>
+      </>
+    );
+  const nothingPending = att.mine.length + att.semResultado.length + att.paradas.length === 0;
 
   return (
-    <div className="gdt-root">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-
-      {/* ── Period selector ────────────────────────────────────────────── */}
-      <div className="gdt-period-bar">
-        {PERIOD_OPTIONS.map((o) => (
-          <button
-            key={o.value}
-            className={`gdt-period-btn${days === o.value ? " active" : ""}`}
-            onClick={() => setDays(o.value)}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-
+    <>
       {/* ── KPIs ───────────────────────────────────────────────────────── */}
-      <div className="gdt-kpi-row">
-        <div className="gdt-kpi" style={{ "--kc": T.accent } as React.CSSProperties}>
-          <div className="gdt-kpi-icon" style={{ "--ki-bg": "rgba(59,130,246,0.18)" } as React.CSSProperties}>
-            <Activity size={22} color={T.accent} />
-          </div>
-          <div className="gdt-kpi-label">Total no período</div>
-          <div className="gdt-kpi-value">{m?.total ?? "—"}</div>
+      <div className="gm-kpis">
+        <div className="gm-kpi">
+          <span className="gm-kpi-label">GMUDs no período</span>
+          <span className="gm-kpi-value">{m?.total ?? "—"}</span>
+          <span className="gm-kpi-foot">
+            {m
+              ? `${m.concluidas} concluídas · ${m.rollback} rollback · ${m.rejeitadas} rejeitadas`
+              : "—"}
+          </span>
         </div>
-        <div className="gdt-kpi" style={{ "--kc": T.success } as React.CSSProperties}>
-          <div className="gdt-kpi-icon" style={{ "--ki-bg": "rgba(16,185,129,0.18)" } as React.CSSProperties}>
-            <CheckCircle2 size={22} color={T.success} />
+        <div className="gm-kpi">
+          <span className="gm-kpi-label">Taxa de sucesso</span>
+          <span className="gm-kpi-value">{m ? `${taxa}%` : "—"}</span>
+          <div className="gm-meter" aria-hidden="true">
+            <i style={{ width: `${taxa}%`, background: taxaColor }} />
           </div>
-          <div className="gdt-kpi-label">Taxa de sucesso</div>
-          <div className="gdt-kpi-value">{m ? `${m.taxaSucesso}%` : "—"}</div>
-          <div className="gdt-kpi-sub">
-            <span style={{ color: T.success }}>✓ {m?.concluidas ?? 0}</span>
-            <span style={{ color: T.textSubtle }}>·</span>
-            <span style={{ color: T.danger }}>↩ {m?.rollback ?? 0}</span>
+          <span className="gm-kpi-foot">concluídas ÷ (concluídas + rollback)</span>
+        </div>
+        <div className="gm-kpi">
+          <span className="gm-kpi-label">Tempo médio de aprovação</span>
+          <span className="gm-kpi-value">{m ? `${m.mediaAprovHoras} h` : "—"}</span>
+          <span className="gm-kpi-foot">da criação até cada decisão</span>
+        </div>
+        <button
+          type="button"
+          className="gm-kpi"
+          onClick={() => onGoToList({ status: "Em Aprovação" })}
+        >
+          <span className="gm-kpi-label">
+            {att.mine.length > 0 && (
+              <span className="gm-sw" style={{ background: "var(--v2-accent)" }} />
+            )}
+            Em aprovação
+          </span>
+          <span className="gm-kpi-value">{pendQ.data ? att.emAprov : "—"}</span>
+          <span className="gm-kpi-foot">
+            {att.mine.length > 0 ? `${att.mine.length} aguardando você` : "nenhuma aguardando você"}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="gm-kpi"
+          onClick={() => onGoToList({ status: "Em Execução" })}
+        >
+          <span className="gm-kpi-label">Em execução agora</span>
+          <span className="gm-kpi-value">{m?.emExecucao ?? "—"}</span>
+          <span className="gm-kpi-foot">mudanças em andamento</span>
+        </button>
+      </div>
+
+      {/* ── Volume + por tipo ──────────────────────────────────────────── */}
+      <div className="gm-grid">
+        <div className="gm-card gm-span-2">
+          <div className="gm-card-hdr">
+            <div>
+              <h2 className="gm-card-title">Volume de GMUDs</h2>
+              <p className="gm-card-sub">
+                {days > 60 ? "Por semana de criação" : "Por dia de criação"}
+              </p>
+            </div>
+            <div className="gm-legend">
+              {SERIES.map((s) => (
+                <span key={s.key}>
+                  <span className="gm-sw" style={{ background: s.color }} /> {s.name}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="gm-card-body" style={{ height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={m?.serie ?? []} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <defs>
+                  {SERIES.map((s) => (
+                    <linearGradient key={s.key} id={`gm-g-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={s.color} stopOpacity={0.22} />
+                      <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <CartesianGrid stroke="var(--v2-line)" vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={16} />
+                <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={32} />
+                <Tooltip content={<VolTooltip />} cursor={{ stroke: "var(--v2-line-strong)" }} />
+                {SERIES.map((s) => (
+                  <Area
+                    key={s.key}
+                    type="monotone"
+                    dataKey={s.key}
+                    name={s.name}
+                    stroke={s.color}
+                    strokeWidth={2}
+                    fill={`url(#gm-g-${s.key})`}
+                    dot={false}
+                    activeDot={{ r: 4, fill: s.color, stroke: "var(--v2-surface)", strokeWidth: 2 }}
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
-        <div className="gdt-kpi" style={{ "--kc": T.warning } as React.CSSProperties}>
-          <div className="gdt-kpi-icon" style={{ "--ki-bg": "rgba(245,158,11,0.2)" } as React.CSSProperties}>
-            <Clock size={22} color={T.warning} />
+
+        <div className="gm-card">
+          <div className="gm-card-hdr">
+            <div>
+              <h2 className="gm-card-title">Por tipo</h2>
+              <p className="gm-card-sub">Clique para ver as mudanças</p>
+            </div>
           </div>
-          <div className="gdt-kpi-label">Tempo médio aprovação</div>
-          <div className="gdt-kpi-value">{m ? `${m.mediaAprovHoras}h` : "—"}</div>
-        </div>
-        <div className="gdt-kpi" style={{ "--kc": T.purple } as React.CSSProperties}>
-          <div className="gdt-kpi-icon" style={{ "--ki-bg": "rgba(167,139,250,0.18)" } as React.CSSProperties}>
-            <RotateCcw size={22} color={T.purple} />
+          <div className="gm-card-body">
+            <div className="gm-types">
+              {TIPOS.map((t) => {
+                const n = tiposData.find((x) => x.name === t.name)?.value ?? 0;
+                const p = tiposTotal > 0 ? Math.round((n / tiposTotal) * 100) : 0;
+                return (
+                  <button key={t.name} type="button" onClick={() => onGoToList({ tipo: t.name })}>
+                    <span>{t.name}</span>
+                    <span className="n">{n}</span>
+                    <span className="p">{p}%</span>
+                    <span className="gm-track">
+                      <i style={{ width: `${p}%`, background: t.color }} />
+                    </span>
+                    <small>{t.hint}</small>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="gm-tot">
+              <span>Total no período</span>
+              <b>{tiposTotal}</b>
+            </div>
           </div>
-          <div className="gdt-kpi-label">Em execução agora</div>
-          <div className="gdt-kpi-value">{m?.emExecucao ?? "—"}</div>
         </div>
       </div>
 
-      {/* ── Charts grid ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4" style={{ gridAutoFlow: "row dense" }}>
-        {/* ── Distribuição por Tipo — barras horizontais ── */}
-        <div className={`${tipoColSize} gdt-block`}>
-          <div className="gdt-block-hdr">
-            <div className="gdt-block-title">
-              <GripHorizontal size={11} color={T.textMuted} />
-              <span>Distribuição por Tipo</span>
-              {tipoFilter && (
-                <span
-                  className="gdt-tipo-chip"
-                  style={{
-                    color: tipoColor[tipoFilter] ?? T.accent,
-                    border: `1px solid ${tipoColor[tipoFilter] ?? T.accent}`,
-                    background: (tipoColor[tipoFilter] ?? T.accent) + "22",
-                  }}
-                  onClick={() => handleTipoClick(null)}
-                >
-                  {tipoFilter} ✕
-                </span>
-              )}
-            </div>
-            <div className="gdt-resize-ctrl">
-              <button
-                className="gdt-resize-btn"
-                disabled={tipoColSize === "col-span-1"}
-                onClick={() => setTipoColSize(COL_SIZES[Math.max(0, COL_SIZES.indexOf(tipoColSize) - 1)])}
-              >
-                <Minimize2 size={11} />
-              </button>
-              <button
-                className="gdt-resize-btn"
-                disabled={tipoColSize === "col-span-3"}
-                onClick={() => setTipoColSize(COL_SIZES[Math.min(2, COL_SIZES.indexOf(tipoColSize) + 1)])}
-              >
-                <Maximize2 size={11} />
-              </button>
+      {/* ── Precisa de atenção + gargalos ──────────────────────────────── */}
+      <div className="gm-grid">
+        <div className="gm-card gm-span-2">
+          <div className="gm-card-hdr">
+            <div>
+              <h2 className="gm-card-title">Precisa de atenção</h2>
+              <p className="gm-card-sub">O que está esperando alguém agir</p>
             </div>
           </div>
-          <div
-            className="gdt-block-body"
-            style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}
-          >
-            {tiposData.length === 0 ? (
-              <div className="gdt-empty">Sem dados no período.</div>
+          <div className="gm-card-body gm-feed-scroll">
+            {pendQ.isLoading ? (
+              <div className="gm-empty">Carregando…</div>
+            ) : nothingPending ? (
+              <div className="gm-ok-state">
+                <CheckCircle2 size={22} />
+                <b>Nada pendente</b>
+                Nenhuma GMUD esperando ação.
+              </div>
             ) : (
-              (() => {
-                const total = tiposData.reduce((s, t) => s + t.value, 0);
-                const maxVal = Math.max(...tiposData.map((t) => t.value), 1);
-                return (
-                  <div className="gdt-tipo-bars">
-                    {tiposData.map((t) => {
-                      const pct = total > 0 ? Math.round((t.value / total) * 100) : 0;
-                      const barPct = Math.max(6, (t.value / maxVal) * 100);
-                      const color = tipoColor[t.name] ?? T.accent;
-                      const isActive = tipoFilter === t.name;
-                      const isDimmed = !!tipoFilter && !isActive;
-                      return (
-                        <div
-                          key={t.name}
-                          className={`gdt-tipo-row${isActive ? " active" : ""}`}
-                          style={{ opacity: isDimmed ? 0.4 : 1 }}
-                          onClick={() => handleTipoClick(t.name)}
-                        >
-                          <span className="gdt-tipo-row-label">{t.name}</span>
-                          <div className="gdt-tipo-track">
-                            <div
-                              className="gdt-tipo-fill"
-                              style={{
-                                width: `${barPct}%`,
-                                background: `linear-gradient(90deg, ${color}88, ${color})`,
-                              }}
-                            >
-                              <span className="gdt-tipo-fill-label">{pct}%</span>
-                            </div>
-                          </div>
-                          <span className="gdt-tipo-count">{t.value}</span>
-                        </div>
-                      );
-                    })}
-                    <div className="gdt-tipo-total">
-                      <span>Total no período</span>
-                      <span className="gdt-tipo-total-val">{total}</span>
-                    </div>
-                  </div>
-                );
-              })()
+              <>
+                {feedSection(
+                  "Aguardando sua aprovação",
+                  att.mine,
+                  "",
+                  <CheckCircle2 size={14} />,
+                  (g) => `${g.tipo} · janela ${fmtShort(g.data_inicio)}`,
+                )}
+                {feedSection(
+                  "Janela encerrada, resultado não registrado",
+                  att.semResultado,
+                  "warn",
+                  <AlertTriangle size={14} />,
+                  (g) => `Aprovada · janela terminou ${fmtShort(g.data_fim)}`,
+                )}
+                {feedSection(
+                  "Em aprovação há mais de 24 h",
+                  att.paradas,
+                  "",
+                  <Clock size={14} />,
+                  (g) => {
+                    const a = (g.aprovadores ?? []).find((x) => x.ativo);
+                    const total = g.total_aprovadores ?? (g.aprovadores ?? []).length;
+                    return a
+                      ? `Etapa ${a.ordem} de ${total} · com ${a.nome_aprovador}`
+                      : `${g.tipo}`;
+                  },
+                )}
+              </>
             )}
           </div>
         </div>
 
-        {/* ── Volume de GMUDs ── */}
-        <Block title="Volume de GMUDs" chartHeight={260} defaultSize="col-span-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={m?.serie ?? []} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <defs>
-                {[
-                  { id: "gdCriadas", color: T.accent },
-                  { id: "gdConcluid", color: T.success },
-                  { id: "gdRollback", color: T.warning },
-                  { id: "gdRejeita", color: T.danger },
-                ].map(({ id, color }) => (
-                  <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={color} stopOpacity={0.28} />
-                    <stop offset="100%" stopColor={color} stopOpacity={0.02} />
-                  </linearGradient>
-                ))}
-              </defs>
-              <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} vertical={false} />
-              <XAxis dataKey="label" {...axisProps} />
-              <YAxis {...axisProps} axisLine={false} allowDecimals={false} />
-              <Tooltip content={<ExecTooltip />} cursor={{ stroke: T.borderHi, strokeWidth: 1 }} />
-              <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", paddingTop: 8 }} />
-              <Area
-                type="monotone"
-                dataKey="v"
-                name="Criadas"
-                stroke={T.accent}
-                fill="url(#gdCriadas)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: T.accent, stroke: T.surface, strokeWidth: 2 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="concluidas"
-                name="Concluídas"
-                stroke={T.success}
-                fill="url(#gdConcluid)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: T.success, stroke: T.surface, strokeWidth: 2 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="rollback"
-                name="Rollback"
-                stroke={T.warning}
-                fill="url(#gdRollback)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: T.warning, stroke: T.surface, strokeWidth: 2 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="rejeitadas"
-                name="Rejeitadas"
-                stroke={T.danger}
-                fill="url(#gdRejeita)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: T.danger, stroke: T.surface, strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Block>
-      </div>
-
-      {/* ── Gargalos ───────────────────────────────────────────────────── */}
-      <div className="gdt-panel">
-        <div className="gdt-panel-hdr">
-          <div className="gdt-panel-title">
-            <AlertTriangle size={11} color={T.warning} />
-            Gargalos — aprovadores com pendências &gt; 24h
+        <div className="gm-card gm-fit">
+          <div className="gm-card-hdr" style={{ paddingBottom: 10 }}>
+            <div>
+              <h2 className="gm-card-title">Gargalos</h2>
+              <p className="gm-card-sub">Aprovadores com pendência há mais de 24 h</p>
+            </div>
           </div>
+          {(m?.gargalos ?? []).length === 0 ? (
+            <div className="gm-empty">Nenhum gargalo no período.</div>
+          ) : (
+            <div className="gm-scroll">
+              <table className="gm-table">
+                <thead>
+                  <tr>
+                    <th>Aprovador</th>
+                    <th className="r">Pendências</th>
+                    <th className="r">Tempo médio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(m?.gargalos ?? []).map((g) => (
+                    <tr key={g.email}>
+                      <td>
+                        <span className="gm-title">{g.nome}</span>
+                        <span className="dim" style={{ fontSize: 12 }}>
+                          {g.email}
+                        </span>
+                      </td>
+                      <td
+                        className="r mono"
+                        style={{ color: "color-mix(in oklch, var(--v2-med) 75%, var(--v2-fg))" }}
+                      >
+                        {g.pendentes}
+                      </td>
+                      <td className="r mono" title={`${g.tempoMedioH} h`}>
+                        {fmtHoras(g.tempoMedioH)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-        {(m?.gargalos ?? []).length === 0 ? (
-          <div className="gdt-empty">Nenhum gargalo identificado no período. 🎉</div>
-        ) : (
-          <table className="gdt-table">
-            <thead>
-              <tr>
-                <th style={{ paddingLeft: 20 }}>Aprovador</th>
-                <th>E-mail</th>
-                <th className="right">Pendências</th>
-                <th className="right" style={{ paddingRight: 20 }}>
-                  Tempo médio
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {(m?.gargalos ?? []).map((g) => (
-                <tr key={g.email}>
-                  <td style={{ paddingLeft: 20 }}>{g.nome}</td>
-                  <td className="dim">{g.email}</td>
-                  <td className="mono" style={{ textAlign: "right", color: T.warning, fontWeight: 700 }}>
-                    {g.pendentes}
-                  </td>
-                  <td className="mono" style={{ textAlign: "right", paddingRight: 20, color: T.textSecondary }}>
-                    {g.tempoMedioH}h
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </div>
-    </div>
+    </>
   );
 }

@@ -5,9 +5,9 @@ type Severity = "critical" | "high" | "medium" | "low" | "neutral";
 const map: Record<Severity, { bg: string; fg: string }> = {
   critical: { bg: "#FF3B5C", fg: "#fff" },
   high: { bg: "#FF6B35", fg: "#fff" },
-  medium: { bg: "#FFB020", fg: "#1a1300" },
-  low: { bg: "#00C896", fg: "#04201a" },
-  neutral: { bg: "rgba(255,255,255,0.08)", fg: "#8a95a8" },
+  medium: { bg: "#FFB020", fg: "var(--tl-1a1300, #1a1300)" },
+  low: { bg: "#00C896", fg: "var(--tl-04201a, #04201a)" },
+  neutral: { bg: "rgba(var(--tl-ink, 255,255,255),0.08)", fg: "var(--tl-8a95a8, #8a95a8)" },
 };
 
 export function SeverityBadge({ severity, children }: { severity: Severity; children: ReactNode }) {

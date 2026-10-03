@@ -6,12 +6,19 @@ import { useDepartments } from "@/lib/use-departments";
 import { useAuth } from "@/lib/auth-context";
 import { usePermissions } from "@/lib/use-permissions";
 import { MODULES } from "@/lib/modules";
-import { Panel } from "./primitives";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Upload, FileText, CheckCircle2, Lock, Unlock } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  FileText,
+  Loader2,
+  Lock,
+  Unlock,
+  Upload,
+} from "lucide-react";
 
 const TARGET_FIELDS = [
   { key: "fqdn", label: "FQDN / Host *", required: true },
@@ -163,10 +170,12 @@ function autoMatch(header: string): FieldKey | "" {
   if (/(severid|severity|criticidad|risk|risco)/.test(h)) return "severity";
   if (/(status|situa|state)/.test(h)) return "status";
   if (/(user|usuario|usuário|respons|owner|assign|account)/.test(h)) return "responsible";
-  if (/(data|date|time|when|identif|detect|criad|criada|created|opened|aberto|raised)/.test(h)) return "identified_at";
+  if (/(data|date|time|when|identif|detect|criad|criada|created|opened|aberto|raised)/.test(h))
+    return "identified_at";
   if (/(origem|source|scanner|tool|product|produto)/.test(h)) return "source";
   if (/(categor|tipo|type|event|evento|threat|name)/.test(h)) return "vuln_type";
-  if (/(descri|description|sistema|app|aplica|system|message|mensagem)/.test(h)) return "system_app";
+  if (/(descri|description|sistema|app|aplica|system|message|mensagem)/.test(h))
+    return "system_app";
   if (/(depart|setor|area|área|tenant)/.test(h)) return "department";
   return "";
 }
@@ -386,7 +395,11 @@ function buildVulnerabilityImportKey(record: {
   kind: string;
   raw?: Record<string, any> | null;
 }) {
-  const summary = firstNonEmptyDedupValue([record.raw?.["Resumo"], record.vuln_type, record.raw?.["Descrição"]]);
+  const summary = firstNonEmptyDedupValue([
+    record.raw?.["Resumo"],
+    record.vuln_type,
+    record.raw?.["Descrição"],
+  ]);
   const port = firstNonEmptyDedupValue([
     record.raw?.["Campo personalizado (Port)"],
     record.raw?.["Porta"],
@@ -469,12 +482,64 @@ export function UploadDashboard() {
   const blockQuery = useQuery({
     queryKey: ["app-setting", "import_block"],
     queryFn: async () => {
-      const { data } = await supabase.from("app_settings").select("value").eq("key", "import_block").maybeSingle();
+      const { data } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "import_block")
+        .maybeSingle();
       const v = (data?.value ?? {}) as { blocked?: boolean };
       return { blocked: !!v.blocked };
     },
   });
   const sheetsBlocked = !!blockQuery.data?.blocked;
+
+  // Últimas importações (RLS: só admin/analista leem import_logs; os demais veem vazio)
+  const historyQuery = useQuery({
+    queryKey: ["import-logs", "recent"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("import_logs")
+        .select(
+          "id, module, filename, status, imported_count, ignored_count, total_count, message, created_by, created_at",
+        )
+        .neq("module", "upload-config")
+        .order("created_at", { ascending: false })
+        .limit(12);
+      return (data ?? []) as Array<{
+        id: string;
+        module: string;
+        filename: string | null;
+        status: string;
+        imported_count: number;
+        ignored_count: number;
+        total_count: number;
+        message: string | null;
+        created_by: string | null;
+        created_at: string;
+      }>;
+    },
+  });
+  const historyUserIds = React.useMemo(
+    () => [
+      ...new Set((historyQuery.data ?? []).map((h) => h.created_by).filter(Boolean) as string[]),
+    ],
+    [historyQuery.data],
+  );
+  const { data: historyProfiles } = useQuery({
+    queryKey: ["import-logs", "profiles", historyUserIds],
+    enabled: historyUserIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", historyUserIds);
+      return (data ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>;
+    },
+  });
+  const historyNames = React.useMemo(
+    () => new Map((historyProfiles ?? []).map((p) => [p.id, p.full_name || p.email || ""])),
+    [historyProfiles],
+  );
 
   const isColab = module === "departamentos" && deptType === "colaborador";
   const isDept = module === "departamentos" && deptType === "departamento";
@@ -555,7 +620,9 @@ export function UploadDashboard() {
         created_by: user?.id ?? null,
       });
 
-      toast.success(next ? "Importação de planilhas bloqueada" : "Importação de planilhas liberada");
+      toast.success(
+        next ? "Importação de planilhas bloqueada" : "Importação de planilhas liberada",
+      );
       qc.invalidateQueries({ queryKey: ["app-setting", "import_block"] });
       qc.invalidateQueries({ queryKey: ["import-logs"] });
     } catch (e: any) {
@@ -569,7 +636,9 @@ export function UploadDashboard() {
     setFilename(file.name);
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (sheetsBlocked && ext !== "json") {
-      toast.error("Importação de planilhas está bloqueada pelo administrador. Apenas JSON é permitido.");
+      toast.error(
+        "Importação de planilhas está bloqueada pelo administrador. Apenas JSON é permitido.",
+      );
       if (inputRef.current) inputRef.current.value = "";
       setFilename("");
       return;
@@ -679,7 +748,11 @@ export function UploadDashboard() {
         const deviceCol = headers.find((h) => mapping[h] === "endpoint_name");
         const eventCol = headers.find((h) => mapping[h] === "raw_event");
 
-        const { data: tenantRow } = await supabase.from("sophos_sync_state").select("tenant_id").limit(1).maybeSingle();
+        const { data: tenantRow } = await supabase
+          .from("sophos_sync_state")
+          .select("tenant_id")
+          .limit(1)
+          .maybeSingle();
         const tenantId = tenantRow?.tenant_id ?? "manual-upload";
 
         const hashStr = (s: string) => {
@@ -839,7 +912,9 @@ export function UploadDashboard() {
         // Note: computer_name has a case-insensitive unique index (lower(computer_name)),
         // but Postgres `IN` is case-sensitive — fetch all rows and match in JS instead,
         // otherwise a casing mismatch causes a duplicate-key error on insert.
-        const { data: existing } = await (supabase as any).from("wsus_servers").select("id, computer_name");
+        const { data: existing } = await (supabase as any)
+          .from("wsus_servers")
+          .select("id, computer_name");
         const idByName = new Map<string, string>();
         (existing ?? []).forEach((e: { id: string; computer_name: string }) => {
           idByName.set(e.computer_name.toLowerCase(), e.id);
@@ -856,7 +931,9 @@ export function UploadDashboard() {
         let inserted = 0;
         for (let i = 0; i < payload.length; i += 500) {
           const chunk = payload.slice(i, i + 500);
-          const { error } = await (supabase as any).from("wsus_servers").upsert(chunk, { onConflict: "id" });
+          const { error } = await (supabase as any)
+            .from("wsus_servers")
+            .upsert(chunk, { onConflict: "id" });
           if (error) throw error;
           inserted += chunk.length;
         }
@@ -1127,7 +1204,8 @@ export function UploadDashboard() {
           `${inserted} departamento${inserted !== 1 ? "s" : ""} importado${inserted !== 1 ? "s" : ""}`,
         ];
         if (dbDuplicates > 0) successParts.push(`${dbDuplicates} já existiam`);
-        if (inFileDuplicates > 0) successParts.push(`${inFileDuplicates} duplicados no arquivo ignorados`);
+        if (inFileDuplicates > 0)
+          successParts.push(`${inFileDuplicates} duplicados no arquivo ignorados`);
         if (emptySkipped > 0) successParts.push(`${emptySkipped} sem nome ignorados`);
         toast.success(successParts.join(" — "));
 
@@ -1161,7 +1239,11 @@ export function UploadDashboard() {
         }
 
         // Discover tenant_id from existing config or fallback to 'manual-upload'
-        const { data: tenantRow } = await supabase.from("sophos_sync_state").select("tenant_id").limit(1).maybeSingle();
+        const { data: tenantRow } = await supabase
+          .from("sophos_sync_state")
+          .select("tenant_id")
+          .limit(1)
+          .maybeSingle();
         const tenantId = tenantRow?.tenant_id ?? "manual-upload";
 
         const hashStr = (s: string) => {
@@ -1287,7 +1369,11 @@ export function UploadDashboard() {
           return {
             fqdn: String(get("fqdn") ?? "").trim(),
             severity: (SEV_NORMALIZE[sevRaw] ?? "Média") as "Crítica" | "Alta" | "Média" | "Baixa",
-            status: (STATUS_NORMALIZE[statusRaw] ?? "Aberta") as "Aberta" | "Em tratamento" | "Mitigada" | "Fechada",
+            status: (STATUS_NORMALIZE[statusRaw] ?? "Aberta") as
+              | "Aberta"
+              | "Em tratamento"
+              | "Mitigada"
+              | "Fechada",
             responsible: get("responsible") ? String(get("responsible")) : null,
             identified_at: parseDate(get("identified_at")),
             source: get("source") ? String(get("source")) : null,
@@ -1301,13 +1387,17 @@ export function UploadDashboard() {
         })
         .filter((r) => r.fqdn);
 
-      const table = kind === "infraestrutura" ? "vulnerabilities_infra" : "vulnerabilities_aplicacao";
+      const table =
+        kind === "infraestrutura" ? "vulnerabilities_infra" : "vulnerabilities_aplicacao";
 
       // Resolve status_changed_at: prefer "Atualizado" (scanner date) → identified_at → now
       const resolveStatusChangedAt = (r: (typeof records)[number]): string => {
         const raw = r.raw ?? null;
         const updatedRaw =
-          raw?.["Atualizado"] ?? raw?.["Updated"] ?? raw?.["Data de Atualização"] ?? raw?.["Data Atualização"];
+          raw?.["Atualizado"] ??
+          raw?.["Updated"] ??
+          raw?.["Data de Atualização"] ??
+          raw?.["Data Atualização"];
         const parsed = updatedRaw ? parseDate(updatedRaw) : null;
         if (parsed) return new Date(parsed).toISOString();
         if (r.identified_at) return new Date(r.identified_at).toISOString();
@@ -1320,7 +1410,10 @@ export function UploadDashboard() {
         // de inserir uma nova — o banco não cresce sem limite pra achados que só continuam
         // abertos. A distinção New/Maintained/Fix continua vindo de raw["Situação"].
         let processed = 0;
-        const recordsWithScanDate = records.map((r) => ({ ...r, status_changed_at: resolveStatusChangedAt(r) }));
+        const recordsWithScanDate = records.map((r) => ({
+          ...r,
+          status_changed_at: resolveStatusChangedAt(r),
+        }));
         for (let i = 0; i < recordsWithScanDate.length; i += 500) {
           const chunk = recordsWithScanDate.slice(i, i + 500);
           const { error } = await (supabase as any).rpc("upsert_vuln_infra", { p_rows: chunk });
@@ -1361,7 +1454,13 @@ export function UploadDashboard() {
               .in("fqdn", allFqdns)
               .range(from, from + PAGE - 1);
             for (const v of data ?? []) {
-              const key = buildVulnIdentityKey(v.fqdn, v.vuln_type, v.system_app, null, v.external_id);
+              const key = buildVulnIdentityKey(
+                v.fqdn,
+                v.vuln_type,
+                v.system_app,
+                null,
+                v.external_id,
+              );
               if (!existingByIdentity.has(key)) existingByIdentity.set(key, v.id);
             }
             if ((data ?? []).length < PAGE) break;
@@ -1441,237 +1540,515 @@ export function UploadDashboard() {
       });
     } finally {
       setImporting(false);
+      qc.invalidateQueries({ queryKey: ["import-logs"] });
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <Panel
-        title={
-          <span className="flex items-center gap-2">
-            {sheetsBlocked ? <Lock className="size-4 text-destructive" /> : <Unlock className="size-4 text-success" />}
-            Bloqueio de importação
-          </span>
-        }
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="text-sm font-medium">Bloquear importação de planilhas (XLS, XLSX, CSV)</div>
-            <div className="text-xs text-muted-foreground">
-              {sheetsBlocked
-                ? "Planilhas estão BLOQUEADAS. Somente arquivos JSON podem ser importados."
-                : "Planilhas estão LIBERADAS. Todos os formatos podem ser importados."}{" "}
-              Importações via JSON sempre permanecem ativas.
-              {!isAdmin && " Apenas administradores podem alterar esta configuração."}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`text-xs font-semibold ${sheetsBlocked ? "text-destructive" : "text-success"}`}>
-              {sheetsBlocked ? "Bloqueado" : "Liberado"}
-            </span>
-            <Switch
-              checked={sheetsBlocked}
-              onCheckedChange={toggleBlock}
-              disabled={!isAdmin || togglingBlock || blockQuery.isLoading}
-            />
-          </div>
-        </div>
-      </Panel>
+  // ── Visual ───────────────────────────────────────────────────────────────
+  const supportedModules = importableModules.filter((m) =>
+    ["vulnerabilidades", "departamentos", "sophos-xdr", "ranking-ia", "wsus", "cmdb"].includes(
+      m.slug,
+    ),
+  );
+  const MODULE_HINT: Record<string, string> = {
+    "sophos-xdr":
+      "Mapeie ao menos Host (FQDN) e Severidade. Eventos com o mesmo ID externo (ou mesma combinação host + data + tipo) são atualizados em vez de duplicados.",
+    "ranking-ia":
+      "Mapeie Data/Hora, Usuário e Domínio/URL. O domínio é extraído da URL (ex.: https://chatgpt.com/... → chatgpt) e o prefixo de domínio do usuário (ex.: EMPRESA\\) é removido.",
+    wsus: "Mapeie ao menos Computer Name. Servidores que já existem (mesmo nome) são atualizados com os números novos; os demais são criados.",
+    cmdb: "Mapeie ao menos Nome e Tipo. Ativos com o mesmo nome são atualizados; linhas sem nome ou tipo são ignoradas.",
+    vulnerabilidades:
+      "Mapeie ao menos FQDN/Host e Severidade. Vulnerabilidades que já existem têm o status atualizado em vez de duplicar.",
+  };
+  const hint =
+    module === "departamentos"
+      ? deptType === "departamento"
+        ? "Mapeie a coluna com o nome do departamento (obrigatório) e, opcionalmente, a descrição. Departamentos já existentes (mesmo nome) são ignorados."
+        : "Mapeie ao menos Display Name e E-mail. Opcionalmente Unidade, Departamento (pelo nome) e Cargo. Colaboradores com e-mail já cadastrado são ignorados."
+      : (MODULE_HINT[module] ?? "");
+  const resetFile = () => {
+    setHeaders([]);
+    setRows([]);
+    setMapping({});
+    setFilename("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+  const mappedKeys = new Set(Object.values(mapping).filter(Boolean));
+  const requiredFields = (
+    fieldList as ReadonlyArray<{ key: string; label: string; required: boolean }>
+  ).filter((f) => f.required);
+  const missingRequired = requiredFields.filter((f) => !mappedKeys.has(f.key as FieldKey));
+  const autoCount = headers.filter((h) => mapping[h] && mapping[h] === matcher(h)).length;
+  const previewCols = (fieldList as ReadonlyArray<{ key: string; label: string }>)
+    .map((f) => ({ f, header: headers.find((h) => mapping[h] === f.key) }))
+    .filter((x): x is { f: { key: string; label: string }; header: string } => !!x.header);
+  const step1Done = !!module && moduleSupported;
+  const step2Done = headers.length > 0;
+  const cleanLabel = (l: string) => l.replace(/\s*\*$/, "");
 
-      <Panel title="1. Selecione o módulo de destino">
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Os dados importados serão vinculados ao módulo escolhido. O mapeamento de colunas é ajustado conforme a
-            estrutura de dados de cada módulo.
+  return (
+    <div className="up-root">
+      <style dangerouslySetInnerHTML={{ __html: UP_CSS }} />
+
+      {/* ── Cabeçalho ──────────────────────────────────────────────────── */}
+      <div className="up-ph">
+        <div>
+          <h1 className="up-ph-title">Importar dados</h1>
+          <p className="up-ph-sub">
+            Carregue planilhas ou JSON nos módulos do Z-Sec, com mapeamento de colunas
           </p>
-          <Select
-            value={module}
-            onValueChange={(v) => {
-              setModule(v);
-              setHeaders([]);
-              setRows([]);
-              setMapping({});
-              setFilename("");
-            }}
-          >
-            <SelectTrigger className="h-10 max-w-md">
-              <SelectValue placeholder="Selecione um módulo..." />
-            </SelectTrigger>
-            <SelectContent>
+        </div>
+        <div
+          className="up-block"
+          style={
+            { "--c": sheetsBlocked ? "var(--v2-crit)" : "var(--v2-ok)" } as React.CSSProperties
+          }
+        >
+          <span className="ic">{sheetsBlocked ? <Lock size={18} /> : <Unlock size={18} />}</span>
+          <div>
+            <b>{sheetsBlocked ? "Planilhas bloqueadas" : "Planilhas liberadas"}</b>
+            <small>
+              {sheetsBlocked ? "só JSON pode ser importado" : "CSV, Excel e JSON aceitos"}
+            </small>
+          </div>
+          <Switch
+            checked={sheetsBlocked}
+            onCheckedChange={toggleBlock}
+            disabled={!isAdmin || togglingBlock || blockQuery.isLoading}
+            aria-label="Bloquear importação de planilhas"
+            title={
+              isAdmin ? "JSON continua sempre liberado" : "Apenas administradores podem alterar"
+            }
+          />
+        </div>
+      </div>
+
+      <div className="up-grid">
+        <div className="up-steps">
+          {/* 1. Destino */}
+          <section className={`up-step ${step1Done ? "done" : "cur"}`}>
+            <div className="up-step-h">
+              <span className="n">{step1Done ? <Check size={14} /> : 1}</span>
+              <div>
+                <b>Destino</b>
+                <small>Em qual módulo os dados vão entrar</small>
+              </div>
+              {selectedModule && <span className="sum">{selectedModule.title}</span>}
+            </div>
+            <div className="up-step-b">
               {(["Monitoramento", "Compliance", "Operações", "Cadastros"] as const).map((g) => {
-                const items = importableModules.filter((m) => m.group === g);
-                if (items.length === 0) return null;
+                const items = supportedModules.filter((m) => m.group === g);
+                if (!items.length) return null;
                 return (
                   <React.Fragment key={g}>
-                    <div className="text-mono-xs text-muted-foreground px-2 py-1.5 font-semibold">{g}</div>
-                    {items.map((m) => (
-                      <SelectItem key={m.slug} value={m.slug}>
-                        {m.title}
-                      </SelectItem>
-                    ))}
+                    <div className="up-grp-t">{g}</div>
+                    <div className="up-mods">
+                      {items.map((m) => {
+                        const Icon = m.icon;
+                        return (
+                          <button
+                            key={m.slug}
+                            type="button"
+                            className="up-mod"
+                            aria-pressed={module === m.slug}
+                            onClick={() => {
+                              setModule(m.slug);
+                              resetFile();
+                            }}
+                          >
+                            <span className="ic">
+                              <Icon size={16} />
+                            </span>
+                            <span style={{ minWidth: 0 }}>
+                              <b>{m.title}</b>
+                              <small>{MODULE_DESC[m.slug] ?? ""}</small>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </React.Fragment>
                 );
               })}
-            </SelectContent>
-          </Select>
-          {selectedModule && !moduleSupported && (
-            <p className="text-xs text-amber-500">
-              O módulo "{selectedModule.title}" ainda não possui estrutura de ingestão configurada.
-            </p>
-          )}
-          {module === "sophos-xdr" && (
-            <p className="text-xs text-muted-foreground">
-              Mapeie ao menos <strong>Host (FQDN)</strong> e <strong>Severidade</strong>. Opcionalmente{" "}
-              <strong>Tipo/Evento</strong>, <strong>Descrição</strong>, <strong>Data</strong> e
-              <strong> ID externo</strong>. Eventos com o mesmo ID externo (ou mesma combinação host+data+tipo) são
-              atualizados em vez de duplicados.
-            </p>
-          )}
-          {module === "ranking-ia" && (
-            <p className="text-xs text-muted-foreground">
-              Mapeie <strong>Data/Hora</strong>, <strong>Usuário</strong> e <strong>Domínio/URL</strong>. Opcionalmente{" "}
-              <strong>Dispositivo</strong> e <strong>Evento</strong>. O domínio é extraído automaticamente (ex:{" "}
-              <code>https://chatgpt.com/...</code> → <code>chatgpt</code>) e o prefixo de domínio do usuário (ex:{" "}
-              <code>BERNOULLI\</code>) é removido.
-            </p>
-          )}
-          {module === "departamentos" && (
-            <div className="pt-2 border-t border-border space-y-2">
-              <div className="text-xs text-muted-foreground">Tipo de cadastro</div>
-              <div className="flex gap-2">
-                {(["departamento", "colaborador"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => {
-                      setDeptType(t);
-                      setHeaders([]);
-                      setRows([]);
-                      setMapping({});
-                      setFilename("");
-                    }}
-                    className={`px-3 py-1.5 rounded border text-xs ${
-                      deptType === t
-                        ? "bg-primary/15 border-primary text-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {t === "departamento" ? "Departamento" : "Colaborador"}
-                  </button>
-                ))}
+              {module === "vulnerabilidades" && (
+                <div className="up-seg" role="group" aria-label="Tipo de vulnerabilidade">
+                  {(["aplicacao", "infraestrutura"] as const).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-pressed={kind === k}
+                      onClick={() => setKind(k)}
+                    >
+                      {k === "aplicacao" ? "Aplicação (FQDN/URL)" : "Internas (IP/Host)"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {module === "departamentos" && (
+                <div className="up-seg" role="group" aria-label="Tipo de cadastro">
+                  {(["departamento", "colaborador"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      aria-pressed={deptType === t}
+                      onClick={() => {
+                        setDeptType(t);
+                        resetFile();
+                      }}
+                    >
+                      {t === "departamento" ? "Departamentos" : "Colaboradores"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {hint && <div className="up-hint">{hint}</div>}
+            </div>
+          </section>
+
+          {/* 2. Arquivo */}
+          <section className={`up-step ${!step1Done ? "off" : step2Done ? "done" : "cur"}`}>
+            <div className="up-step-h">
+              <span className="n">{step2Done ? <Check size={14} /> : 2}</span>
+              <div>
+                <b>Arquivo</b>
+                <small>
+                  {sheetsBlocked
+                    ? "Apenas JSON (planilhas bloqueadas pelo administrador)"
+                    : "CSV, Excel (.xlsx, .xls) ou JSON"}
+                </small>
               </div>
-              {deptType === "departamento" ? (
-                <p className="text-xs text-muted-foreground">
-                  Mapeie a coluna com o <strong>nome do departamento</strong> (obrigatório) e, opcionalmente, a
-                  <strong> descrição</strong>. Departamentos já existentes (mesmo nome) serão ignorados.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Mapeie ao menos <strong>Display Name</strong> e <strong>E-mail</strong>. Opcionalmente
-                  <strong> Unidade</strong>, <strong>Departamento</strong> (pelo nome, vinculado à tabela) e{" "}
-                  <strong>Cargo</strong>. Colaboradores com e-mail já cadastrado são ignorados.
-                </p>
+              {filename && step2Done && <span className="sum">{filename}</span>}
+            </div>
+            {step1Done && (
+              <div className="up-step-b">
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept={sheetsBlocked ? ".json" : ".csv,.xlsx,.xls,.json"}
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleFile(f);
+                  }}
+                />
+                {!canImport ? (
+                  <div className="up-hint" style={{ color: "var(--v2-crit)" }}>
+                    Você não tem permissão para importar dados. Solicite acesso ao administrador.
+                  </div>
+                ) : step2Done ? (
+                  <div className="up-file">
+                    <span className="th">
+                      <FileText size={17} />
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <b>{filename}</b>
+                      <small>
+                        {rows.length} linhas · {headers.length} colunas
+                      </small>
+                    </span>
+                    <button
+                      type="button"
+                      className="up-btn sm"
+                      onClick={() => inputRef.current?.click()}
+                    >
+                      Trocar arquivo
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className="up-drop"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => inputRef.current?.click()}
+                    onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) handleFile(f);
+                    }}
+                  >
+                    <Upload size={24} />
+                    <b>Arraste o arquivo ou clique para escolher</b>
+                    <small>
+                      As colunas são reconhecidas automaticamente e você ajusta antes de importar
+                    </small>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* 3. Mapeamento */}
+          <section className={`up-step ${step2Done ? "cur" : "off"}`}>
+            <div className="up-step-h">
+              <span className="n">3</span>
+              <div>
+                <b>Mapeamento de colunas</b>
+                <small>Coluna do arquivo → campo do {selectedModule?.title ?? "módulo"}</small>
+              </div>
+              {step2Done && (
+                <span className="sum">
+                  {mappedKeys.size} de {headers.length} colunas usadas
+                </span>
               )}
             </div>
-          )}
-
-          {module === "vulnerabilidades" && (
-            <div className="pt-2 border-t border-border">
-              <div className="text-xs text-muted-foreground mb-2">Tipo de vulnerabilidade</div>
-              <div className="flex gap-2">
-                {(["aplicacao", "infraestrutura"] as const).map((k) => (
+            {step2Done && (
+              <div className="up-step-b">
+                <div className="up-reqs">
+                  {requiredFields.map((f) => {
+                    const ok = mappedKeys.has(f.key as FieldKey);
+                    return (
+                      <span
+                        key={f.key}
+                        className="up-req"
+                        style={
+                          { "--c": ok ? "var(--v2-ok)" : "var(--v2-crit)" } as React.CSSProperties
+                        }
+                      >
+                        {ok ? <Check size={12} /> : <AlertTriangle size={12} />}{" "}
+                        {cleanLabel(f.label)} (obrigatório)
+                      </span>
+                    );
+                  })}
+                  {autoCount > 0 && (
+                    <span
+                      className="up-req"
+                      style={{ "--c": "var(--v2-accent)" } as React.CSSProperties}
+                    >
+                      {autoCount} reconhecida{autoCount > 1 ? "s" : ""} automaticamente
+                    </span>
+                  )}
+                </div>
+                <div className="up-map">
+                  {headers.map((h) => (
+                    <div key={h} className="up-map-r">
+                      <div style={{ minWidth: 0 }}>
+                        <b title={h}>{h}</b>
+                        <small>ex.: {String(rows[0]?.[h] ?? "—").slice(0, 40)}</small>
+                      </div>
+                      <ChevronRight size={14} className="arr" />
+                      <select
+                        className={`up-select${mapping[h] && mapping[h] === matcher(h) ? " auto" : ""}`}
+                        aria-label={`Campo para a coluna ${h}`}
+                        value={mapping[h] || ""}
+                        onChange={(e) =>
+                          setMapping((m) => ({ ...m, [h]: e.target.value as FieldKey | "" }))
+                        }
+                      >
+                        <option value="">— Ignorar —</option>
+                        {fieldList.map((f) => (
+                          <option key={f.key} value={f.key}>
+                            {f.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                {previewCols.length > 0 && (
+                  <div>
+                    <div className="up-grp-t" style={{ marginBottom: 8 }}>
+                      Prévia das primeiras linhas, já com os campos do Z-Sec
+                    </div>
+                    <div className="up-prev">
+                      <table>
+                        <thead>
+                          <tr>
+                            {previewCols.map((c) => (
+                              <th key={c.f.key}>{cleanLabel(c.f.label)}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.slice(0, 5).map((r, i) => (
+                            <tr key={i}>
+                              {previewCols.map((c) => (
+                                <td key={c.f.key}>{String(r[c.header] ?? "—").slice(0, 60)}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                <div className="up-foot-act">
                   <button
-                    key={k}
-                    onClick={() => setKind(k)}
-                    className={`px-3 py-1.5 rounded border text-xs ${
-                      kind === k
-                        ? "bg-primary/15 border-primary text-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground"
-                    }`}
+                    className="up-btn primary"
+                    onClick={doImport}
+                    disabled={importing || !canImport || missingRequired.length > 0}
                   >
-                    {k === "aplicacao" ? "Aplicação (FQDN/URL)" : "Internas (IP/Host)"}
+                    {importing ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 size={14} />
+                    )}
+                    {importing ? "Importando…" : `Importar ${rows.length} registros`}
                   </button>
-                ))}
+                  {missingRequired.length > 0 ? (
+                    <span style={{ fontSize: 12.5, color: "var(--v2-crit)" }}>
+                      Mapeie {missingRequired.map((f) => cleanLabel(f.label)).join(", ")} para
+                      continuar
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 12.5, color: "var(--v2-fg-3)" }}>
+                      O resultado aparece em Últimas importações e em Logs
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </section>
         </div>
-      </Panel>
 
-      <Panel title="2. Selecione o arquivo">
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Formatos aceitos: <strong>CSV, Excel (.xlsx, .xls), JSON</strong>. As colunas serão mapeadas automaticamente
-            — você pode ajustar antes de importar.
-          </p>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,.xlsx,.xls,.json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFile(f);
-            }}
-          />
-          {!canImport && (
-            <p className="text-xs text-destructive">
-              Você não tem permissão para importar dados. Solicite acesso ao administrador.
-            </p>
-          )}
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={() => inputRef.current?.click()}
-              variant="outline"
-              disabled={!canImport || !module || !moduleSupported}
-            >
-              <Upload className="size-4" /> Selecionar arquivo
-            </Button>
-            {filename && (
-              <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
-                <FileText className="size-3.5" /> {filename} — {rows.length} linhas
-              </span>
+        {/* ── Histórico ── */}
+        <div className="up-panel">
+          <div className="up-panel-hdr">
+            <h2 className="up-panel-title">Últimas importações</h2>
+            <p className="up-panel-sub">Visível para administradores e analistas</p>
+          </div>
+          <div className="up-panel-body">
+            {(historyQuery.data ?? []).length === 0 ? (
+              <div className="up-empty">
+                {historyQuery.isLoading ? "Carregando…" : "Nenhuma importação registrada."}
+              </div>
+            ) : (
+              <div className="up-hist">
+                {(historyQuery.data ?? []).map((h) => {
+                  const st =
+                    h.status === "success"
+                      ? ["Concluída", "var(--v2-ok)"]
+                      : h.status === "partial"
+                        ? ["Parcial", "var(--v2-med)"]
+                        : ["Falhou", "var(--v2-crit)"];
+                  return (
+                    <div key={h.id}>
+                      <b>
+                        {MODULES.find((m) => m.slug === h.module)?.title ?? h.module}
+                        {h.filename && <span className="up-mono"> · {h.filename}</span>}
+                      </b>
+                      <span className="up-st" style={{ "--c": st[1] } as React.CSSProperties}>
+                        {st[0]}
+                      </span>
+                      <small>
+                        {h.status === "error"
+                          ? (h.message ?? "Erro")
+                          : `${h.imported_count} importados · ${h.ignored_count} ignorados de ${h.total_count}`}
+                      </small>
+                      <small>
+                        {new Date(h.created_at).toLocaleString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {h.created_by && historyNames.get(h.created_by)
+                          ? ` · ${historyNames.get(h.created_by)}`
+                          : ""}
+                      </small>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
-          {!module && <p className="text-xs text-muted-foreground">Escolha um módulo acima para habilitar o upload.</p>}
         </div>
-      </Panel>
-
-      {headers.length > 0 && (
-        <Panel title={`3. Mapeamento de colunas → ${selectedModule?.title ?? ""}`}>
-          <div className="space-y-2 mb-4">
-            {headers.map((h) => (
-              <div key={h} className="grid grid-cols-2 gap-3 items-center">
-                <div className="text-sm">
-                  <div className="font-medium text-foreground">{h}</div>
-                  <div className="text-mono-xs text-muted-foreground truncate">
-                    Ex: {String(rows[0]?.[h] ?? "—").slice(0, 40)}
-                  </div>
-                </div>
-                <Select
-                  value={mapping[h] || "__none"}
-                  onValueChange={(v) => setMapping((m) => ({ ...m, [h]: v === "__none" ? "" : (v as FieldKey) }))}
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Ignorar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">— Ignorar —</SelectItem>
-                    {fieldList.map((f) => (
-                      <SelectItem key={f.key} value={f.key}>
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
-          </div>
-          <Button onClick={doImport} disabled={importing || !canImport}>
-            <CheckCircle2 className="size-4" />
-            {importing ? "Importando..." : `Importar ${rows.length} registros`}
-          </Button>
-        </Panel>
-      )}
+      </div>
     </div>
   );
 }
+
+const MODULE_DESC: Record<string, string> = {
+  vulnerabilidades: "aplicação ou infraestrutura",
+  "sophos-xdr": "eventos e detecções",
+  "ranking-ia": "acessos a ferramentas de IA",
+  wsus: "atualizações por servidor",
+  cmdb: "ativos de infraestrutura",
+  departamentos: "departamentos ou colaboradores",
+};
+
+// ── CSS (interface v2) ─────────────────────────────────────────────────────────
+const UP_CSS = `
+  .up-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
+  .up-root * { box-sizing:border-box; }
+  .up-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .up-mono { font-family:var(--font-data); font-size:12.5px; font-weight:400; }
+  .up-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .up-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .up-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
+  .up-block { display:inline-flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid var(--v2-line); border-radius:12px; background:var(--v2-surface); font-size:13px; }
+  .up-block .ic { display:grid; color:var(--c); }
+  .up-block b { font-weight:500; display:block; }
+  .up-block small { display:block; font-size:12px; color:var(--v2-fg-3); }
+  .up-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; align-items:start; }
+  .up-steps { grid-column:span 2; display:grid; gap:14px; min-width:0; }
+  @media (max-width: 1100px) { .up-grid { grid-template-columns:minmax(0, 1fr); } .up-steps { grid-column:auto; } }
+  .up-step { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .up-step.off { opacity:.55; }
+  .up-step-h { display:flex; align-items:center; gap:12px; padding:14px 18px; }
+  .up-step-h .n { width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font:600 12.5px var(--font-data); background:var(--v2-surface-2); color:var(--v2-fg-2); border:1px solid var(--v2-line); flex:none; }
+  .up-step.done .up-step-h .n { background:var(--v2-ok); color:#fff; border-color:var(--v2-ok); }
+  .up-step.cur .up-step-h .n { background:var(--v2-accent); color:var(--v2-accent-ink); border-color:var(--v2-accent); }
+  .up-step-h b { font-size:14px; font-weight:600; display:block; }
+  .up-step-h small { display:block; font-size:12.5px; color:var(--v2-fg-3); }
+  .up-step-h .sum { margin-left:auto; font-size:12.5px; color:var(--v2-fg-2); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:45%; }
+  .up-step-b { padding:0 18px 18px 56px; display:grid; gap:12px; }
+  @media (max-width: 640px) { .up-step-b { padding-left:18px; } }
+  .up-grp-t { font-size:12px; font-weight:500; color:var(--v2-fg-3); }
+  .up-mods { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:8px; }
+  .up-mod { display:grid; grid-template-columns:32px minmax(0, 1fr); gap:10px; align-items:center; padding:10px 12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface); color:var(--v2-fg); font:13px var(--font-ui); text-align:left; cursor:pointer; }
+  .up-mod:hover { border-color:var(--v2-line-strong); background:var(--v2-hover); }
+  .up-mod[aria-pressed="true"] { border-color:var(--v2-accent); background:color-mix(in oklch, var(--v2-accent) 12%, transparent); }
+  .up-mod .ic { width:32px; height:32px; border-radius:8px; display:grid; place-items:center; background:var(--v2-surface-2); color:var(--v2-fg-2); }
+  .up-mod[aria-pressed="true"] .ic { background:var(--v2-accent); color:var(--v2-accent-ink); }
+  .up-mod b { font-weight:500; display:block; }
+  .up-mod small { display:block; font-size:12px; color:var(--v2-fg-3); }
+  .up-seg { display:inline-flex; padding:3px; gap:2px; background:var(--v2-bg); border:1px solid var(--v2-line); border-radius:8px; justify-self:start; }
+  .up-seg button { border:0; background:transparent; padding:4px 12px; border-radius:5px; font-size:13px; color:var(--v2-fg-2); cursor:pointer; font-family:inherit; }
+  .up-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); font-weight:500; box-shadow:inset 0 0 0 1px var(--v2-line); }
+  .up-hint { font-size:12.5px; line-height:1.55; color:var(--v2-fg-2); padding:10px 12px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); }
+  .up-drop { display:grid; place-items:center; gap:6px; padding:26px 16px; border:1.5px dashed var(--v2-line-strong); border-radius:12px; background:var(--v2-surface-2); color:var(--v2-fg-2); font-size:13px; text-align:center; cursor:pointer; }
+  .up-drop:hover { border-color:var(--v2-accent); }
+  .up-drop b { color:var(--v2-fg); }
+  .up-drop small { font-size:12px; color:var(--v2-fg-3); }
+  .up-file { display:grid; grid-template-columns:36px minmax(0, 1fr) auto; gap:12px; align-items:center; padding:10px 12px; border:1px solid var(--v2-line); border-radius:8px; }
+  .up-file .th { width:36px; height:36px; border-radius:8px; display:grid; place-items:center; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-accent); }
+  .up-file b { display:block; font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .up-file small { font:400 12px var(--font-data); color:var(--v2-fg-3); }
+  .up-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
+  .up-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .up-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .up-btn.sm { height:30px; padding:0 10px; }
+  .up-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .up-btn.primary:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .up-reqs { display:flex; flex-wrap:wrap; gap:6px; }
+  .up-req { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 9px; border-radius:99px; font-size:12px; font-weight:500; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 75%, var(--v2-fg)); }
+  .up-req svg { color:var(--c); }
+  .up-map { display:grid; }
+  .up-map-r { display:grid; grid-template-columns:minmax(0, 1fr) 20px minmax(0, 1fr); gap:12px; align-items:center; padding:8px 0; border-bottom:1px solid var(--v2-line); }
+  .up-map-r:last-child { border-bottom:0; }
+  .up-map-r b { display:block; font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .up-map-r small { display:block; font:400 12px var(--font-data); color:var(--v2-fg-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .up-map-r .arr { color:var(--v2-fg-3); }
+  .up-select { height:32px; border:1px solid var(--v2-line); background:var(--v2-bg); color:var(--v2-fg); border-radius:8px; font:13px var(--font-ui); padding:0 10px; width:100%; }
+  .up-select.auto { border-color:color-mix(in oklch, var(--v2-ok) 50%, transparent); }
+  .up-prev { overflow:auto; border:1px solid var(--v2-line); border-radius:8px; max-height:240px; }
+  .up-prev table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .up-prev th { position:sticky; top:0; padding:8px 12px; font-size:11.5px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .up-prev td { padding:7px 12px; border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .up-prev tr:last-child td { border-bottom:0; }
+  .up-foot-act { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .up-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; min-width:0; }
+  .up-panel-hdr { padding:14px 18px 4px; }
+  .up-panel-title { font-size:14px; font-weight:600; margin:0; }
+  .up-panel-sub { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .up-panel-body { padding:8px 18px 14px; max-height:640px; overflow-y:auto; }
+  .up-empty { padding:24px 0; text-align:center; color:var(--v2-fg-3); font-size:13px; }
+  .up-hist > div { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:2px 10px; padding:10px 0; border-bottom:1px solid var(--v2-line); }
+  .up-hist > div:last-child { border-bottom:0; }
+  .up-hist b { font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .up-hist small { grid-column:1 / -1; font-size:12px; color:var(--v2-fg-3); }
+  .up-st { display:inline-flex; align-items:center; gap:6px; height:20px; padding:0 7px; border-radius:5px; font-size:11.5px; font-weight:500; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .up-st::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+`;

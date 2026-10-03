@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TrustRouteImport } from './routes/trust'
+import { Route as TreinamentosRouteImport } from './routes/treinamentos'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AtivarRouteImport } from './routes/ativar'
@@ -45,11 +46,18 @@ import { Route as ApiPublicHooksDastCallbackRouteImport } from './routes/api/pub
 import { Route as ApiPublicHooksCmdbDnsCacheRefreshRouteImport } from './routes/api/public/hooks/cmdb-dns-cache-refresh'
 import { Route as ApiPublicHooksCmdbDeviceAlertsRouteImport } from './routes/api/public/hooks/cmdb-device-alerts'
 import { Route as ApiPublicHooksCloudflareSyncRouteImport } from './routes/api/public/hooks/cloudflare-sync'
+import { Route as ApiPublicHooksAgentIngestRouteImport } from './routes/api/public/hooks/agent-ingest'
+import { Route as ApiPublicTreinamentosSsoCallbackRouteImport } from './routes/api/public/treinamentos/sso/callback'
 import { Route as ApiPublicAuthAzureCallbackRouteImport } from './routes/api/public/auth/azure/callback'
 
 const TrustRoute = TrustRouteImport.update({
   id: '/trust',
   path: '/trust',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TreinamentosRoute = TreinamentosRouteImport.update({
+  id: '/treinamentos',
+  path: '/treinamentos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -253,6 +261,18 @@ const ApiPublicHooksCloudflareSyncRoute =
     path: '/api/public/hooks/cloudflare-sync',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksAgentIngestRoute =
+  ApiPublicHooksAgentIngestRouteImport.update({
+    id: '/api/public/hooks/agent-ingest',
+    path: '/api/public/hooks/agent-ingest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicTreinamentosSsoCallbackRoute =
+  ApiPublicTreinamentosSsoCallbackRouteImport.update({
+    id: '/api/public/treinamentos/sso/callback',
+    path: '/api/public/treinamentos/sso/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAuthAzureCallbackRoute =
   ApiPublicAuthAzureCallbackRouteImport.update({
     id: '/api/public/auth/azure/callback',
@@ -266,8 +286,10 @@ export interface FileRoutesByFullPath {
   '/ativar': typeof AtivarRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
@@ -298,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/vuln-snapshot': typeof ApiPublicHooksVulnSnapshotRoute
   '/api/public/hooks/zabbix-cache-refresh': typeof ApiPublicHooksZabbixCacheRefreshRoute
   '/api/public/auth/azure/callback': typeof ApiPublicAuthAzureCallbackRoute
+  '/api/public/treinamentos/sso/callback': typeof ApiPublicTreinamentosSsoCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -305,8 +328,10 @@ export interface FileRoutesByTo {
   '/ativar': typeof AtivarRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
@@ -337,6 +362,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/vuln-snapshot': typeof ApiPublicHooksVulnSnapshotRoute
   '/api/public/hooks/zabbix-cache-refresh': typeof ApiPublicHooksZabbixCacheRefreshRoute
   '/api/public/auth/azure/callback': typeof ApiPublicAuthAzureCallbackRoute
+  '/api/public/treinamentos/sso/callback': typeof ApiPublicTreinamentosSsoCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -345,8 +371,10 @@ export interface FileRoutesById {
   '/ativar': typeof AtivarRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
@@ -377,6 +405,7 @@ export interface FileRoutesById {
   '/api/public/hooks/vuln-snapshot': typeof ApiPublicHooksVulnSnapshotRoute
   '/api/public/hooks/zabbix-cache-refresh': typeof ApiPublicHooksZabbixCacheRefreshRoute
   '/api/public/auth/azure/callback': typeof ApiPublicAuthAzureCallbackRoute
+  '/api/public/treinamentos/sso/callback': typeof ApiPublicTreinamentosSsoCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -386,8 +415,10 @@ export interface FileRouteTypes {
     | '/ativar'
     | '/login'
     | '/reset-password'
+    | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
@@ -418,6 +449,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/vuln-snapshot'
     | '/api/public/hooks/zabbix-cache-refresh'
     | '/api/public/auth/azure/callback'
+    | '/api/public/treinamentos/sso/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -425,8 +457,10 @@ export interface FileRouteTypes {
     | '/ativar'
     | '/login'
     | '/reset-password'
+    | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
@@ -457,6 +491,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/vuln-snapshot'
     | '/api/public/hooks/zabbix-cache-refresh'
     | '/api/public/auth/azure/callback'
+    | '/api/public/treinamentos/sso/callback'
   id:
     | '__root__'
     | '/'
@@ -464,8 +499,10 @@ export interface FileRouteTypes {
     | '/ativar'
     | '/login'
     | '/reset-password'
+    | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
@@ -496,6 +533,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/vuln-snapshot'
     | '/api/public/hooks/zabbix-cache-refresh'
     | '/api/public/auth/azure/callback'
+    | '/api/public/treinamentos/sso/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -504,7 +542,9 @@ export interface RootRouteChildren {
   AtivarRoute: typeof AtivarRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  TreinamentosRoute: typeof TreinamentosRoute
   TrustRoute: typeof TrustRoute
+  ApiPublicHooksAgentIngestRoute: typeof ApiPublicHooksAgentIngestRoute
   ApiPublicHooksCloudflareSyncRoute: typeof ApiPublicHooksCloudflareSyncRoute
   ApiPublicHooksCmdbDeviceAlertsRoute: typeof ApiPublicHooksCmdbDeviceAlertsRoute
   ApiPublicHooksCmdbDnsCacheRefreshRoute: typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
@@ -535,6 +575,7 @@ export interface RootRouteChildren {
   ApiPublicHooksVulnSnapshotRoute: typeof ApiPublicHooksVulnSnapshotRoute
   ApiPublicHooksZabbixCacheRefreshRoute: typeof ApiPublicHooksZabbixCacheRefreshRoute
   ApiPublicAuthAzureCallbackRoute: typeof ApiPublicAuthAzureCallbackRoute
+  ApiPublicTreinamentosSsoCallbackRoute: typeof ApiPublicTreinamentosSsoCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -544,6 +585,13 @@ declare module '@tanstack/react-router' {
       path: '/trust'
       fullPath: '/trust'
       preLoaderRoute: typeof TrustRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/treinamentos': {
+      id: '/treinamentos'
+      path: '/treinamentos'
+      fullPath: '/treinamentos'
+      preLoaderRoute: typeof TreinamentosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -791,6 +839,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksCloudflareSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/agent-ingest': {
+      id: '/api/public/hooks/agent-ingest'
+      path: '/api/public/hooks/agent-ingest'
+      fullPath: '/api/public/hooks/agent-ingest'
+      preLoaderRoute: typeof ApiPublicHooksAgentIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/treinamentos/sso/callback': {
+      id: '/api/public/treinamentos/sso/callback'
+      path: '/api/public/treinamentos/sso/callback'
+      fullPath: '/api/public/treinamentos/sso/callback'
+      preLoaderRoute: typeof ApiPublicTreinamentosSsoCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/auth/azure/callback': {
       id: '/api/public/auth/azure/callback'
       path: '/api/public/auth/azure/callback'
@@ -817,7 +879,9 @@ const rootRouteChildren: RootRouteChildren = {
   AtivarRoute: AtivarRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  TreinamentosRoute: TreinamentosRoute,
   TrustRoute: TrustRoute,
+  ApiPublicHooksAgentIngestRoute: ApiPublicHooksAgentIngestRoute,
   ApiPublicHooksCloudflareSyncRoute: ApiPublicHooksCloudflareSyncRoute,
   ApiPublicHooksCmdbDeviceAlertsRoute: ApiPublicHooksCmdbDeviceAlertsRoute,
   ApiPublicHooksCmdbDnsCacheRefreshRoute:
@@ -851,6 +915,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksVulnSnapshotRoute: ApiPublicHooksVulnSnapshotRoute,
   ApiPublicHooksZabbixCacheRefreshRoute: ApiPublicHooksZabbixCacheRefreshRoute,
   ApiPublicAuthAzureCallbackRoute: ApiPublicAuthAzureCallbackRoute,
+  ApiPublicTreinamentosSsoCallbackRoute: ApiPublicTreinamentosSsoCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
