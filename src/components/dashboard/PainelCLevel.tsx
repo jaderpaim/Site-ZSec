@@ -1,3 +1,4 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/lib/use-permissions";
-import { TrendingUp, AlertTriangle, Loader2, Database, PencilLine, Maximize2 } from "lucide-react";
+import { TrendingUp, AlertTriangle, Database, PencilLine, Maximize2 } from "lucide-react";
 import { getCLevelOverview, upsertCLevelContexto } from "@/lib/clevel.functions";
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -923,13 +924,7 @@ function CLevelOperacoes() {
     return s === "" ? null : Number(s);
   };
 
-  if (isLoading) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", padding: 48, color: T.muted }}>
-        <Loader2 className="size-5 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <ModuleLoading />;
 
   const semTabela = ctx == null;
 
@@ -1078,14 +1073,7 @@ function CLevelStoryline() {
 
   // Sem `cl-wrap` aqui: o shell (PainelCLevelDashboard) já provê o wrapper.
   // Aninhar dois `cl-wrap` dobrava o `margin:-2rem` e o padding.
-  if (isLoading && !data) {
-    return (
-      <div className="cl-root" style={{ alignItems: "center", padding: "80px 0", color: T.muted }}>
-        <Loader2 className="size-6 animate-spin" />
-        <span style={{ fontSize: 14 }}>Carregando o painel…</span>
-      </div>
-    );
-  }
+  if (isLoading && !data) return <ModuleLoading />;
 
   if (isError || !data) {
     return (

@@ -1,3 +1,4 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -1427,9 +1428,7 @@ export function AnalyticsTab() {
             />
 
             {httpLoading ? (
-              <div className="an-state-box">
-                <span style={{ fontSize: 13, color: V2.textSecondary }}>Carregando HTTP Traffic…</span>
-              </div>
+              <ModuleLoading />
             ) : httpError || (httpData && !(httpData as any).ok) ? (
               <div className="an-state-box">
                 <div
@@ -1805,9 +1804,7 @@ export function AnalyticsTab() {
                   </span>
                 </div>
               ) : eventsOverviewLoading ? (
-                <div className="an-state-box">
-                  <span style={{ fontSize: 13, color: V2.textSecondary }}>Carregando Events…</span>
-                </div>
+                <ModuleLoading />
               ) : eventsOverviewError || !evOv ? (
                 <div className="an-state-box">
                   <div
@@ -2223,9 +2220,7 @@ export function AnalyticsTab() {
                     </span>
                   </div>
                 ) : securityOverviewLoading ? (
-                  <div className="an-state-box">
-                    <span style={{ fontSize: 13, color: V2.textSecondary }}>Carregando Security…</span>
-                  </div>
+                  <ModuleLoading />
                 ) : securityOverviewError || !ov ? (
                   <div className="an-state-box">
                     <div

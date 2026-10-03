@@ -1,3 +1,4 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -200,7 +201,7 @@ function OverviewSection({ zoneId, days }: { zoneId: string | null; days: number
   const notConfigured = data && !(data as any).ok && (data as any).notConfigured;
 
   if (!zoneId) return <div className="lb-state-box">Selecione uma zona pra ver Load Balancing.</div>;
-  if (isLoading) return <div className="lb-state-box">Carregando Load Balancing…</div>;
+  if (isLoading) return <ModuleLoading />;
   if (notConfigured) {
     return (
       <div className="lb-state-box">

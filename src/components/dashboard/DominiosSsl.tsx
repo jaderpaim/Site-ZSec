@@ -1,3 +1,4 @@
+import { SyncActions } from "@/components/layout/SyncActions";
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -65,7 +66,6 @@ import type { SslRow, SslEdgeInfo } from "@/lib/ssl.functions";
 import { getAlertRecipientDept, setAlertRecipientDept } from "@/lib/alerts-recipients.functions";
 import { useDepartments } from "@/lib/use-departments";
 import { usePermissions } from "@/lib/use-permissions";
-import { CronHealthBadge } from "@/components/dashboard/CronHealthBadge";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
@@ -558,10 +558,7 @@ export function DominiosSslDashboard() {
             <span>Vencimento de domínios e certificados, com alerta diário por e-mail às 09h</span>
           </p>
         </div>
-        <div className="dssl-ph-actions">
-          <CronHealthBadge jobName="ssl-expiry-check" moduleSlug="dominios-ssl" />
-          <CronHealthBadge jobName="domains-expiry-check" moduleSlug="dominios-ssl" />
-        </div>
+        <SyncActions moduleSlug="dominios-ssl" jobs={["ssl-expiry-check", "domains-expiry-check"]} />
       </div>
 
       {/* ── KPIs (clique filtra a aba correspondente) ───────────────────── */}

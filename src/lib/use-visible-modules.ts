@@ -39,6 +39,7 @@ export function useVisibleModules(): ModuleDef[] {
   // - Demais módulos: visíveis para todos; o acesso é gated na rota/backend
   //   pela permissão de view (RBAC).
   return MODULES.filter((m) => {
+    if (m.hidden) return false;
     if (m.slug === "dast-scanner" || m.slug === "shadow-it") return isDastAllowed; // admin + depto Segurança da Informação -- Shadow IT reaproveita o mesmo gate do DAST
     if (m.slug === "benchmark") return canSeeBenchmark; // exige flag explícita, mesmo pra admin
     if (m.slug === "painel-executivo") return canSeePainelExecutivo; // idem

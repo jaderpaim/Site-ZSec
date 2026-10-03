@@ -1,3 +1,5 @@
+import { SyncActions } from "@/components/layout/SyncActions";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import {
   ResponsiveContainer,
@@ -40,31 +42,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import {
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Plus,
-  Search,
-  CalendarPlus,
-  Lock,
-  CheckCircle2,
-  XCircle,
-  X,
-  ClipboardCheck,
-  Maximize2,
-  Minimize2,
-  ShieldAlert,
-  Activity,
-  TrendingDown,
-  AlertTriangle,
-  BarChart2,
-  Settings2,
-  Wrench,
-  LayoutDashboard,
-  RefreshCw,
-  Download,
-} from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Plus, Search, CalendarPlus, Lock, CheckCircle2, XCircle, X, ClipboardCheck, Maximize2, Minimize2, ShieldAlert, Activity, TrendingDown, AlertTriangle, BarChart2, Settings2, Wrench, LayoutDashboard, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 import {
@@ -1369,25 +1347,7 @@ export function VulnerabilidadesRealDashboard() {
   };
 
   // ── Loading ────────────────────────────────────────────────────────────────
-  if (isLoading)
-    return (
-      <div
-        className="vr"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "64px 0",
-          gap: 8,
-          color: V.fg3,
-          fontSize: 13,
-          fontFamily: "'IBM Plex Mono',monospace",
-        }}
-      >
-        <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <RefreshCw size={14} className="vr-spin" color={T.danger} /> Carregando vulnerabilidades…
-      </div>
-    );
+  if (isLoading) return <ModuleLoading />;
 
   // ── Access denied ──────────────────────────────────────────────────────────
   if (!isVulnAdmin && can("vulnerabilidades", "view") && !myProfile?.department_id)
@@ -1467,6 +1427,7 @@ export function VulnerabilidadesRealDashboard() {
             Monitoramento e tratamento · {kindFilter === "aplicacao" ? "Externas / FQDN" : "Internas"}
           </p>
         </div>
+        <SyncActions moduleSlug="vulnerabilidades" jobs={["vuln-snapshot"]}>
         <div className="vr-ph-actions">
           {activeTab === "dashboard" && (
             <div className="vr-seg" role="group" aria-label="Tipo de vulnerabilidade">
@@ -1489,6 +1450,7 @@ export function VulnerabilidadesRealDashboard() {
             </div>
           )}
         </div>
+        </SyncActions>
       </div>
 
       {/* ══ DASHBOARD TAB ════════════════════════════════════════════════ */}

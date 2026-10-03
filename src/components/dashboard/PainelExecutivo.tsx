@@ -1,3 +1,4 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -439,19 +440,7 @@ export function PainelExecutivoDashboard() {
   }, []);
   // ──────────────────────────────────────────────────────────────────────────
 
-  if (isLoading && !data) {
-    return (
-      <div ref={presentRef} className="pe-wrap">
-        <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <div className="pe-root">
-          <div className="pe-state">
-            <RefreshCw size={22} className="pe-spin" color={T.accent} />
-            <span style={{ fontSize: 13, color: T.textSecondary }}>Carregando painel executivo…</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading && !data) return <ModuleLoading />;
 
   if (isError || !data) {
     return (

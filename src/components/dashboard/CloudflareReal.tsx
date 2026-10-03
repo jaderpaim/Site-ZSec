@@ -1,3 +1,5 @@
+import { SyncActions } from "@/components/layout/SyncActions";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -50,7 +52,6 @@ import { DetailList, DetailSection, DetailSheet } from "@/components/layout/Deta
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/use-permissions";
-import { CronHealthBadge } from "@/components/dashboard/CronHealthBadge";
 
 const STORAGE_KEY = "cloudflare_dashboard_layout_densegrid_final_v7";
 const DAYS_STORAGE_KEY = "cloudflare_dashboard_days";
@@ -773,6 +774,7 @@ export function CloudflareDashboardReal() {
               </span>
             </p>
           </div>
+          <SyncActions moduleSlug="cloudflare-waf" jobs={["cloudflare-daily-sync"]}>
           {canViewCf && activeTab === "dashboard" && (
             <div className="cf-ph-actions">
               {/* Zona */}
@@ -829,6 +831,7 @@ export function CloudflareDashboardReal() {
               )}
             </div>
           )}
+          </SyncActions>
         </div>
 
         {/* ── Abas ─────────────────────────────────────────────────────────── */}
@@ -860,17 +863,7 @@ export function CloudflareDashboardReal() {
         {canViewCf && activeTab === "dashboard" && (
           <>
             {isLoading ? (
-              <div className="cf-state-box">
-                <div
-                  className="cf-state-icon"
-                  style={{ background: T.accentGlow, border: `1px solid rgba(59,130,246,0.3)` }}
-                >
-                  <RefreshCw size={18} color={T.accent} className="exec-spin" />
-                </div>
-                <span style={{ fontSize: 13, color: V.fg2, fontFamily: V.font }}>
-                  Sincronizando dados Bernoulli com a Cloudflare…
-                </span>
-              </div>
+              <ModuleLoading />
             ) : error || (d && !d.ok) ? (
               <div className="cf-state-box">
                 <div
@@ -890,7 +883,6 @@ export function CloudflareDashboardReal() {
               <>
                 {/* Filtros ativos, saúde do sync e layout */}
                 <div className="cf-filters">
-                  <CronHealthBadge jobName="cloudflare-daily-sync" moduleSlug="cloudflare-waf" />
                   {(selectedCountry || selectedAction) && <span className="cf-filters-label">Filtrando por</span>}
                   {selectedCountry && (
                     <button className="cf-filter-chip" onClick={() => setSelectedCountry(null)}>

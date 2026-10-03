@@ -1,3 +1,4 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -1295,16 +1296,7 @@ export function WebAnalyticsTab({ zoneId, days }: { zoneId: string | null; days:
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="wa-root">
-        <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <div className="wa-state-box">
-          <span style={{ fontSize: 13, color: V2.textPrimary }}>Carregando Web Analytics…</span>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <ModuleLoading />;
 
   if (notConfigured) {
     return (

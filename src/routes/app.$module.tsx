@@ -1,9 +1,10 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { DASHBOARDS } from "@/components/dashboard/dashboards";
 import { MODULE_BY_SLUG } from "@/lib/modules";
 import { usePermissions } from "@/lib/use-permissions";
-import { Loader2, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 
 export const Route = createFileRoute("/app/$module")({ component: ModulePage });
 
@@ -13,17 +14,16 @@ function ModulePage() {
   const Dash = DASHBOARDS[module];
   const { isAdmin, can, isAnyModuleAdmin, isModuleAdmin, isDastAllowed, loading } = usePermissions();
 
+  // Segmentos virou a aba "Notas e segmentos" da Maturidade
+  if (module === "segmentos") {
+    return <Navigate to="/app/$module" params={{ module: "maturidade" }} hash="notas" />;
+  }
+
   if (!def || !Dash) {
     return <Navigate to="/app/$module" params={{ module: "vulnerabilidades" }} />;
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen text-muted-foreground">
-        <Loader2 className="size-5 animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <ModuleLoading />;
 
   const { hidePeriod, hideDepartment, hideExport } = def.headerConfig ?? {};
 

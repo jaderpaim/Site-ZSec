@@ -53,10 +53,11 @@ export function BrandMark({ className = "" }: { className?: string }) {
         d="M24 2L4 10v14c0 13 8.5 23.5 20 27 11.5-3.5 20-14 20-27V10L24 2Z"
         fill="var(--v2-accent)"
       />
+      {/* "Z" do Z-Sec */}
       <path
-        d="M24 27s-4-6-9-6-8 2.5-8 6 3 6 8 6 9-6 9-6 4-6 9-6 8 2.5 8 6-3 6-8 6-9-6-9-6Z"
+        d="M15.5 19.5H32.5L15.5 35.5H32.5"
         stroke="var(--v2-accent-ink)"
-        strokeWidth="2.8"
+        strokeWidth="3.8"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -111,8 +112,8 @@ export function AppSidebar() {
         <div className="flex items-center gap-2.5 px-4 pt-4 pb-3.5">
           <BrandMark className="w-7 h-8 shrink-0" />
           <div className="min-w-0">
-            <div className="text-sm font-semibold tracking-tight text-v2-fg">B-Security</div>
-            <div className="text-[11px] text-v2-fg-3">Segurança da Informação</div>
+            <div className="text-[15px] font-bold tracking-[-0.03em] leading-tight text-v2-fg">Z-Sec</div>
+            <div className="font-data text-[10px] uppercase tracking-[0.14em] text-v2-accent">Security Suite</div>
           </div>
         </div>
 

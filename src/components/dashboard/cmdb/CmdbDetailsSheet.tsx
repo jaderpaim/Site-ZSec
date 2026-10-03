@@ -1,11 +1,18 @@
 import * as React from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import type { CmdbAtivo } from "@/lib/cmdb.functions";
-import { CriticidadeBadge, StatusBadge, TipoBadge, type Criticidade, type CmdbDisplayStatus } from "./CmdbBadges";
+import { critColor, statusColor, type Criticidade, type CmdbDisplayStatus } from "./CmdbBadges";
 
-export function Field({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
+export function Field({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
   return (
     <div>
       <div className="text-mono-xs text-muted-foreground mb-0.5">{label}</div>
@@ -17,8 +24,12 @@ export function Field({ label, value, mono }: { label: string; value: React.Reac
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">{title}</h4>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-accent/30 rounded-md">{children}</div>
+      <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+        {title}
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-accent/30 rounded-md">
+        {children}
+      </div>
     </div>
   );
 }
@@ -52,7 +63,8 @@ function divergenceMessage(
   if (d.dns.matchesCmdb) {
     return (
       <>
-        Zabbix desatualizado: o NSLOOKUP confirma o hostname <span className="font-medium">{ativo.nome}</span> para o IP{" "}
+        Zabbix desatualizado: o NSLOOKUP confirma o hostname{" "}
+        <span className="font-medium">{ativo.nome}</span> para o IP{" "}
         <span className="font-mono">{d.ip}</span> (igual ao CMDB), mas o Zabbix está cadastrado com{" "}
         <span className="font-medium">{zbx}</span>.
       </>
@@ -61,9 +73,10 @@ function divergenceMessage(
   if (d.dns.matchesZabbix) {
     return (
       <>
-        CMDB desatualizado: o DNS confirma o hostname <span className="font-medium">{d.dns.hostname}</span> para o IP{" "}
-        <span className="font-mono">{d.ip}</span> (igual ao Zabbix), mas este ativo está cadastrado no CMDB como{" "}
-        <span className="font-medium">{ativo.nome}</span>.
+        CMDB desatualizado: o DNS confirma o hostname{" "}
+        <span className="font-medium">{d.dns.hostname}</span> para o IP{" "}
+        <span className="font-mono">{d.ip}</span> (igual ao Zabbix), mas este ativo está cadastrado
+        no CMDB como <span className="font-medium">{ativo.nome}</span>.
       </>
     );
   }
@@ -77,11 +90,37 @@ function divergenceMessage(
   );
 }
 
+/** Selo com ponto colorido (mesmo formato dos cards do CMDB). */
+export function CmdbPill({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex h-[22px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] px-2 text-xs font-medium"
+      style={{
+        background: `color-mix(in oklch, ${color} 14%, transparent)`,
+        color: `color-mix(in oklch, ${color} 72%, var(--v2-fg))`,
+      }}
+    >
+      <span className="size-1.5 rounded-full" style={{ background: color }} />
+      {children}
+    </span>
+  );
+}
+
+type Divergence = {
+  ip: string;
+  zabbixHosts: string[];
+  dns: { hostname: string; matchesCmdb: boolean; matchesZabbix: boolean } | null;
+  dnsStatus: "no_ptr" | "timeout" | "unknown";
+};
+
 export function CmdbDetailsSheet({
   open,
   onOpenChange,
   ativo,
   status,
+  siem,
+  zabbix,
+  siemStale,
   zabbixDivergence,
   onEdit,
   onDelete,
@@ -92,80 +131,119 @@ export function CmdbDetailsSheet({
   onOpenChange: (v: boolean) => void;
   ativo: CmdbAtivo | null;
   status: CmdbDisplayStatus;
-  zabbixDivergence?: {
-    ip: string;
-    zabbixHosts: string[];
-    dns: { hostname: string; matchesCmdb: boolean; matchesZabbix: boolean } | null;
-    dnsStatus: "no_ptr" | "timeout" | "unknown";
-  } | null;
+  siem: boolean;
+  zabbix: "ok" | "unknown" | "off";
+  siemStale: boolean;
+  zabbixDivergence?: Divergence | null;
   onEdit: (a: CmdbAtivo) => void;
   onDelete: (a: CmdbAtivo) => void;
   canEdit: boolean;
   canDelete: boolean;
 }) {
   if (!ativo) return null;
+  const crit = ativo.criticidade as Criticidade;
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader className="space-y-3">
-          <SheetTitle className="text-xl">{ativo.nome}</SheetTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <CriticidadeBadge value={ativo.criticidade as Criticidade} />
-            <StatusBadge value={status} />
-            <TipoBadge value={ativo.tipo} />
-          </div>
-        </SheetHeader>
-
-        <div className="space-y-5 pt-6">
-          <Section title="Identificação">
-            <Field label="Nome do ativo" value={ativo.nome} />
-            <Field label="Tipo" value={ativo.tipo} />
-          </Section>
-
-          <Section title="Internas">
-            <Field label="IP / Hostname" value={ativo.ip_hostname} mono />
-            <Field label="Fabricante / Modelo" value={ativo.fabricante_modelo} />
-            <Field label="Sistema Operacional" value={ativo.sistema_operacional} />
-            <Field label="Localização" value={ativo.localizacao} />
-            <Field label="Status" value={<StatusBadge value={status} />} />
-          </Section>
-
-          <Section title="Responsabilidade">
-            <Field label="Departamento" value={ativo.departamento_nome ?? "—"} />
-          </Section>
-
-          {ativo.observacoes && (
-            <div>
-              <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Observações</h4>
-              <div className="p-3 bg-accent/30 rounded-md text-sm whitespace-pre-wrap">{ativo.observacoes}</div>
-            </div>
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      eyebrow={[ativo.tipo, ativo.ip_hostname].filter(Boolean).join(" · ")}
+      title={ativo.nome}
+      badges={
+        <>
+          <CmdbPill color={statusColor(status)}>{status}</CmdbPill>
+          <CmdbPill color={critColor(crit)}>{crit}</CmdbPill>
+          {ativo.status && ativo.status !== "Ativo" && (
+            <CmdbPill color={statusColor(ativo.status as CmdbDisplayStatus) ?? "var(--v2-fg-3)"}>
+              {ativo.status}
+            </CmdbPill>
           )}
-
-          {zabbixDivergence && (
-            <div>
-              <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Alertas</h4>
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-md text-sm text-amber-600 dark:text-amber-400">
-                {divergenceMessage(ativo, zabbixDivergence)}
-              </div>
-            </div>
-          )}
-
-          {(canEdit || canDelete) && (
-            <div className="flex justify-end gap-2 pt-4 border-t border-border">
-              {canEdit && (
-                <Button variant="outline" onClick={() => onEdit(ativo)}>
-                  <Pencil className="size-4 mr-1" /> Editar
-                </Button>
-              )}
-              {canDelete && (
-                <Button variant="destructive" onClick={() => onDelete(ativo)}>
-                  <Trash2 className="size-4 mr-1" /> Excluir
-                </Button>
-              )}
-            </div>
-          )}
+          {zabbixDivergence && <CmdbPill color="var(--v2-med)">Divergência de hostname</CmdbPill>}
+        </>
+      }
+      footer={
+        (canEdit || canDelete) && (
+          <>
+            {canDelete && (
+              <button
+                className="mr-auto inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-v2-crit hover:bg-v2-hover"
+                onClick={() => onDelete(ativo)}
+              >
+                <Trash2 className="size-3.5" /> Excluir
+              </button>
+            )}
+            {canEdit && (
+              <button
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-v2-accent bg-v2-accent px-3 text-[13px] font-medium text-v2-accent-ink hover:brightness-110"
+                onClick={() => onEdit(ativo)}
+              >
+                <Pencil className="size-3.5" /> Editar
+              </button>
+            )}
+          </>
+        )
+      }
+    >
+      {zabbixDivergence && (
+        <div
+          className="flex gap-2.5 rounded-lg px-3 py-2.5 text-[13px] leading-relaxed text-v2-fg-2"
+          style={{
+            background: "color-mix(in oklch, var(--v2-med) 10%, transparent)",
+            border: "1px solid color-mix(in oklch, var(--v2-med) 35%, transparent)",
+          }}
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" style={{ color: "var(--v2-med)" }} />
+          <span>{divergenceMessage(ativo, zabbixDivergence)}</span>
         </div>
-      </SheetContent>
-    </Sheet>
+      )}
+      <DetailSection title="Identificação">
+        <DetailList
+          items={[
+            ["IP / hostname", ativo.ip_hostname ?? "—", true],
+            ["Tipo", ativo.tipo ?? "—"],
+            ["Fabricante / modelo", ativo.fabricante_modelo ?? "—"],
+            ["Sistema operacional", ativo.sistema_operacional ?? "—"],
+          ]}
+        />
+      </DetailSection>
+      <DetailSection title="Responsabilidade">
+        <DetailList
+          items={[
+            ["Departamento", ativo.departamento_nome ?? "—"],
+            ["Localização", ativo.localizacao ?? "—"],
+            ["Criticidade", crit],
+            ["Situação cadastral", ativo.status ?? "—"],
+          ]}
+        />
+      </DetailSection>
+      <DetailSection title="Monitoramento">
+        <DetailList
+          items={[
+            [
+              "SIEM (QRadar)",
+              siem
+                ? "Recebendo eventos"
+                : siemStale
+                  ? "Sem confirmação (sincronização do QRadar atrasada)"
+                  : "Sem eventos",
+            ],
+            [
+              "Zabbix",
+              zabbix === "ok"
+                ? "Disponível"
+                : zabbix === "unknown"
+                  ? "Cadastrado, disponibilidade não confirmada"
+                  : "Não encontrado",
+            ],
+          ]}
+        />
+      </DetailSection>
+      {ativo.observacoes && (
+        <DetailSection title="Observações">
+          <p className="m-0 whitespace-pre-wrap text-[13px] leading-relaxed text-v2-fg-2">
+            {ativo.observacoes}
+          </p>
+        </DetailSection>
+      )}
+    </DetailSheet>
   );
 }

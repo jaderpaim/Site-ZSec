@@ -1,3 +1,4 @@
+import { SyncActions } from "@/components/layout/SyncActions";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -452,18 +453,20 @@ export function DlpDashboard() {
             <span>Microsoft Purview · eventos de política DLP</span>
           </p>
         </div>
-        <div className="dlp-seg" role="group" aria-label="Período">
-          {PERIODOS.map((p) => (
-            <button
-              key={p.k}
-              type="button"
-              aria-pressed={periodo === p.k}
-              onClick={() => setPeriodo(p.k)}
-            >
-              {p.rotulo}
-            </button>
-          ))}
-        </div>
+        <SyncActions moduleSlug="dlp" jobs={["dlp-sync"]}>
+          <div className="dlp-seg" role="group" aria-label="Período">
+            {PERIODOS.map((p) => (
+              <button
+                key={p.k}
+                type="button"
+                aria-pressed={periodo === p.k}
+                onClick={() => setPeriodo(p.k)}
+              >
+                {p.rotulo}
+              </button>
+            ))}
+          </div>
+        </SyncActions>
       </div>
 
       {semEventos ? (

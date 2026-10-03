@@ -15,21 +15,22 @@ export function useTheme() {
     setTheme(document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark");
   }, []);
 
-  const toggleTheme = React.useCallback(() => {
-    setTheme((prev) => {
-      const next: Theme = prev === "light" ? "dark" : "light";
-      const root = document.documentElement;
-      root.setAttribute("data-theme", next);
-      // As variantes `dark:` do Tailwind dependem da classe .dark no <html>
-      root.classList.toggle("dark", next === "dark");
-      try {
-        localStorage.setItem(STORAGE_KEY, next);
-      } catch {
-        /* storage indisponível: o tema só não fica salvo */
-      }
-      return next;
-    });
+  const applyTheme = React.useCallback((next: Theme) => {
+    const root = document.documentElement;
+    root.setAttribute("data-theme", next);
+    // As variantes `dark:` do Tailwind dependem da classe .dark no <html>
+    root.classList.toggle("dark", next === "dark");
+    try {
+      localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      /* storage indisponível: o tema só não fica salvo */
+    }
+    setTheme(next);
   }, []);
 
-  return { theme, toggleTheme };
+  const toggleTheme = React.useCallback(() => {
+    applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light");
+  }, [applyTheme]);
+
+  return { theme, setTheme: applyTheme, toggleTheme };
 }

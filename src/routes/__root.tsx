@@ -48,10 +48,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "B-Security — Security Suite" },
+      { title: "Z-Sec — Security Suite" },
       { name: "description", content: "Plataforma corporativa de Segurança da Informação." },
-      { property: "og:title", content: "B-Security — Security Suite" },
-      { name: "twitter:title", content: "B-Security — Security Suite" },
+      { property: "og:title", content: "Z-Sec — Security Suite" },
+      { name: "twitter:title", content: "Z-Sec — Security Suite" },
       { property: "og:description", content: "Plataforma corporativa de Segurança da Informação." },
       { name: "twitter:description", content: "Plataforma corporativa de Segurança da Informação." },
       { property: "og:image", content: "https://b-security.bernoulli.com.br/og-image.png" },
@@ -61,6 +61,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      // Favicon: escudo Z-Sec (SVG embutido, sem arquivo extra)
+      { rel: "icon", type: "image/svg+xml", href: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 54'%3E%3Cpath d='M24 2L4 10v14c0 13 8.5 23.5 20 27 11.5-3.5 20-14 20-27V10L24 2Z' fill='%234f9be8'/%3E%3Cpath d='M15.5 19.5H32.5L15.5 35.5H32.5' fill='none' stroke='%230f1726' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

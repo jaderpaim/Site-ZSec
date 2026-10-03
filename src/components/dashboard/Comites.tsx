@@ -2,41 +2,46 @@ import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Search, CalendarCheck, Loader2, Lock, CheckCircle2, XCircle, Clock } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LabelList } from "recharts";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  Loader2,
+  Lock,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  X,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  LabelList,
+} from "recharts";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth-context";
 import { usePermissions } from "@/lib/use-permissions";
-import { listComites, upsertComite, deleteComite, getComitesOverview, type ComiteRow } from "@/lib/comites.functions";
-
-// ── Design Tokens ──────────────────────────────────────────────────────────────
-const T = {
-  surface: "var(--tl-0f1420, #0F1420)",
-  surfaceAlt: "var(--tl-131825, #131825)",
-  border: "var(--tl-1e2640, #1E2640)",
-  borderHi: "var(--tl-2a3560, #2A3560)",
-  accent: "#3B82F6",
-  accentGlow: "rgba(59,130,246,0.15)",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  purple: "#A78BFA",
-  purpleBg: "rgba(167,139,250,0.10)",
-  cyan: "#22D3EE",
-  neutral: "var(--tl-6b7280, #6B7280)",
-  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
-  textSecondary: "var(--tl-94a3b8, #94A3B8)",
-  textMuted: "var(--tl-64748b, #64748B)",
-  textSubtle: "var(--tl-475569, #475569)",
-  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
-  chartAxis: "var(--tl-334155, #334155)",
-  chartTick: "var(--tl-64748b, #64748B)",
-};
+import {
+  listComites,
+  upsertComite,
+  deleteComite,
+  getComitesOverview,
+  type ComiteRow,
+} from "@/lib/comites.functions";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 
 const STATUSES = ["Agendado", "Realizado", "Não Realizado", "Cancelado"] as const;
 const PERIODICIDADES = [
@@ -58,118 +63,183 @@ const TIPOS_SUGERIDOS = [
   "Operacional",
 ] as const;
 
-// Paleta para anel de tipos
-const TIPO_PALETTE = [T.accent, T.success, T.purple, T.warning, T.cyan, "#FB923C", T.danger, T.neutral];
+// Paleta categórica validada (mesma do Sophos): a cor segue o tipo pela posição
+// na lista (do mais frequente ao menos), e o nome/número fica sempre escrito.
+const CAT_COLORS = [
+  "var(--cm-cat-1)",
+  "var(--cm-cat-2)",
+  "var(--cm-cat-3)",
+  "var(--cm-cat-4)",
+  "var(--cm-cat-5)",
+  "var(--cm-cat-6)",
+];
+const MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
-// ── CSS ────────────────────────────────────────────────────────────────────────
+// ── CSS (interface v2) ─────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+  :root { --cm-cat-1:#3987e5; --cm-cat-2:#d95926; --cm-cat-3:#199e70; --cm-cat-4:#c98500; --cm-cat-5:#d55181; --cm-cat-6:#9085e9; }
+  :root[data-theme="light"] { --cm-cat-1:#2a78d6; --cm-cat-2:#eb6834; --cm-cat-3:#1baf7a; --cm-cat-4:#eda100; --cm-cat-5:#e87ba4; --cm-cat-6:#4a3aa7; }
 
-  .cm-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; display:flex; flex-direction:column; gap:16px; }
+  .cm-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
   .cm-root * { box-sizing:border-box; }
-  @keyframes cm-spin { to { transform:rotate(360deg) } }
+  @keyframes cm-spin { to{transform:rotate(360deg)} }
   .cm-spin { animation:cm-spin 0.75s linear infinite; }
-
-  .cm-root ::-webkit-scrollbar       { width:4px; height:4px; }
+  @media (prefers-reduced-motion: reduce) { .cm-spin { animation:none; } }
+  .cm-root ::-webkit-scrollbar { width:6px; height:6px; }
   .cm-root ::-webkit-scrollbar-track { background:transparent; }
-  .cm-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
+  .cm-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .cm-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .cm-root .mono { font-family:var(--font-data); font-size:12.5px; }
+  .cm-root .dim { color:var(--v2-fg-3); }
+  .cm-root .recharts-cartesian-axis-tick-value { fill:var(--v2-fg-3) !important; font-size:11px; font-family:var(--font-data); }
 
-  .cm-root .recharts-cartesian-axis-tick-value { fill:${T.chartTick} !important; font-size:10px; font-family:'IBM Plex Mono',monospace; }
-  .cm-root .recharts-legend-item-text { color:${T.textSecondary} !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
+  /* ── Cabeçalho ── */
+  .cm-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .cm-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .cm-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
 
-  /* ── Header ── */
-  .cm-hdr { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-  .cm-hdr-brand { display:flex; align-items:center; gap:12px; }
-  .cm-hdr-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.3); }
-  .cm-hdr-title { font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em; }
-  .cm-hdr-sub { font-size:11px; color:${T.textMuted}; margin-top:2px; }
+  /* ── Estado (acesso restrito) ── */
+  .cm-state { display:flex; flex-direction:column; align-items:center; gap:10px; padding:48px 24px; text-align:center; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; }
+  .cm-empty { padding:28px 16px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
 
-  /* ── KPI ── */
-  .cm-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
-  .cm-kpi { background:${T.surface}; border:1px solid ${T.border}; border-radius:10px; padding:14px 18px; position:relative; overflow:hidden; transition:border-color 0.2s; }
-  .cm-kpi:hover { border-color:${T.borderHi}; }
-  .cm-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kc,${T.accent}); }
-  .cm-kpi-icon  { position:absolute; top:10px; right:10px; width:40px; height:40px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:var(--ki-bg,${T.accentGlow}); }
-  .cm-kpi-label { font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-bottom:5px; }
-  .cm-kpi-value { font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; letter-spacing:-0.02em; line-height:1; color:var(--kc,${T.textPrimary}); }
-  .cm-kpi-hint  { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:5px; }
+  /* ── KPIs ── */
+  .cm-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .cm-kpi { position:relative; text-align:left; border:0; background:transparent; padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); color:inherit; font-family:inherit; min-width:0; }
+  button.cm-kpi { cursor:pointer; }
+  button.cm-kpi:hover { background:var(--v2-hover); }
+  .cm-kpi[aria-pressed="true"] { background:color-mix(in oklch, var(--v2-accent) 14%, transparent); }
+  .cm-kpi[aria-pressed="true"]::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--v2-accent); }
+  .cm-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .cm-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .cm-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .cm-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
+  .cm-meter { height:6px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; margin:6px 0 2px; }
+  .cm-meter i { display:block; height:100%; border-radius:99px; }
 
-  /* ── Panel ── */
-  .cm-panel { background:${T.surface}; border:1px solid ${T.border}; border-radius:12px; overflow:hidden; }
-  .cm-panel-hdr { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:13px 20px; background:${T.surfaceAlt}; border-bottom:1px solid ${T.border}; }
-  .cm-panel-title { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; }
-  .cm-panel-body { padding:16px; }
+  /* ── Grade: cada linha com quadros da mesma altura ── */
+  .cm-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; align-items:stretch; }
+  .cm-span-2 { grid-column:span 2; }
+  .cm-card { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; min-width:0; overflow:hidden; }
+  /* A agenda não define a altura da linha: acompanha o gráfico e rola por dentro */
+  .cm-fit { height:0; min-height:100%; display:flex; flex-direction:column; }
+  .cm-fit .cm-card-body { flex:1; min-height:0; overflow-y:auto; }
+  @media (max-width: 1100px) {
+    .cm-grid { grid-template-columns:minmax(0, 1fr); }
+    .cm-span-2 { grid-column:auto; }
+    .cm-fit { height:auto; min-height:0; max-height:420px; }
+  }
+  .cm-card-hdr { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:14px 18px 4px; }
+  .cm-card-title { font-size:14px; font-weight:600; margin:0; }
+  .cm-card-sub { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .cm-card-body { padding:10px 18px 16px; }
+  .cm-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--v2-fg-2); }
+  .cm-legend span { display:inline-flex; align-items:center; gap:6px; }
 
-  /* ── Charts grid ── */
-  .cm-grid-charts { display:grid; grid-template-columns:2fr 1fr; gap:12px; }
+  /* ── Agenda ── */
+  .cm-agenda { display:grid; }
+  .cm-agenda button { display:grid; grid-template-columns:44px minmax(0, 1fr) auto; gap:12px; align-items:center; padding:8px; margin:0 -8px; border:0; border-radius:8px; background:transparent; text-align:left; color:var(--v2-fg); cursor:pointer; font-family:inherit; }
+  .cm-agenda button:hover { background:var(--v2-hover); }
+  .cm-cal { display:grid; place-items:center; width:44px; height:44px; border-radius:8px; border:1px solid var(--v2-line); background:var(--v2-surface-2); line-height:1.05; }
+  .cm-cal b { font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .cm-cal small { font:500 10.5px var(--font-data); color:var(--v2-fg-3); text-transform:uppercase; letter-spacing:.04em; }
+  .cm-agenda .t { min-width:0; }
+  .cm-agenda .t b { display:block; font-weight:500; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cm-agenda .t small { display:block; font-size:12px; color:var(--v2-fg-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cm-sub-h { font-size:12px; font-weight:500; color:var(--v2-fg-3); margin:14px 0 4px; display:flex; align-items:center; gap:6px; }
+  .cm-sub-h:first-child { margin-top:0; }
+  .cm-days { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font:500 12px var(--font-data); white-space:nowrap; --c:var(--v2-fg-3); background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .cm-days.warn { --c:var(--v2-med); }
+  .cm-days.soon { --c:var(--v2-accent); }
 
-  /* ── Legend custom ── */
-  .cm-chart-legend { display:flex; gap:14px; margin-bottom:12px; flex-wrap:wrap; }
-  .cm-leg-item { display:flex; align-items:center; gap:5px; font-size:11px; color:${T.textSecondary}; font-family:'IBM Plex Mono',monospace; }
-  .cm-leg-dot { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+  /* ── Por tipo ── */
+  .cm-cat-tot { display:flex; align-items:baseline; gap:8px; margin-bottom:10px; }
+  .cm-cat-tot b { font-size:28px; font-weight:600; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
+  .cm-cat-tot span { font-size:12.5px; color:var(--v2-fg-3); }
+  .cm-cat-stack { display:flex; height:12px; border-radius:99px; overflow:hidden; gap:2px; margin-bottom:14px; }
+  .cm-cat-stack i { display:block; height:100%; }
+  .cm-cat-list { display:grid; gap:2px; }
+  .cm-cat-list button { display:grid; grid-template-columns:10px minmax(0, 1fr) auto auto; gap:10px; align-items:center; padding:7px 8px; margin:0 -8px; border:0; border-radius:8px; background:transparent; text-align:left; color:var(--v2-fg); font-size:13px; cursor:pointer; font-family:inherit; }
+  .cm-cat-list button:hover { background:var(--v2-hover); }
+  .cm-cat-list button[aria-pressed="true"] { background:color-mix(in oklch, var(--v2-accent) 14%, transparent); }
+  .cm-cat-list.filtering button[aria-pressed="false"] { opacity:.5; }
+  .cm-cat-list .sw { width:10px; height:10px; border-radius:3px; }
+  .cm-cat-list span:nth-child(2) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cm-cat-list .n { font:500 12.5px var(--font-data); text-align:right; }
+  .cm-cat-list .p { font:400 12px var(--font-data); color:var(--v2-fg-3); text-align:right; min-width:44px; }
 
-  /* ── Tipo ring ── */
-  .cm-ring-wrap { display:flex; align-items:center; gap:16px; width:100%; height:100%; }
-  .cm-ring-svg  { flex:0 0 auto; width:min(160px,42%); height:auto; }
-  .cm-ring-legend { display:flex; flex-direction:column; gap:8px; flex:1; min-width:0; }
-  .cm-ring-row { display:flex; align-items:center; gap:7px; cursor:pointer; border-radius:4px; padding:3px 5px; transition:background 0.1s; }
-  .cm-ring-row:hover { background:rgba(59,130,246,0.06); }
-  .cm-ring-row.dim { opacity:0.25; }
-  .cm-ring-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
-  .cm-ring-name { font-size:11px; color:${T.textPrimary}; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .cm-ring-bar-wrap { width:140px; height:4px; background:${T.border}; border-radius:2px; overflow:hidden; flex-shrink:0; }
-  .cm-ring-bar  { height:100%; border-radius:2px; transition:width 0.5s; }
-  .cm-ring-val  { font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; width:28px; text-align:right; flex-shrink:0; }
+  /* ── Taxa por comitê ── */
+  .cm-rate { display:grid; grid-template-columns:minmax(60px, 1fr) 40px; gap:10px; align-items:center; min-width:140px; }
+  .cm-track { height:8px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; }
+  .cm-track i { display:block; height:100%; border-radius:99px; }
+  .cm-rate b { font:500 12.5px var(--font-data); text-align:right; }
 
-  /* ── % por comitê bars ── */
-  .cm-bar-row  { display:flex; align-items:center; gap:10px; padding:6px 0; }
-  .cm-bar-name { width:32%; font-size:12px; color:${T.textPrimary}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .cm-bar-track{ flex:1; height:8px; background:${T.surfaceAlt}; border-radius:4px; overflow:hidden; }
-  .cm-bar-fill { height:100%; background:linear-gradient(90deg,${T.accent},${T.purple}); border-radius:4px; }
-  .cm-bar-meta { width:90px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:11px; color:${T.textPrimary}; }
-
-  /* ── Table ── */
-  .cm-table { width:100%; border-collapse:collapse; }
-  .cm-table th { padding:8px 12px; font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:${T.textPrimary}; font-family:'IBM Plex Mono',monospace; text-align:left; background:${T.surface}; border-bottom:1px solid ${T.border}; white-space:nowrap; position:sticky; top:0; z-index:1; }
-  .cm-table td { padding:10px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4); font-size:12px; color:${T.textPrimary}; vertical-align:top; }
-  .cm-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
+  /* ── Barra de ferramentas e tabelas ── */
+  .cm-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .cm-toolbar > b { font-size:14px; font-weight:600; }
+  .cm-count { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
+  .cm-seg { display:inline-flex; padding:3px; gap:2px; background:var(--v2-bg); border:1px solid var(--v2-line); border-radius:8px; flex-wrap:wrap; }
+  .cm-seg button { border:0; background:transparent; padding:4px 12px; border-radius:5px; font-size:13px; color:var(--v2-fg-2); cursor:pointer; font-family:inherit; }
+  .cm-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); font-weight:500; box-shadow:inset 0 0 0 1px var(--v2-line); }
+  .cm-search { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg-3); width:280px; max-width:100%; }
+  .cm-search:focus-within { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .cm-search input { flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--v2-fg); font-size:13px; font-family:inherit; }
+  .cm-search input::placeholder { color:var(--v2-fg-3); }
+  .cm-chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 8px 0 10px; border-radius:99px; border:0; background:color-mix(in oklch, var(--v2-accent) 14%, transparent); color:var(--v2-fg); font-size:12.5px; cursor:pointer; font-family:inherit; }
+  .cm-chip svg { color:var(--v2-fg-3); }
+  .cm-scroll { overflow:auto; }
+  .cm-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .cm-table thead { position:sticky; top:0; z-index:1; }
+  .cm-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .cm-table th.r, .cm-table td.r { text-align:right; }
+  .cm-table td { padding:8px 12px; height:48px; border-bottom:1px solid var(--v2-line); vertical-align:middle; }
+  .cm-table th:first-child, .cm-table td:first-child { padding-left:18px; }
+  .cm-table th:last-child, .cm-table td:last-child { padding-right:18px; }
+  .cm-table tbody tr:hover td { background:var(--v2-hover); }
   .cm-table tbody tr:last-child td { border-bottom:none; }
-  .cm-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
-  .cm-table .dim  { color:${T.textMuted}; }
+  .cm-table tbody tr.clickable { cursor:pointer; }
+  .cm-name { display:block; font-weight:500; }
+  .cm-who { display:block; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:var(--v2-fg-3); }
+  .cm-row-act { display:flex; justify-content:flex-end; gap:2px; }
 
-  /* ── Toolbar ── */
-  .cm-search-wrap { position:relative; display:inline-flex; align-items:center; }
-  .cm-search-icon { position:absolute; left:9px; pointer-events:none; color:${T.textMuted}; }
-  .cm-search { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:6px; padding:5px 10px 5px 29px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; outline:none; width:240px; }
-  .cm-search:focus { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
-  .cm-select { background:${T.surfaceAlt}; border:1px solid ${T.border}; border-radius:6px; padding:5px 10px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:${T.textPrimary}; outline:none; }
+  /* ── Pílulas de status ── */
+  .cm-tag { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; --c:var(--v2-fg-3); background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .cm-tag svg { color:var(--c); }
+  .cm-tag.ok { --c:var(--v2-ok); } .cm-tag.no { --c:var(--v2-crit); } .cm-tag.sched { --c:var(--v2-accent); } .cm-tag.warn { --c:var(--v2-med); }
 
-  /* ── Buttons ── */
-  .cm-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; white-space:nowrap; border:1px solid transparent; }
+  /* ── Botões ── */
+  .cm-btn { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
   .cm-btn:disabled { opacity:0.45; cursor:not-allowed; }
-  .cm-btn.primary { background:${T.accentGlow}; border-color:rgba(59,130,246,0.35); color:${T.accent}; }
-  .cm-btn.primary:hover:not(:disabled) { background:rgba(59,130,246,0.25); }
-  .cm-btn.ghost   { background:transparent; border-color:${T.border}; color:${T.textSecondary}; padding:5px 8px; }
-  .cm-btn.ghost:hover:not(:disabled) { border-color:${T.borderHi}; color:${T.textPrimary}; }
-  .cm-btn.danger  { background:transparent; border:none; color:${T.textMuted}; padding:5px 6px; }
-  .cm-btn.danger:hover:not(:disabled) { color:${T.danger}; }
+  .cm-btn:hover:not(:disabled) { background:var(--v2-hover); border-color:var(--v2-line-strong); }
+  .cm-btn.lg { height:34px; padding:0 14px; }
+  .cm-btn.ghost { background:transparent; border-color:transparent; color:var(--v2-fg-2); }
+  .cm-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .cm-btn.primary:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .cm-btn.danger { background:var(--v2-crit); border-color:var(--v2-crit); color:#fff; }
+  .cm-btn.danger:hover:not(:disabled) { background:var(--v2-crit); filter:brightness(1.08); }
+  .cm-btn.danger-text { background:transparent; border-color:transparent; color:var(--v2-crit); margin-right:auto; }
+  .cm-btn.danger-text:hover:not(:disabled) { background:color-mix(in oklch, var(--v2-crit) 10%, transparent); border-color:transparent; }
+  .cm-icon-btn { display:grid; place-items:center; width:30px; height:30px; border-radius:8px; border:0; background:transparent; color:var(--v2-fg-2); cursor:pointer; }
+  .cm-icon-btn:hover { background:var(--v2-hover); color:var(--v2-fg); }
+  .cm-icon-btn.danger:hover { color:var(--v2-crit); background:color-mix(in oklch, var(--v2-crit) 12%, transparent); }
 
-  /* ── Badges ── */
-  .cm-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:5px; font-size:10px; font-weight:700; font-family:'IBM Plex Mono',monospace; border:1px solid transparent; }
-  .cm-badge.ok     { background:${T.successBg}; color:${T.success}; border-color:rgba(16,185,129,0.3); }
-  .cm-badge.no     { background:${T.dangerBg};  color:${T.danger};  border-color:rgba(239,68,68,0.3); }
-  .cm-badge.sched  { background:${T.accentSoft}; color:${T.accent}; border-color:rgba(59,130,246,0.3); }
-  .cm-badge.cancel { background:rgba(107,114,128,0.15); color:${T.neutral}; border-color:rgba(107,114,128,0.35); }
-  .cm-badge.warn   { background:${T.warningBg}; color:${T.warning}; border-color:rgba(245,158,11,0.3); }
+  /* ── Painel lateral ── */
+  .cm-people { display:flex; flex-wrap:wrap; gap:6px; }
+  .cm-people span { display:inline-flex; align-items:center; height:26px; padding:0 10px; border-radius:99px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font-size:12.5px; }
+  .cm-note { font-size:13px; line-height:1.55; color:var(--v2-fg-2); white-space:pre-wrap; padding:10px 12px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); overflow-wrap:anywhere; }
+  .cm-note.warn { border-color:color-mix(in oklch, var(--v2-med) 40%, transparent); }
+  .cm-confirm { display:flex; align-items:center; gap:8px; flex-wrap:wrap; width:100%; font-size:13px; }
+  .cm-confirm span { margin-right:auto; color:var(--v2-fg-2); }
 
-  /* ── Dialog ── */
-  .cm-dlg-field { display:flex; flex-direction:column; gap:5px; }
-  .cm-dlg-label { font-size:9px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; }
-  .cm-dlg-input { width:100%; padding:8px 11px; border:1px solid ${T.border}; border-radius:6px; background:${T.surfaceAlt}; color:${T.textPrimary}; font-family:'DM Sans',sans-serif; font-size:13px; outline:none; }
-  .cm-dlg-input:focus { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
+  /* ── Formulário ── */
+  .cm-form { display:grid; gap:14px; padding-top:6px; font-family:var(--font-ui); }
   .cm-row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-
-  .cm-empty { padding:40px; text-align:center; color:${T.textMuted}; font-size:13px; }
+  @media (max-width: 560px) { .cm-row2 { grid-template-columns:1fr; } }
+  .cm-field { display:grid; gap:6px; min-width:0; }
+  .cm-field label { font-size:12.5px; font-weight:500; color:var(--v2-fg-2); }
+  .cm-req { color:var(--v2-crit); }
+  .cm-input { width:100%; height:34px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg); font-size:13px; font-family:inherit; outline:none; }
+  textarea.cm-input { height:auto; min-height:72px; padding:8px 10px; resize:vertical; line-height:1.5; }
+  .cm-input:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
 `;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -182,6 +252,14 @@ function todayIso() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+function parseIso(d: string) {
+  const [y, m, day] = d.split("-").map(Number);
+  return new Date(y, m - 1, day);
+}
+/** Dias de hoje até a data (negativo = já passou). */
+function daysFromToday(d: string) {
+  return Math.round((parseIso(d).getTime() - parseIso(todayIso()).getTime()) / 86400000);
+}
 function statusBadgeClass(s: string) {
   const v = s.trim().toLowerCase();
   if (v === "realizado" || v === "realizada") return "ok";
@@ -190,147 +268,61 @@ function statusBadgeClass(s: string) {
   if (v === "cancelado" || v === "cancelada") return "cancel";
   return "warn";
 }
+/** Agendada, mas a data já passou sem o status ser atualizado. */
+const isOverdue = (r: ComiteRow) => statusBadgeClass(r.status) === "sched" && r.data < todayIso();
+const people = (s: string | null) =>
+  (s ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
 
-// ── Tooltip ────────────────────────────────────────────────────────────────────
-function CTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
+function StatusTag({ row }: { row: ComiteRow }) {
+  if (isOverdue(row))
+    return (
+      <span className="cm-tag warn">
+        <AlertTriangle size={11} /> Agendado · data passou
+      </span>
+    );
+  const cls = statusBadgeClass(row.status);
+  const Icon = cls === "ok" ? CheckCircle2 : cls === "no" ? XCircle : cls === "cancel" ? X : Clock;
   return (
-    <div
-      style={{
-        background: T.surface,
-        border: `1px solid ${T.borderHi}`,
-        borderRadius: 8,
-        padding: "10px 14px",
-        boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 10,
-          fontFamily: "'IBM Plex Mono',monospace",
-          color: T.textMuted,
-          textTransform: "uppercase",
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 3 }}>
-          <div style={{ width: 7, height: 7, borderRadius: 2, background: p.color || p.fill }} />
-          <span style={{ color: T.textSecondary, fontSize: 11 }}>{p.name}</span>
-          <span
-            style={{
-              color: T.textPrimary,
-              fontWeight: 700,
-              fontFamily: "'IBM Plex Mono',monospace",
-              marginLeft: "auto",
-            }}
-          >
-            {p.value}
-          </span>
-        </div>
-      ))}
-    </div>
+    <span className={`cm-tag ${cls}`}>
+      <Icon size={11} /> {row.status}
+    </span>
   );
 }
 
-// ── Segmented Ring (Tipos) ─────────────────────────────────────────────────────
-function TipoRing({
-  data,
-  activeName,
-  onSliceClick,
+function MesTooltip({
+  active,
+  payload,
+  label,
 }: {
-  data: Array<{ name: string; value: number }>;
-  activeName: string | null;
-  onSliceClick: (name: string) => void;
+  active?: boolean;
+  label?: string;
+  payload?: Array<{ dataKey: string; value: number }>;
 }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (!data.length || total === 0) return <div className="cm-empty">Sem dados.</div>;
-
-  const R = 52,
-    CX = 64,
-    CY = 64;
-  const CIRC = 2 * Math.PI * R;
-  const GAP = 2.5;
-  let acc = 0;
-  const segments = data.map((d, i) => {
-    const arc = (d.value / total) * CIRC;
-    const dash = Math.max(0, arc - GAP);
-    const offset = CIRC - acc;
-    acc += arc;
-    return { ...d, dash, offset, color: TIPO_PALETTE[i % TIPO_PALETTE.length] };
-  });
-  const maxVal = Math.max(...data.map((d) => d.value), 1);
-
+  if (!active || !payload?.length) return null;
+  const get = (k: string) => payload.find((p) => p.dataKey === k)?.value ?? 0;
   return (
-    <div className="cm-ring-wrap">
-      <svg viewBox="0 0 128 128" className="cm-ring-svg">
-        <circle cx={CX} cy={CY} r={R} fill="none" stroke={T.border} strokeWidth="14" />
-        <g transform={`rotate(-90 ${CX} ${CY})`}>
-          {segments.map((s, i) => (
-            <circle
-              key={i}
-              cx={CX}
-              cy={CY}
-              r={R}
-              fill="none"
-              stroke={s.color}
-              strokeWidth={activeName === s.name ? 17 : 13}
-              strokeDasharray={`${s.dash} ${CIRC}`}
-              strokeDashoffset={s.offset}
-              strokeLinecap="butt"
-              opacity={activeName && activeName !== s.name ? 0.2 : 1}
-              style={{ cursor: "pointer", transition: "stroke-width 0.15s, opacity 0.2s" }}
-              onClick={() => onSliceClick(s.name)}
-            />
-          ))}
-        </g>
-        <text
-          x={CX}
-          y={CY - 4}
-          textAnchor="middle"
-          fill={T.textPrimary}
-          fontSize="16"
-          fontWeight="700"
-          fontFamily="'Space Grotesk',sans-serif"
-        >
-          {total}
-        </text>
-        <text
-          x={CX}
-          y={CY + 12}
-          textAnchor="middle"
-          fill={T.textMuted}
-          fontSize="9"
-          fontFamily="'IBM Plex Mono',monospace"
-        >
-          total
-        </text>
-      </svg>
-      <div className="cm-ring-legend">
-        {segments.map((s) => {
-          const isActive = activeName === s.name;
-          const isDimmed = !!activeName && !isActive;
-          return (
-            <div key={s.name} className={`cm-ring-row${isDimmed ? " dim" : ""}`} onClick={() => onSliceClick(s.name)}>
-              <span className="cm-ring-dot" style={{ background: s.color }} />
-              <span className="cm-ring-name" title={s.name}>
-                {s.name}
-              </span>
-              <div className="cm-ring-bar-wrap">
-                <div
-                  className="cm-ring-bar"
-                  style={{ width: `${Math.max(4, (s.value / maxVal) * 100)}%`, background: s.color }}
-                />
-              </div>
-              <span className="cm-ring-val" style={{ color: T.textPrimary }}>
-                {s.value}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+    <div
+      style={{
+        display: "grid",
+        gap: 2,
+        padding: "8px 10px",
+        background: "var(--v2-surface-2)",
+        border: "1px solid var(--v2-line-strong)",
+        borderRadius: 8,
+        fontSize: 12,
+        boxShadow: "0 12px 32px rgba(0,0,0,0.3)",
+      }}
+    >
+      <b>{label}</b>
+      <span style={{ color: "var(--v2-fg-2)", fontFamily: "var(--font-data)" }}>
+        Realizadas {get("realizadas")}
+      </span>
+      <span style={{ color: "var(--v2-fg-2)", fontFamily: "var(--font-data)" }}>
+        Não realizadas {get("naoRealizadas")}
+      </span>
     </div>
   );
 }
@@ -397,32 +389,43 @@ function ComiteDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        style={{ background: T.surface, border: `1px solid ${T.borderHi}`, borderRadius: 12, maxWidth: 640 }}
+        className="font-ui"
+        style={{
+          background: "var(--v2-surface)",
+          border: "1px solid var(--v2-line-strong)",
+          borderRadius: 12,
+          maxWidth: 560,
+          color: "var(--v2-fg)",
+        }}
       >
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
         <DialogHeader>
-          <DialogTitle
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
-          >
-            {editing ? "Editar comitê" : "Nova reunião de comitê"}
+          <DialogTitle style={{ fontSize: 16, fontWeight: 600 }}>
+            {editing ? "Editar reunião" : "Nova reunião de comitê"}
           </DialogTitle>
         </DialogHeader>
-        <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 8 }}>
+        <div className="cm-form">
           <div className="cm-row2">
-            <div className="cm-dlg-field">
-              <span className="cm-dlg-label">Nome *</span>
+            <div className="cm-field">
+              <label htmlFor="cm-f-nome">
+                Comitê <span className="cm-req">*</span>
+              </label>
               <input
-                className="cm-dlg-input"
+                id="cm-f-nome"
+                className="cm-input"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 maxLength={200}
-                placeholder="Ex.: Comitê de Riscos — Outubro"
+                placeholder="Ex.: Comitê de Riscos"
               />
             </div>
-            <div className="cm-dlg-field">
-              <span className="cm-dlg-label">Tipo *</span>
+            <div className="cm-field">
+              <label htmlFor="cm-f-tipo">
+                Tipo <span className="cm-req">*</span>
+              </label>
               <input
-                className="cm-dlg-input"
+                id="cm-f-tipo"
+                className="cm-input"
                 value={tipo}
                 onChange={(e) => setTipo(e.target.value)}
                 list="cm-tipo-list"
@@ -436,9 +439,16 @@ function ComiteDialog({
             </div>
           </div>
           <div className="cm-row2">
-            <div className="cm-dlg-field">
-              <span className="cm-dlg-label">Periodicidade *</span>
-              <select className="cm-dlg-input" value={periodicidade} onChange={(e) => setPeriodicidade(e.target.value)}>
+            <div className="cm-field">
+              <label htmlFor="cm-f-per">
+                Periodicidade <span className="cm-req">*</span>
+              </label>
+              <select
+                id="cm-f-per"
+                className="cm-input"
+                value={periodicidade}
+                onChange={(e) => setPeriodicidade(e.target.value)}
+              >
                 {PERIODICIDADES.map((p) => (
                   <option key={p} value={p}>
                     {p}
@@ -446,14 +456,29 @@ function ComiteDialog({
                 ))}
               </select>
             </div>
-            <div className="cm-dlg-field">
-              <span className="cm-dlg-label">Data *</span>
-              <input type="date" className="cm-dlg-input" value={data} onChange={(e) => setData(e.target.value)} />
+            <div className="cm-field">
+              <label htmlFor="cm-f-data">
+                Data <span className="cm-req">*</span>
+              </label>
+              <input
+                id="cm-f-data"
+                type="date"
+                className="cm-input"
+                value={data}
+                onChange={(e) => setData(e.target.value)}
+              />
             </div>
           </div>
-          <div className="cm-dlg-field">
-            <span className="cm-dlg-label">Status *</span>
-            <select className="cm-dlg-input" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <div className="cm-field">
+            <label htmlFor="cm-f-st">
+              Status <span className="cm-req">*</span>
+            </label>
+            <select
+              id="cm-f-st"
+              className="cm-input"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -461,9 +486,11 @@ function ComiteDialog({
               ))}
             </select>
           </div>
-          <div className="cm-dlg-field">
-            <span className="cm-dlg-label">Participantes</span>
-            <Textarea
+          <div className="cm-field">
+            <label htmlFor="cm-f-part">Participantes</label>
+            <textarea
+              id="cm-f-part"
+              className="cm-input"
               value={participantes}
               onChange={(e) => setParticipantes(e.target.value)}
               rows={3}
@@ -471,9 +498,11 @@ function ComiteDialog({
               placeholder="Nomes ou áreas separados por vírgula"
             />
           </div>
-          <div className="cm-dlg-field">
-            <span className="cm-dlg-label">Observação</span>
-            <Textarea
+          <div className="cm-field">
+            <label htmlFor="cm-f-obs">Observação</label>
+            <textarea
+              id="cm-f-obs"
+              className="cm-input"
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
               rows={3}
@@ -483,10 +512,18 @@ function ComiteDialog({
           </div>
         </div>
         <DialogFooter style={{ gap: 8, paddingTop: 8 }}>
-          <button className="cm-btn ghost" onClick={() => onOpenChange(false)} disabled={save.isPending}>
+          <button
+            className="cm-btn ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={save.isPending}
+          >
             Cancelar
           </button>
-          <button className="cm-btn primary" disabled={!valid || save.isPending} onClick={() => save.mutate()}>
+          <button
+            className="cm-btn primary"
+            disabled={!valid || save.isPending}
+            onClick={() => save.mutate()}
+          >
             {save.isPending ? (
               <>
                 <Loader2 size={13} className="cm-spin" /> Salvando…
@@ -533,19 +570,25 @@ export function ComitesDashboard() {
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<ComiteRow | null>(null);
   const [activeTipo, setActiveTipo] = React.useState<string | null>(null);
+  const [openId, setOpenId] = React.useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const filtered = React.useMemo(() => {
     const s = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (statusFilter !== "todos" && r.status.toLowerCase() !== statusFilter.toLowerCase()) return false;
-      if (!s) return true;
-      return (
-        r.nome.toLowerCase().includes(s) ||
-        r.tipo.toLowerCase().includes(s) ||
-        (r.participantes ?? "").toLowerCase().includes(s)
-      );
-    });
-  }, [rows, search, statusFilter]);
+    return rows
+      .filter((r) => {
+        if (statusFilter !== "todos" && r.status.toLowerCase() !== statusFilter.toLowerCase())
+          return false;
+        if (activeTipo && r.tipo !== activeTipo) return false;
+        if (!s) return true;
+        return (
+          r.nome.toLowerCase().includes(s) ||
+          r.tipo.toLowerCase().includes(s) ||
+          (r.participantes ?? "").toLowerCase().includes(s)
+        );
+      })
+      .sort((a, b) => b.data.localeCompare(a.data));
+  }, [rows, search, statusFilter, activeTipo]);
 
   const del = useMutation({
     mutationFn: (id: string) => deleteFn({ data: { id } }),
@@ -553,387 +596,699 @@ export function ComitesDashboard() {
       toast.success("Comitê removido");
       qc.invalidateQueries({ queryKey: ["comites"] });
       qc.invalidateQueries({ queryKey: ["comites-overview"] });
+      setOpenId(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
   // ──────────────────────────────────────────────────────────────────────────
 
+  // Derivados (calculados antes de qualquer retorno, para manter a ordem dos hooks)
+  const porTipo = React.useMemo(() => {
+    const map = new Map<string, number>();
+    rows.forEach((r) => map.set(r.tipo, (map.get(r.tipo) ?? 0) + 1));
+    return [...map.entries()]
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [rows]);
+
+  // Por comitê (agrupado pelo nome): taxa = realizadas ÷ (realizadas + não realizadas)
+  const porComite = React.useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        nome: string;
+        tipo: string;
+        per: string;
+        lastData: string;
+        total: number;
+        real: number;
+        nao: number;
+        lastReal: string | null;
+      }
+    >();
+    rows.forEach((r) => {
+      const c = map.get(r.nome) ?? {
+        nome: r.nome,
+        tipo: r.tipo,
+        per: r.periodicidade,
+        lastData: r.data,
+        total: 0,
+        real: 0,
+        nao: 0,
+        lastReal: null,
+      };
+      // tipo e periodicidade da reunião mais recente
+      if (r.data >= c.lastData) {
+        c.lastData = r.data;
+        c.tipo = r.tipo;
+        c.per = r.periodicidade;
+      }
+      c.total++;
+      const cls = statusBadgeClass(r.status);
+      if (cls === "ok") {
+        c.real++;
+        if (!c.lastReal || r.data > c.lastReal) c.lastReal = r.data;
+      } else if (cls === "no") c.nao++;
+      map.set(r.nome, c);
+    });
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [rows]);
+
+  const agenda = React.useMemo(() => {
+    const ag = rows.filter((r) => statusBadgeClass(r.status) === "sched");
+    const today = todayIso();
+    return {
+      late: ag.filter((r) => r.data < today).sort((a, b) => a.data.localeCompare(b.data)),
+      next: ag.filter((r) => r.data >= today).sort((a, b) => a.data.localeCompare(b.data)),
+    };
+  }, [rows]);
+
   if (!canView && !canCreate && !canEdit && !canDelete)
     return (
       <div className="cm-root">
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        <div
-          style={{
-            background: T.surface,
-            border: `1px solid ${T.border}`,
-            borderRadius: 12,
-            padding: "48px 24px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 12,
-            textAlign: "center",
-          }}
-        >
-          <Lock size={20} color={T.danger} />
-          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700 }}>Acesso restrito</div>
-          <div style={{ fontSize: 13, color: T.textMuted }}>Você não tem permissão para acessar este módulo.</div>
+        <div className="cm-state">
+          <Lock size={22} color="var(--v2-crit)" />
+          <span style={{ fontSize: 15, fontWeight: 600 }}>Acesso restrito</span>
+          <span style={{ fontSize: 13, color: "var(--v2-fg-3)" }}>
+            Você não tem permissão para acessar este módulo.
+          </span>
         </div>
       </div>
     );
 
-  // Derived: porTipo para o anel
-  const porTipo: Array<{ name: string; value: number }> = React.useMemo(() => {
-    const map = new Map<string, number>();
-    rows.forEach((r) => {
-      map.set(r.tipo, (map.get(r.tipo) ?? 0) + 1);
-    });
-    return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [rows]);
+  const rate = overview?.percentRealizacao ?? 0;
+  const rateColor = rate >= 85 ? "var(--v2-ok)" : rate >= 70 ? "var(--v2-med)" : "var(--v2-crit)";
+  const typesTotal = porTipo.reduce((a, t) => a + t.value, 0);
+  const pctTxt = (v: number) =>
+    typesTotal > 0 ? `${((v / typesTotal) * 100).toFixed(1).replace(".", ",")}%` : "—";
+  const open = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
+  const openPeople = people(open?.participantes ?? null);
+
+  const pickStatus = (s: string | null) =>
+    setStatusFilter((cur) => (s === null || cur === s ? "todos" : s));
+  const openRow = (id: string, askDelete = false) => {
+    setOpenId(id);
+    setConfirmDelete(askDelete);
+  };
+  const startEdit = (r: ComiteRow) => {
+    setOpenId(null);
+    setEditing(r);
+    setDialogOpen(true);
+  };
+
+  const agendaItem = (r: ComiteRow) => {
+    const n = daysFromToday(r.data);
+    const d = parseIso(r.data);
+    return (
+      <button key={r.id} type="button" onClick={() => openRow(r.id)}>
+        <span className="cm-cal">
+          <b>{String(d.getDate()).padStart(2, "0")}</b>
+          <small>{MES[d.getMonth()]}</small>
+        </span>
+        <span className="t">
+          <b>{r.nome}</b>
+          <small>
+            {r.tipo} · {r.periodicidade}
+          </small>
+        </span>
+        {n < 0 ? (
+          <span className="cm-days warn">há {-n} d</span>
+        ) : (
+          <span className={`cm-days${n <= 7 ? " soon" : ""}`}>
+            {n === 0 ? "hoje" : `em ${n} d`}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="cm-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Header ───────────────────────────────────────────────────── */}
-      <div className="cm-hdr">
-        <div className="cm-hdr-brand">
-          <div className="cm-hdr-icon">
-            <CalendarCheck size={18} color={T.accent} />
-          </div>
-          <div>
-            <div className="cm-hdr-title">Comitês</div>
-            <div className="cm-hdr-sub">Agenda, execução e taxa de realização das reuniões de comitês</div>
-          </div>
+      {/* ── Cabeçalho ────────────────────────────────────────────────────── */}
+      <div className="cm-ph">
+        <div>
+          <h1 className="cm-ph-title">Comitês</h1>
+          <p className="cm-ph-sub">Agenda, execução e taxa de realização das reuniões de comitês</p>
         </div>
+        {canCreate && (
+          <button
+            className="cm-btn primary lg"
+            onClick={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus size={14} /> Nova reunião
+          </button>
+        )}
       </div>
 
-      {/* ── KPIs ─────────────────────────────────────────────────────── */}
-      <div className="cm-kpi-grid">
-        {[
-          {
-            label: "Total de Reuniões",
-            value: overview?.totalReunioes,
-            hint: "registros cadastrados",
-            color: T.accent,
-            kibg: "rgba(59,130,246,0.18)",
-            icon: <CalendarCheck size={22} color={T.accent} />,
-          },
-          {
-            label: "Realizadas",
-            value: overview?.realizadas,
-            hint: "reuniões concluídas",
-            color: T.success,
-            kibg: "rgba(16,185,129,0.18)",
-            icon: <CheckCircle2 size={22} color={T.success} />,
-          },
-          {
-            label: "% de Realização",
-            value: overview ? `${overview.percentRealizacao}%` : "—",
-            hint: "realizadas ÷ (realizadas + não realizadas)",
-            color: T.purple,
-            kibg: "rgba(167,139,250,0.18)",
-            icon: <CalendarCheck size={22} color={T.purple} />,
-          },
-          {
-            label: "Agendadas",
-            value: overview?.agendadas,
-            hint: "a executar",
-            color: T.warning,
-            kibg: "rgba(245,158,11,0.2)",
-            icon: <Clock size={22} color={T.warning} />,
-          },
-        ].map(({ label, value, hint, color, kibg, icon }) => (
-          <div key={label} className="cm-kpi" style={{ "--kc": color, "--ki-bg": kibg } as React.CSSProperties}>
-            <div className="cm-kpi-icon">{icon}</div>
-            <div className="cm-kpi-label">{label}</div>
-            <div className="cm-kpi-value">{value ?? "—"}</div>
-            <div className="cm-kpi-hint">{hint}</div>
+      {/* ── KPIs (clique filtra a tabela) ─────────────────────────────────── */}
+      <div className="cm-kpis">
+        <button
+          type="button"
+          className="cm-kpi"
+          aria-pressed={false}
+          onClick={() => pickStatus(null)}
+        >
+          <span className="cm-kpi-label">Reuniões</span>
+          <span className="cm-kpi-value">{overview?.totalReunioes ?? "—"}</span>
+          <span className="cm-kpi-foot">
+            {porComite.length} {porComite.length === 1 ? "comitê" : "comitês"}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="cm-kpi"
+          aria-pressed={statusFilter === "Realizado"}
+          onClick={() => pickStatus("Realizado")}
+        >
+          <span className="cm-kpi-label">
+            <span className="cm-sw" style={{ background: "var(--v2-ok)" }} /> Realizadas
+          </span>
+          <span className="cm-kpi-value">{overview?.realizadas ?? "—"}</span>
+          <span className="cm-kpi-foot">reuniões concluídas</span>
+        </button>
+        <div className="cm-kpi">
+          <span className="cm-kpi-label">Taxa de realização</span>
+          <span className="cm-kpi-value">{overview ? `${rate}%` : "—"}</span>
+          <div className="cm-meter" aria-hidden="true">
+            <i style={{ width: `${rate}%`, background: rateColor }} />
           </div>
-        ))}
+          <span className="cm-kpi-foot">realizadas ÷ (realizadas + não realizadas)</span>
+        </div>
+        <button
+          type="button"
+          className="cm-kpi"
+          aria-pressed={statusFilter === "Não Realizado"}
+          onClick={() => pickStatus("Não Realizado")}
+        >
+          <span className="cm-kpi-label">
+            {(overview?.naoRealizadas ?? 0) > 0 && (
+              <span className="cm-sw" style={{ background: "var(--v2-crit)" }} />
+            )}
+            Não realizadas
+          </span>
+          <span className="cm-kpi-value">{overview?.naoRealizadas ?? "—"}</span>
+          <span className="cm-kpi-foot">previstas e não aconteceram</span>
+        </button>
+        <button
+          type="button"
+          className="cm-kpi"
+          aria-pressed={statusFilter === "Agendado"}
+          onClick={() => pickStatus("Agendado")}
+        >
+          <span className="cm-kpi-label">
+            {agenda.late.length > 0 && (
+              <span className="cm-sw" style={{ background: "var(--v2-med)" }} />
+            )}
+            Agendadas
+          </span>
+          <span className="cm-kpi-value">{overview?.agendadas ?? "—"}</span>
+          <span className="cm-kpi-foot">
+            {agenda.late.length > 0
+              ? `${agenda.late.length} com a data já passada`
+              : agenda.next[0]
+                ? `próxima em ${fmtDate(agenda.next[0].data)}`
+                : "nenhuma"}
+          </span>
+        </button>
       </div>
 
-      {/* ── Charts ───────────────────────────────────────────────────── */}
-      <div className="cm-grid-charts">
-        {/* Barras agrupadas — Opção A (sem Agendadas, sem Legend do Recharts) */}
-        <div className="cm-panel">
-          <div className="cm-panel-hdr">
-            <div className="cm-panel-title">
-              <CheckCircle2 size={11} color={T.success} /> Reuniões por mês — últimos 12 meses
+      {/* ── Reuniões por mês + agenda ──────────────────────────────────────── */}
+      <div className="cm-grid">
+        <div className="cm-card cm-span-2">
+          <div className="cm-card-hdr">
+            <div>
+              <h2 className="cm-card-title">Reuniões por mês</h2>
+              <p className="cm-card-sub">Últimos 12 meses</p>
+            </div>
+            <div className="cm-legend">
+              <span>
+                <span className="cm-sw" style={{ background: "var(--v2-ok)" }} /> Realizadas
+              </span>
+              <span>
+                <span className="cm-sw" style={{ background: "var(--v2-crit)" }} /> Não realizadas
+              </span>
             </div>
           </div>
-          <div className="cm-panel-body" style={{ height: 280 }}>
-            <div className="cm-chart-legend">
-              <span className="cm-leg-item">
-                <span className="cm-leg-dot" style={{ background: T.success }} /> Realizadas
-              </span>
-              <span className="cm-leg-item">
-                <span className="cm-leg-dot" style={{ background: T.danger }} /> Não Realizadas
-              </span>
-            </div>
-            <ResponsiveContainer width="100%" height="92%">
+          <div className="cm-card-body" style={{ height: 270 }}>
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={overview?.porMes ?? []}
-                margin={{ top: 4, right: 8, left: -14, bottom: 0 }}
+                margin={{ top: 18, right: 8, left: 0, bottom: 0 }}
                 barCategoryGap="25%"
                 barGap={3}
               >
-                <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} vertical={false} />
-                <XAxis
-                  dataKey="m"
-                  stroke={T.chartAxis}
-                  fontSize={10}
-                  tickLine={false}
-                  tick={{ fill: T.chartTick, fontFamily: "'IBM Plex Mono',monospace" }}
-                  axisLine={{ stroke: T.chartAxis }}
+                <CartesianGrid stroke="var(--v2-line)" vertical={false} />
+                <XAxis dataKey="m" tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} allowDecimals={false} width={32} />
+                <Tooltip
+                  content={<MesTooltip />}
+                  cursor={{ fill: "color-mix(in oklch, var(--v2-accent) 7%, transparent)" }}
                 />
-                <YAxis
-                  stroke={T.chartAxis}
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                  tick={{ fill: T.chartTick, fontFamily: "'IBM Plex Mono',monospace" }}
-                />
-                <Tooltip content={<CTooltip />} cursor={{ fill: "rgba(59,130,246,0.05)" }} />
-                <Bar dataKey="realizadas" name="Realizadas" fill={T.success} fillOpacity={0.85} radius={[3, 3, 0, 0]}>
-                  <LabelList
-                    dataKey="realizadas"
-                    position="top"
-                    formatter={(v: number) => (v > 0 ? v : "")}
-                    style={{
-                      fill: T.textPrimary,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      fontFamily: "'IBM Plex Mono',monospace",
-                    }}
-                  />
-                </Bar>
-                <Bar
-                  dataKey="naoRealizadas"
-                  name="Não Realizadas"
-                  fill={T.danger}
-                  fillOpacity={0.85}
-                  radius={[3, 3, 0, 0]}
-                >
-                  <LabelList
-                    dataKey="naoRealizadas"
-                    position="top"
-                    formatter={(v: number) => (v > 0 ? v : "")}
-                    style={{
-                      fill: T.textPrimary,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      fontFamily: "'IBM Plex Mono',monospace",
-                    }}
-                  />
-                </Bar>
+                {(
+                  [
+                    ["realizadas", "Realizadas", "var(--v2-ok)"],
+                    ["naoRealizadas", "Não realizadas", "var(--v2-crit)"],
+                  ] as const
+                ).map(([key, name, color]) => (
+                  <Bar
+                    key={key}
+                    dataKey={key}
+                    name={name}
+                    fill={color}
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={16}
+                  >
+                    <LabelList
+                      dataKey={key}
+                      position="top"
+                      formatter={(v: number) => (v > 0 ? v : "")}
+                      style={{
+                        fill: "var(--v2-fg-2)",
+                        fontSize: 11,
+                        fontWeight: 500,
+                        fontFamily: "var(--font-data)",
+                      }}
+                    />
+                  </Bar>
+                ))}
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Anel segmentado por tipo */}
-        <div className="cm-panel">
-          <div className="cm-panel-hdr">
-            <div className="cm-panel-title">
-              <Clock size={11} color={T.purple} /> Distribuição por tipo
+        <div className="cm-card cm-fit">
+          <div className="cm-card-hdr">
+            <div>
+              <h2 className="cm-card-title">Agenda</h2>
+              <p className="cm-card-sub">
+                {agenda.next.length}{" "}
+                {agenda.next.length === 1 ? "reunião agendada" : "reuniões agendadas"}
+                {agenda.late.length > 0 && ` · ${agenda.late.length} com a data já passada`}
+              </p>
             </div>
           </div>
-          <div className="cm-panel-body" style={{ height: 280, display: "flex", alignItems: "center" }}>
-            <TipoRing
-              data={porTipo}
-              activeName={activeTipo}
-              onSliceClick={(name) => setActiveTipo((prev) => (prev === name ? null : name))}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── % por comitê ─────────────────────────────────────────────── */}
-      <div className="cm-panel">
-        <div className="cm-panel-hdr">
-          <div className="cm-panel-title">
-            <CalendarCheck size={11} color={T.accent} /> % por comitê
-          </div>
-        </div>
-        <div className="cm-panel-body">
-          {(overview?.porComite ?? []).length === 0 ? (
-            <div className="cm-empty">Sem reuniões cadastradas.</div>
-          ) : (
-            (overview?.porComite ?? []).map((c) => (
-              <div key={c.nome} className="cm-bar-row">
-                <div className="cm-bar-name" title={c.nome}>
-                  {c.nome}
-                </div>
-                <div className="cm-bar-track">
-                  <div className="cm-bar-fill" style={{ width: `${Math.max(2, c.percent)}%` }} />
-                </div>
-                <div className="cm-bar-meta">
-                  {c.total} · {c.percent}%
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ── Tabela ───────────────────────────────────────────────────── */}
-      <div className="cm-panel">
-        <div className="cm-panel-hdr">
-          <div className="cm-panel-title">
-            <CalendarCheck size={11} color={T.accent} /> Reuniões cadastradas
-            <span style={{ fontWeight: 400, color: T.textSubtle }}>({filtered.length})</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <select className="cm-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="todos">Todos status</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <div className="cm-search-wrap">
-              <Search size={12} className="cm-search-icon" />
-              <input
-                className="cm-search"
-                placeholder="Buscar nome, tipo ou participante…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            {canCreate && (
-              <button
-                className="cm-btn primary"
-                onClick={() => {
-                  setEditing(null);
-                  setDialogOpen(true);
-                }}
-              >
-                <Plus size={13} /> Nova reunião
-              </button>
+          <div className="cm-card-body">
+            {agenda.late.length === 0 && agenda.next.length === 0 ? (
+              <div className="cm-empty">Nenhuma reunião agendada.</div>
+            ) : (
+              <>
+                {agenda.late.length > 0 && (
+                  <>
+                    <div className="cm-sub-h">
+                      <AlertTriangle size={13} /> Data passou, status não atualizado
+                    </div>
+                    <div className="cm-agenda">{agenda.late.map(agendaItem)}</div>
+                    {agenda.next.length > 0 && <div className="cm-sub-h">Próximas</div>}
+                  </>
+                )}
+                <div className="cm-agenda">{agenda.next.map(agendaItem)}</div>
+              </>
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── Por comitê + por tipo ──────────────────────────────────────────── */}
+      <div className="cm-grid">
+        <div className="cm-card cm-span-2">
+          <div className="cm-card-hdr" style={{ paddingBottom: 10 }}>
+            <div>
+              <h2 className="cm-card-title">Por comitê</h2>
+              <p className="cm-card-sub">
+                Reuniões de cada comitê e quanto do combinado foi cumprido
+              </p>
+            </div>
+          </div>
+          {porComite.length === 0 ? (
+            <div className="cm-empty">Sem reuniões cadastradas.</div>
+          ) : (
+            <div className="cm-scroll" style={{ maxHeight: 420 }}>
+              <table className="cm-table">
+                <thead>
+                  <tr>
+                    <th>Comitê</th>
+                    <th>Periodicidade</th>
+                    <th className="r">Reuniões</th>
+                    <th className="r">Realizadas</th>
+                    <th>Taxa de realização</th>
+                    <th>Última realizada</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {porComite.map((c) => {
+                    const denom = c.real + c.nao;
+                    const p = denom > 0 ? Math.round((c.real / denom) * 100) : null;
+                    const col =
+                      p === null
+                        ? "var(--v2-fg-3)"
+                        : p >= 85
+                          ? "var(--v2-ok)"
+                          : p >= 70
+                            ? "var(--v2-med)"
+                            : "var(--v2-crit)";
+                    return (
+                      <tr key={c.nome}>
+                        <td>
+                          <span className="cm-name">{c.nome}</span>
+                          <span className="dim" style={{ fontSize: 12 }}>
+                            {c.tipo}
+                          </span>
+                        </td>
+                        <td style={{ color: "var(--v2-fg-2)" }}>{c.per}</td>
+                        <td className="r mono">{c.total}</td>
+                        <td className="r mono">{c.real}</td>
+                        <td>
+                          {p === null ? (
+                            <span className="dim">sem histórico</span>
+                          ) : (
+                            <div
+                              className="cm-rate"
+                              title={`${c.real} realizadas · ${c.nao} não realizadas`}
+                            >
+                              <div className="cm-track">
+                                <i style={{ width: `${p}%`, background: col }} />
+                              </div>
+                              <b>{p}%</b>
+                            </div>
+                          )}
+                        </td>
+                        <td className="mono dim">{fmtDate(c.lastReal)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="cm-card">
+          <div className="cm-card-hdr">
+            <div>
+              <h2 className="cm-card-title">Por tipo</h2>
+              <p className="cm-card-sub">Clique para filtrar as reuniões</p>
+            </div>
+          </div>
+          <div className="cm-card-body">
+            {porTipo.length === 0 ? (
+              <div className="cm-empty">Sem dados.</div>
+            ) : (
+              <>
+                <div className="cm-cat-tot">
+                  <b>{typesTotal}</b>
+                  <span>reuniões cadastradas</span>
+                </div>
+                <div
+                  className="cm-cat-stack"
+                  role="img"
+                  aria-label="Composição das reuniões por tipo"
+                >
+                  {porTipo.map((t, i) => (
+                    <i
+                      key={t.name}
+                      style={{
+                        width: `${(t.value / typesTotal) * 100}%`,
+                        background: CAT_COLORS[i % CAT_COLORS.length],
+                      }}
+                      title={`${t.name}: ${t.value} · ${pctTxt(t.value)}`}
+                    />
+                  ))}
+                </div>
+                <div className={`cm-cat-list${activeTipo ? " filtering" : ""}`}>
+                  {porTipo.map((t, i) => (
+                    <button
+                      key={t.name}
+                      type="button"
+                      aria-pressed={activeTipo === t.name}
+                      onClick={() => setActiveTipo((cur) => (cur === t.name ? null : t.name))}
+                    >
+                      <span
+                        className="sw"
+                        style={{ background: CAT_COLORS[i % CAT_COLORS.length] }}
+                      />
+                      <span>{t.name}</span>
+                      <span className="n">{t.value}</span>
+                      <span className="p">{pctTxt(t.value)}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Reuniões ───────────────────────────────────────────────────────── */}
+      <div className="cm-card">
+        <div className="cm-toolbar">
+          <b>
+            Reuniões{" "}
+            <span className="cm-count">
+              {filtered.length === rows.length
+                ? rows.length
+                : `${filtered.length} de ${rows.length}`}
+            </span>
+          </b>
+          <div className="cm-seg" role="group" aria-label="Status">
+            {(
+              [
+                ["todos", "Todos"],
+                ["Agendado", "Agendadas"],
+                ["Realizado", "Realizadas"],
+                ["Não Realizado", "Não realizadas"],
+                ["Cancelado", "Canceladas"],
+              ] as const
+            ).map(([k, l]) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={statusFilter === k}
+                onClick={() => setStatusFilter(k)}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          <label className="cm-search">
+            <Search size={14} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar reunião, tipo ou participante"
+              aria-label="Buscar reuniões"
+            />
+          </label>
+          {activeTipo && (
+            <button type="button" className="cm-chip" onClick={() => setActiveTipo(null)}>
+              Tipo: {activeTipo} <X size={14} aria-label="Remover filtro" />
+            </button>
+          )}
+        </div>
 
         {isLoading ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              padding: "40px",
-              color: T.textMuted,
-              fontSize: 12,
-              fontFamily: "'IBM Plex Mono',monospace",
-            }}
-          >
-            <Loader2 size={13} className="cm-spin" color={T.accent} /> Carregando…
+          <div className="cm-empty">
+            <Loader2
+              size={14}
+              className="cm-spin"
+              style={{ display: "inline", verticalAlign: "-2px" }}
+            />{" "}
+            Carregando…
           </div>
         ) : filtered.length === 0 ? (
           <div className="cm-empty">
-            {search || statusFilter !== "todos"
-              ? "Nenhum comitê corresponde aos filtros."
+            {search || statusFilter !== "todos" || activeTipo
+              ? "Nenhuma reunião com esses filtros."
               : `Nenhuma reunião de comitê cadastrada.${canCreate ? ' Clique em "Nova reunião" para começar.' : ""}`}
           </div>
         ) : (
-          <div style={{ overflowX: "auto", maxHeight: 560, overflowY: "auto" }}>
+          <div className="cm-scroll" style={{ maxHeight: 620 }}>
             <table className="cm-table">
               <thead>
                 <tr>
-                  <th style={{ paddingLeft: 18, width: 110 }}>Data</th>
-                  <th>Nome</th>
+                  <th style={{ width: 110 }}>Data</th>
+                  <th>Reunião</th>
                   <th>Tipo</th>
                   <th>Periodicidade</th>
-                  <th>Participantes</th>
-                  <th style={{ width: 130 }}>Status</th>
-                  <th>Observação</th>
-                  {(canEdit || canDelete) && <th style={{ width: 90, paddingRight: 18, textAlign: "right" }}>Ações</th>}
+                  <th>Status</th>
+                  {(canEdit || canDelete) && (
+                    <th>
+                      <span style={{ fontSize: 0 }}>Ações</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.id}>
-                    <td className="mono dim" style={{ paddingLeft: 18, whiteSpace: "nowrap" }}>
-                      {fmtDate(r.data)}
-                    </td>
-                    <td style={{ fontWeight: 600, maxWidth: 220 }}>{r.nome}</td>
-                    <td className="mono">{r.tipo}</td>
-                    <td className="mono dim">{r.periodicidade}</td>
-                    <td
-                      style={{
-                        fontSize: 11,
-                        maxWidth: 220,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={r.participantes ?? undefined}
+                {filtered.map((r) => {
+                  const ps = people(r.participantes);
+                  return (
+                    <tr
+                      key={r.id}
+                      className="clickable"
+                      tabIndex={0}
+                      onClick={() => openRow(r.id)}
+                      onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}
                     >
-                      {r.participantes ?? "—"}
-                    </td>
-                    <td>
-                      <span className={`cm-badge ${statusBadgeClass(r.status)}`}>
-                        {statusBadgeClass(r.status) === "ok" ? (
-                          <CheckCircle2 size={10} />
-                        ) : statusBadgeClass(r.status) === "no" ? (
-                          <XCircle size={10} />
-                        ) : (
-                          <Clock size={10} />
-                        )}
-                        {r.status}
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        fontSize: 11,
-                        maxWidth: 300,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={r.observacao ?? undefined}
-                    >
-                      {r.observacao ?? "—"}
-                    </td>
-                    {(canEdit || canDelete) && (
-                      <td style={{ textAlign: "right", paddingRight: 18 }}>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-                          {canEdit && (
-                            <button
-                              className="cm-btn ghost"
-                              title="Editar"
-                              onClick={() => {
-                                setEditing(r);
-                                setDialogOpen(true);
-                              }}
-                            >
-                              <Pencil size={13} />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button
-                              className="cm-btn danger"
-                              title="Remover"
-                              onClick={() => {
-                                if (confirm(`Remover reunião "${r.nome}"?`)) del.mutate(r.id);
-                              }}
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
+                      <td className="mono dim" style={{ whiteSpace: "nowrap" }}>
+                        {fmtDate(r.data)}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td>
+                        <span className="cm-name">{r.nome}</span>
+                        {ps.length > 0 && (
+                          <span className="cm-who" title={r.participantes ?? undefined}>
+                            {ps.length} {ps.length === 1 ? "participante" : "participantes"} ·{" "}
+                            {ps.join(", ")}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ color: "var(--v2-fg-2)" }}>{r.tipo}</td>
+                      <td style={{ color: "var(--v2-fg-2)" }}>{r.periodicidade}</td>
+                      <td>
+                        <StatusTag row={r} />
+                      </td>
+                      {(canEdit || canDelete) && (
+                        <td>
+                          <div className="cm-row-act" onClick={(e) => e.stopPropagation()}>
+                            {canEdit && (
+                              <button
+                                className="cm-icon-btn"
+                                title="Editar"
+                                aria-label="Editar"
+                                onClick={() => startEdit(r)}
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                className="cm-icon-btn danger"
+                                title="Remover"
+                                aria-label="Remover"
+                                onClick={() => openRow(r.id, true)}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* ── Painel lateral: reunião ──────────────────────────────────────── */}
+      <DetailSheet
+        open={!!open}
+        onOpenChange={(o) => {
+          if (!o) {
+            setOpenId(null);
+            setConfirmDelete(false);
+          }
+        }}
+        eyebrow={
+          open
+            ? `${parseIso(open.data).toLocaleDateString("pt-BR", { weekday: "long" })} · ${fmtDate(open.data)}`
+            : null
+        }
+        title={open?.nome ?? ""}
+        badges={
+          open && (
+            <>
+              <StatusTag row={open} />
+              <span className="cm-tag">{open.tipo}</span>
+            </>
+          )
+        }
+        footer={
+          open && (canEdit || canDelete) ? (
+            confirmDelete ? (
+              <div className="cm-confirm">
+                <span>Remover esta reunião?</span>
+                <button
+                  className="cm-btn ghost"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={del.isPending}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="cm-btn danger"
+                  onClick={() => del.mutate(open.id)}
+                  disabled={del.isPending}
+                >
+                  {del.isPending ? <Loader2 size={13} className="cm-spin" /> : <Trash2 size={13} />}{" "}
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <>
+                {canDelete && (
+                  <button className="cm-btn danger-text" onClick={() => setConfirmDelete(true)}>
+                    Remover
+                  </button>
+                )}
+                {canEdit && (
+                  <button className="cm-btn primary" onClick={() => startEdit(open)}>
+                    <Pencil size={13} /> Editar reunião
+                  </button>
+                )}
+              </>
+            )
+          ) : null
+        }
+      >
+        {open && (
+          <>
+            {isOverdue(open) && (
+              <div className="cm-note warn">
+                A data desta reunião já passou e ela ainda está como Agendado. Atualize para
+                Realizado ou Não realizado para entrar na taxa de realização.
+              </div>
+            )}
+            <DetailSection title="Reunião">
+              <DetailList
+                items={[
+                  ["Data", fmtDate(open.data), true],
+                  ["Tipo", open.tipo],
+                  ["Periodicidade", open.periodicidade],
+                  ["Status", open.status],
+                  ["Cadastrada em", new Date(open.created_at).toLocaleDateString("pt-BR"), true],
+                ]}
+              />
+            </DetailSection>
+            <DetailSection title={`Participantes · ${openPeople.length}`}>
+              {openPeople.length > 0 ? (
+                <div className="cm-people">
+                  {openPeople.map((p) => (
+                    <span key={p}>{p}</span>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13, color: "var(--v2-fg-3)" }}>
+                  Nenhum participante informado.
+                </p>
+              )}
+            </DetailSection>
+            <DetailSection title="Observação">
+              {open.observacao ? (
+                <div className="cm-note">{open.observacao}</div>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13, color: "var(--v2-fg-3)" }}>Sem observação.</p>
+              )}
+            </DetailSection>
+          </>
+        )}
+      </DetailSheet>
 
       <ComiteDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} />
     </div>

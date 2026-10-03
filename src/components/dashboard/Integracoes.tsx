@@ -1,30 +1,34 @@
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { upsertIntegration } from "@/lib/integrations.functions";
-import { generateSekRenewalToken, getSekSessionStatus, listSekZendeskAuthLog } from "@/lib/sek-zendesk.functions";
+import {
+  listIntegrations,
+  upsertIntegration,
+  type IntegrationView,
+} from "@/lib/integrations.functions";
+import {
+  generateSekRenewalToken,
+  getSekSessionStatus,
+  listSekZendeskAuthLog,
+} from "@/lib/sek-zendesk.functions";
 import {
   getSastIngestKeyStatus,
   revokePreviousSastIngestKey,
   rotateSastIngestKey,
 } from "@/lib/sast-ingest-key.functions";
-import { Panel, Badge } from "./primitives";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
+import { getCronHealth } from "./CronHealthBadge";
 import { toast } from "sonner";
 import {
   Globe,
   ShieldCheck,
   Lock,
   Fish,
-  Save,
-  Link2,
   Radar,
-  CheckCircle2,
-  AlertCircle,
   Activity,
   Mail,
   FileWarning,
@@ -33,6 +37,8 @@ import {
   Copy,
   Download,
   GitBranch,
+  Check,
+  ChevronRight,
 } from "lucide-react";
 
 // ── Types — INALTERADOS ────────────────────────────────────────────────────────
@@ -49,15 +55,9 @@ type Provider =
   | "azure_app_insights"
   | "azure_devops_sast";
 
-type Integration = {
-  id: string;
-  provider: Provider;
-  name: string;
-  enabled: boolean;
-  base_url: string | null;
-  api_key: string | null;
-  config: Record<string, unknown> | null;
-};
+// Vem de listIntegrations: SEM segredos -- `secrets` só diz quais estão salvos
+// (com dica mascarada). Credenciais são só de escrita nesta tela.
+type Integration = IntegrationView;
 
 const PROVIDERS: Array<{
   key: Provider;
@@ -175,512 +175,1222 @@ const PROVIDERS: Array<{
 const SAST_APP_INSIGHTS = "azure_app_insights" as const;
 const SAST_DEVOPS = "azure_devops_sast" as const;
 
-// ── Design Tokens ──────────────────────────────────────────────────────────────
-const T = {
-  surface: "var(--tl-0f1420, #0F1420)",
-  surfaceAlt: "var(--tl-131825, #131825)",
-  surfaceHover: "var(--tl-161c2e, #161C2E)",
-  border: "var(--tl-1e2640, #1E2640)",
-  borderHi: "var(--tl-2a3560, #2A3560)",
-  accent: "#3B82F6",
-  accentGlow: "rgba(59,130,246,0.15)",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  neutral: "var(--tl-6b7280, #6B7280)",
-  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
-  textSecondary: "var(--tl-94a3b8, #94A3B8)",
-  textMuted: "var(--tl-64748b, #64748B)",
-  textSubtle: "var(--tl-475569, #475569)",
+// Cor de marca de cada ferramenta (só no ícone do card)
+const BRAND: Record<string, string> = {
+  cloudflare: "#F6821F",
+  sophos: "#00B6DE",
+  privacy_tools: "#A78BFA",
+  gophish: "#F59E0B",
+  qradar: "#3B82F6",
+  zabbix: "#D40000",
+  sendgrid: "#1A82E2",
+  dast_scanner: "#EF4444",
+  purview_dlp: "#14B8A6",
+  sast: "#0EA5E9",
+  sek: "#22D3EE",
 };
 
-// ── Provider accent colors ─────────────────────────────────────────────────────
-const PROVIDER_ACCENT: Record<Provider, { color: string; bg: string; border: string }> = {
-  cloudflare: { color: "#F6821F", bg: "rgba(246,130,31,0.10)", border: "rgba(246,130,31,0.25)" },
-  sophos: { color: "#00B6DE", bg: "rgba(0,182,222,0.10)", border: "rgba(0,182,222,0.25)" },
-  privacy_tools: {
-    color: "#A78BFA",
-    bg: "rgba(167,139,250,0.10)",
-    border: "rgba(167,139,250,0.25)",
-  },
-  gophish: { color: "#F59E0B", bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.25)" },
-  qradar: { color: "#3B82F6", bg: "rgba(59,130,246,0.10)", border: "rgba(59,130,246,0.25)" },
-  zabbix: { color: "#D40000", bg: "rgba(212,0,0,0.10)", border: "rgba(212,0,0,0.25)" },
-  sendgrid: { color: "#1A82E2", bg: "rgba(26,130,226,0.10)", border: "rgba(26,130,226,0.25)" },
-  dast_scanner: { color: "#EF4444", bg: "rgba(239,68,68,0.10)", border: "rgba(239,68,68,0.25)" },
-  purview_dlp: { color: "#14B8A6", bg: "rgba(20,184,166,0.10)", border: "rgba(20,184,166,0.25)" },
-  azure_app_insights: { color: "#8B5CF6", bg: "rgba(139,92,246,0.10)", border: "rgba(139,92,246,0.25)" },
-  azure_devops_sast: { color: "#0EA5E9", bg: "rgba(14,165,233,0.10)", border: "rgba(14,165,233,0.25)" },
+// Integração → cron jobs que ela alimenta (relação não existe no banco)
+const SYNC_JOBS: Record<string, Array<[jobName: string, label?: string]>> = {
+  cloudflare: [["cloudflare-daily-sync"]],
+  sophos: [
+    ["sophos-sync", "Sync SIEM"],
+    ["sophos-audit-sync", "Sync auditoria"],
+  ],
+  qradar: [["qradar-sync"]],
+  purview_dlp: [["dlp-sync"]],
+  dast_scanner: [["dast-schedules-run", "Agendamentos"]],
+  sast: [["sast-sync", "Sync App Insights"]],
+  zabbix: [["zabbix-cache-refresh"]],
+  sek: [["sek-zendesk-sync"]],
+  privacy_tools: [["privacy-tools-sync"]],
+  gophish: [["gophish-sync"]],
 };
 
-// ── Inline CSS ─────────────────────────────────────────────────────────────────
+type GroupKey = "seg" | "ops" | "gov";
+const GROUP_OF: Record<string, GroupKey> = {
+  cloudflare: "seg",
+  sophos: "seg",
+  qradar: "seg",
+  purview_dlp: "seg",
+  dast_scanner: "seg",
+  sast: "seg",
+  zabbix: "ops",
+  sendgrid: "ops",
+  sek: "ops",
+  privacy_tools: "gov",
+  gophish: "gov",
+};
+const GROUPS: Array<[GroupKey, string, string]> = [
+  ["seg", "Segurança", "proteção, detecção e testes"],
+  ["ops", "Operação", "infraestrutura, e-mail e chamados"],
+  ["gov", "Governança e privacidade", "LGPD e conscientização"],
+];
+
+type CronRow = {
+  job_name: string;
+  label: string;
+  enabled: boolean;
+  expected_interval_minutes: number;
+  last_attempt_at: string | null;
+  last_ok: boolean | null;
+  last_error: string | null;
+  last_success_at: string | null;
+  last_trigger: string | null;
+  last_duration_ms: number | null;
+  updated_at: string;
+};
+
+type SyncInfo = {
+  job: string;
+  label: string;
+  row?: CronRow;
+  color: string;
+  text: string;
+  bad: boolean;
+};
+
+function syncInfo(job: string, label: string | undefined, row: CronRow | undefined): SyncInfo {
+  const base = { job, label: label ?? "Último sync", row };
+  if (!row) return { ...base, color: "var(--v2-fg-3)", text: "sem registro", bad: false };
+  if (!row.enabled)
+    return { ...base, color: "var(--v2-fg-3)", text: "cron desativado", bad: false };
+  const { tone, label: h } = getCronHealth(row);
+  if (tone === "success") return { ...base, color: "var(--v2-ok)", text: "OK", bad: false };
+  if (h.startsWith("Em execução"))
+    return { ...base, color: "var(--v2-low)", text: "em execução", bad: false };
+  if (tone === "danger")
+    return {
+      ...base,
+      color: "var(--v2-crit)",
+      text: row.last_attempt_at ? "atrasado" : "nunca rodou",
+      bad: true,
+    };
+  return {
+    ...base,
+    color: "var(--v2-high)",
+    text: h === "Cron interrompido" ? "interrompido" : "falhou",
+    bad: true,
+  };
+}
+
+function fmtAgo(iso: string | null | undefined) {
+  if (!iso) return "nunca";
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (m < 60) return `há ${m} min`;
+  if (m < 1440) return `há ${Math.round(m / 60)}h`;
+  return `há ${Math.round(m / 1440)}d`;
+}
+
+const hostOf = (url: string | null | undefined) =>
+  url ? url.replace(/^https?:\/\//, "").replace(/\/$/, "") : "";
+
+// Lê um campo de texto do config (jsonb) sem recorrer a any
+function cfgStr(
+  cfg: Record<string, unknown> | null | undefined,
+  key: string,
+  fallback = "",
+): string {
+  const v = cfg?.[key];
+  return typeof v === "string" ? v : fallback;
+}
+
+type StateKey = "on" | "off" | "pend";
+const STATE: Record<StateKey, { label: string; color: string }> = {
+  on: { label: "Ativa", color: "var(--v2-ok)" },
+  off: { label: "Desligada", color: "var(--v2-fg-3)" },
+  pend: { label: "Pendente", color: "var(--v2-med)" },
+};
+
+type CardKey = Provider | "sast" | "sek";
+type CardItem = {
+  key: CardKey;
+  name: string;
+  module: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  state: StateKey;
+  configured: boolean;
+  host: string;
+  hostMuted?: boolean;
+  subs?: Array<[string, boolean]>;
+  syncs: SyncInfo[];
+};
+
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .int-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; }
+  .int-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
   .int-root * { box-sizing:border-box; }
+  .int-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .int-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .int-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); }
 
-  /* ── Page header ── */
-  .int-page-header {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:10px;
-    padding:16px 22px; display:flex; align-items:center; justify-content:space-between;
-  }
-  .int-page-title {
-    font-size:14px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em;
-  }
-  .int-page-sub {
-    font-size:12px; color:${T.textMuted}; margin-top:3px;
-    font-family:'DM Sans',sans-serif; line-height:1.5;
-  }
-  .int-status-bar { display:flex; align-items:center; gap:10px; flex-shrink:0; }
-  .int-status-pill {
-    display:inline-flex; align-items:center; gap:5px; padding:4px 10px;
-    border-radius:5px; font-size:10px; font-weight:700; letter-spacing:0.08em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
-  }
-  .int-status-pill.ok  { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .int-status-pill.off { background:rgba(107,114,128,0.1); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2); }
-  .int-status-dot { width:5px; height:5px; border-radius:50%; background:currentColor; }
+  .int-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .int-kpi { padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); min-width:0; text-align:left; background:transparent; border:0; color:inherit; font:inherit; position:relative; }
+  button.int-kpi { cursor:pointer; }
+  button.int-kpi:hover { background:var(--v2-hover); }
+  button.int-kpi[aria-pressed="true"]::after { content:""; position:absolute; left:18px; right:18px; bottom:0; height:2px; background:var(--v2-accent); border-radius:2px; }
+  .int-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .int-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .int-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .int-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
 
-  /* ── Grid ── */
-  .int-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .int-tbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .int-tbar .int-input { margin-left:auto; width:240px; max-width:100%; }
+  .int-seg { display:inline-flex; padding:2px; gap:2px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); flex-wrap:wrap; }
+  .int-seg button { height:28px; padding:0 10px; border:0; border-radius:6px; background:transparent; color:var(--v2-fg-2); font:500 13px var(--font-ui); cursor:pointer; white-space:nowrap; }
+  .int-seg button:hover { color:var(--v2-fg); }
+  .int-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); box-shadow:0 0 0 1px var(--v2-line); }
 
-  /* ── Provider card ── */
-  .int-card {
-    background:${T.surface}; border:1px solid ${T.border}; border-radius:12px;
-    overflow:hidden; display:flex; flex-direction:column;
-    transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  .int-card:hover { border-color:${T.borderHi}; box-shadow:0 8px 32px rgba(0,0,0,0.3); }
+  .int-input { width:100%; height:34px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg); font-size:13px; font-family:var(--font-ui); outline:none; min-width:0; }
+  .int-input:focus { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
+  .int-input.mono { font-family:var(--font-data); font-size:12.5px; }
+  .int-btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); text-decoration:none; }
+  .int-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .int-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .int-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .int-btn.primary:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .int-btn.ghost { border-color:transparent; background:transparent; }
+  .int-btn.icon { width:34px; padding:0; justify-content:center; flex:none; }
 
-  .int-card-header {
-    padding:16px 20px 14px; background:${T.surfaceAlt};
-    border-bottom:1px solid ${T.border};
-    display:flex; align-items:center; justify-content:space-between;
-    position:relative; overflow:hidden;
-  }
-  .int-card-header::before {
-    content:''; position:absolute; top:0; left:0; right:0; height:2px;
-    background:var(--provider-color, ${T.accent});
-  }
-  .int-card-header-left { display:flex; align-items:center; gap:10px; }
+  .int-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .int-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+  .int-tag { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; border:1px solid var(--v2-line); font-size:12px; color:var(--v2-fg-2); white-space:nowrap; }
+  .int-tag i { width:6px; height:6px; border-radius:50%; background:var(--c); }
 
-  .int-icon-wrap {
-    width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center;
-    background:var(--provider-bg, ${T.accentSoft}); border:1px solid var(--provider-border, rgba(59,130,246,0.2));
-    flex-shrink:0;
-  }
+  .int-grp { display:grid; gap:10px; }
+  .int-grp h2 { margin:0; display:flex; align-items:baseline; gap:8px; font-size:15px; font-weight:600; }
+  .int-grp h2 span { font-size:12.5px; font-weight:400; color:var(--v2-fg-3); }
+  .int-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+  .int-card { display:grid; grid-template-rows:auto auto 1fr auto; gap:12px; padding:16px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; cursor:pointer; text-align:left; font:inherit; color:inherit; transition:border-color .12s, background .12s; min-width:0; }
+  .int-card:hover { border-color:var(--v2-line-strong); background:var(--v2-hover); }
+  .int-card-h { display:flex; gap:12px; align-items:center; min-width:0; }
+  .int-logo { width:38px; height:38px; border-radius:10px; display:grid; place-items:center; flex:none; background:color-mix(in oklch, var(--b) 15%, var(--v2-surface)); color:var(--b); border:1px solid color-mix(in oklch, var(--b) 28%, transparent); }
+  .int-card-h b { display:block; font-size:14.5px; font-weight:600; }
+  .int-card-h small { display:block; font-size:12.5px; color:var(--v2-fg-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .int-card-h .int-pill { margin-left:auto; align-self:flex-start; }
+  .int-host { font:400 12px var(--font-data); color:var(--v2-fg-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:6px 9px; border-radius:5px; background:var(--v2-surface-2); }
+  .int-host.muted { color:var(--v2-fg-3); }
+  .int-sync { display:grid; gap:6px; align-content:start; min-width:0; }
+  .int-sync .ln { display:flex; gap:8px; align-items:center; font-size:12.5px; color:var(--v2-fg-2); min-width:0; }
+  .int-sync .ln > span:first-child { color:var(--v2-fg-3); min-width:104px; }
+  .int-sync .ln b { font-weight:500; font-family:var(--font-data); font-size:12px; }
+  .int-sync .ln em { font-style:normal; font-size:12px; }
+  .int-sdot { width:7px; height:7px; border-radius:50%; background:var(--c); flex:none; }
+  .int-sync .err { font:400 12px var(--font-data); color:color-mix(in oklch, var(--v2-crit) 75%, var(--v2-fg)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .int-subs { display:flex; gap:6px; flex-wrap:wrap; }
+  .int-card-f { display:flex; justify-content:space-between; align-items:center; padding-top:10px; border-top:1px solid var(--v2-line); font-size:12.5px; color:var(--v2-fg-3); }
+  .int-card-f .go { color:var(--v2-accent); font-weight:500; display:inline-flex; gap:4px; align-items:center; }
+  .int-empty { color:var(--v2-fg-3); font-size:13px; margin:0; }
 
-  .int-provider-name {
-    font-size:14px; font-weight:700; color:${T.textPrimary};
-    font-family:'Space Grotesk',sans-serif; letter-spacing:-0.01em;
-  }
-  .int-module-link {
-    display:inline-flex; align-items:center; gap:4px;
-    font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-    margin-top:2px; letter-spacing:0.04em;
-  }
-
-  .int-configured-badge {
-    display:inline-flex; align-items:center; gap:4px; padding:3px 8px;
-    border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em;
-    text-transform:uppercase; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
-  }
-  .int-configured-badge.yes { background:${T.successBg}; color:${T.success}; border:1px solid rgba(16,185,129,0.2); }
-  .int-configured-badge.no  { background:rgba(107,114,128,0.1); color:${T.neutral}; border:1px solid rgba(107,114,128,0.2); }
-
-  /* ── Card body ── */
-  .int-card-body { padding:18px 20px; display:flex; flex-direction:column; gap:14px; flex:1; }
-
-  /* ── Toggle row ── */
-  .int-toggle-row {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:10px 14px; background:${T.surfaceAlt}; border-radius:7px;
-    border:1px solid ${T.border};
-  }
-  .int-toggle-label { font-size:12px; font-weight:600; color:${T.textSecondary}; }
-  .int-toggle-hint  { font-size:10px; color:${T.textMuted}; font-family:'IBM Plex Mono',monospace; margin-top:1px; }
-
-  /* ── Field ── */
-  .int-field { display:flex; flex-direction:column; gap:5px; }
-  .int-field-label {
-    font-size:9px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-  }
-  .int-field-helper {
-    font-size:10px; color:${T.textSubtle}; font-family:'DM Sans',sans-serif;
-    line-height:1.5; margin-top:1px;
-  }
-
-  /* ── Input override ── */
-  .int-root input[type="text"],
-  .int-root input[type="password"],
-  .int-root input:not([type]) {
-    background:${T.surfaceAlt} !important; border-color:${T.border} !important;
-    color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace !important;
-    font-size:12px !important; border-radius:6px !important;
-    transition:border-color 0.15s, box-shadow 0.15s !important;
-  }
-  .int-root input:focus {
-    border-color:rgba(59,130,246,0.5) !important; outline:none !important;
-    box-shadow:0 0 0 2px rgba(59,130,246,0.1) !important;
-  }
-  .int-root input::placeholder { color:${T.textSubtle} !important; }
-
-  /* ── Divider ── */
-  .int-divider { height:1px; background:${T.border}; margin:2px 0; }
-
-  /* ── Tab content (Sophos: SIEM / Auditoria) ── */
-  .int-tab-body { display:flex; flex-direction:column; gap:14px; margin-top:14px; }
-
-  /* ── Sub-section label ── */
-  .int-sub-label {
-    font-size:9px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
-    color:${T.textMuted}; font-family:'IBM Plex Mono',monospace;
-    display:flex; align-items:center; gap:6px; margin-bottom:2px;
-  }
-  .int-sub-label::after { content:''; flex:1; height:1px; background:${T.border}; }
-
-  /* ── Save button ── */
-  .int-save-btn {
-    display:inline-flex; align-items:center; justify-content:center; gap:7px;
-    width:100%; padding:10px 16px; border-radius:7px;
-    background:var(--provider-bg, ${T.accentSoft});
-    border:1px solid var(--provider-border, rgba(59,130,246,0.35));
-    color:var(--provider-color, ${T.accent});
-    font-size:12px; font-weight:700; cursor:pointer;
-    font-family:'DM Sans',sans-serif; transition:all 0.15s;
-    margin-top:4px;
-  }
-  .int-save-btn:hover:not(:disabled) { filter:brightness(1.15); box-shadow:0 0 20px rgba(0,0,0,0.2); }
-  .int-save-btn:disabled { opacity:0.45; cursor:not-allowed; }
-
-  /* ── Scrollbar ── */
-  .int-root ::-webkit-scrollbar { width:4px; height:4px; }
-  .int-root ::-webkit-scrollbar-track { background:transparent; }
-  .int-root ::-webkit-scrollbar-thumb { background:${T.borderHi}; border-radius:2px; }
-
-  /* ── Spin ── */
-  @keyframes int-spin { to{transform:rotate(360deg)} }
-  .int-spin { animation:int-spin 0.7s linear infinite; }
+  /* ── Painel lateral ── */
+  .int-form { display:grid; gap:14px; }
+  .int-field { display:grid; gap:6px; font-size:12.5px; font-weight:500; color:var(--v2-fg-2); min-width:0; }
+  .int-field em { font-style:normal; font-weight:400; color:var(--v2-fg-3); }
+  .int-field small, .int-help { font-size:12px; font-weight:400; color:var(--v2-fg-3); line-height:1.5; }
+  .int-field code { font-family:var(--font-data); font-size:12px; color:var(--v2-accent); }
+  .int-pw { display:flex; gap:6px; }
+  .int-pw .int-input { flex:1; font-family:var(--font-data); font-size:12.5px; }
+  .int-secret { flex:1; min-width:0; display:flex; align-items:center; gap:8px; height:34px; padding:0 10px; border:1px dashed var(--v2-line-strong); border-radius:8px; color:var(--v2-fg-2); font-size:13px; }
+  .int-secret svg { color:var(--v2-ok); flex:none; }
+  .int-secret span { font-family:var(--font-data); font-size:12.5px; color:var(--v2-fg-3); }
+  .int-togrow { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); }
+  .int-togrow b { display:block; font-size:13px; font-weight:500; }
+  .int-togrow small { display:block; font-size:12px; color:var(--v2-fg-3); }
+  .int-note { padding:10px 12px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font-size:12.5px; color:var(--v2-fg-2); line-height:1.5; }
+  .int-note.err { border-color:color-mix(in oklch, var(--v2-crit) 35%, transparent); background:color-mix(in oklch, var(--v2-crit) 8%, transparent); font-family:var(--font-data); font-size:12px; overflow-wrap:anywhere; }
+  .int-sublabel { font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--v2-fg-3); margin-top:4px; }
+  .int-keyrow { display:flex; justify-content:space-between; gap:8px; font:400 12.5px var(--font-data); padding:8px 10px; border:1px solid var(--v2-line); border-radius:8px; }
+  .int-keyrow span:last-child { color:var(--v2-fg-3); }
+  .int-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .int-link { font-size:12.5px; color:var(--v2-accent); text-decoration:none; display:inline-flex; gap:4px; align-items:center; }
+  .int-link:hover { text-decoration:underline; }
 `;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
+// DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
+
+type Filter = "all" | StateKey | "err";
+
 export function IntegracoesDashboard() {
   const qc = useQueryClient();
+  const statusFn = useServerFn(getSekSessionStatus);
 
-  // ── Query — INALTERADA ─────────────────────────────────────────────────────
+  const listFn = useServerFn(listIntegrations);
   const { data, isLoading } = useQuery({
     queryKey: ["integrations"],
-    queryFn: async (): Promise<Integration[]> => {
-      const { data, error } = await supabase
-        .from("integrations")
-        .select("id, provider, name, enabled, base_url, api_key, config");
-      if (error) throw error;
-      return (data ?? []) as Integration[];
-    },
+    queryFn: () => listFn(),
   });
+
+  // Situação dos crons ligados a cada integração (mesma tabela do módulo Cron Jobs)
+  const { data: cronRows = [] } = useQuery({
+    queryKey: ["cron-job-runs"],
+    queryFn: async (): Promise<CronRow[]> => {
+      const { data, error } = await supabase.from("cron_job_runs").select("*").order("job_name");
+      if (error) throw error;
+      return (data ?? []) as CronRow[];
+    },
+    refetchInterval: 60_000,
+  });
+
+  const { data: sekStatus, error: sekStatusError } = useQuery({
+    queryKey: ["sek-zendesk-session-status"],
+    queryFn: () => statusFn(),
+  });
+  React.useEffect(() => {
+    if (sekStatusError) toast.error((sekStatusError as Error).message);
+  }, [sekStatusError]);
+
+  const [filter, setFilter] = React.useState<Filter>("all");
+  const [search, setSearch] = React.useState("");
+  // Painel: a chave fica guardada depois de fechar para a animação de saída
+  const [sheetKey, setSheetKey] = React.useState<CardKey | null>(null);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
 
   const byProvider = React.useMemo(() => {
     const m = new Map<Provider, Integration>();
     data?.forEach((i) => m.set(i.provider, i));
     return m;
   }, [data]);
+  const cronByJob = React.useMemo(() => new Map(cronRows.map((r) => [r.job_name, r])), [cronRows]);
+  const syncsOf = (key: string) =>
+    (SYNC_JOBS[key] ?? []).map(([job, label]) => syncInfo(job, label, cronByJob.get(job)));
 
-  // O card SAST conta como uma integração: configurada se qualquer aba estiver
+  if (isLoading) return <ModuleLoading />;
+
+  const onSaved = () => qc.invalidateQueries({ queryKey: ["integrations"] });
+
+  // O SAST conta como uma integração: configurada se qualquer aba estiver
   // pronta (App Insights com credencial, ou Azure DevOps ligado -- não tem credencial).
   const sastAi = byProvider.get(SAST_APP_INSIGHTS);
   const sastAdo = byProvider.get(SAST_DEVOPS);
-  const sastConfigured = !!sastAi?.api_key || !!sastAdo?.enabled;
+  const sastConfigured = !!sastAi?.secrets.api_key || !!sastAdo?.enabled;
   const sastActive = !!sastAi?.enabled || !!sastAdo?.enabled;
-  const totalCount = PROVIDERS.length + 1;
-  const configuredCount = PROVIDERS.filter((p) => byProvider.get(p.key)?.api_key).length + (sastConfigured ? 1 : 0);
-  const activeCount = PROVIDERS.filter((p) => byProvider.get(p.key)?.enabled).length + (sastActive ? 1 : 0);
+  const sekSessions = sekStatus?.sessions.length ?? 0;
+
+  const items: CardItem[] = [
+    ...PROVIDERS.map((p): CardItem => {
+      const integ = byProvider.get(p.key);
+      const configured = !!integ?.secrets.api_key;
+      // Sophos: ativa se qualquer uma das abas (SIEM / Auditoria) estiver ligada
+      const auditOn = p.key === "sophos" && integ?.config?.audit_enabled === true;
+      const on = !!integ?.enabled || auditOn;
+      return {
+        key: p.key,
+        name: p.name,
+        module: p.module,
+        icon: p.icon,
+        configured,
+        state: configured && on ? "on" : configured ? "off" : "pend",
+        host:
+          p.key === "purview_dlp"
+            ? "endpoints fixos da Microsoft"
+            : hostOf(integ?.base_url) || hostOf(p.defaultBaseUrl) || "—",
+        hostMuted: p.key === "purview_dlp" || !integ?.base_url,
+        subs:
+          p.key === "sophos"
+            ? [
+                ["SIEM", !!integ?.enabled],
+                ["Auditoria", auditOn],
+              ]
+            : undefined,
+        syncs: syncsOf(p.key),
+      };
+    }),
+    {
+      key: "sast",
+      name: "SAST · Azure",
+      module: "SAST · Esteiras CI/CD",
+      icon: GitBranch,
+      configured: sastConfigured,
+      state: sastConfigured && sastActive ? "on" : sastConfigured ? "off" : "pend",
+      host: "ingestão: /api/public/hooks/sast-ingest",
+      subs: [
+        ["Azure DevOps", !!sastAdo?.enabled],
+        ["App Insights", !!sastAi?.enabled],
+      ],
+      syncs: syncsOf("sast"),
+    },
+    {
+      key: "sek",
+      name: "SEK / Zendesk",
+      module: "Automação de chamados",
+      icon: Ticket,
+      configured: sekSessions > 0,
+      state: sekSessions > 0 ? "on" : "pend",
+      host: sekSessions
+        ? `${sekSessions} ${sekSessions === 1 ? "sessão vigente" : "sessões vigentes"} · renovação local`
+        : "nenhuma sessão vigente",
+      hostMuted: !sekSessions,
+      syncs: syncsOf("sek"),
+    },
+  ];
+
+  const hasErr = (i: CardItem) => i.syncs.some((s) => s.bad);
+  const count = (k: StateKey) => items.filter((i) => i.state === k).length;
+  const errCount = items.filter(hasErr).length;
+  const q = search.trim().toLowerCase();
+  const visible = items.filter(
+    (i) =>
+      (filter === "all" || (filter === "err" ? hasErr(i) : i.state === filter)) &&
+      (!q || `${i.name} ${i.module}`.toLowerCase().includes(q)),
+  );
+  const kpiFilter = (k: Filter) => setFilter((f) => (f === k ? "all" : k));
+  const openSheet = (k: CardKey) => {
+    setSheetKey(k);
+    setSheetOpen(true);
+  };
+  const sheetItem = items.find((i) => i.key === sheetKey);
+  const sheetProvider = PROVIDERS.find((p) => p.key === sheetKey);
+  const sheetCommon = sheetItem && {
+    open: sheetOpen,
+    onOpenChange: setSheetOpen,
+    item: sheetItem,
+  };
 
   return (
-    <div className="int-root" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="int-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="int-page-header">
-        <div>
-          <div className="int-page-title">Integrações de API</div>
-          <div className="int-page-sub">
-            Configure credenciais das ferramentas externas. Cada integração alimenta o módulo correspondente.
-          </div>
-        </div>
-        <div className="int-status-bar">
-          <span className="int-status-pill ok">
-            <span className="int-status-dot" />
-            {configuredCount} configuradas
-          </span>
-          <span className="int-status-pill ok">
-            <span className="int-status-dot" />
-            {activeCount} ativas
-          </span>
-          <span className="int-status-pill off">
-            <span className="int-status-dot" />
-            {totalCount - configuredCount} pendentes
-          </span>
-        </div>
+      <div>
+        <h1 className="int-ph-title">Integrações de API</h1>
+        <p className="int-ph-sub">
+          Credenciais das ferramentas externas · cada integração alimenta um módulo do Z-Sec
+        </p>
       </div>
 
-      {/* ── Provider grid ─────────────────────────────────────────────────── */}
-      <div className="int-grid">
-        {PROVIDERS.map((p) => (
-          <ProviderCard
-            key={p.key}
-            provider={p}
-            integration={byProvider.get(p.key)}
-            loading={isLoading}
-            onSaved={() => qc.invalidateQueries({ queryKey: ["integrations"] })}
-          />
-        ))}
-        <SastIntegrationCard
+      <div className="int-kpis">
+        <div className="int-kpi">
+          <span className="int-kpi-label">Integrações</span>
+          <span className="int-kpi-value">{items.length}</span>
+          <span className="int-kpi-foot">uma por ferramenta externa</span>
+        </div>
+        <button className="int-kpi" aria-pressed={filter === "on"} onClick={() => kpiFilter("on")}>
+          <span className="int-kpi-label">
+            <span className="int-sw" style={{ background: "var(--v2-ok)" }} />
+            Ativas
+          </span>
+          <span className="int-kpi-value">{count("on")}</span>
+          <span className="int-kpi-foot">coletando dados</span>
+        </button>
+        <button
+          className="int-kpi"
+          aria-pressed={filter === "off"}
+          onClick={() => kpiFilter("off")}
+        >
+          <span className="int-kpi-label">Desligadas</span>
+          <span className="int-kpi-value">{count("off")}</span>
+          <span className="int-kpi-foot">credencial salva, sem coleta</span>
+        </button>
+        <button
+          className="int-kpi"
+          aria-pressed={filter === "pend"}
+          onClick={() => kpiFilter("pend")}
+        >
+          <span className="int-kpi-label">
+            {count("pend") > 0 && (
+              <span className="int-sw" style={{ background: "var(--v2-med)" }} />
+            )}
+            Pendentes
+          </span>
+          <span className="int-kpi-value">{count("pend")}</span>
+          <span className="int-kpi-foot">sem credencial</span>
+        </button>
+        <button
+          className="int-kpi"
+          aria-pressed={filter === "err"}
+          onClick={() => kpiFilter("err")}
+        >
+          <span className="int-kpi-label">
+            {errCount > 0 && <span className="int-sw" style={{ background: "var(--v2-crit)" }} />}
+            Sync com problema
+          </span>
+          <span className="int-kpi-value">{errCount}</span>
+          <span className="int-kpi-foot">falhou ou está atrasado</span>
+        </button>
+      </div>
+
+      <div className="int-tbar">
+        <div className="int-seg" role="group" aria-label="Situação">
+          {(
+            [
+              ["all", "Todas"],
+              ["on", "Ativas"],
+              ["off", "Desligadas"],
+              ["pend", "Pendentes"],
+              ["err", "Com problema"],
+            ] as Array<[Filter, string]>
+          ).map(([k, l]) => (
+            <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <input
+          className="int-input"
+          placeholder="Buscar integração ou módulo"
+          aria-label="Buscar integração"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {visible.length === 0 ? (
+        <p className="int-empty">Nenhuma integração encontrada com esse filtro.</p>
+      ) : (
+        <div style={{ display: "grid", gap: 24 }}>
+          {GROUPS.map(([g, title, sub]) => {
+            const rows = visible.filter((i) => GROUP_OF[i.key] === g);
+            if (!rows.length) return null;
+            return (
+              <section key={g} className="int-grp">
+                <h2>
+                  {title}
+                  <span>
+                    {sub} · {rows.length}
+                  </span>
+                </h2>
+                <div className="int-grid">
+                  {rows.map((i) => (
+                    <IntegrationCard key={i.key} item={i} onOpen={() => openSheet(i.key)} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
+
+      {sheetCommon && sheetProvider && (
+        <ProviderSheet
+          key={sheetProvider.key}
+          {...sheetCommon}
+          provider={sheetProvider}
+          integration={byProvider.get(sheetProvider.key)}
+          onSaved={onSaved}
+        />
+      )}
+      {sheetCommon && sheetKey === "sast" && (
+        <SastSheet
+          key="sast"
+          {...sheetCommon}
           appInsights={sastAi}
           devops={sastAdo}
-          loading={isLoading}
-          onSaved={() => qc.invalidateQueries({ queryKey: ["integrations"] })}
+          onSaved={onSaved}
         />
-        <SekZendeskCard />
-      </div>
+      )}
+      {sheetCommon && sheetKey === "sek" && <SekSheet key="sek" {...sheetCommon} />}
     </div>
   );
 }
 
+function IntegrationCard({ item, onOpen }: { item: CardItem; onOpen: () => void }) {
+  const Icon = item.icon;
+  const st = STATE[item.state];
+  const err = item.syncs.find((s) => s.bad && s.row?.last_error)?.row?.last_error;
+  return (
+    <button className="int-card" onClick={onOpen}>
+      <div className="int-card-h">
+        <span className="int-logo" style={{ "--b": BRAND[item.key] } as React.CSSProperties}>
+          <Icon style={{ width: 19, height: 19 }} />
+        </span>
+        <span style={{ minWidth: 0 }}>
+          <b>{item.name}</b>
+          <small>→ {item.module}</small>
+        </span>
+        <span className="int-pill" style={{ "--c": st.color } as React.CSSProperties}>
+          {st.label}
+        </span>
+      </div>
+      <div className={`int-host${item.hostMuted ? " muted" : ""}`} title={item.host}>
+        {item.host}
+      </div>
+      <div className="int-sync">
+        {item.subs && (
+          <div className="int-subs">
+            {item.subs.map(([l, on]) => (
+              <span
+                key={l}
+                className="int-tag"
+                style={{ "--c": on ? "var(--v2-ok)" : "var(--v2-fg-3)" } as React.CSSProperties}
+              >
+                <i />
+                {l}
+              </span>
+            ))}
+          </div>
+        )}
+        {item.syncs.length ? (
+          item.syncs.map((s) => (
+            <div key={s.job} className="ln" title={s.job}>
+              <span>{s.label}</span>
+              <i className="int-sdot" style={{ "--c": s.color } as React.CSSProperties} />
+              <b>{s.row ? fmtAgo(s.row.last_attempt_at) : "—"}</b>
+              {(s.bad || !s.row || !s.row.enabled) && <em style={{ color: s.color }}>{s.text}</em>}
+            </div>
+          ))
+        ) : (
+          <div className="ln">
+            <span>Último sync</span>
+            <b style={{ color: "var(--v2-fg-3)" }}>sem cron</b>
+          </div>
+        )}
+        {err && (
+          <div className="err" title={err}>
+            {err}
+          </div>
+        )}
+      </div>
+      <div className="int-card-f">
+        <span>
+          {item.key === "sek"
+            ? "Sessão renovada localmente"
+            : item.configured
+              ? "Credencial salva"
+              : "Sem credencial"}
+        </span>
+        <span className="go">
+          Configurar <ChevronRight size={13} />
+        </span>
+      </div>
+    </button>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
-// SEK / ZENDESK — não é um provider genérico (sem base_url/api_key): a sessão
-// é renovada localmente via sek-session-capture (Playwright), não por
-// credencial de API armazenada aqui. Ver handoff em memória do projeto.
+// PEÇAS DO PAINEL
 // ══════════════════════════════════════════════════════════════════════════════
-const SEK_ACCENT = { color: "#22D3EE", bg: "rgba(34,211,238,0.10)", border: "rgba(34,211,238,0.25)" };
-// Instalador Windows do sek-session-capture, hospedado no Storage do próprio
-// Supabase/Lovable (bucket público "installers"). macOS fica pra uma próxima
-// leva -- combinado com o usuário.
-const SEK_INSTALLER_URL =
-  "https://tcacmepuiyoqkypatkqa.supabase.co/storage/v1/object/public/installers/sek-session-capture-setup.exe";
 
-function SekZendeskCard() {
-  const generateTokenFn = useServerFn(generateSekRenewalToken);
-  const listLogFn = useServerFn(listSekZendeskAuthLog);
-  const statusFn = useServerFn(getSekSessionStatus);
-  const [token, setToken] = React.useState<string | null>(null);
+type SheetBase = { open: boolean; onOpenChange: (o: boolean) => void; item: CardItem };
 
-  const { data: log, error: logError } = useQuery({
-    queryKey: ["sek-zendesk-auth-log"],
-    queryFn: () => listLogFn(),
-  });
+function SheetTitle({ item }: { item: CardItem }) {
+  const Icon = item.icon;
+  return (
+    <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <span
+        className="int-logo"
+        style={
+          { "--b": BRAND[item.key], width: 32, height: 32, borderRadius: 8 } as React.CSSProperties
+        }
+      >
+        <Icon style={{ width: 16, height: 16 }} />
+      </span>
+      {item.name}
+    </span>
+  );
+}
+
+function SheetBadges({ item }: { item: CardItem }) {
+  const st = STATE[item.state];
+  return (
+    <>
+      <span className="int-pill" style={{ "--c": st.color } as React.CSSProperties}>
+        {st.label}
+      </span>
+      <span className="int-tag">alimenta {item.module}</span>
+    </>
+  );
+}
+
+function SyncSection({ item }: { item: CardItem }) {
+  if (!item.syncs.length) return null;
+  const errs = item.syncs.filter((s) => s.bad && s.row?.last_error);
+  return (
+    <DetailSection title="Sincronização">
+      <div style={{ display: "grid", gap: 10 }}>
+        <DetailList
+          items={item.syncs.map((s): [string, React.ReactNode] => [
+            s.label,
+            <span
+              key={s.job}
+              style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+            >
+              <span className="int-pill" style={{ "--c": s.color } as React.CSSProperties}>
+                {s.text}
+              </span>
+              <span
+                style={{ color: "var(--v2-fg-3)", fontFamily: "var(--font-data)", fontSize: 12 }}
+              >
+                {s.job}
+                {s.row ? ` · ${fmtAgo(s.row.last_attempt_at)}` : ""}
+              </span>
+            </span>,
+          ])}
+        />
+        {errs.map((s) => (
+          <div key={s.job} className="int-note err">
+            {s.row?.last_error}
+          </div>
+        ))}
+        <Link to="/app/$module" params={{ module: "cron-jobs" }} className="int-link">
+          Ver em Cron Jobs <ChevronRight size={13} />
+        </Link>
+      </div>
+    </DetailSection>
+  );
+}
+
+// Incrementado a cada salvamento: os campos de segredo voltam para "Salvo ••••"
+const SecretReset = React.createContext(0);
+
+// Segredo só de escrita: depois de salvo, mostra apenas a dica mascarada e
+// permite substituir -- o valor gravado nunca volta para o navegador.
+function SecretInput({
+  value,
+  onChange,
+  saved,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  /** Dica do segredo já gravado (ex.: "••••a91f"); ausente = nada salvo */
+  saved?: string;
+}) {
+  const [replacing, setReplacing] = React.useState(false);
+  const resetSignal = React.useContext(SecretReset);
+  React.useEffect(() => setReplacing(false), [resetSignal]);
+  if (saved && !replacing) {
+    return (
+      <div className="int-pw">
+        <div className="int-secret">
+          <Lock style={{ width: 13, height: 13 }} />
+          Salvo <span>{saved}</span>
+        </div>
+        <button type="button" className="int-btn" onClick={() => setReplacing(true)}>
+          Substituir
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="int-pw">
+      <input
+        className="int-input"
+        type="password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={saved ? "Novo valor" : "Cole o valor aqui"}
+        autoComplete="new-password"
+        autoFocus={replacing}
+      />
+      {replacing && (
+        <button
+          type="button"
+          className="int-btn ghost"
+          onClick={() => {
+            onChange("");
+            setReplacing(false);
+          }}
+        >
+          Cancelar
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  optional,
+  help,
+  children,
+}: {
+  label: React.ReactNode;
+  optional?: boolean;
+  help?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="int-field">
+      <span>
+        {label} {optional && <em>(opcional)</em>}
+      </span>
+      {children}
+      {help && <small>{help}</small>}
+    </label>
+  );
+}
+
+function ToggleRow({
+  title,
+  hint,
+  checked,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="int-togrow">
+      <span>
+        <b>{title}</b>
+        <small>{hint}</small>
+      </span>
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={title} />
+    </div>
+  );
+}
+
+function SegTabs<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: Array<[T, string]>;
+}) {
+  return (
+    <div className="int-seg" role="tablist" style={{ justifySelf: "start" }}>
+      {options.map(([k, l]) => (
+        <button
+          key={k}
+          type="button"
+          role="tab"
+          aria-selected={value === k}
+          aria-pressed={value === k}
+          onClick={() => onChange(k)}
+        >
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SaveFooter({
+  onClose,
+  onSave,
+  pending,
+}: {
+  onClose: () => void;
+  onSave: () => void;
+  pending: boolean;
+}) {
+  return (
+    <>
+      <button className="int-btn ghost" style={{ marginRight: "auto" }} onClick={onClose}>
+        Fechar
+      </button>
+      <button className="int-btn primary" onClick={onSave} disabled={pending}>
+        <Check size={14} />
+        {pending ? "Salvando…" : "Salvar configuração"}
+      </button>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROVIDER — formulário genérico (Cloudflare, Sophos, Privacy Tools, DLP…)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ProviderSheet({
+  open,
+  onOpenChange,
+  item,
+  provider,
+  integration,
+  onSaved,
+}: SheetBase & {
+  provider: (typeof PROVIDERS)[number];
+  integration?: Integration;
+  onSaved: () => void;
+}) {
+  const cfg = integration?.config;
+  const [saveCount, setSaveCount] = React.useState(0);
+  const [enabled, setEnabled] = React.useState(integration?.enabled ?? false);
+  const [baseUrl, setBaseUrl] = React.useState(integration?.base_url ?? provider.defaultBaseUrl);
+  const [apiKey, setApiKey] = React.useState("");
+  // Page Rules (API legada) rejeita Account API Token — precisa de um User
+  // API Token separado, guardado à parte pra não afetar o token principal
+  // (usado por Analytics/DNS/Custom Rules/Overview, que funcionam liso com
+  // Account API Token).
+  const [cfPageRulesToken, setCfPageRulesToken] = React.useState("");
+  const [sophosTab, setSophosTab] = React.useState<"siem" | "audit">("siem");
+  const [sophosClientId, setSophosClientId] = React.useState(cfgStr(cfg, "client_id"));
+  const [sophosTenantId, setSophosTenantId] = React.useState(cfgStr(cfg, "tenant_id"));
+  const [sophosRegionUrl, setSophosRegionUrl] = React.useState(cfgStr(cfg, "data_region_url"));
+  const [sophosAuditClientId, setSophosAuditClientId] = React.useState(
+    cfgStr(cfg, "audit_client_id"),
+  );
+  const [sophosAuditClientSecret, setSophosAuditClientSecret] = React.useState("");
+  const [sophosAuditEnabled, setSophosAuditEnabled] = React.useState(cfg?.audit_enabled === true);
+  // Privacy Tools OAuth2 fields
+  const [ptClientId, setPtClientId] = React.useState(cfgStr(cfg, "client_id"));
+  const [ptUsername, setPtUsername] = React.useState(cfgStr(cfg, "username"));
+  const [ptPassword, setPtPassword] = React.useState("");
+  // Purview DLP OAuth2 client_credentials fields
+  const [dlpTenantId, setDlpTenantId] = React.useState(cfgStr(cfg, "tenant_id"));
+  const [dlpClientId, setDlpClientId] = React.useState(cfgStr(cfg, "client_id"));
+
   React.useEffect(() => {
-    if (logError) toast.error((logError as Error).message);
-  }, [logError]);
+    const c = integration?.config;
+    setEnabled(integration?.enabled ?? false);
+    setBaseUrl(integration?.base_url ?? provider.defaultBaseUrl);
+    setApiKey("");
+    setCfPageRulesToken("");
+    setSophosClientId(cfgStr(c, "client_id"));
+    setSophosTenantId(cfgStr(c, "tenant_id"));
+    setSophosRegionUrl(cfgStr(c, "data_region_url"));
+    setSophosAuditClientId(cfgStr(c, "audit_client_id"));
+    setSophosAuditClientSecret("");
+    setSophosAuditEnabled(c?.audit_enabled === true);
+    setPtClientId(cfgStr(c, "client_id"));
+    setPtUsername(cfgStr(c, "username"));
+    setPtPassword("");
+    setDlpTenantId(cfgStr(c, "tenant_id"));
+    setDlpClientId(cfgStr(c, "client_id"));
+  }, [integration, provider.defaultBaseUrl]);
 
-  const { data: sessionStatus, error: statusError } = useQuery({
-    queryKey: ["sek-zendesk-session-status"],
-    queryFn: () => statusFn(),
-  });
-  React.useEffect(() => {
-    if (statusError) toast.error((statusError as Error).message);
-  }, [statusError]);
-
-  const qc = useQueryClient();
-  const generate = useMutation({
-    mutationFn: () => generateTokenFn(),
-    onSuccess: (result) => {
-      setToken(result.token);
-      toast.success(`Token gerado — válido por ${Math.round(result.expiresInSeconds / 60)} min, uso único`);
-      // A sessão nova só existe de fato depois que o usuário roda o SEK
-      // Session Capture localmente e ele reporta pro worker -- invalida
-      // aqui de qualquer forma pra pegar o refresh se o usuário já tiver
-      // feito isso rápido (ex.: renovação de rotina, app já configurado).
-      qc.invalidateQueries({ queryKey: ["sek-zendesk-session-status"] });
+  const upsertIntegrationFn = useServerFn(upsertIntegration);
+  const save = useMutation({
+    mutationFn: async () => {
+      const config: Record<string, unknown> = { ...(integration?.config ?? {}) };
+      if (provider.key === "cloudflare") {
+        config.page_rules_api_key = cfPageRulesToken.trim();
+      }
+      if (provider.key === "sophos") {
+        config.client_id = sophosClientId.trim();
+        config.tenant_id = sophosTenantId.trim();
+        config.data_region_url = sophosRegionUrl.trim();
+        config.audit_client_id = sophosAuditClientId.trim();
+        config.audit_client_secret = sophosAuditClientSecret.trim();
+        config.audit_enabled = sophosAuditEnabled;
+      }
+      if (provider.key === "privacy_tools") {
+        config.client_id = ptClientId.trim();
+        config.username = ptUsername.trim();
+        config.password = ptPassword.trim();
+      }
+      if (provider.key === "purview_dlp") {
+        config.tenant_id = dlpTenantId.trim();
+        config.client_id = dlpClientId.trim();
+      }
+      await upsertIntegrationFn({
+        data: {
+          provider: provider.key,
+          name: provider.name,
+          enabled,
+          base_url: baseUrl.trim() || null,
+          api_key: apiKey.trim() || null,
+          config,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success(`${provider.name} salvo`);
+      setSaveCount((c) => c + 1);
+      onSaved();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  function copyToken() {
-    if (!token) return;
-    navigator.clipboard.writeText(token);
-    toast.success("Token copiado");
-  }
-
-  const cssVars = {
-    "--provider-color": SEK_ACCENT.color,
-    "--provider-bg": SEK_ACCENT.bg,
-    "--provider-border": SEK_ACCENT.border,
-  } as React.CSSProperties;
+  const apiKeyField = (help: React.ReactNode = provider.helper) => (
+    <Field label={provider.apiKeyLabel} help={help}>
+      <SecretInput value={apiKey} onChange={setApiKey} saved={integration?.secrets.api_key} />
+    </Field>
+  );
 
   return (
-    <div className="int-card" style={cssVars}>
-      <div className="int-card-header">
-        <div className="int-card-header-left">
-          <div className="int-icon-wrap">
-            <Ticket className="size-4" style={{ color: SEK_ACCENT.color }} />
-          </div>
-          <div>
-            <div className="int-provider-name">SEK / Zendesk</div>
-            <div className="int-module-link">
-              <Link2 size={9} />
-              Automação de Chamados
-            </div>
-          </div>
-        </div>
-        <span className={`int-configured-badge ${sessionStatus?.sessions.length ? "yes" : "no"}`}>
-          {sessionStatus?.sessions.length ? (
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      width={560}
+      eyebrow={`integrations · ${provider.key}`}
+      title={<SheetTitle item={item} />}
+      badges={<SheetBadges item={item} />}
+      footer={
+        <SaveFooter
+          onClose={() => onOpenChange(false)}
+          onSave={() => save.mutate()}
+          pending={save.isPending}
+        />
+      }
+    >
+      <SecretReset.Provider value={saveCount}>
+        <div className="int-root" style={{ gap: 20 }}>
+          {provider.key === "sophos" ? (
             <>
-              <CheckCircle2 size={10} /> {sessionStatus.sessions.length} sessão(ões) vigente(s)
-            </>
-          ) : (
-            <>
-              <AlertCircle size={10} /> Nunca renovada
-            </>
-          )}
-        </span>
-      </div>
-
-      <div className="int-card-body">
-        <div className="int-field">
-          <span className="int-field-label">Sessões vigentes</span>
-          {sessionStatus?.sessions.length ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {sessionStatus.sessions.map((s) => (
-                <div
-                  key={s.userId}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--provider-border)",
-                    background: "var(--provider-bg)",
-                  }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{s.name}</span>
-                  <span className="int-toggle-hint" style={{ marginTop: 0 }}>
-                    {new Date(s.lastModified).toLocaleString("pt-BR")}
-                  </span>
+              <SegTabs
+                value={sophosTab}
+                onChange={setSophosTab}
+                options={[
+                  ["siem", "SIEM"],
+                  ["audit", "Auditoria"],
+                ]}
+              />
+              {sophosTab === "siem" ? (
+                <div className="int-form">
+                  {/* ── SIEM: credencial usada hoje pra alertas/eventos/endpoints/políticas ── */}
+                  <ToggleRow
+                    title="Sincronização SIEM ativa"
+                    hint={
+                      enabled
+                        ? "Endpoints, alertas, eventos e políticas"
+                        : "Desligada — dados não serão coletados"
+                    }
+                    checked={enabled}
+                    onChange={setEnabled}
+                  />
+                  <Field label="Base URL">
+                    <input
+                      className="int-input"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                      placeholder={provider.defaultBaseUrl}
+                    />
+                  </Field>
+                  <Field label="Client ID" help="Client ID das API Credentials no Sophos Central.">
+                    <input
+                      className="int-input mono"
+                      value={sophosClientId}
+                      onChange={(e) => setSophosClientId(e.target.value)}
+                      placeholder="ex: 0a1b2c3d-4e5f-6789-…"
+                    />
+                  </Field>
+                  {apiKeyField()}
+                  <Field
+                    label="Tenant ID"
+                    optional
+                    help={
+                      <>
+                        Se vazio, é descoberto via <code>/whoami/v1</code> usando o Client Secret.
+                      </>
+                    }
+                  >
+                    <input
+                      className="int-input mono"
+                      value={sophosTenantId}
+                      onChange={(e) => setSophosTenantId(e.target.value)}
+                      placeholder="auto-detectado se vazio"
+                    />
+                  </Field>
+                  <Field
+                    label="Data Region URL"
+                    optional
+                    help="Endpoint da região do tenant. Se vazio, é descoberto automaticamente."
+                  >
+                    <input
+                      className="int-input"
+                      value={sophosRegionUrl}
+                      onChange={(e) => setSophosRegionUrl(e.target.value)}
+                      placeholder="ex: https://api-us01.central.sophos.com"
+                    />
+                  </Field>
                 </div>
-              ))}
-            </div>
+              ) : (
+                <div className="int-form">
+                  {/* ── Auditoria: credencial separada, role "Service Principal Audit Log" ── */}
+                  <ToggleRow
+                    title="Sincronização de auditoria ativa"
+                    hint={
+                      sophosAuditEnabled
+                        ? "Audit log habilitado"
+                        : "Desligada — independente da aba SIEM"
+                    }
+                    checked={sophosAuditEnabled}
+                    onChange={setSophosAuditEnabled}
+                  />
+                  <Field
+                    label="Client ID (Audit Log)"
+                    help='Client ID de uma credencial criada com a role "Service Principal Audit Log" no Sophos Central — diferente da credencial usada na aba SIEM.'
+                  >
+                    <input
+                      className="int-input mono"
+                      value={sophosAuditClientId}
+                      onChange={(e) => setSophosAuditClientId(e.target.value)}
+                      placeholder="ex: 0a1b2c3d-4e5f-6789-…"
+                    />
+                  </Field>
+                  <Field
+                    label="Client Secret (Audit Log)"
+                    help="Client Secret da mesma credencial."
+                  >
+                    <SecretInput
+                      value={sophosAuditClientSecret}
+                      onChange={setSophosAuditClientSecret}
+                      saved={integration?.secrets.audit_client_secret}
+                    />
+                  </Field>
+                </div>
+              )}
+            </>
           ) : (
-            <div className="int-toggle-hint" style={{ marginTop: 0 }}>
-              Nenhuma sessão vigente ainda.
+            <div className="int-form">
+              <ToggleRow
+                title="Integração ativa"
+                hint={
+                  enabled ? "Sincronização habilitada" : "Desligada — dados não serão coletados"
+                }
+                checked={enabled}
+                onChange={setEnabled}
+              />
+              {/* Base URL — oculto p/ Purview DLP: endpoints da Microsoft são fixos, não configuráveis */}
+              {provider.key !== "purview_dlp" && (
+                <Field label="Base URL">
+                  <input
+                    className="int-input"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder={provider.defaultBaseUrl}
+                  />
+                </Field>
+              )}
+              {provider.key === "privacy_tools" ? (
+                <>
+                  <div className="int-sublabel">OAuth2 — Password Grant</div>
+                  <Field
+                    label="Client ID"
+                    help='Identificador público da integração. Visível no painel Privacy Tools → Integrações → campo "Identificador".'
+                  >
+                    <input
+                      className="int-input mono"
+                      value={ptClientId}
+                      onChange={(e) => setPtClientId(e.target.value)}
+                      placeholder="ex: Xvz1H2pxcMPZPIMh…"
+                    />
+                  </Field>
+                  {apiKeyField("Segredo do cliente — mantido criptografado.")}
+                  <Field
+                    label="Chave Pública (username)"
+                    help='Campo "Chave Pública" nas variáveis da integração.'
+                  >
+                    <input
+                      className="int-input mono"
+                      value={ptUsername}
+                      onChange={(e) => setPtUsername(e.target.value)}
+                      placeholder="ex: W2yvev3WiOgK3H9s…"
+                    />
+                  </Field>
+                  <Field label="Senha (password)" help={provider.helper}>
+                    <SecretInput
+                      value={ptPassword}
+                      onChange={setPtPassword}
+                      saved={integration?.secrets.password}
+                    />
+                  </Field>
+                </>
+              ) : provider.key === "purview_dlp" ? (
+                <>
+                  <Field label="Tenant ID" help="Directory (tenant) ID do Microsoft Entra ID.">
+                    <input
+                      className="int-input mono"
+                      value={dlpTenantId}
+                      onChange={(e) => setDlpTenantId(e.target.value)}
+                      placeholder="ex: 00000000-0000-0000-0000-000000000000"
+                    />
+                  </Field>
+                  <Field label="Client ID" help="Application (client) ID do App Registration.">
+                    <input
+                      className="int-input mono"
+                      value={dlpClientId}
+                      onChange={(e) => setDlpClientId(e.target.value)}
+                      placeholder="ex: 00000000-0000-0000-0000-000000000000"
+                    />
+                  </Field>
+                  {apiKeyField()}
+                </>
+              ) : (
+                <>
+                  {apiKeyField()}
+                  {provider.key === "cloudflare" && (
+                    <>
+                      {/* Token separado pra Page Rules — a API legada de Page Rules rejeita
+                        Account API Token, precisa de um User API Token à parte. */}
+                      <Field
+                        label="API Token — Page Rules"
+                        optional
+                        help={
+                          <>
+                            O endpoint legado de Page Rules não aceita o Account API Token acima —
+                            precisa de um <strong>User API Token</strong> (My Profile → API Tokens,
+                            não Manage Account) com permissão Zone → Page Rules → Edit na zona
+                            desejada. Sem esse campo, a sub-aba "Page Rules" em Operações → Rules
+                            fica indisponível.
+                          </>
+                        }
+                      >
+                        <SecretInput
+                          value={cfPageRulesToken}
+                          onChange={setCfPageRulesToken}
+                          saved={integration?.secrets.page_rules_api_key}
+                        />
+                      </Field>
+                      <div className="int-note">
+                        A escolha da zona é feita no dashboard do Cloudflare WAF (seletor
+                        "Selecionar zona").
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           )}
-          {sessionStatus?.legacy && (
-            <div className="int-field-helper">
-              Existe uma sessão no formato antigo (de antes de sessões por usuário) ainda sendo usada só como
-              apoio pro sync — quem a criou precisa renovar de novo pra aparecer aqui e poder responder chamados.
-            </div>
-          )}
+          <SyncSection item={item} />
         </div>
-
-        <Button onClick={() => generate.mutate()} disabled={generate.isPending} size="sm">
-          <RefreshCw className="size-3.5" />
-          Gerar token de renovação
-        </Button>
-
-        <Button variant="outline" size="sm" asChild>
-          <a href={SEK_INSTALLER_URL} download>
-            <Download className="size-3.5" />
-            Baixar instalador (Windows)
-          </a>
-        </Button>
-
-        {token && (
-          <div className="int-field">
-            <span className="int-field-label">Token de renovação (10 min, uso único)</span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Input readOnly value={token} onFocus={(e) => e.target.select()} />
-              <Button variant="secondary" size="sm" onClick={copyToken}>
-                <Copy className="size-3.5" />
-              </Button>
-            </div>
-            <div className="int-field-helper">
-              Abra o <strong>SEK Session Capture</strong> (instalado localmente) e cole esse token quando ele pedir.
-            </div>
-          </div>
-        )}
-
-        {Array.isArray(log) && log.length > 0 && (
-          <div className="int-field">
-            <span className="int-field-label">Histórico recente</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 120, overflowY: "auto" }}>
-              {(log as Array<{ id: string; reported_at?: string; created_at?: string; triggered_by_name?: string }>)
-                .slice(0, 6)
-                .map((entry) => (
-                  <div key={entry.id} className="int-toggle-hint">
-                    {new Date(entry.reported_at ?? entry.created_at ?? "").toLocaleString("pt-BR")} —{" "}
-                    {entry.triggered_by_name ?? "desconhecido"}
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      </SecretReset.Provider>
+    </DetailSheet>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SAST — um card, duas origens com ativação independente (padrão Sophos
-// SIEM/Auditoria). Cada aba = uma linha própria em `integrations`:
+// SAST — duas origens com ativação independente (padrão Sophos SIEM/Auditoria).
+// Cada aba = uma linha própria em `integrations`:
 //   azure_devops_sast  -> ingestão direta da pipeline (sast-ingest), sem credencial
 //   azure_app_insights -> sync do App Insights (sast-sync), Service Principal
 // As duas convivem: caem nos mesmos achados sem duplicar (migration 20260929100000).
 // ══════════════════════════════════════════════════════════════════════════════
+
 const ADO_ORG_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,49}$/; // mesma regra de sast-ingest.server.ts
 
-function SastIntegrationCard({
+function SastSheet({
+  open,
+  onOpenChange,
+  item,
   appInsights,
   devops,
-  loading,
   onSaved,
-}: {
+}: SheetBase & {
   appInsights?: Integration;
   devops?: Integration;
-  loading: boolean;
   onSaved: () => void;
 }) {
-  const aiCfg = (appInsights?.config ?? {}) as Record<string, any>;
-  const adoCfg = (devops?.config ?? {}) as Record<string, any>;
-
+  const [tab, setTab] = React.useState<"devops" | "appinsights">("devops");
+  const [saveCount, setSaveCount] = React.useState(0);
   const [adoEnabled, setAdoEnabled] = React.useState(devops?.enabled ?? false);
-  const [adoOrg, setAdoOrg] = React.useState<string>(adoCfg.organization ?? "bernoullidevops");
-  // Credencial de leitura que o b-security usa pra conferir a build no Azure
+  const [adoOrg, setAdoOrg] = React.useState(
+    cfgStr(devops?.config, "organization", "bernoullidevops"),
+  );
+  // Credencial de leitura que o Z-Sec usa pra conferir a build no Azure
   // DevOps -- sempre própria desta aba (pra um App Registration só, colar o
   // mesmo aqui e na aba App Insights).
-  const [adoTenantId, setAdoTenantId] = React.useState<string>(adoCfg.tenant_id ?? "");
-  const [adoClientId, setAdoClientId] = React.useState<string>(adoCfg.client_id ?? "");
-  const [adoSecret, setAdoSecret] = React.useState<string>(devops?.api_key ?? "");
+  const [adoTenantId, setAdoTenantId] = React.useState(cfgStr(devops?.config, "tenant_id"));
+  const [adoClientId, setAdoClientId] = React.useState(cfgStr(devops?.config, "client_id"));
+  const [adoSecret, setAdoSecret] = React.useState("");
   const [newKey, setNewKey] = React.useState<string | null>(null);
+
   const [aiEnabled, setAiEnabled] = React.useState(appInsights?.enabled ?? false);
-  const [aiTenantId, setAiTenantId] = React.useState<string>(aiCfg.tenant_id ?? "");
-  const [aiClientId, setAiClientId] = React.useState<string>(aiCfg.client_id ?? "");
-  const [aiWorkspaceId, setAiWorkspaceId] = React.useState<string>(aiCfg.workspace_id ?? "");
-  const [aiSecret, setAiSecret] = React.useState<string>(appInsights?.api_key ?? "");
+  const [aiTenantId, setAiTenantId] = React.useState(cfgStr(appInsights?.config, "tenant_id"));
+  const [aiClientId, setAiClientId] = React.useState(cfgStr(appInsights?.config, "client_id"));
+  const [aiWorkspaceId, setAiWorkspaceId] = React.useState(
+    cfgStr(appInsights?.config, "workspace_id"),
+  );
+  const [aiSecret, setAiSecret] = React.useState("");
 
   React.useEffect(() => {
     setAdoEnabled(devops?.enabled ?? false);
-    setAdoOrg(((devops?.config as any)?.organization ?? "bernoullidevops") as string);
-    setAdoTenantId(((devops?.config as any)?.tenant_id ?? "") as string);
-    setAdoClientId(((devops?.config as any)?.client_id ?? "") as string);
-    setAdoSecret(devops?.api_key ?? "");
+    setAdoOrg(cfgStr(devops?.config, "organization", "bernoullidevops"));
+    setAdoTenantId(cfgStr(devops?.config, "tenant_id"));
+    setAdoClientId(cfgStr(devops?.config, "client_id"));
+    setAdoSecret("");
   }, [devops]);
+
   React.useEffect(() => {
     setAiEnabled(appInsights?.enabled ?? false);
-    setAiTenantId(((appInsights?.config as any)?.tenant_id ?? "") as string);
-    setAiClientId(((appInsights?.config as any)?.client_id ?? "") as string);
-    setAiWorkspaceId(((appInsights?.config as any)?.workspace_id ?? "") as string);
-    setAiSecret(appInsights?.api_key ?? "");
+    setAiTenantId(cfgStr(appInsights?.config, "tenant_id"));
+    setAiClientId(cfgStr(appInsights?.config, "client_id"));
+    setAiWorkspaceId(cfgStr(appInsights?.config, "workspace_id"));
+    setAiSecret("");
   }, [appInsights]);
 
   const upsertIntegrationFn = useServerFn(upsertIntegration);
@@ -705,10 +1415,13 @@ function SastIntegrationCard({
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
   const revokeKey = useMutation({
     mutationFn: () => revokeKeyFn(),
     onSuccess: (r) => {
-      toast.success(r.revoked ? "Chave anterior revogada." : "Não havia chave anterior pra revogar.");
+      toast.success(
+        r.revoked ? "Chave anterior revogada." : "Não havia chave anterior pra revogar.",
+      );
       qc.invalidateQueries({ queryKey: ["sast-ingest-keys"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -727,16 +1440,20 @@ function SastIntegrationCard({
         throw new Error("Organização inválida: use só o nome (ex.: bernoullidevops), sem URL.");
       }
       const aiFields = [aiTenantId, aiClientId, aiWorkspaceId, aiSecret].map((v) => v.trim());
-      if (aiEnabled && aiFields.some((v) => !v)) {
-        throw new Error("App Insights: preencha Tenant ID, Client ID, Workspace ID e Client Secret antes de ativar.");
+      // Secret vazio vale se já houver um gravado (só de escrita: vazio = manter)
+      const aiHasSecret = !!aiFields[3] || !!appInsights?.secrets.api_key;
+      if (aiEnabled && (aiFields.slice(0, 3).some((v) => !v) || !aiHasSecret)) {
+        throw new Error(
+          "App Insights: preencha Tenant ID, Client ID, Workspace ID e Client Secret antes de ativar.",
+        );
       }
       const adoOwn = [adoTenantId, adoClientId, adoSecret].map((v) => v.trim());
-      if (adoEnabled && !adoOwn.every(Boolean)) {
+      const adoHasSecret = !!adoOwn[2] || !!devops?.secrets.api_key;
+      if (adoEnabled && (!adoOwn[0] || !adoOwn[1] || !adoHasSecret)) {
         throw new Error(
           "Azure DevOps: preencha Tenant ID, Client ID e Client Secret da credencial de leitura antes de ativar.",
         );
       }
-
       // Não cria linha vazia pra aba que nunca foi usada.
       if (devops || adoEnabled || org !== "bernoullidevops" || adoOwn.some(Boolean)) {
         await upsertIntegrationFn({
@@ -775,673 +1492,382 @@ function SastIntegrationCard({
     },
     onSuccess: () => {
       toast.success("SAST salvo");
+      setSaveCount((c) => c + 1);
       onSaved();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const accent = PROVIDER_ACCENT[SAST_DEVOPS];
-  const cssVars = {
-    "--provider-color": accent.color,
-    "--provider-bg": accent.bg,
-    "--provider-border": accent.border,
-  } as React.CSSProperties;
-  const configured = !!appInsights?.api_key || !!devops?.enabled;
-
   return (
-    <div className="int-card" style={cssVars}>
-      <div className="int-card-header">
-        <div className="int-card-header-left">
-          <div className="int-icon-wrap">
-            <GitBranch className="size-4" style={{ color: accent.color }} />
-          </div>
-          <div>
-            <div className="int-provider-name">SAST</div>
-            <div className="int-module-link">
-              <Link2 size={9} />
-              SAST · Esteiras CI/CD
-            </div>
-          </div>
-        </div>
-        <span className={`int-configured-badge ${configured ? "yes" : "no"}`}>
-          {configured ? (
-            <>
-              <CheckCircle2 size={10} /> Configurada
-            </>
-          ) : (
-            <>
-              <AlertCircle size={10} /> Pendente
-            </>
-          )}
-        </span>
-      </div>
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      width={560}
+      eyebrow="integrations · azure_devops_sast + azure_app_insights"
+      title={<SheetTitle item={item} />}
+      badges={<SheetBadges item={item} />}
+      footer={
+        <SaveFooter
+          onClose={() => onOpenChange(false)}
+          onSave={() => save.mutate()}
+          pending={save.isPending}
+        />
+      }
+    >
+      <SecretReset.Provider value={saveCount}>
+        <div className="int-root" style={{ gap: 20 }}>
+          <SegTabs
+            value={tab}
+            onChange={setTab}
+            options={[
+              ["devops", "Azure DevOps"],
+              ["appinsights", "App Insights"],
+            ]}
+          />
+          {tab === "devops" ? (
+            <div className="int-form">
+              {/* ── Azure DevOps: a pipeline envia direto com a chave de ingestão; o
+                Z-Sec confere a build com a credencial de leitura dele ── */}
+              <ToggleRow
+                title="Ingestão direta ativa"
+                hint={
+                  adoEnabled
+                    ? "Pipelines enviam o relatório direto para o Z-Sec"
+                    : "Desligada — envios das pipelines recebem 503"
+                }
+                checked={adoEnabled}
+                onChange={setAdoEnabled}
+              />
+              <Field
+                label="Organização Azure DevOps"
+                help="Só builds desta organização (dev.azure.com/<organização>) são aceitas. Use só o nome, sem URL."
+              >
+                <input
+                  className="int-input"
+                  value={adoOrg}
+                  onChange={(e) => setAdoOrg(e.target.value)}
+                  placeholder="bernoullidevops"
+                />
+              </Field>
+              <Field label="Endpoint para a pipeline">
+                <input
+                  className="int-input mono"
+                  readOnly
+                  value="/api/public/hooks/sast-ingest"
+                  onFocus={(e) => e.target.select()}
+                />
+              </Field>
 
-      <div className="int-card-body">
-        <Tabs defaultValue="devops">
-          <TabsList>
-            <TabsTrigger value="devops">Azure DevOps</TabsTrigger>
-            <TabsTrigger value="appinsights">App Insights</TabsTrigger>
-          </TabsList>
-
-          {/* ── Azure DevOps: a pipeline envia direto com a chave de ingestão; o
-              b-security confere a build com a credencial de leitura dele ── */}
-          <TabsContent value="devops" className="int-tab-body">
-            <div className="int-toggle-row">
-              <div>
-                <div className="int-toggle-label">Ingestão direta ativa</div>
-                <div className="int-toggle-hint">
-                  {adoEnabled
-                    ? "Pipelines enviam o relatório direto pro b-security"
-                    : "Desligada — envios das pipelines recebem 503"}
-                </div>
-              </div>
-              <Switch checked={adoEnabled} onCheckedChange={setAdoEnabled} disabled={loading} />
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">Organização Azure DevOps</span>
-              <Input value={adoOrg} onChange={(e) => setAdoOrg(e.target.value)} placeholder="bernoullidevops" />
-              <span className="int-field-helper">
-                Só builds desta organização (dev.azure.com/&lt;organização&gt;) são aceitas. Use só o nome, sem URL.
-              </span>
-            </div>
-
-            <div className="int-sub-label">Chave de ingestão (usada pela pipeline)</div>
-            <div className="int-field">
+              <div className="int-sublabel">Chave de ingestão (usada pela pipeline)</div>
               {ingestKeys.length ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "grid", gap: 6 }}>
                   {ingestKeys.map((k, i) => (
-                    <div key={k.hint + k.createdAt} className="int-toggle-hint" style={{ marginTop: 0 }}>
-                      {i === 0 ? "Atual" : "Anterior (ainda válida)"}: <b>{k.hint}…</b> — gerada em{" "}
-                      {new Date(k.createdAt).toLocaleString("pt-BR")}
+                    <div key={k.hint + k.createdAt} className="int-keyrow">
+                      <span>
+                        {i === 0 ? "Atual" : "Anterior (ainda válida)"} · {k.hint}…
+                      </span>
+                      <span>{new Date(k.createdAt).toLocaleString("pt-BR")}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="int-toggle-hint" style={{ marginTop: 0 }}>
+                <div className="int-help">
                   Nenhuma chave gerada ainda — sem ela, os envios das pipelines recebem 503.
                 </div>
               )}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
-                <Button size="sm" onClick={() => rotateKey.mutate()} disabled={rotateKey.isPending}>
-                  <RefreshCw className="size-3.5" />
+              <div className="int-actions">
+                <button
+                  className="int-btn"
+                  onClick={() => rotateKey.mutate()}
+                  disabled={rotateKey.isPending}
+                >
+                  <RefreshCw size={14} />
                   {ingestKeys.length ? "Gerar nova chave" : "Gerar chave"}
-                </Button>
+                </button>
                 {ingestKeys.length > 1 && (
-                  <Button size="sm" variant="outline" onClick={() => revokeKey.mutate()} disabled={revokeKey.isPending}>
+                  <button
+                    className="int-btn"
+                    onClick={() => revokeKey.mutate()}
+                    disabled={revokeKey.isPending}
+                  >
                     Revogar anterior
-                  </Button>
+                  </button>
                 )}
               </div>
               {newKey && (
-                <>
-                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                    <Input readOnly value={newKey} onFocus={(e) => e.target.select()} />
-                    <Button variant="secondary" size="sm" onClick={copyNewKey}>
-                      <Copy className="size-3.5" />
-                    </Button>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div className="int-pw">
+                    <input
+                      className="int-input"
+                      readOnly
+                      value={newKey}
+                      onFocus={(e) => e.target.select()}
+                    />
+                    <button
+                      className="int-btn icon"
+                      onClick={copyNewKey}
+                      aria-label="Copiar chave"
+                      title="Copiar"
+                    >
+                      <Copy size={14} />
+                    </button>
                   </div>
-                  <span className="int-field-helper">
-                    Copie agora: esta chave não aparece de novo (o b-security guarda só o hash). Coloque no template de
-                    pipeline e, depois que todas as builds estiverem usando a nova, revogue a anterior.
-                  </span>
-                </>
-              )}
-              <span className="int-field-helper">
-                A chave só serve pra enviar relatório pro b-security, sem acesso a nada no Azure DevOps. Sozinha não
-                basta pra forjar dado: todo envio é conferido contra uma build real em execução.
-              </span>
-            </div>
-
-            <div className="int-sub-label">Credencial de leitura (conferência da build)</div>
-            <div className="int-field">
-              <span className="int-field-label">Tenant ID</span>
-              <Input
-                value={adoTenantId}
-                onChange={(e) => setAdoTenantId(e.target.value)}
-                placeholder="ex: 00000000-0000-0000-0000-000000000000"
-              />
-              <span className="int-field-helper">Directory (tenant) ID do Microsoft Entra ID.</span>
-            </div>
-            <div className="int-field">
-              <span className="int-field-label">Client ID</span>
-              <Input
-                value={adoClientId}
-                onChange={(e) => setAdoClientId(e.target.value)}
-                placeholder="ex: 00000000-0000-0000-0000-000000000000"
-              />
-              <span className="int-field-helper">Application (client) ID do App Registration.</span>
-            </div>
-            <div className="int-field">
-              <span className="int-field-label">Client Secret</span>
-              <Input
-                type="password"
-                value={adoSecret}
-                onChange={(e) => setAdoSecret(e.target.value)}
-                placeholder="••••••••••••••••"
-              />
-              <span className="int-field-helper">
-                App Registration só de leitura: adicionado à organização do Azure DevOps (Organization settings →
-                Users) e ao grupo Readers de cada projeto. Usado só pra ler a build e o commit. Pode ser o mesmo da
-                aba App Insights: basta preencher os mesmos valores nas duas.
-              </span>
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">Endpoint pra pipeline</span>
-              <Input readOnly value="/api/public/hooks/sast-ingest" onFocus={(e) => e.target.select()} />
-            </div>
-          </TabsContent>
-
-          {/* ── App Insights: b-security lê o que a telemetria do template já grava ── */}
-          <TabsContent value="appinsights" className="int-tab-body">
-            <div className="int-toggle-row">
-              <div>
-                <div className="int-toggle-label">Sincronização App Insights ativa</div>
-                <div className="int-toggle-hint">
-                  {aiEnabled
-                    ? "Cron sast-sync lê SecretDetected / ScanCompleted"
-                    : "Desabilitada — independente da aba Azure DevOps"}
+                  <div className="int-help">
+                    Copie agora: esta chave não aparece de novo (o Z-Sec guarda só o hash). Coloque
+                    no template de pipeline e, depois que todas as builds estiverem usando a nova,
+                    revogue a anterior.
+                  </div>
                 </div>
+              )}
+              <div className="int-help">
+                A chave só serve para enviar relatório ao Z-Sec, sem acesso a nada no Azure DevOps.
+                Sozinha não basta para forjar dado: todo envio é conferido contra uma build real em
+                execução.
               </div>
-              <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} disabled={loading} />
-            </div>
 
-            <div className="int-field">
-              <span className="int-field-label">Tenant ID</span>
-              <Input
-                value={aiTenantId}
-                onChange={(e) => setAiTenantId(e.target.value)}
-                placeholder="ex: 00000000-0000-0000-0000-000000000000"
+              <div className="int-sublabel">Credencial de leitura (conferência da build)</div>
+              <Field label="Tenant ID" help="Directory (tenant) ID do Microsoft Entra ID.">
+                <input
+                  className="int-input mono"
+                  value={adoTenantId}
+                  onChange={(e) => setAdoTenantId(e.target.value)}
+                  placeholder="ex: 00000000-0000-0000-0000-000000000000"
+                />
+              </Field>
+              <Field label="Client ID" help="Application (client) ID do App Registration.">
+                <input
+                  className="int-input mono"
+                  value={adoClientId}
+                  onChange={(e) => setAdoClientId(e.target.value)}
+                  placeholder="ex: 00000000-0000-0000-0000-000000000000"
+                />
+              </Field>
+              <Field
+                label="Client Secret"
+                help="App Registration só de leitura: adicionado à organização do Azure DevOps (Organization settings → Users) e ao grupo Readers de cada projeto. Usado só para ler a build e o commit. Pode ser o mesmo da aba App Insights: basta preencher os mesmos valores nas duas."
+              >
+                <SecretInput
+                  value={adoSecret}
+                  onChange={setAdoSecret}
+                  saved={devops?.secrets.api_key}
+                />
+              </Field>
+            </div>
+          ) : (
+            <div className="int-form">
+              {/* ── App Insights: o Z-Sec lê o que a telemetria do template já grava ── */}
+              <ToggleRow
+                title="Sincronização App Insights ativa"
+                hint={
+                  aiEnabled
+                    ? "Cron sast-sync lê SecretDetected / ScanCompleted"
+                    : "Desligada — independente da aba Azure DevOps"
+                }
+                checked={aiEnabled}
+                onChange={setAiEnabled}
               />
-              <span className="int-field-helper">Directory (tenant) ID do Microsoft Entra ID.</span>
+              <Field label="Tenant ID" help="Directory (tenant) ID do Microsoft Entra ID.">
+                <input
+                  className="int-input mono"
+                  value={aiTenantId}
+                  onChange={(e) => setAiTenantId(e.target.value)}
+                  placeholder="ex: 00000000-0000-0000-0000-000000000000"
+                />
+              </Field>
+              <Field label="Client ID" help="Application (client) ID do App Registration.">
+                <input
+                  className="int-input mono"
+                  value={aiClientId}
+                  onChange={(e) => setAiClientId(e.target.value)}
+                  placeholder="ex: 00000000-0000-0000-0000-000000000000"
+                />
+              </Field>
+              <Field
+                label="Workspace ID"
+                help="Workspace ID do Log Analytics devops-clarity-hub-insights-law (tela Overview do workspace). Não é o Application ID nem a Instrumentation Key do App Insights."
+              >
+                <input
+                  className="int-input mono"
+                  value={aiWorkspaceId}
+                  onChange={(e) => setAiWorkspaceId(e.target.value)}
+                  placeholder="ex: 00000000-0000-0000-0000-000000000000"
+                />
+              </Field>
+              <Field
+                label="Client Secret"
+                help='Leitura pela Log Analytics Query API com OAuth2 client_credentials. A Instrumentation Key NÃO serve aqui: ela só grava. O App Registration precisa do papel "Log Analytics Reader" no workspace.'
+              >
+                <SecretInput
+                  value={aiSecret}
+                  onChange={setAiSecret}
+                  saved={appInsights?.secrets.api_key}
+                />
+              </Field>
             </div>
-
-            <div className="int-field">
-              <span className="int-field-label">Client ID</span>
-              <Input
-                value={aiClientId}
-                onChange={(e) => setAiClientId(e.target.value)}
-                placeholder="ex: 00000000-0000-0000-0000-000000000000"
-              />
-              <span className="int-field-helper">Application (client) ID do App Registration.</span>
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">Workspace ID</span>
-              <Input
-                value={aiWorkspaceId}
-                onChange={(e) => setAiWorkspaceId(e.target.value)}
-                placeholder="ex: 00000000-0000-0000-0000-000000000000"
-              />
-              <span className="int-field-helper">
-                Workspace ID do Log Analytics devops-clarity-hub-insights-law (tela Overview do workspace). Não é o
-                Application ID nem a Instrumentation Key do App Insights.
-              </span>
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">Client Secret</span>
-              <Input
-                type="password"
-                value={aiSecret}
-                onChange={(e) => setAiSecret(e.target.value)}
-                placeholder="••••••••••••••••"
-              />
-              <span className="int-field-helper">
-                Leitura pela Log Analytics Query API com OAuth2 client_credentials. A Instrumentation Key NÃO serve
-                aqui: ela só grava. O App Registration precisa do papel "Log Analytics Reader" no workspace.
-              </span>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        <button className="int-save-btn" onClick={() => save.mutate()} disabled={save.isPending || loading}>
-          <Save size={13} className={save.isPending ? "int-spin" : ""} />
-          {save.isPending ? "Salvando…" : "Salvar configuração"}
-        </button>
-      </div>
-    </div>
+          )}
+          <SyncSection item={item} />
+        </div>
+      </SecretReset.Provider>
+    </DetailSheet>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// PROVIDER CARD
+// SEK / ZENDESK — não é um provider genérico (sem base_url/api_key): a sessão
+// é renovada localmente via sek-session-capture (Playwright), não por
+// credencial de API armazenada aqui. Ver handoff em memória do projeto.
 // ══════════════════════════════════════════════════════════════════════════════
-function ProviderCard({
-  provider,
-  integration,
-  loading,
-  onSaved,
-}: {
-  provider: (typeof PROVIDERS)[number];
-  integration?: Integration;
-  loading: boolean;
-  onSaved: () => void;
-}) {
-  // ── State — INALTERADO ─────────────────────────────────────────────────────
-  const [enabled, setEnabled] = React.useState(integration?.enabled ?? false);
-  const [baseUrl, setBaseUrl] = React.useState(integration?.base_url ?? provider.defaultBaseUrl);
-  const [apiKey, setApiKey] = React.useState(integration?.api_key ?? "");
-  const [zoneId, setZoneId] = React.useState<string>((integration?.config as any)?.zone_id ?? "");
-  // Page Rules (API legada) rejeita Account API Token — precisa de um User
-  // API Token separado, guardado à parte pra não afetar o token principal
-  // (usado por Analytics/DNS/Custom Rules/Overview, que funcionam liso com
-  // Account API Token).
-  const [cfPageRulesToken, setCfPageRulesToken] = React.useState<string>(
-    (integration?.config as any)?.page_rules_api_key ?? "",
-  );
-  const [sophosClientId, setSophosClientId] = React.useState<string>((integration?.config as any)?.client_id ?? "");
-  const [sophosTenantId, setSophosTenantId] = React.useState<string>((integration?.config as any)?.tenant_id ?? "");
-  const [sophosRegionUrl, setSophosRegionUrl] = React.useState<string>(
-    (integration?.config as any)?.data_region_url ?? "",
-  );
-  const [sophosAuditClientId, setSophosAuditClientId] = React.useState<string>(
-    (integration?.config as any)?.audit_client_id ?? "",
-  );
-  const [sophosAuditClientSecret, setSophosAuditClientSecret] = React.useState<string>(
-    (integration?.config as any)?.audit_client_secret ?? "",
-  );
-  const [sophosAuditEnabled, setSophosAuditEnabled] = React.useState<boolean>(
-    (integration?.config as any)?.audit_enabled ?? false,
-  );
-  // Privacy Tools OAuth2 fields
-  const [ptClientId, setPtClientId] = React.useState<string>((integration?.config as any)?.client_id ?? "");
-  const [ptUsername, setPtUsername] = React.useState<string>((integration?.config as any)?.username ?? "");
-  const [ptPassword, setPtPassword] = React.useState<string>((integration?.config as any)?.password ?? "");
-  // Purview DLP OAuth2 client_credentials fields
-  const [dlpTenantId, setDlpTenantId] = React.useState<string>((integration?.config as any)?.tenant_id ?? "");
-  const [dlpClientId, setDlpClientId] = React.useState<string>((integration?.config as any)?.client_id ?? "");
 
+// Instalador Windows do sek-session-capture, hospedado no Storage do próprio
+// Supabase/Lovable (bucket público "installers"). macOS fica pra uma próxima
+// leva -- combinado com o usuário.
+const SEK_INSTALLER_URL =
+  "https://tcacmepuiyoqkypatkqa.supabase.co/storage/v1/object/public/installers/sek-session-capture-setup.exe";
+
+function SekSheet({ open, onOpenChange, item }: SheetBase) {
+  const generateTokenFn = useServerFn(generateSekRenewalToken);
+  const listLogFn = useServerFn(listSekZendeskAuthLog);
+  const statusFn = useServerFn(getSekSessionStatus);
+  const [token, setToken] = React.useState<string | null>(null);
+
+  const { data: log, error: logError } = useQuery({
+    queryKey: ["sek-zendesk-auth-log"],
+    queryFn: () => listLogFn(),
+  });
   React.useEffect(() => {
-    setEnabled(integration?.enabled ?? false);
-    setBaseUrl(integration?.base_url ?? provider.defaultBaseUrl);
-    setApiKey(integration?.api_key ?? "");
-    setZoneId(((integration?.config as any)?.zone_id ?? "") as string);
-    setCfPageRulesToken(((integration?.config as any)?.page_rules_api_key ?? "") as string);
-    setSophosClientId(((integration?.config as any)?.client_id ?? "") as string);
-    setSophosTenantId(((integration?.config as any)?.tenant_id ?? "") as string);
-    setSophosRegionUrl(((integration?.config as any)?.data_region_url ?? "") as string);
-    setSophosAuditClientId(((integration?.config as any)?.audit_client_id ?? "") as string);
-    setSophosAuditClientSecret(((integration?.config as any)?.audit_client_secret ?? "") as string);
-    setSophosAuditEnabled(((integration?.config as any)?.audit_enabled ?? false) as boolean);
-    setPtClientId(((integration?.config as any)?.client_id ?? "") as string);
-    setPtUsername(((integration?.config as any)?.username ?? "") as string);
-    setPtPassword(((integration?.config as any)?.password ?? "") as string);
-    setDlpTenantId(((integration?.config as any)?.tenant_id ?? "") as string);
-    setDlpClientId(((integration?.config as any)?.client_id ?? "") as string);
-  }, [integration, provider.defaultBaseUrl]);
+    if (logError) toast.error((logError as Error).message);
+  }, [logError]);
 
-  const upsertIntegrationFn = useServerFn(upsertIntegration);
+  const { data: sessionStatus } = useQuery({
+    queryKey: ["sek-zendesk-session-status"],
+    queryFn: () => statusFn(),
+  });
 
-  // ── Mutation ────────────────────────────────────────────────────────────────
-  const save = useMutation({
-    mutationFn: async () => {
-      const config: Record<string, unknown> = { ...(integration?.config ?? {}) };
-      if (provider.key === "cloudflare") {
-        config.zone_id = zoneId.trim();
-        config.page_rules_api_key = cfPageRulesToken.trim();
-      }
-      if (provider.key === "sophos") {
-        config.client_id = sophosClientId.trim();
-        config.tenant_id = sophosTenantId.trim();
-        config.data_region_url = sophosRegionUrl.trim();
-        config.audit_client_id = sophosAuditClientId.trim();
-        config.audit_client_secret = sophosAuditClientSecret.trim();
-        config.audit_enabled = sophosAuditEnabled;
-      }
-      if (provider.key === "privacy_tools") {
-        config.client_id = ptClientId.trim();
-        config.username = ptUsername.trim();
-        config.password = ptPassword.trim();
-      }
-      if (provider.key === "purview_dlp") {
-        config.tenant_id = dlpTenantId.trim();
-        config.client_id = dlpClientId.trim();
-      }
-      await upsertIntegrationFn({
-        data: {
-          provider: provider.key,
-          name: provider.name,
-          enabled,
-          base_url: baseUrl.trim() || null,
-          api_key: apiKey.trim() || null,
-          config,
-        },
-      });
-    },
-    onSuccess: () => {
-      toast.success(`${provider.name} salvo`);
-      onSaved();
+  const qc = useQueryClient();
+  const generate = useMutation({
+    mutationFn: () => generateTokenFn(),
+    onSuccess: (result) => {
+      setToken(result.token);
+      toast.success(
+        `Token gerado — válido por ${Math.round(result.expiresInSeconds / 60)} min, uso único`,
+      );
+      // A sessão nova só existe de fato depois que o usuário roda o SEK
+      // Session Capture localmente e ele reporta pro worker -- invalida
+      // aqui de qualquer forma pra pegar o refresh se o usuário já tiver
+      // feito isso rápido (ex.: renovação de rotina, app já configurado).
+      qc.invalidateQueries({ queryKey: ["sek-zendesk-session-status"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const Icon = provider.icon;
-  const isConfigured = !!integration?.api_key;
-  const accent = PROVIDER_ACCENT[provider.key];
+  function copyToken() {
+    if (!token) return;
+    navigator.clipboard.writeText(token);
+    toast.success("Token copiado");
+  }
 
-  const cssVars = {
-    "--provider-color": accent.color,
-    "--provider-bg": accent.bg,
-    "--provider-border": accent.border,
-  } as React.CSSProperties;
+  const entries = (
+    Array.isArray(log)
+      ? (log as Array<{
+          id: string;
+          reported_at?: string;
+          created_at?: string;
+          triggered_by_name?: string;
+        }>)
+      : []
+  ).slice(0, 6);
 
   return (
-    <div className="int-card" style={cssVars}>
-      {/* Header */}
-      <div className="int-card-header">
-        <div className="int-card-header-left">
-          <div className="int-icon-wrap">
-            <Icon className="size-4" style={{ color: accent.color }} />
-          </div>
-          <div>
-            <div className="int-provider-name">{provider.name}</div>
-            <div className="int-module-link">
-              <Link2 size={9} />
-              {provider.module}
-            </div>
-          </div>
-        </div>
-        <span className={`int-configured-badge ${isConfigured ? "yes" : "no"}`}>
-          {isConfigured ? (
-            <>
-              <CheckCircle2 size={10} /> Configurada
-            </>
-          ) : (
-            <>
-              <AlertCircle size={10} /> Pendente
-            </>
-          )}
-        </span>
-      </div>
-
-      {/* Body */}
-      <div className="int-card-body">
-        {/* Toggle ativo — para Sophos, fica individual dentro de cada aba (SIEM/Auditoria) */}
-        {provider.key !== "sophos" && (
-          <div className="int-toggle-row">
-            <div>
-              <div className="int-toggle-label">Integração ativa</div>
-              <div className="int-toggle-hint">
-                {enabled ? "Sincronização habilitada" : "Desabilitada — dados não serão coletados"}
-              </div>
-            </div>
-            <Switch checked={enabled} onCheckedChange={setEnabled} disabled={loading} />
-          </div>
-        )}
-
-        {/* Base URL — oculto p/ Purview DLP: endpoints da Microsoft são fixos, não configuráveis */}
-        {provider.key !== "purview_dlp" && (
-          <div className="int-field">
-            <span className="int-field-label">Base URL</span>
-            <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={provider.defaultBaseUrl} />
-          </div>
-        )}
-
-        {provider.key === "sophos" ? (
-          <Tabs defaultValue="siem">
-            <TabsList>
-              <TabsTrigger value="siem">SIEM</TabsTrigger>
-              <TabsTrigger value="audit">Auditoria</TabsTrigger>
-            </TabsList>
-
-            {/* ── SIEM: credencial usada hoje pra alertas/eventos/endpoints/políticas ── */}
-            <TabsContent value="siem" className="int-tab-body">
-              <div className="int-toggle-row">
-                <div>
-                  <div className="int-toggle-label">Sincronização SIEM ativa</div>
-                  <div className="int-toggle-hint">
-                    {enabled
-                      ? "Endpoints/alertas/eventos/políticas habilitados"
-                      : "Desabilitada — dados não serão coletados"}
-                  </div>
-                </div>
-                <Switch checked={enabled} onCheckedChange={setEnabled} disabled={loading} />
-              </div>
-
-              <div className="int-field">
-                <span className="int-field-label">{provider.apiKeyLabel}</span>
-                <Input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="••••••••••••••••"
-                />
-                <span className="int-field-helper">{provider.helper}</span>
-              </div>
-
-              <div className="int-field">
-                <span className="int-field-label">Client ID</span>
-                <Input
-                  value={sophosClientId}
-                  onChange={(e) => setSophosClientId(e.target.value)}
-                  placeholder="ex: 0a1b2c3d-4e5f-6789-…"
-                />
-                <span className="int-field-helper">Client ID das API Credentials no Sophos Central.</span>
-              </div>
-
-              <div className="int-field">
-                <span className="int-field-label">
-                  Tenant ID <span style={{ color: T.textSubtle, fontWeight: 400 }}>(opcional)</span>
-                </span>
-                <Input
-                  value={sophosTenantId}
-                  onChange={(e) => setSophosTenantId(e.target.value)}
-                  placeholder="auto-detectado se vazio"
-                />
-                <span className="int-field-helper">
-                  Se vazio, é descoberto via{" "}
-                  <code
-                    style={{
-                      fontFamily: "'IBM Plex Mono',monospace",
-                      fontSize: 10,
-                      color: T.accent,
-                    }}
-                  >
-                    /whoami/v1
-                  </code>{" "}
-                  usando o Client Secret.
-                </span>
-              </div>
-
-              <div className="int-field">
-                <span className="int-field-label">
-                  Data Region URL <span style={{ color: T.textSubtle, fontWeight: 400 }}>(opcional)</span>
-                </span>
-                <Input
-                  value={sophosRegionUrl}
-                  onChange={(e) => setSophosRegionUrl(e.target.value)}
-                  placeholder="ex: https://api-us01.central.sophos.com"
-                />
-                <span className="int-field-helper">
-                  Endpoint da região do tenant. Se vazio, é descoberto automaticamente.
-                </span>
-              </div>
-            </TabsContent>
-
-            {/* ── Auditoria: credencial separada, role "Service Principal Audit Log" ── */}
-            <TabsContent value="audit" className="int-tab-body">
-              <div className="int-toggle-row">
-                <div>
-                  <div className="int-toggle-label">Sincronização de Auditoria ativa</div>
-                  <div className="int-toggle-hint">
-                    {sophosAuditEnabled ? "Audit log habilitado" : "Desabilitada — independente da aba SIEM"}
-                  </div>
-                </div>
-                <Switch checked={sophosAuditEnabled} onCheckedChange={setSophosAuditEnabled} disabled={loading} />
-              </div>
-
-              <div className="int-field">
-                <span className="int-field-label">Client ID (Audit Log)</span>
-                <Input
-                  value={sophosAuditClientId}
-                  onChange={(e) => setSophosAuditClientId(e.target.value)}
-                  placeholder="ex: 0a1b2c3d-4e5f-6789-…"
-                />
-                <span className="int-field-helper">
-                  Client ID de uma credencial criada com a role "Service Principal Audit Log" no Sophos Central —
-                  diferente da credencial usada na aba SIEM.
-                </span>
-              </div>
-
-              <div className="int-field">
-                <span className="int-field-label">Client Secret (Audit Log)</span>
-                <Input
-                  type="password"
-                  value={sophosAuditClientSecret}
-                  onChange={(e) => setSophosAuditClientSecret(e.target.value)}
-                  placeholder="••••••••••••••••"
-                />
-                <span className="int-field-helper">Client Secret da mesma credencial.</span>
-              </div>
-            </TabsContent>
-          </Tabs>
-        ) : provider.key === "privacy_tools" ? (
-          <>
-            <div className="int-sub-label">OAuth2 — Password Grant</div>
-
-            <div className="int-field">
-              <span className="int-field-label">Client ID</span>
-              <Input
-                value={ptClientId}
-                onChange={(e) => setPtClientId(e.target.value)}
-                placeholder="ex: Xvz1H2pxcMPZPIMh…"
-              />
-              <span className="int-field-helper">
-                Identificador público da integração. Visível no painel Privacy Tools → Integrações → campo
-                "Identificador".
-              </span>
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">{provider.apiKeyLabel}</span>
-              <Input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="••••••••••••••••"
-              />
-              <span className="int-field-helper">Segredo do cliente — mantido criptografado.</span>
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">Chave Pública (username)</span>
-              <Input
-                value={ptUsername}
-                onChange={(e) => setPtUsername(e.target.value)}
-                placeholder="ex: W2yvev3WiOgK3H9s…"
-              />
-              <span className="int-field-helper">Campo "Chave Pública" nas variáveis da integração.</span>
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">Senha (password)</span>
-              <Input
-                type="password"
-                value={ptPassword}
-                onChange={(e) => setPtPassword(e.target.value)}
-                placeholder="••••••••••••••••"
-              />
-              <span className="int-field-helper">{provider.helper}</span>
-            </div>
-          </>
-        ) : provider.key === "purview_dlp" ? (
-          <>
-            <div className="int-field">
-              <span className="int-field-label">Tenant ID</span>
-              <Input
-                value={dlpTenantId}
-                onChange={(e) => setDlpTenantId(e.target.value)}
-                placeholder="ex: 00000000-0000-0000-0000-000000000000"
-              />
-              <span className="int-field-helper">Directory (tenant) ID do Microsoft Entra ID.</span>
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">Client ID</span>
-              <Input
-                value={dlpClientId}
-                onChange={(e) => setDlpClientId(e.target.value)}
-                placeholder="ex: 00000000-0000-0000-0000-000000000000"
-              />
-              <span className="int-field-helper">Application (client) ID do App Registration.</span>
-            </div>
-
-            <div className="int-field">
-              <span className="int-field-label">{provider.apiKeyLabel}</span>
-              <Input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="••••••••••••••••"
-              />
-              <span className="int-field-helper">{provider.helper}</span>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* API Key */}
-            <div className="int-field">
-              <span className="int-field-label">{provider.apiKeyLabel}</span>
-              <Input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="••••••••••••••••"
-              />
-              <span className="int-field-helper">{provider.helper}</span>
-            </div>
-
-            {/* Cloudflare note */}
-            {provider.key === "cloudflare" && (
-              <div
-                style={{
-                  padding: "8px 12px",
-                  background: T.surfaceAlt,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 6,
-                  fontSize: 11,
-                  color: T.textMuted,
-                  fontFamily: "'DM Sans',sans-serif",
-                  lineHeight: 1.5,
-                }}
-              >
-                A escolha da zona é feita no dashboard do Cloudflare WAF (seletor "Selecionar zona").
-              </div>
-            )}
-
-            {/* Token separado pra Page Rules — a API legada de Page Rules rejeita
-                Account API Token, precisa de um User API Token à parte. */}
-            {provider.key === "cloudflare" && (
-              <div className="int-field">
-                <span className="int-field-label">
-                  API Token — Page Rules{" "}
-                  <span style={{ color: T.textSubtle, fontWeight: 400 }}>(opcional)</span>
-                </span>
-                <Input
-                  type="password"
-                  value={cfPageRulesToken}
-                  onChange={(e) => setCfPageRulesToken(e.target.value)}
-                  placeholder="••••••••••••••••"
-                />
-                <span className="int-field-helper">
-                  O endpoint legado de Page Rules não aceita o Account API Token acima — precisa de um{" "}
-                  <strong>User API Token</strong> (My Profile → API Tokens, não Manage Account) com permissão Zone →
-                  Page Rules → Edit na zona desejada. Sem esse campo, a sub-aba "Page Rules" em Operações → Rules
-                  fica indisponível.
-                </span>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Save */}
-        <button className="int-save-btn" onClick={() => save.mutate()} disabled={save.isPending || loading}>
-          <Save size={13} className={save.isPending ? "int-spin" : ""} />
-          {save.isPending ? "Salvando…" : "Salvar configuração"}
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      width={560}
+      eyebrow="sek-session-capture · renovação local"
+      title={<SheetTitle item={item} />}
+      badges={<SheetBadges item={item} />}
+      footer={
+        <button className="int-btn ghost" onClick={() => onOpenChange(false)}>
+          Fechar
         </button>
+      }
+    >
+      <div className="int-root" style={{ gap: 20 }}>
+        <DetailSection title="Sessões vigentes">
+          {sessionStatus?.sessions.length ? (
+            <div style={{ display: "grid", gap: 6 }}>
+              {sessionStatus.sessions.map((s) => (
+                <div key={s.userId} className="int-keyrow">
+                  <span>{s.name}</span>
+                  <span>{new Date(s.lastModified).toLocaleString("pt-BR")}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="int-help">Nenhuma sessão vigente ainda.</div>
+          )}
+          {sessionStatus?.legacy && (
+            <div className="int-help" style={{ marginTop: 8 }}>
+              Existe uma sessão no formato antigo (de antes de sessões por usuário) ainda sendo
+              usada só como apoio pro sync — quem a criou precisa renovar de novo pra aparecer aqui
+              e poder responder chamados.
+            </div>
+          )}
+        </DetailSection>
+
+        <DetailSection title="Renovar sessão">
+          <div style={{ display: "grid", gap: 10 }}>
+            <div className="int-note">
+              A sessão do Zendesk é renovada localmente pelo <strong>SEK Session Capture</strong>:
+              gere um token (10 min, uso único) e cole no app quando ele pedir.
+            </div>
+            <div className="int-actions">
+              <button
+                className="int-btn primary"
+                onClick={() => generate.mutate()}
+                disabled={generate.isPending}
+              >
+                <RefreshCw size={14} />
+                Gerar token de renovação
+              </button>
+              <a className="int-btn" href={SEK_INSTALLER_URL} download>
+                <Download size={14} />
+                Baixar instalador (Windows)
+              </a>
+            </div>
+            {token && (
+              <div className="int-pw">
+                <input
+                  className="int-input"
+                  readOnly
+                  value={token}
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  className="int-btn icon"
+                  onClick={copyToken}
+                  aria-label="Copiar token"
+                  title="Copiar"
+                >
+                  <Copy size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        </DetailSection>
+
+        {entries.length > 0 && (
+          <DetailSection title="Histórico recente">
+            <DetailList
+              items={entries.map((e): [string, React.ReactNode] => [
+                new Date(e.reported_at ?? e.created_at ?? "").toLocaleString("pt-BR"),
+                e.triggered_by_name ?? "desconhecido",
+              ])}
+            />
+          </DetailSection>
+        )}
+
+        <SyncSection item={item} />
       </div>
-    </div>
+    </DetailSheet>
   );
 }

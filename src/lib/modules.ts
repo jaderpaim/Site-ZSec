@@ -36,6 +36,7 @@ import {
   FileWarning,
   Presentation,
   GitBranch,
+  GraduationCap,
 } from "lucide-react";
 
 export type ModuleGroup = "Executivo" | "Monitoramento" | "Governança" | "Operações" | "Cadastros" | "Configurações";
@@ -53,6 +54,8 @@ export type ModuleDef = {
   group: ModuleGroup;
   icon: typeof ShieldAlert;
   headerConfig?: HeaderConfig;
+  /** Fora do menu e da busca; continua existindo para permissões (ex.: segmentos, hoje aba da Maturidade). */
+  hidden?: boolean;
 };
 
 export const MODULES: ModuleDef[] = [
@@ -202,6 +205,14 @@ export const MODULES: ModuleDef[] = [
     headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
   },
   {
+    slug: "treinamentos",
+    title: "Treinamentos",
+    short: "Treinamentos",
+    group: "Governança",
+    icon: GraduationCap,
+    headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
+  },
+  {
     slug: "disponibilidade",
     title: "Disponibilidade de Ativos",
     short: "Disponibilidade",
@@ -249,11 +260,13 @@ export const MODULES: ModuleDef[] = [
   },
   {
     slug: "segmentos",
-    title: "Segmentos",
+    title: "Notas de maturidade (Segmentos)",
     short: "Segmentos",
-    group: "Cadastros",
+    group: "Governança",
     icon: Activity,
     headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
+    // Virou a aba "Notas e segmentos" da Maturidade; o slug fica só pelas permissões.
+    hidden: true,
   },
   {
     slug: "upload",

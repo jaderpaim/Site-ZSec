@@ -1,7 +1,9 @@
+import { SyncActions } from "@/components/layout/SyncActions";
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import {
   getPhishingOverview,
   getPhishingTemplateCached,
@@ -11,316 +13,182 @@ import {
   type PhishingOverview,
 } from "@/lib/phishing.functions";
 import {
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   AlertCircle,
-  X,
-  RefreshCw,
+  AlertTriangle,
+  ArrowUpDown,
   ChevronDown,
-  ChevronRight,
-  Users,
-  Mail,
-  MousePointer2,
-  ShieldAlert,
-  MailOpen,
-  Activity,
-  Fish,
-  Lock,
+  Eye,
+  RefreshCw,
   Search,
-  GripHorizontal,
-  Minimize2,
-  Maximize2,
+  X,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CronHealthBadge } from "@/components/dashboard/CronHealthBadge";
-
-// ── Design Tokens ──────────────────────────────────────────────────────────────
-const T = {
-  surface: "var(--tl-0f1420, #0F1420)",
-  surfaceAlt: "var(--tl-131825, #131825)",
-  border: "var(--tl-1e2640, #1E2640)",
-  borderHi: "var(--tl-2a3560, #2A3560)",
-  accent: "#3B82F6",
-  accentGlow: "rgba(59,130,246,0.15)",
-  accentSoft: "rgba(59,130,246,0.08)",
-  success: "#10B981",
-  successBg: "rgba(16,185,129,0.10)",
-  warning: "#F59E0B",
-  warningBg: "rgba(245,158,11,0.10)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.10)",
-  purple: "#A78BFA",
-  purpleBg: "rgba(167,139,250,0.10)",
-  cyan: "#22D3EE",
-  neutral: "var(--tl-6b7280, #6B7280)",
-  textPrimary: "var(--tl-f1f5f9, #F1F5F9)",
-  textSecondary: "var(--tl-94a3b8, #94A3B8)",
-  textMuted: "var(--tl-64748b, #64748B)",
-  textSubtle: "var(--tl-475569, #475569)",
-  chartGrid: "rgba(var(--tl-line-rgb, 30,38,64),0.7)",
-  chartAxis: "var(--tl-334155, #334155)",
-  chartTick: "var(--tl-64748b, #64748B)",
-};
-
-const DEPT_PALETTE = [T.warning, T.danger, T.accent, T.purple, T.cyan, "#FB923C", T.success, "#F472B6"];
-
-// ── CSS ────────────────────────────────────────────────────────────────────────
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-  .ph-root { font-family:'DM Sans',sans-serif; color:${T.textPrimary}; display:flex; flex-direction:column; gap:16px; }
-  .ph-root * { box-sizing:border-box; }
-  @keyframes ph-spin   { to{transform:rotate(360deg)} }
-  @keyframes ph-fadeup { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-  .ph-spin    { animation:ph-spin 0.75s linear infinite; }
-  .ph-fadeup  { animation:ph-fadeup 0.3s ease forwards; }
-  @keyframes ph-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.5)} 50%{box-shadow:0 0 0 5px rgba(16,185,129,0)} }
-  .ph-live-dot { width:6px;height:6px;border-radius:50%;background:${T.success};animation:ph-pulse 2s infinite;flex-shrink:0; }
-
-  .ph-root ::-webkit-scrollbar       { width:4px;height:4px; }
-  .ph-root ::-webkit-scrollbar-track { background:transparent; }
-  .ph-root ::-webkit-scrollbar-thumb { background:${T.borderHi};border-radius:2px; }
-
-  .ph-root .recharts-cartesian-axis-tick-value { fill:${T.chartTick} !important;font-size:10px;font-family:'IBM Plex Mono',monospace; }
-  .ph-root .recharts-text { fill:${T.chartTick} !important; }
-
-  /* ── Header ── */
-  .ph-hdr { background:${T.surface};border:1px solid ${T.border};border-radius:12px;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap; }
-  .ph-hdr-brand { display:flex;align-items:center;gap:12px; }
-  .ph-hdr-icon { width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:${T.dangerBg};border:1px solid rgba(239,68,68,0.3);flex-shrink:0; }
-  .ph-hdr-title { font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;letter-spacing:-0.01em; }
-  .ph-hdr-sub { font-size:11px;color:${T.textMuted};margin-top:2px; }
-  .ph-hdr-pills { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
-  .ph-pill { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:5px;font-size:11px;font-family:'IBM Plex Mono',monospace;font-weight:700;border:1px solid transparent; }
-
-  /* ── Tabs ── */
-  .ph-tabs-bar { display:flex;align-items:center;gap:4px;padding:4px;background:${T.surface};border:1px solid ${T.border};border-radius:8px;width:fit-content; }
-  .ph-tab { display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:6px;border:none;background:transparent;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;color:${T.textMuted};cursor:pointer;transition:all 0.15s;white-space:nowrap; }
-  .ph-tab:hover:not(.active) { color:${T.textSecondary};background:rgba(var(--tl-ink, 255,255,255),0.04); }
-  .ph-tab.active { background:${T.dangerBg};color:${T.danger};border:1px solid rgba(239,68,68,0.25); }
-
-  /* ── KPI strip ── */
-  .ph-kpi-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:12px; }
-  .ph-kpi { background:${T.surface};border:1px solid ${T.border};border-radius:10px;padding:14px 18px;position:relative;overflow:hidden;transition:border-color 0.2s; }
-  .ph-kpi:hover { border-color:${T.borderHi}; }
-  .ph-kpi::before { content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kc,${T.accent}); }
-  .ph-kpi-icon { position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--ki-bg,${T.accentGlow}); }
-  .ph-kpi-label { font-size:9px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${T.textMuted};font-family:'IBM Plex Mono',monospace;margin-bottom:5px; }
-  .ph-kpi-value { font-size:26px;font-weight:700;font-family:'Space Grotesk',sans-serif;letter-spacing:-0.02em;line-height:1;color:var(--kc,${T.textPrimary}); }
-  .ph-kpi-hint { font-size:10px;color:${T.textMuted};font-family:'IBM Plex Mono',monospace;margin-top:5px; }
-
-  /* ── Panel ── */
-  .ph-panel { background:${T.surface};border:1px solid ${T.border};border-radius:12px;overflow:hidden; }
-  .ph-panel-hdr { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:13px 20px;background:${T.surfaceAlt};border-bottom:1px solid ${T.border}; }
-  .ph-panel-title { display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;font-family:'IBM Plex Mono',monospace;color:${T.textPrimary}; }
-  .ph-panel-body { padding:16px; }
-
-  /* ── Block card ── */
-  .ph-block { background:${T.surface};border:1px solid ${T.border};border-radius:10px;display:flex;flex-direction:column;min-height:180px;transition:border-color 0.2s; }
-  .ph-block:hover { border-color:${T.borderHi}; }
-  .ph-block-hdr { display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:${T.surfaceAlt};border-bottom:1px solid ${T.border};cursor:grab;user-select:none;flex-shrink:0;border-radius:10px 10px 0 0; }
-  .ph-block-hdr:active { cursor:grabbing; }
-  .ph-block-title { display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:${T.textPrimary};text-transform:uppercase;letter-spacing:0.09em;font-family:'IBM Plex Mono',monospace; }
-  .ph-resize-ctrl { display:flex;align-items:center;gap:2px;opacity:0;transition:opacity 0.15s; }
-  .ph-block:hover .ph-resize-ctrl { opacity:1; }
-  .ph-resize-btn { padding:2px;border:none;background:transparent;color:${T.textMuted};cursor:pointer;border-radius:3px;line-height:0;transition:all 0.15s; }
-  .ph-resize-btn:hover { color:${T.textPrimary};background:rgba(var(--tl-ink, 255,255,255),0.07); }
-  .ph-resize-btn:disabled { opacity:0.25;cursor:default; }
-  .ph-block-body { flex:1;padding:16px; }
-
-  /* ── Filter bar ── */
-  .ph-filter-bar { background:${T.surfaceAlt};border:1px solid ${T.border};border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:12px; }
-  .ph-filter-row { display:flex;align-items:center;gap:10px;flex-wrap:wrap; }
-  .ph-filter-label { font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${T.textMuted};font-family:'IBM Plex Mono',monospace;flex-shrink:0;width:100px; }
-  .ph-chip { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;font-family:'IBM Plex Mono',monospace;cursor:pointer;transition:all 0.15s;border:1px solid ${T.border};background:transparent;color:${T.textSecondary}; }
-  .ph-chip:hover { border-color:${T.borderHi};color:${T.textPrimary}; }
-  .ph-chip.active { border-color:${T.accent};background:${T.accentSoft};color:${T.accent}; }
-  .ph-chip.active.danger { border-color:${T.danger};background:${T.dangerBg};color:${T.danger}; }
-  .ph-chip.active.warning { border-color:${T.warning};background:${T.warningBg};color:${T.warning}; }
-  .ph-chip.active.success { border-color:${T.success};background:${T.successBg};color:${T.success}; }
-
-  /* ── Tooltip ── */
-  .ph-tooltip { background:${T.surface};border:1px solid ${T.borderHi};border-radius:8px;padding:10px 14px;box-shadow:0 20px 40px rgba(0,0,0,0.5);min-width:160px; }
-  .ph-tooltip-label { font-size:10px;font-family:'IBM Plex Mono',monospace;color:${T.textMuted};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px; }
-  .ph-tooltip-row { display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:3px; }
-  .ph-tooltip-dot { width:7px;height:7px;border-radius:2px;flex-shrink:0; }
-  .ph-tooltip-name { color:${T.textSecondary};font-size:11px; }
-  .ph-tooltip-val  { color:${T.textPrimary};font-weight:700;font-family:'IBM Plex Mono',monospace;margin-left:auto; }
-
-  /* ── Table ── */
-  .ph-table { width:100%;border-collapse:collapse; }
-  .ph-table thead { position:sticky;top:0;z-index:10; }
-  .ph-table th { padding:8px 12px;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${T.textPrimary};font-family:'IBM Plex Mono',monospace;text-align:left;background:${T.surface};border-bottom:1px solid ${T.border};white-space:nowrap;cursor:pointer;user-select:none; }
-  .ph-table th:hover { color:${T.textSecondary}; }
-  .ph-table td { padding:9px 12px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4);font-size:12px;color:${T.textPrimary};vertical-align:middle; }
-  .ph-table tbody tr:hover td { background:rgba(239,68,68,0.03); }
-  .ph-table tbody tr:last-child td { border-bottom:none; }
-  .ph-table .mono { font-family:'IBM Plex Mono',monospace;font-size:11px; }
-  .ph-table .dim  { color:${T.textMuted}; }
-  .ph-table .trunc { max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-
-  /* ── Action badge ── */
-  .ph-badge { display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;font-family:'IBM Plex Mono',monospace;white-space:nowrap; }
-  .ph-badge.danger  { background:${T.dangerBg};color:${T.danger};border:1px solid rgba(239,68,68,0.22); }
-  .ph-badge.warning { background:${T.warningBg};color:${T.warning};border:1px solid rgba(245,158,11,0.22); }
-  .ph-badge.ok      { background:${T.successBg};color:${T.success};border:1px solid rgba(16,185,129,0.22); }
-  .ph-badge.info    { background:${T.accentSoft};color:${T.accent};border:1px solid rgba(59,130,246,0.22); }
-  .ph-badge.neutral { background:rgba(107,114,128,0.1);color:${T.neutral};border:1px solid rgba(107,114,128,0.2); }
-
-  /* ── Buttons ── */
-  .ph-btn { display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap; }
-  .ph-btn:disabled { opacity:0.45;cursor:not-allowed; }
-  .ph-btn.primary { background:${T.dangerBg};border:1px solid rgba(239,68,68,0.35);color:${T.danger}; }
-  .ph-btn.primary:hover:not(:disabled) { background:rgba(239,68,68,0.18); }
-  .ph-btn.ghost { background:transparent;border:1px solid ${T.border};color:${T.textSecondary}; }
-  .ph-btn.ghost:hover:not(:disabled) { border-color:${T.borderHi};color:${T.textPrimary}; }
-
-  /* ── Search ── */
-  .ph-search-wrap { position:relative;display:inline-flex;align-items:center; }
-  .ph-search-icon { position:absolute;left:9px;pointer-events:none;color:${T.textMuted}; }
-  .ph-search { background:${T.surfaceAlt};border:1px solid ${T.border};border-radius:6px;padding:5px 10px 5px 29px;font-size:12px;font-family:'IBM Plex Mono',monospace;color:${T.textPrimary};outline:none;transition:border-color 0.15s;width:240px; }
-  .ph-search:focus { border-color:rgba(239,68,68,0.5);box-shadow:0 0 0 2px rgba(239,68,68,0.1); }
-  .ph-search::placeholder { color:${T.textSubtle}; }
-  .ph-select { background:${T.surfaceAlt};border:1px solid ${T.border};border-radius:6px;padding:5px 10px;font-size:12px;font-family:'IBM Plex Mono',monospace;color:${T.textPrimary};outline:none;cursor:pointer;transition:border-color 0.15s;min-width:180px; }
-  .ph-select:focus { border-color:rgba(239,68,68,0.5);box-shadow:0 0 0 2px rgba(239,68,68,0.1); }
-  .ph-select:hover { border-color:${T.borderHi}; }
-  .ph-select option { background:${T.surfaceAlt};color:${T.textPrimary}; }
-
-  /* ── Campaign card ── */
-  .ph-camp-card { background:${T.surfaceAlt};border:1px solid ${T.border};border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;transition:border-color 0.2s; }
-  .ph-camp-card:hover { border-color:${T.borderHi}; }
-  .ph-camp-counters { display:grid;grid-template-columns:repeat(5,1fr);gap:6px; }
-  .ph-camp-counter { background:${T.surface};border:1px solid ${T.border};border-radius:6px;padding:8px;text-align:center; }
-  .ph-camp-counter-num { font-size:18px;font-weight:700;font-family:'Space Grotesk',sans-serif;line-height:1; }
-  .ph-camp-counter-lbl { font-size:9px;font-family:'IBM Plex Mono',monospace;color:${T.textMuted};text-transform:uppercase;letter-spacing:0.08em;margin-top:2px; }
-
-  /* ── Funnel bars (risk) ── */
-  .ph-funnel-row { display:flex;align-items:center;gap:10px;margin-bottom:10px; }
-  .ph-funnel-row:last-child { margin-bottom:0; }
-  .ph-funnel-label { font-size:12px;color:${T.textSecondary};width:130px;flex-shrink:0; }
-  .ph-funnel-track { flex:1;height:18px;background:rgba(var(--tl-line-rgb, 30,38,64),0.5);border-radius:4px;overflow:hidden; }
-  .ph-funnel-fill  { height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px;transition:width 0.5s ease; }
-  .ph-funnel-pct   { font-size:10px;font-weight:700;color:rgba(255,255,255,0.9);font-family:'IBM Plex Mono',monospace;white-space:nowrap; }
-  .ph-funnel-count { font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;width:44px;text-align:right;flex-shrink:0; }
-
-  /* ── Group drilldown ── */
-  .ph-group-row { display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.4);cursor:pointer;transition:background 0.1s; }
-  .ph-group-row:hover { background:rgba(59,130,246,0.04); }
-  .ph-group-row:last-child { border-bottom:none; }
-  .ph-group-expand { color:${T.textMuted};flex-shrink:0; }
-  .ph-group-name   { font-size:12px;font-weight:600;color:${T.textPrimary};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-  .ph-group-meta   { font-size:11px;font-family:'IBM Plex Mono',monospace;color:${T.textSecondary};flex-shrink:0;display:flex;align-items:center;gap:4px; }
-  .ph-group-body   { background:rgba(var(--tl-line-rgb, 30,38,64),0.25);border-bottom:1px solid ${T.border};max-height:200px;overflow-y:auto; }
-  .ph-member-row   { display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.3);font-size:11px; }
-  .ph-member-row:last-child { border-bottom:none; }
-
-  /* ── Empty ── */
-  .ph-empty { padding:40px;text-align:center;color:${T.textMuted};font-size:13px;font-family:'DM Sans',sans-serif; }
-
-  /* ── Select dark ── */
-  .ph-root [data-radix-select-trigger] { background:${T.surfaceAlt} !important; border-color:${T.border} !important; color:${T.textPrimary} !important; font-family:'IBM Plex Mono',monospace; font-size:11px !important; }
-`;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
-function truncateDept(name: string) {
-  const w = name.trim().split(/\s+/);
-  return w.length > 3 ? w.slice(0, 3).join(" ") + "…" : name;
+function fmtRel(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const min = Math.floor(Math.max(0, Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h}h`;
+  return `há ${Math.floor(h / 24)}d`;
 }
+const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+// Faixas de cor para taxas de risco: até `good` verde, até `warn` âmbar, acima vermelho
+const tone = (v: number, good: number, warn: number) =>
+  v <= good ? "var(--v2-ok)" : v <= warn ? "var(--v2-med)" : "var(--v2-crit)";
 
-// ── Tooltip ────────────────────────────────────────────────────────────────────
-function PhTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="ph-tooltip">
-      <div className="ph-tooltip-label">{label}</div>
-      {payload.map((p: any) => (
-        <div key={p.dataKey ?? p.name} className="ph-tooltip-row">
-          <div className="ph-tooltip-dot" style={{ background: p.color || p.fill }} />
-          <span className="ph-tooltip-name">{p.name}</span>
-          <span className="ph-tooltip-val">{p.value?.toLocaleString?.("pt-BR") ?? p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Sort icon ──────────────────────────────────────────────────────────────────
-type SortKey = "email" | "status" | "action" | "cargo" | "departamento" | "campanha" | "launch_date";
-function SortIcon({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
-  if (!active) return <ArrowUpDown size={10} style={{ display: "inline", marginLeft: 2, opacity: 0.4 }} />;
-  return dir === "asc" ? (
-    <ArrowUp size={10} style={{ display: "inline", marginLeft: 2, color: T.danger }} />
-  ) : (
-    <ArrowDown size={10} style={{ display: "inline", marginLeft: 2, color: T.danger }} />
-  );
-}
-
-// ── Resizable block ────────────────────────────────────────────────────────────
-const COL_SIZES = ["col-span-1", "col-span-2", "col-span-3"] as const;
-type ColSize = (typeof COL_SIZES)[number];
-function Block({
-  title,
-  children,
-  chartHeight = 260,
-  defaultSize = "col-span-1" as ColSize,
-  extra,
-}: {
-  title: React.ReactNode;
-  children: React.ReactNode;
-  chartHeight?: number;
-  defaultSize?: ColSize;
-  extra?: React.ReactNode;
-}) {
-  const [size, setSize] = React.useState<ColSize>(defaultSize);
-  return (
-    <div className={`${size} ph-block`} style={{ minHeight: chartHeight + 52 }}>
-      <div className="ph-block-hdr">
-        <div className="ph-block-title">
-          <GripHorizontal size={11} color={T.textMuted} />
-          <span>{title}</span>
-          {extra}
-        </div>
-        <div className="ph-resize-ctrl">
-          <button
-            className="ph-resize-btn"
-            disabled={size === COL_SIZES[0]}
-            onClick={() => setSize(COL_SIZES[Math.max(0, COL_SIZES.indexOf(size) - 1)])}
-          >
-            <Minimize2 size={11} />
-          </button>
-          <button
-            className="ph-resize-btn"
-            disabled={size === COL_SIZES[2]}
-            onClick={() => setSize(COL_SIZES[Math.min(2, COL_SIZES.indexOf(size) + 1)])}
-          >
-            <Maximize2 size={11} />
-          </button>
-        </div>
-      </div>
-      <div className="ph-block-body" style={{ height: chartHeight }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-const axisProps = {
-  stroke: T.chartAxis,
-  fontSize: 10,
-  tick: { fill: T.chartTick, fontFamily: "'IBM Plex Mono',monospace" },
-  tickLine: false,
-  axisLine: { stroke: T.chartAxis },
+const ACTION_COLOR: Record<string, string> = {
+  "Dados Submetidos": "var(--v2-crit)",
+  "Clicou no Link": "var(--v2-high)",
+  "Abriu o E-mail": "var(--v2-med)",
+  "E-mail Enviado": "var(--v2-low)",
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MAIN
+// ── CSS (interface v2) ─────────────────────────────────────────────────────────
+const CSS = `
+  .ph-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
+  .ph-root * { box-sizing:border-box; }
+  .ph-root ::-webkit-scrollbar { width:6px; height:6px; }
+  .ph-root ::-webkit-scrollbar-thumb { background:var(--v2-line-strong); border-radius:3px; }
+  .ph-root :focus-visible { outline:2px solid var(--v2-accent); outline-offset:2px; }
+  .ph-root .mono { font-family:var(--font-data); font-size:12.5px; }
+  .ph-root .dim { color:var(--v2-fg-3); }
+  @keyframes ph-spin { to { transform:rotate(360deg) } }
+  @keyframes ph-pulse { 50% { opacity:.3 } }
+  .ph-spin { animation:ph-spin .8s linear infinite; }
+
+  .ph-ph { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .ph-ph-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.2; margin:0; }
+  .ph-ph-sub { margin:4px 0 0; font-size:13px; color:var(--v2-fg-3); display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .ph-live { display:inline-flex; align-items:center; gap:6px; }
+  .ph-live::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--v2-ok); }
+  .ph-subnav { display:flex; gap:2px; padding:4px; background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; width:fit-content; max-width:100%; flex-wrap:wrap; }
+  .ph-subnav button { display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; background:transparent; padding:6px 14px; border-radius:6px; font:500 13px var(--font-ui); color:var(--v2-fg-3); cursor:pointer; }
+  .ph-subnav button:hover { color:var(--v2-fg); background:var(--v2-hover); }
+  .ph-subnav button[aria-selected="true"] { background:var(--v2-surface); color:var(--v2-fg); border-color:var(--v2-line); }
+  .ph-state { display:flex; flex-direction:column; align-items:center; gap:10px; padding:48px 24px; text-align:center; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; }
+
+  .ph-btn { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); white-space:nowrap; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); }
+  .ph-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .ph-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .ph-btn.lg { height:34px; padding:0 14px; }
+  .ph-link { border:0; background:none; color:var(--v2-accent); font:500 12.5px var(--font-ui); cursor:pointer; padding:0; }
+  .ph-select { height:32px; border:1px solid var(--v2-line); background:var(--v2-bg); color:var(--v2-fg); border-radius:8px; font:13px var(--font-ui); padding:0 10px; max-width:100%; }
+  .ph-select.lg { height:34px; background:var(--v2-surface); }
+  .ph-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .ph-note { font-size:12.5px; color:var(--v2-fg-3); }
+
+  .ph-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; }
+  .ph-kpi { padding:16px 18px 14px; display:grid; gap:2px; align-content:start; box-shadow:1px 0 0 var(--v2-line), 0 1px 0 var(--v2-line); min-width:0; }
+  .ph-kpi-label { font-size:12.5px; color:var(--v2-fg-2); display:flex; align-items:center; gap:6px; }
+  .ph-kpi-value { font-size:28px; font-weight:600; letter-spacing:-0.02em; line-height:1.25; font-variant-numeric:tabular-nums; }
+  .ph-kpi-value small { font-size:15px; font-weight:500; color:var(--v2-fg-3); margin-left:4px; }
+  .ph-kpi-foot { font-size:12px; color:var(--v2-fg-3); }
+  .ph-sw { width:8px; height:8px; border-radius:2px; display:inline-block; flex-shrink:0; }
+  .ph-meter { height:6px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; margin:8px 0 4px; }
+  .ph-meter i { display:block; height:100%; border-radius:99px; }
+
+  .ph-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:20px; align-items:stretch; }
+  .ph-span-2 { grid-column:span 2; }
+  @media (max-width: 1100px) { .ph-grid { grid-template-columns:minmax(0, 1fr); } .ph-span-2 { grid-column:auto; } }
+  .ph-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; min-width:0; }
+  .ph-panel-hdr { padding:14px 18px 4px; }
+  .ph-panel-title { font-size:14px; font-weight:600; margin:0; }
+  .ph-panel-title .n { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
+  .ph-panel-sub { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
+  .ph-panel-body { padding:12px 18px 16px; }
+  .ph-empty { padding:28px 16px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
+
+  .ph-funnel { display:grid; gap:14px; }
+  .ph-stage { display:grid; gap:6px; }
+  .ph-stage-top { display:flex; justify-content:space-between; gap:8px; font-size:13px; }
+  .ph-stage-top b { font-weight:500; }
+  .ph-stage-top span { font:500 13px var(--font-data); }
+  .ph-stage-top span small { color:var(--v2-fg-3); font-weight:400; margin-left:6px; }
+  .ph-track { height:12px; border-radius:4px; background:var(--v2-surface-2); overflow:hidden; }
+  .ph-track i { display:block; height:100%; border-radius:4px; }
+  .ph-drop { font-size:12px; color:var(--v2-fg-3); }
+  .ph-callout { display:flex; gap:10px; padding:10px 12px; margin-top:16px; border-radius:8px; font-size:13px; line-height:1.5; color:var(--v2-fg-2); background:color-mix(in oklch, var(--v2-crit) 9%, transparent); border:1px solid color-mix(in oklch, var(--v2-crit) 30%, transparent); }
+  .ph-callout svg { color:var(--v2-crit); flex-shrink:0; margin-top:2px; }
+  .ph-callout b { color:var(--v2-fg); font-weight:600; }
+
+  .ph-dept-h, .ph-dept > button { display:grid; grid-template-columns:minmax(0, 1.2fr) 72px minmax(0, 1fr) minmax(0, 1fr); gap:14px; align-items:center; }
+  .ph-dept-h { font-size:12px; color:var(--v2-fg-3); padding:0 8px 8px; border-bottom:1px solid var(--v2-line); }
+  .ph-dept-h span:nth-child(2) { text-align:right; }
+  .ph-dept { max-height:420px; overflow-y:auto; }
+  .ph-dept > button { width:100%; padding:9px 8px; border:0; border-bottom:1px solid var(--v2-line); background:transparent; color:var(--v2-fg); font:13px var(--font-ui); text-align:left; cursor:pointer; }
+  .ph-dept > button:last-child { border-bottom:0; }
+  .ph-dept > button:hover { background:var(--v2-hover); }
+  .ph-dept > button[aria-pressed="true"] { background:color-mix(in oklch, var(--v2-accent) 12%, transparent); }
+  .ph-dept .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ph-dept .n { font:400 12.5px var(--font-data); color:var(--v2-fg-2); text-align:right; }
+  .ph-rate { display:grid; grid-template-columns:minmax(40px, 1fr) 40px; gap:8px; align-items:center; font:500 12.5px var(--font-data); }
+  .ph-rate .tr { height:8px; border-radius:99px; background:var(--v2-surface-2); overflow:hidden; }
+  .ph-rate .tr i { display:block; height:100%; border-radius:99px; }
+  .ph-rate span:last-child { text-align:right; }
+  @media (max-width: 640px) { .ph-dept-h, .ph-dept > button { grid-template-columns:minmax(0, 1fr) 90px 90px; } .ph-dept-h span:nth-child(2), .ph-dept .n { display:none; } }
+
+  .ph-filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 18px; border-bottom:1px solid var(--v2-line); }
+  .ph-filters > b { font-size:14px; font-weight:600; margin-right:4px; }
+  .ph-filters > b span { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
+  .ph-search { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 10px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-bg); color:var(--v2-fg-3); width:250px; max-width:100%; margin-left:auto; }
+  .ph-search input { flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--v2-fg); font-size:13px; font-family:inherit; }
+  .ph-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:10px 18px; border-bottom:1px solid var(--v2-line); }
+  .ph-fchip { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 4px 0 9px; border-radius:5px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font-size:12.5px; }
+  .ph-fchip b { color:var(--v2-fg-3); font-weight:400; }
+  .ph-fchip button { border:0; background:none; color:var(--v2-fg-3); cursor:pointer; display:grid; place-items:center; width:20px; height:20px; border-radius:4px; }
+  .ph-fchip button:hover { background:var(--v2-hover); color:var(--v2-fg); }
+
+  .ph-scroll { overflow:auto; max-height:560px; }
+  .ph-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .ph-table thead { position:sticky; top:0; z-index:1; }
+  .ph-table th { padding:9px 12px; font-size:12px; font-weight:500; color:var(--v2-fg-3); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .ph-table th button { display:inline-flex; align-items:center; gap:4px; border:0; background:none; color:inherit; font:inherit; cursor:pointer; padding:0; }
+  .ph-table th button svg { opacity:.45; }
+  .ph-table th[aria-sort] button { color:var(--v2-fg); }
+  .ph-table th[aria-sort] button svg { opacity:1; color:var(--v2-accent); }
+  .ph-table td { padding:8px 12px; height:44px; border-bottom:1px solid var(--v2-line); vertical-align:middle; }
+  .ph-table th:first-child, .ph-table td:first-child { padding-left:18px; }
+  .ph-table th:last-child, .ph-table td:last-child { padding-right:18px; }
+  .ph-table tbody tr:hover td { background:var(--v2-hover); }
+  .ph-table tbody tr:last-child td { border-bottom:none; }
+  .ph-table td.trunc { max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ph-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .ph-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
+  .ph-pill.live::before { animation:ph-pulse 1.6s infinite; }
+  @media (prefers-reduced-motion: reduce) { .ph-pill.live::before { animation:none; } }
+
+  .ph-camps { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:14px; }
+  .ph-camp { display:grid; gap:12px; padding:16px; border:1px solid var(--v2-line); border-radius:12px; background:var(--v2-surface); }
+  .ph-camp-h { display:flex; gap:10px; align-items:flex-start; }
+  .ph-camp-h b { font-size:14px; font-weight:600; display:block; }
+  .ph-camp-h small { font-size:12px; color:var(--v2-fg-3); }
+  .ph-camp-h .ph-pill { margin-left:auto; }
+  .ph-mini { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:6px; }
+  .ph-mini div { display:grid; gap:2px; padding:8px; border-radius:8px; background:var(--v2-surface-2); min-width:0; }
+  .ph-mini b { font:600 16px var(--font-data); }
+  .ph-mini span { font-size:11.5px; color:var(--v2-fg-3); }
+  .ph-stk { display:flex; height:8px; gap:2px; border-radius:99px; overflow:hidden; background:var(--v2-surface-2); }
+  .ph-stk i { display:block; height:100%; }
+
+  .ph-grp { border-bottom:1px solid var(--v2-line); }
+  .ph-grp:last-child { border-bottom:0; }
+  .ph-grp > button { display:grid; grid-template-columns:minmax(0, 1fr) auto auto 18px; gap:12px; align-items:center; width:100%; padding:11px 18px; border:0; background:transparent; color:var(--v2-fg); font:13px var(--font-ui); text-align:left; cursor:pointer; }
+  .ph-grp > button:hover { background:var(--v2-hover); }
+  .ph-grp > button b { font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ph-grp .chev { color:var(--v2-fg-3); transition:transform .15s; }
+  .ph-grp.open .chev { transform:rotate(180deg); }
+  .ph-grp-b { padding:0 18px 12px; max-height:320px; overflow-y:auto; }
+  .ph-grp-b > div { display:grid; grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap:10px; padding:6px 0; font-size:12.5px; border-top:1px dashed var(--v2-line); }
+  .ph-grp-b span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+`;
+
 // ══════════════════════════════════════════════════════════════════════════════
 export function PhishingDashboard() {
   // ── back-end UNCHANGED ─────────────────────────────────────────────────────
@@ -346,7 +214,10 @@ export function PhishingDashboard() {
     setSyncing(true);
     try {
       const r = await doSync();
-      if (r.ok) toast.success(`Sincronizado: ${r.counts?.campaigns ?? 0} campanhas, ${r.counts?.groups ?? 0} grupos`);
+      if (r.ok)
+        toast.success(
+          `Sincronizado: ${r.counts?.campaigns ?? 0} campanhas, ${r.counts?.groups ?? 0} grupos`,
+        );
       else toast.error(`Erro no sync: ${r.error ?? "desconhecido"}`);
       await qc.refetchQueries({ queryKey: ["phishing"] });
     } finally {
@@ -361,220 +232,168 @@ export function PhishingDashboard() {
       ? (data?.error ?? "Sem dados.")
       : null;
 
+  if (isLoading) return <ModuleLoading />;
+
   return (
-    <div className="ph-root ph-fadeup">
+    <div className="ph-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* ── Header ───────────────────────────────────────────────────── */}
-      <div className="ph-hdr">
-        <div className="ph-hdr-brand">
-          <div className="ph-hdr-icon">
-            <Fish size={18} color={T.danger} />
-          </div>
-          <div>
-            <div className="ph-hdr-title">Phishing — Simulação & Conscientização</div>
-            <div className="ph-hdr-sub">Gophish · Campanhas, cliques e comprometimentos</div>
-          </div>
+      {/* ── Cabeçalho ──────────────────────────────────────────────────── */}
+      <div className="ph-ph">
+        <div>
+          <h1 className="ph-ph-title">Simulação de phishing</h1>
+          <p className="ph-ph-sub">
+            {syncState?.synced_at && (
+              <>
+                <span className="ph-live" title={fmtDate(syncState.synced_at)}>
+                  Sincronizado {fmtRel(syncState.synced_at)}
+                </span>
+                <span>·</span>
+              </>
+            )}
+            <span>Gophish: campanhas, cliques e comprometimentos</span>
+          </p>
         </div>
-        <div className="ph-hdr-pills">
-          {syncState?.synced_at && (
-            <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
-              Sync: {fmtDate(syncState.synced_at)}
-            </span>
-          )}
-          <CronHealthBadge jobName="gophish-sync" moduleSlug="phishing" />
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div className="ph-live-dot" />
-            <span
-              style={{
-                fontSize: 10,
-                color: T.success,
-                fontFamily: "'IBM Plex Mono',monospace",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-              }}
-            >
-              Live
-            </span>
-          </div>
-          <button className="ph-btn primary" onClick={handleSync} disabled={syncing}>
-            <RefreshCw size={12} className={syncing ? "ph-spin" : ""} />
+        <SyncActions moduleSlug="phishing" jobs={["gophish-sync"]}>
+          <button className="ph-btn lg" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={14} className={syncing ? "ph-spin" : ""} />
             {syncing ? "Sincronizando…" : "Sincronizar"}
           </button>
-        </div>
+        </SyncActions>
       </div>
 
-      {/* ── Tabs ─────────────────────────────────────────────────────── */}
-      <div className="ph-tabs-bar">
-        <button
-          className={`ph-tab${activeTab === "dashboard" ? " active" : ""}`}
-          onClick={() => setActiveTab("dashboard")}
-        >
-          <Activity size={12} /> Dashboard
-        </button>
-        <button
-          className={`ph-tab${activeTab === "operacoes" ? " active" : ""}`}
-          onClick={() => setActiveTab("operacoes")}
-        >
-          <Users size={12} /> Operações
-        </button>
+      <div className="ph-subnav" role="tablist" aria-label="Seções do Phishing">
+        {(
+          [
+            ["dashboard", "Dashboard"],
+            ["operacoes", "Operações"],
+          ] as const
+        ).map(([k, l]) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === k}
+            onClick={() => setActiveTab(k)}
+          >
+            {l}
+          </button>
+        ))}
       </div>
 
-      {/* ── Loading ───────────────────────────────────────────────────── */}
-      {isLoading && (
-        <div
-          style={{
-            background: T.surface,
-            border: `1px solid ${T.border}`,
-            borderRadius: 12,
-            padding: "48px 24px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <RefreshCw size={20} className="ph-spin" color={T.danger} />
-          <span style={{ fontSize: 13, color: T.textSecondary }}>Carregando dados Gophish…</span>
-        </div>
-      )}
-
-      {/* ── Error ─────────────────────────────────────────────────────── */}
-      {!isLoading && errorMsg && (
-        <div
-          style={{
-            background: T.surface,
-            border: `1px solid ${T.border}`,
-            borderRadius: 12,
-            padding: "48px 24px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 12,
-            textAlign: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
-              background: T.dangerBg,
-              border: "1px solid rgba(239,68,68,0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <AlertCircle size={20} color={T.danger} />
-          </div>
-          <div
-            style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, fontWeight: 700, color: T.textPrimary }}
-          >
-            Sem dados Gophish
-          </div>
-          <div style={{ fontSize: 13, color: T.textMuted, maxWidth: 400 }}>{errorMsg}</div>
-          <div style={{ fontSize: 11, color: T.textSubtle }}>
-            Verifique em Integrações → Gophish, depois sincronize.
-          </div>
-          <button className="ph-btn primary" onClick={handleSync} disabled={syncing}>
-            <RefreshCw size={12} className={syncing ? "ph-spin" : ""} />{" "}
+      {errorMsg ? (
+        <div className="ph-state">
+          <AlertCircle size={22} color="var(--v2-crit)" />
+          <span style={{ fontSize: 15, fontWeight: 600 }}>Sem dados do Gophish</span>
+          <span className="dim" style={{ fontSize: 13, maxWidth: 420 }}>
+            {errorMsg}
+          </span>
+          <span className="dim" style={{ fontSize: 12.5 }}>
+            Verifique em Integrações → Gophish e sincronize.
+          </span>
+          <button className="ph-btn" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={14} className={syncing ? "ph-spin" : ""} />
             {syncing ? "Sincronizando…" : "Sincronizar agora"}
           </button>
         </div>
-      )}
-
-      {/* ── Content ───────────────────────────────────────────────────── */}
-      {!isLoading && !errorMsg && data && data.ok !== false && (
-        <>
-          {activeTab === "dashboard" && (
-            <DashboardTab data={data as PhishingOverview} onSync={handleSync} syncing={syncing} />
-          )}
-          {activeTab === "operacoes" && <OperationsTab />}
-        </>
+      ) : (
+        data &&
+        data.ok !== false && (
+          <>
+            {activeTab === "dashboard" && <DashboardTab data={data as PhishingOverview} />}
+            {activeTab === "operacoes" && <OperationsTab />}
+          </>
+        )
       )}
     </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DASHBOARD TAB
+// DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
-function DashboardTab({ data, onSync, syncing }: { data: PhishingOverview; onSync: () => void; syncing: boolean }) {
+type SortKey =
+  | "email"
+  | "status"
+  | "action"
+  | "cargo"
+  | "departamento"
+  | "campanha"
+  | "launch_date";
+type Row = PhishingOverview["details"][number];
+
+function DashboardTab({ data }: { data: PhishingOverview }) {
   // ── back-end UNCHANGED ─────────────────────────────────────────────────────
   const [filters, setFilters] = React.useState({
     dept: "all",
     cargo: "all",
     nivel: "all",
-    clicked: "all",
-    submitted: "all",
+    action: "all",
   });
   const [search, setSearch] = React.useState("");
-  const [sortKey, setSortKey] = React.useState<SortKey>("email");
-  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey] = React.useState<SortKey>("launch_date");
+  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc");
   const [selectedTemplate, setSelectedTemplate] = React.useState<number | null>(null);
+  const [tplOpen, setTplOpen] = React.useState(false);
   const fetchTemplate = useServerFn(getPhishingTemplateCached);
   const tplQuery = useQuery({
     queryKey: ["phishing", "template", selectedTemplate],
     queryFn: () => fetchTemplate({ data: { id: selectedTemplate! } }),
-    enabled: selectedTemplate !== null,
+    enabled: selectedTemplate !== null && tplOpen,
   });
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Base do painel: tudo, ou só as campanhas que usaram o template escolhido
+  const base = React.useMemo(
+    () =>
+      selectedTemplate === null
+        ? data.details
+        : data.details.filter((r) => r.template_id === selectedTemplate),
+    [data.details, selectedTemplate],
+  );
+  const selectedTemplateName =
+    selectedTemplate === null
+      ? null
+      : (data.templatesUsed.find((t) => t.id === selectedTemplate)?.name ?? null);
 
   const deptOptions = React.useMemo(
-    () => Array.from(new Set(data.details.map((d) => d.departamento))).sort(),
-    [data.details],
+    () => Array.from(new Set(base.map((d) => d.departamento))).sort(),
+    [base],
   );
   const cargoOptions = React.useMemo(
-    () => Array.from(new Set(data.details.map((d) => d.cargo).filter((c) => c && c !== "—"))).sort(),
-    [data.details],
+    () => Array.from(new Set(base.map((d) => d.cargo).filter((c) => c && c !== "—"))).sort(),
+    [base],
   );
   const nivelOptions = React.useMemo(
-    () => Array.from(new Set(data.details.map((d) => d.nivel))).sort(),
-    [data.details],
+    () => Array.from(new Set(base.map((d) => d.nivel))).sort(),
+    [base],
   );
-
-  // Resolve template name for filtering
-  const selectedTemplateName = React.useMemo(() => {
-    if (selectedTemplate === null) return null;
-    return data.templatesUsed.find((t) => t.id === selectedTemplate)?.name ?? null;
-  }, [selectedTemplate, data.templatesUsed]);
+  const actionOptions = React.useMemo(
+    () => Array.from(new Set(base.map((d) => d.action))).sort(),
+    [base],
+  );
 
   const filtered = React.useMemo(() => {
     const s = search.trim().toLowerCase();
-    return data.details.filter((row) => {
-      // Template filter — match exato pelo id do template da campanha
-      if (selectedTemplate !== null && row.template_id !== selectedTemplate) return false;
+    return base.filter((row) => {
       if (filters.dept !== "all" && row.departamento !== filters.dept) return false;
       if (filters.cargo !== "all" && row.cargo !== filters.cargo) return false;
       if (filters.nivel !== "all" && row.nivel !== filters.nivel) return false;
-      if (filters.clicked === "yes" && !row.clicked) return false;
-      if (filters.clicked === "no" && row.clicked) return false;
-      if (filters.submitted === "yes" && !row.submitted) return false;
-      if (filters.submitted === "no" && row.submitted) return false;
+      if (filters.action !== "all" && row.action !== filters.action) return false;
       if (s) {
-        const hay = `${row.email} ${row.cargo} ${row.departamento} ${row.campanha} ${row.status}`.toLowerCase();
+        const hay =
+          `${row.email} ${row.cargo} ${row.departamento} ${row.campanha} ${row.status}`.toLowerCase();
         if (!hay.includes(s)) return false;
       }
       return true;
     });
-  }, [data.details, filters, search, selectedTemplateName]);
-
-  const byDeptClicks = React.useMemo(() => {
-    const m = new Map<string, number>();
-    filtered.filter((r) => r.clicked).forEach((r) => m.set(r.departamento, (m.get(r.departamento) ?? 0) + 1));
-    return [...m.entries()].map(([dept, total]) => ({ dept, total })).sort((a, b) => b.total - a.total);
-  }, [filtered]);
-  const byDeptSubmitted = React.useMemo(() => {
-    const m = new Map<string, number>();
-    filtered.filter((r) => r.submitted).forEach((r) => m.set(r.departamento, (m.get(r.departamento) ?? 0) + 1));
-    return [...m.entries()].map(([dept, total]) => ({ dept, total })).sort((a, b) => b.total - a.total);
-  }, [filtered]);
+  }, [base, filters, search]);
 
   const sorted = React.useMemo(() => {
     const arr = [...filtered];
     arr.sort((a, b) => {
-      const av = String((a as any)[sortKey] ?? "").toLowerCase();
-      const bv = String((b as any)[sortKey] ?? "").toLowerCase();
+      const av = String(a[sortKey] ?? "").toLowerCase();
+      const bv = String(b[sortKey] ?? "").toLowerCase();
       return av < bv ? (sortDir === "asc" ? -1 : 1) : av > bv ? (sortDir === "asc" ? 1 : -1) : 0;
     });
     return arr;
@@ -587,736 +406,501 @@ function DashboardTab({ data, onSync, syncing }: { data: PhishingOverview; onSyn
       setSortDir("asc");
     }
   }
-  // ──────────────────────────────────────────────────────────────────────────
 
-  // KPIs computed from filtered rows so they react to template selection
-  const fSent = filtered.length;
-  const fOpened = filtered.filter((r) => r.opened).length;
-  const fClicked = filtered.filter((r) => r.clicked).length;
-  const fSubmitted = filtered.filter((r) => r.submitted).length;
-  const fCompPct = fSent > 0 ? Math.round((fSubmitted / fSent) * 100) : 0;
-  const fClickPct = fSent > 0 ? Math.round((fClicked / fSent) * 100) : 0;
-  const fOpenPct = fSent > 0 ? Math.round((fOpened / fSent) * 100) : 0;
-  // Fall back to global KPIs when no template filter is active
-  const sent = selectedTemplateName ? fSent : data.kpis.sent;
-  const openedN = selectedTemplateName ? fOpened : data.kpis.opened;
-  const clickedN = selectedTemplateName ? fClicked : data.kpis.clicked;
-  const submittedN = selectedTemplateName ? fSubmitted : data.kpis.submitted;
-  const compPct = selectedTemplateName ? fCompPct : data.kpis.compromisePct;
-  const clickPct = selectedTemplateName ? fClickPct : data.kpis.clickedPct;
-  const openPct = selectedTemplateName ? fOpenPct : data.kpis.openedPct;
+  // KPIs: globais do sync, ou recalculados quando há template escolhido
+  const sent = selectedTemplate !== null ? base.length : data.kpis.sent;
+  const opened = selectedTemplate !== null ? base.filter((r) => r.opened).length : data.kpis.opened;
+  const clicked =
+    selectedTemplate !== null ? base.filter((r) => r.clicked).length : data.kpis.clicked;
+  const submitted =
+    selectedTemplate !== null ? base.filter((r) => r.submitted).length : data.kpis.submitted;
+  const openPct = selectedTemplate !== null ? pct(opened, sent) : data.kpis.openedPct;
+  const clickPct = selectedTemplate !== null ? pct(clicked, sent) : data.kpis.clickedPct;
+  const compPct = selectedTemplate !== null ? pct(submitted, sent) : data.kpis.compromisePct;
+
+  // Risco por departamento: taxa sobre quem recebeu (contagem bruta favorece áreas grandes)
+  const deptRisk = React.useMemo(() => {
+    const m = new Map<string, { n: number; c: number; s: number }>();
+    for (const r of base) {
+      const x = m.get(r.departamento) ?? { n: 0, c: 0, s: 0 };
+      x.n++;
+      if (r.clicked) x.c++;
+      if (r.submitted) x.s++;
+      m.set(r.departamento, x);
+    }
+    return [...m.entries()]
+      .map(([dept, x]) => ({ dept, n: x.n, c: pct(x.c, x.n), s: pct(x.s, x.n) }))
+      .sort((a, b) => b.c - a.c || b.s - a.s || b.n - a.n);
+  }, [base]);
+
+  const chips = (
+    [
+      ["dept", "Departamento"],
+      ["cargo", "Cargo"],
+      ["nivel", "Nível"],
+      ["action", "Ação"],
+    ] as const
+  )
+    .filter(([k]) => filters[k] !== "all")
+    .map(([k, l]) => ({ k, l, v: filters[k] }));
+  const setFilter = (k: keyof typeof filters, v: string) => setFilters((f) => ({ ...f, [k]: v }));
+  const totalCampaigns = data.campaignsStatus.ativas + data.campaignsStatus.arquivadas;
+
+  const Stage = ({
+    label,
+    n,
+    color,
+    prev,
+    prevLabel,
+  }: {
+    label: string;
+    n: number;
+    color: string;
+    prev?: number;
+    prevLabel?: string;
+  }) => (
+    <div className="ph-stage">
+      <div className="ph-stage-top">
+        <b>{label}</b>
+        <span>
+          {n.toLocaleString("pt-BR")}
+          <small>{pct(n, sent)}%</small>
+        </span>
+      </div>
+      <div className="ph-track">
+        <i style={{ width: `${pct(n, sent)}%`, background: color }} />
+      </div>
+      {prev !== undefined && (
+        <span className="ph-drop">
+          {pct(n, prev)}% de quem {prevLabel}
+        </span>
+      )}
+    </div>
+  );
+
+  const Th = ({ k, label }: { k: SortKey; label: string }) => (
+    <th aria-sort={sortKey === k ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
+      <button type="button" onClick={() => toggleSort(k)}>
+        {label}
+        <ArrowUpDown size={11} />
+      </button>
+    </th>
+  );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* ── Template selector — topo da página ── */}
-      <div className="ph-panel">
-        <div className="ph-panel-hdr">
-          <div className="ph-panel-title">
-            <Mail size={11} color={T.accent} /> Template de campanha
-            <span style={{ fontWeight: 400, color: T.textSubtle }}>
-              ({data.templatesTotal} total · {data.templatesUsed.length} em uso)
-            </span>
-            {selectedTemplateName && (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "2px 8px",
-                  borderRadius: 4,
-                  background: T.accentSoft,
-                  border: `1px solid rgba(59,130,246,0.3)`,
-                  fontSize: 10,
-                  color: T.accent,
-                  fontWeight: 700,
-                  marginLeft: 4,
-                }}
-              >
-                {selectedTemplateName}
-              </span>
-            )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Select
-              value={selectedTemplate === null ? "" : String(selectedTemplate)}
-              onValueChange={(v) => setSelectedTemplate(v ? Number(v) : null)}
-            >
-              <SelectTrigger
-                style={{
-                  background: T.surfaceAlt,
-                  borderColor: T.border,
-                  color: T.textPrimary,
-                  fontFamily: "'IBM Plex Mono',monospace",
-                  fontSize: 11,
-                  width: 280,
-                  height: 32,
-                }}
-              >
-                <SelectValue placeholder="Filtrar dashboard por template…" />
-              </SelectTrigger>
-              <SelectContent>
-                {data.templatesUsed.map((t) => (
-                  <SelectItem key={t.id} value={String(t.id)}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedTemplate !== null && (
-              <button className="ph-btn ghost" style={{ padding: "4px 8px" }} onClick={() => setSelectedTemplate(null)}>
-                <X size={11} /> Limpar
-              </button>
-            )}
-          </div>
-        </div>
-        {selectedTemplate !== null && (
-          <div className="ph-panel-body" style={{ borderTop: `1px solid ${T.border}` }}>
-            {tplQuery.isLoading ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.textMuted, fontSize: 12 }}>
-                <RefreshCw size={13} className="ph-spin" color={T.accent} /> Carregando template…
-              </div>
-            ) : tplQuery.data?.ok ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
-                  <span style={{ color: T.textSecondary, fontWeight: 600 }}>Assunto:</span>{" "}
-                  {tplQuery.data.subject || "(sem assunto)"}
-                </div>
-                <iframe
-                  title={tplQuery.data.name}
-                  srcDoc={tplQuery.data.html || "<p style='padding:1rem'>Sem HTML.</p>"}
-                  sandbox=""
-                  style={{
-                    width: "100%",
-                    height: 400,
-                    background: "white",
-                    borderRadius: 6,
-                    border: `1px solid ${T.border}`,
-                  }}
-                />
-              </div>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.danger, fontSize: 12 }}>
-                <AlertCircle size={13} /> {tplQuery.data?.error ?? "Falha ao carregar template."}
-              </div>
-            )}
-          </div>
+    <>
+      {/* ── Template ── */}
+      <div className="ph-bar">
+        <select
+          className="ph-select lg"
+          aria-label="Template"
+          value={selectedTemplate === null ? "" : String(selectedTemplate)}
+          onChange={(e) => {
+            setSelectedTemplate(e.target.value ? Number(e.target.value) : null);
+            setFilters({ dept: "all", cargo: "all", nivel: "all", action: "all" });
+          }}
+        >
+          <option value="">
+            Todos os templates ({data.templatesUsed.length} em uso de {data.templatesTotal})
+          </option>
+          {data.templatesUsed.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        {selectedTemplate !== null ? (
+          <>
+            <button className="ph-btn" onClick={() => setTplOpen(true)}>
+              <Eye size={14} /> Ver e-mail do template
+            </button>
+            <button className="ph-link" onClick={() => setSelectedTemplate(null)}>
+              Limpar
+            </button>
+          </>
+        ) : (
+          <span className="ph-note">
+            Escolha um template para filtrar todo o painel e ver o e-mail usado
+          </span>
         )}
       </div>
 
-      {/* KPIs */}
-      <div className="ph-kpi-grid">
-        {[
-          {
-            label: "E-mails Enviados",
-            value: sent.toLocaleString("pt-BR"),
-            hint: selectedTemplateName ? `filtrado por template` : `${data.campaignsStatus.ativas} campanhas ativas`,
-            color: T.accent,
-            kibg: "rgba(59,130,246,0.18)",
-            icon: <Mail size={22} color={T.accent} />,
-          },
-          {
-            label: "E-mails Abertos",
-            value: openedN.toLocaleString("pt-BR"),
-            hint: `${openPct}% dos enviados`,
-            color: T.purple,
-            kibg: "rgba(167,139,250,0.18)",
-            icon: <MailOpen size={22} color={T.purple} />,
-          },
-          {
-            label: "Cliques no Link",
-            value: clickedN.toLocaleString("pt-BR"),
-            hint: `${clickPct}% dos enviados`,
-            color: T.warning,
-            kibg: "rgba(245,158,11,0.2)",
-            icon: <MousePointer2 size={22} color={T.warning} />,
-          },
-          {
-            label: "Comprometidos",
-            value: `${compPct}%`,
-            hint: `${submittedN} dados submetidos`,
-            color: T.danger,
-            kibg: "rgba(239,68,68,0.18)",
-            icon: <ShieldAlert size={22} color={T.danger} />,
-          },
-        ].map(({ label, value, hint, color, kibg, icon }) => (
-          <div key={label} className="ph-kpi" style={{ "--kc": color, "--ki-bg": kibg } as React.CSSProperties}>
-            <div className="ph-kpi-icon">{icon}</div>
-            <div className="ph-kpi-label">{label}</div>
-            <div className="ph-kpi-value">{value}</div>
-            <div className="ph-kpi-hint">{hint}</div>
+      {/* ── KPIs ── */}
+      <div className="ph-kpis">
+        <div className="ph-kpi">
+          <span className="ph-kpi-label">E-mails enviados</span>
+          <span className="ph-kpi-value">{sent.toLocaleString("pt-BR")}</span>
+          <span className="ph-kpi-foot">
+            {selectedTemplateName ? "filtrado por template" : "em todas as campanhas sincronizadas"}
+          </span>
+        </div>
+        <div className="ph-kpi">
+          <span className="ph-kpi-label">Abriram</span>
+          <span className="ph-kpi-value">
+            {openPct}%<small>{opened.toLocaleString("pt-BR")}</small>
+          </span>
+          <div className="ph-meter">
+            <i style={{ width: `${openPct}%`, background: "var(--v2-med)" }} />
           </div>
-        ))}
+          <span className="ph-kpi-foot">dos e-mails enviados</span>
+        </div>
+        <div className="ph-kpi">
+          <span className="ph-kpi-label">
+            <span className="ph-sw" style={{ background: "var(--v2-high)" }} />
+            Clicaram no link
+          </span>
+          <span className="ph-kpi-value">
+            {clickPct}%<small>{clicked.toLocaleString("pt-BR")}</small>
+          </span>
+          <div className="ph-meter">
+            <i style={{ width: `${clickPct}%`, background: tone(clickPct, 10, 20) }} />
+          </div>
+          <span className="ph-kpi-foot">dos e-mails enviados</span>
+        </div>
+        <div className="ph-kpi">
+          <span className="ph-kpi-label">
+            <span className="ph-sw" style={{ background: "var(--v2-crit)" }} />
+            Comprometidos
+          </span>
+          <span className="ph-kpi-value">
+            {compPct}%<small>{submitted.toLocaleString("pt-BR")}</small>
+          </span>
+          <div className="ph-meter">
+            <i style={{ width: `${compPct}%`, background: tone(compPct, 3, 8) }} />
+          </div>
+          <span className="ph-kpi-foot">digitaram dados na página falsa</span>
+        </div>
+        <div className="ph-kpi">
+          <span className="ph-kpi-label">Campanhas</span>
+          <span className="ph-kpi-value">{totalCampaigns}</span>
+          <span className="ph-kpi-foot">
+            {data.campaignsStatus.ativas} ativas · {data.campaignsStatus.arquivadas} arquivadas ·{" "}
+            {data.templatesUsed.length} de {data.templatesTotal} templates em uso
+          </span>
+        </div>
       </div>
 
-      {/* Funnel de risco */}
-      <div className="ph-panel">
-        <div className="ph-panel-hdr">
-          <div className="ph-panel-title">
-            <ShieldAlert size={11} color={T.danger} /> Funil de risco
-            {selectedTemplateName ? ` — ${selectedTemplateName}` : " — total"}
+      <div className="ph-grid">
+        {/* ── Funil ── */}
+        <div className="ph-panel">
+          <div className="ph-panel-hdr">
+            <h2 className="ph-panel-title">Funil de risco</h2>
+            <p className="ph-panel-sub">Do envio ao comprometimento</p>
           </div>
-        </div>
-        <div className="ph-panel-body">
-          {[
-            { label: "Enviados", count: sent, color: T.accent, pct: 100 },
-            {
-              label: "Abertos",
-              count: openedN,
-              color: T.purple,
-              pct: sent > 0 ? Math.round((openedN / sent) * 100) : 0,
-            },
-            {
-              label: "Clicaram",
-              count: clickedN,
-              color: T.warning,
-              pct: sent > 0 ? Math.round((clickedN / sent) * 100) : 0,
-            },
-            {
-              label: "Submeteram",
-              count: submittedN,
-              color: T.danger,
-              pct: sent > 0 ? Math.round((submittedN / sent) * 100) : 0,
-            },
-          ].map(({ label, count, color, pct }) => (
-            <div key={label} className="ph-funnel-row">
-              <span className="ph-funnel-label">{label}</span>
-              <div className="ph-funnel-track">
-                <div
-                  className="ph-funnel-fill"
-                  style={{ width: `${pct}%`, background: `linear-gradient(90deg,color-mix(in srgb, ${color} 40%, transparent),${color})` }}
-                >
-                  {pct >= 8 && <span className="ph-funnel-pct">{pct}%</span>}
-                </div>
-              </div>
-              <span className="ph-funnel-count" style={{ color }}>
-                {count.toLocaleString("pt-BR")}
-              </span>
+          <div className="ph-panel-body">
+            <div className="ph-funnel">
+              <Stage label="Enviados" n={sent} color="var(--v2-low)" />
+              <Stage
+                label="Abriram"
+                n={opened}
+                color="var(--v2-med)"
+                prev={sent}
+                prevLabel="recebeu"
+              />
+              <Stage
+                label="Clicaram"
+                n={clicked}
+                color="var(--v2-high)"
+                prev={opened}
+                prevLabel="abriu"
+              />
+              <Stage
+                label="Submeteram dados"
+                n={submitted}
+                color="var(--v2-crit)"
+                prev={clicked}
+                prevLabel="clicou"
+              />
             </div>
-          ))}
+            {clicked > 0 && (
+              <div className="ph-callout">
+                <AlertTriangle size={15} />
+                <span>
+                  <b>{pct(submitted, clicked)}% de quem clicou entregou dados.</b> O treinamento
+                  logo depois do clique é o ponto de maior ganho.
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Risco por departamento ── */}
+        <div className="ph-panel ph-span-2">
+          <div className="ph-panel-hdr">
+            <h2 className="ph-panel-title">Risco por departamento</h2>
+            <p className="ph-panel-sub">
+              Taxa sobre quem recebeu, pior primeiro · clique para filtrar o detalhamento
+            </p>
+          </div>
+          <div className="ph-panel-body">
+            {deptRisk.length === 0 ? (
+              <div className="ph-empty">Sem envios no período.</div>
+            ) : (
+              <>
+                <div className="ph-dept-h">
+                  <span>Departamento</span>
+                  <span>Receberam</span>
+                  <span>Clicaram</span>
+                  <span>Submeteram</span>
+                </div>
+                <div className="ph-dept">
+                  {deptRisk.map((d) => (
+                    <button
+                      key={d.dept}
+                      type="button"
+                      aria-pressed={filters.dept === d.dept}
+                      onClick={() => setFilter("dept", filters.dept === d.dept ? "all" : d.dept)}
+                    >
+                      <span className="nm" title={d.dept}>
+                        {d.dept}
+                      </span>
+                      <span className="n">{d.n}</span>
+                      <span className="ph-rate">
+                        <span className="tr">
+                          <i style={{ width: `${d.c}%`, background: tone(d.c, 10, 20) }} />
+                        </span>
+                        <span>{d.c}%</span>
+                      </span>
+                      <span className="ph-rate">
+                        <span className="tr">
+                          <i
+                            style={{
+                              width: `${Math.min(100, d.s * 2)}%`,
+                              background: tone(d.s, 3, 8),
+                            }}
+                          />
+                        </span>
+                        <span>{d.s}%</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="ph-filter-bar">
-        <div className="ph-filter-row">
-          {/* Departamento — select dark */}
-          <span className="ph-filter-label">Departamento</span>
+      {/* ── Detalhamento ── */}
+      <div className="ph-panel">
+        <div className="ph-filters">
+          <b>
+            Detalhamento{" "}
+            <span>
+              ({sorted.length === base.length ? base.length : `${sorted.length} de ${base.length}`})
+            </span>
+          </b>
           <select
             className="ph-select"
+            aria-label="Departamento"
             value={filters.dept}
-            onChange={(e) => setFilters((f) => ({ ...f, dept: e.target.value }))}
+            onChange={(e) => setFilter("dept", e.target.value)}
           >
-            <option value="all">Todos</option>
+            <option value="all">Departamento: todos</option>
             {deptOptions.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
             ))}
           </select>
-
-          {/* Cargo — select dark */}
-          <span className="ph-filter-label" style={{ marginLeft: 8 }}>
-            Cargo
-          </span>
           <select
             className="ph-select"
+            aria-label="Cargo"
             value={filters.cargo}
-            onChange={(e) => setFilters((f) => ({ ...f, cargo: e.target.value }))}
+            onChange={(e) => setFilter("cargo", e.target.value)}
           >
-            <option value="all">Todos</option>
+            <option value="all">Cargo: todos</option>
             {cargoOptions.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
             ))}
           </select>
-
-          {/* Nível — select dark */}
-          <span className="ph-filter-label" style={{ marginLeft: 8 }}>
-            Nível
-          </span>
           <select
             className="ph-select"
+            aria-label="Nível"
             value={filters.nivel}
-            onChange={(e) => setFilters((f) => ({ ...f, nivel: e.target.value }))}
+            onChange={(e) => setFilter("nivel", e.target.value)}
           >
-            <option value="all">Todos</option>
+            <option value="all">Nível: todos</option>
             {nivelOptions.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="ph-filter-row">
-          <span className="ph-filter-label">Clicou no link</span>
-          {[
-            { v: "all", l: "Todos" },
-            { v: "yes", l: "Sim" },
-            { v: "no", l: "Não" },
-          ].map(({ v, l }) => (
-            <button
-              key={v}
-              className={`ph-chip${filters.clicked === v ? " active warning" : ""}`}
-              onClick={() => setFilters((f) => ({ ...f, clicked: v }))}
-            >
-              {l}
-            </button>
-          ))}
-          <span className="ph-filter-label" style={{ marginLeft: 16 }}>
-            Comprometido
-          </span>
-          {[
-            { v: "all", l: "Todos" },
-            { v: "yes", l: "Sim" },
-            { v: "no", l: "Não" },
-          ].map(({ v, l }) => (
-            <button
-              key={v}
-              className={`ph-chip${filters.submitted === v ? " active danger" : ""}`}
-              onClick={() => setFilters((f) => ({ ...f, submitted: v }))}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Charts grid */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* ── Cliques por Departamento ── */}
-        <div className="col-span-1 ph-block" style={{ minHeight: 260 }}>
-          <div className="ph-block-hdr">
-            <div className="ph-block-title">
-              <GripHorizontal size={11} color={T.textMuted} />
-              <MousePointer2 size={11} color={T.warning} /> Cliques por Departamento
-            </div>
-          </div>
-          <div className="ph-block-body" style={{ overflowY: "auto", maxHeight: 340 }}>
-            {byDeptClicks.length === 0 ? (
-              <div className="ph-empty">Sem cliques no período.</div>
-            ) : (
-              (() => {
-                const maxVal = Math.max(...byDeptClicks.map((d) => d.total), 1);
-                return byDeptClicks.map((d, i) => {
-                  const barPct = Math.max(4, (d.total / maxVal) * 100);
-                  const color = DEPT_PALETTE[i % DEPT_PALETTE.length];
-                  return (
-                    <div key={d.dept} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: T.textSecondary,
-                          width: 120,
-                          flexShrink: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                        title={d.dept}
-                      >
-                        {truncateDept(d.dept)}
-                      </span>
-                      <div
-                        style={{
-                          flex: 1,
-                          height: 20,
-                          background: "rgba(var(--tl-line-rgb, 30,38,64),0.5)",
-                          borderRadius: 4,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${barPct}%`,
-                            height: "100%",
-                            background: `linear-gradient(90deg,color-mix(in srgb, ${color} 33%, transparent),${color})`,
-                            borderRadius: 4,
-                            display: "flex",
-                            alignItems: "center",
-                            paddingLeft: 8,
-                          }}
-                        >
-                          {barPct > 20 && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: "rgba(255,255,255,0.9)",
-                                fontFamily: "'IBM Plex Mono',monospace",
-                              }}
-                            >
-                              {d.total}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          fontFamily: "'IBM Plex Mono',monospace",
-                          color: T.warning,
-                          width: 28,
-                          textAlign: "right",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {barPct <= 20 ? d.total : ""}
-                      </span>
-                    </div>
-                  );
-                });
-              })()
-            )}
-          </div>
-        </div>
-
-        {/* ── Comprometidos por Departamento ── */}
-        <div className="col-span-1 ph-block" style={{ minHeight: 260 }}>
-          <div className="ph-block-hdr">
-            <div className="ph-block-title">
-              <GripHorizontal size={11} color={T.textMuted} />
-              <ShieldAlert size={11} color={T.danger} /> Comprometidos por Depto.
-            </div>
-          </div>
-          <div className="ph-block-body" style={{ overflowY: "auto", maxHeight: 340 }}>
-            {byDeptSubmitted.length === 0 ? (
-              <div className="ph-empty">Nenhum comprometimento.</div>
-            ) : (
-              (() => {
-                const maxVal = Math.max(...byDeptSubmitted.map((d) => d.total), 1);
-                return byDeptSubmitted.map((d, i) => {
-                  const barPct = Math.max(4, (d.total / maxVal) * 100);
-                  const color = DEPT_PALETTE[i % DEPT_PALETTE.length];
-                  return (
-                    <div key={d.dept} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: T.textSecondary,
-                          width: 120,
-                          flexShrink: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                        title={d.dept}
-                      >
-                        {truncateDept(d.dept)}
-                      </span>
-                      <div
-                        style={{
-                          flex: 1,
-                          height: 20,
-                          background: "rgba(var(--tl-line-rgb, 30,38,64),0.5)",
-                          borderRadius: 4,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${barPct}%`,
-                            height: "100%",
-                            background: `linear-gradient(90deg,color-mix(in srgb, ${color} 33%, transparent),${color})`,
-                            borderRadius: 4,
-                            display: "flex",
-                            alignItems: "center",
-                            paddingLeft: 8,
-                          }}
-                        >
-                          {barPct > 20 && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: "rgba(255,255,255,0.9)",
-                                fontFamily: "'IBM Plex Mono',monospace",
-                              }}
-                            >
-                              {d.total}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          fontFamily: "'IBM Plex Mono',monospace",
-                          color: T.danger,
-                          width: 28,
-                          textAlign: "right",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {barPct <= 20 ? d.total : ""}
-                      </span>
-                    </div>
-                  );
-                });
-              })()
-            )}
-          </div>
-        </div>
-
-        {/* ── Campanhas ── */}
-        <div className="col-span-1 ph-block" style={{ minHeight: 260 }}>
-          <div className="ph-block-hdr">
-            <div className="ph-block-title">
-              <GripHorizontal size={11} color={T.textMuted} />
-              <Fish size={11} color={T.danger} /> Campanhas
-            </div>
-          </div>
-          <div
-            className="ph-block-body"
-            style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center" }}
+          <select
+            className="ph-select"
+            aria-label="Ação"
+            value={filters.action}
+            onChange={(e) => setFilter("action", e.target.value)}
           >
-            {/* Tiles ativas / arquivadas */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {[
-                {
-                  label: "Ativas",
-                  value: data.campaignsStatus.ativas,
-                  color: T.accent,
-                  bg: T.accentSoft,
-                  border: "rgba(59,130,246,0.25)",
-                },
-                {
-                  label: "Arquivadas",
-                  value: data.campaignsStatus.arquivadas,
-                  color: T.neutral,
-                  bg: "rgba(107,114,128,0.08)",
-                  border: "rgba(107,114,128,0.2)",
-                },
-              ].map(({ label, value, color, bg, border }) => (
-                <div
-                  key={label}
-                  style={{
-                    background: bg,
-                    border: `1px solid ${border}`,
-                    borderRadius: 8,
-                    padding: "14px 14px",
-                    position: "relative",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: color }} />
-                  <div
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 700,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color,
-                      fontFamily: "'IBM Plex Mono',monospace",
-                      marginBottom: 6,
-                      opacity: 0.85,
-                    }}
-                  >
-                    {label}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 32,
-                      fontWeight: 700,
-                      fontFamily: "'Space Grotesk',sans-serif",
-                      color,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {value}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {/* Barra proporcional */}
-            {(() => {
-              const total = data.campaignsStatus.ativas + data.campaignsStatus.arquivadas;
-              const ativPct = total > 0 ? Math.round((data.campaignsStatus.ativas / total) * 100) : 0;
-              return total > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div style={{ height: 10, borderRadius: 5, overflow: "hidden", display: "flex" }}>
-                    <div style={{ width: `${ativPct}%`, background: T.accent, transition: "width 0.5s" }} />
-                    <div style={{ flex: 1, background: "rgba(107,114,128,0.25)" }} />
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: 10,
-                      fontFamily: "'IBM Plex Mono',monospace",
-                      color: T.textMuted,
-                    }}
-                  >
-                    <span style={{ color: T.accent }}>{ativPct}% ativas</span>
-                    <span>{total} total</span>
-                  </div>
-                </div>
-              ) : null;
-            })()}
-            {/* Templates */}
-            <div
-              style={{
-                borderTop: `1px solid ${T.border}`,
-                paddingTop: 10,
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 11,
-                fontFamily: "'IBM Plex Mono',monospace",
-              }}
-            >
-              <span style={{ color: T.textMuted }}>Templates em uso</span>
-              <span style={{ color: T.textPrimary, fontWeight: 700 }}>
-                {data.templatesUsed.length} / {data.templatesTotal}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Detail table */}
-      <div className="ph-panel">
-        <div className="ph-panel-hdr">
-          <div className="ph-panel-title">
-            <Activity size={11} color={T.accent} /> Detalhamento
-            <span style={{ fontWeight: 400, color: T.textSubtle }}>({sorted.length})</span>
-          </div>
-          <div className="ph-search-wrap">
-            <Search size={12} className="ph-search-icon" />
+            <option value="all">Ação: todas</option>
+            {actionOptions.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <label className="ph-search">
+            <Search size={14} />
             <input
-              className="ph-search"
-              placeholder="Buscar e-mail, cargo, campanha…"
+              placeholder="Buscar e-mail, cargo, campanha"
+              aria-label="Buscar no detalhamento"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-          </div>
+          </label>
         </div>
-        <div style={{ overflowX: "auto", maxHeight: 520, overflowY: "auto" }}>
-          <table className="ph-table">
-            <thead>
-              <tr>
-                {(
-                  [
-                    ["launch_date", "Data"],
-                    ["email", "E-mail"],
-                    ["status", "Status"],
-                    ["action", "Ação"],
-                    ["cargo", "Cargo"],
-                    ["departamento", "Depto."],
-                    ["campanha", "Campanha"],
-                  ] as [SortKey, string][]
-                ).map(([k, label], i) => (
-                  <th key={k} onClick={() => toggleSort(k)} style={{ paddingLeft: i === 0 ? 18 : undefined }}>
-                    {label} <SortIcon active={sortKey === k} dir={sortDir} />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.length === 0 ? (
+        {chips.length > 0 && (
+          <div className="ph-chips">
+            {chips.map((c) => (
+              <span key={c.k} className="ph-fchip">
+                <b>{c.l}:</b> {c.v}
+                <button onClick={() => setFilter(c.k, "all")} aria-label={`Remover filtro ${c.v}`}>
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+            <button
+              className="ph-link"
+              onClick={() => setFilters({ dept: "all", cargo: "all", nivel: "all", action: "all" })}
+            >
+              Limpar filtros
+            </button>
+          </div>
+        )}
+        {sorted.length === 0 ? (
+          <div className="ph-empty">Nenhum registro com os filtros aplicados.</div>
+        ) : (
+          <div className="ph-scroll">
+            <table className="ph-table">
+              <thead>
                 <tr>
-                  <td colSpan={7}>
-                    <div className="ph-empty">Nenhum registro com os filtros aplicados.</div>
-                  </td>
+                  <Th k="launch_date" label="Data" />
+                  <Th k="email" label="E-mail" />
+                  <Th k="action" label="Ação" />
+                  <Th k="cargo" label="Cargo" />
+                  <Th k="departamento" label="Departamento" />
+                  <Th k="campanha" label="Campanha" />
                 </tr>
-              ) : (
-                sorted.map((r, i) => (
+              </thead>
+              <tbody>
+                {sorted.map((r: Row, i) => (
                   <tr key={`${r.email}-${r.campanha}-${i}`}>
-                    <td className="mono dim" style={{ paddingLeft: 18, whiteSpace: "nowrap" }}>
+                    <td className="mono dim" style={{ whiteSpace: "nowrap" }}>
                       {r.launch_date ? new Date(r.launch_date).toLocaleDateString("pt-BR") : "—"}
                     </td>
-                    <td className="mono trunc">{r.email}</td>
-                    <td>
-                      <span style={{ fontSize: 11, color: T.textSecondary }}>{r.status}</span>
+                    <td className="mono trunc" title={r.email} style={{ maxWidth: 280 }}>
+                      {r.email}
                     </td>
                     <td>
-                      <span className={`ph-badge ${r.submitted ? "danger" : r.clicked ? "warning" : "neutral"}`}>
+                      <span
+                        className="ph-pill"
+                        style={
+                          {
+                            "--c": ACTION_COLOR[r.action] ?? "var(--v2-fg-3)",
+                          } as React.CSSProperties
+                        }
+                        title={r.status}
+                      >
                         {r.action}
                       </span>
                     </td>
-                    <td style={{ fontSize: 11 }}>{r.cargo}</td>
-                    <td style={{ fontSize: 11 }} className="trunc">
+                    <td className="trunc">
+                      {r.cargo}
+                      {r.nivel && <span className="dim"> · {r.nivel}</span>}
+                    </td>
+                    <td className="trunc" title={r.departamento}>
                       {r.departamento}
                     </td>
-                    <td style={{ fontSize: 11 }} className="trunc dim">
+                    <td className="trunc dim" title={r.campanha}>
                       {r.campanha}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-    </div>
+
+      <DetailSheet
+        open={tplOpen && selectedTemplate !== null}
+        onOpenChange={setTplOpen}
+        eyebrow="Template do Gophish"
+        title={tplQuery.data?.ok ? tplQuery.data.name : (selectedTemplateName ?? "Template")}
+        width={680}
+      >
+        {tplQuery.isLoading ? (
+          <div className="flex items-center gap-2 text-[13px] text-v2-fg-3">
+            <RefreshCw size={14} className="animate-spin" /> Carregando template…
+          </div>
+        ) : tplQuery.data?.ok ? (
+          <>
+            <DetailSection title="Mensagem">
+              <DetailList items={[["Assunto", tplQuery.data.subject || "(sem assunto)"]]} />
+            </DetailSection>
+            <iframe
+              title={`Prévia: ${tplQuery.data.name}`}
+              srcDoc={tplQuery.data.html || "<p style='padding:1rem'>Sem HTML.</p>"}
+              sandbox=""
+              style={{
+                width: "100%",
+                height: 480,
+                background: "white",
+                borderRadius: 8,
+                border: "1px solid var(--v2-line)",
+              }}
+            />
+          </>
+        ) : (
+          <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--v2-crit)" }}>
+            <AlertCircle size={14} /> {tplQuery.data?.error ?? "Falha ao carregar template."}
+          </div>
+        )}
+      </DetailSheet>
+    </>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// OPERATIONS TAB
+// OPERAÇÕES
 // ══════════════════════════════════════════════════════════════════════════════
 function OperationsTab() {
   // ── back-end UNCHANGED ─────────────────────────────────────────────────────
-  const qc = useQueryClient();
   const fetchOps = useServerFn(getPhishingOperations);
-  const doSync = useServerFn(syncGophishData);
-  const [syncing, setSyncing] = React.useState(false);
-
   const { data, isLoading, error } = useQuery({
     queryKey: ["phishing", "operations"],
     queryFn: () => fetchOps(),
     staleTime: 5 * 60 * 1000,
   });
-
-  async function handleSync() {
-    setSyncing(true);
-    try {
-      const r = await doSync();
-      if (r.ok) toast.success(`Campanhas sincronizadas: ${r.counts?.campaigns ?? 0}`);
-      else toast.error(`Erro no sync: ${r.error ?? "desconhecido"}`);
-      await qc.refetchQueries({ queryKey: ["phishing"] });
-    } finally {
-      setSyncing(false);
-    }
-  }
   // ──────────────────────────────────────────────────────────────────────────
-
   if (isLoading)
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          padding: "48px",
-          color: T.textMuted,
-          fontSize: 12,
-          fontFamily: "'IBM Plex Mono',monospace",
-        }}
-      >
-        <RefreshCw size={13} className="ph-spin" color={T.accent} /> Carregando…
+      <div className="ph-state">
+        <RefreshCw size={18} className="ph-spin" />
       </div>
     );
   if (error || !data || data.ok === false)
     return (
-      <div className="ph-empty">{(error as Error)?.message || (data && !data.ok ? data.error : "Sem dados.")}</div>
+      <div className="ph-state">
+        <span className="dim" style={{ fontSize: 13 }}>
+          {(error as Error)?.message || (data && !data.ok ? data.error : "Sem dados.")}
+        </span>
+      </div>
     );
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div className="grid grid-cols-2 gap-4">
+    <>
+      <RunningCampaignsPanel campaigns={data.runningCampaigns} />
+      <div className="ph-grid">
         <GroupsPanel groups={data.groups} />
         <UsersPanel users={data.users} />
       </div>
-      <RunningCampaignsPanel campaigns={data.runningCampaigns} syncing={syncing} onSync={handleSync} />
-    </div>
+    </>
   );
 }
 
-// ── Groups Panel ──────────────────────────────────────────────────────────────
 type Group = {
   id: number;
   name: string;
@@ -1334,135 +918,118 @@ function GroupsPanel({ groups }: { groups: Group[] }) {
   }, [groups, search]);
 
   return (
-    <div className="ph-panel">
-      <div className="ph-panel-hdr">
-        <div className="ph-panel-title">
-          <Users size={11} color={T.accent} /> Departamentos ({groups.length})
-        </div>
-        <div className="ph-search-wrap">
-          <Search size={12} className="ph-search-icon" />
+    <div className="ph-panel ph-span-2">
+      <div className="ph-filters">
+        <b>
+          Grupos de destinatários <span>({groups.length})</span>
+        </b>
+        <label className="ph-search">
+          <Search size={14} />
           <input
-            className="ph-search"
-            style={{ width: 180 }}
-            placeholder="Buscar departamento…"
+            placeholder="Buscar grupo"
+            aria-label="Buscar grupo"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-        </div>
+        </label>
       </div>
-      <div style={{ maxHeight: 380, overflowY: "auto" }}>
+      <div style={{ maxHeight: 560, overflowY: "auto" }}>
         {filtered.length === 0 ? (
           <div className="ph-empty">Nenhum grupo.</div>
         ) : (
-          filtered.map((g) => (
-            <React.Fragment key={g.id}>
-              <div className="ph-group-row" onClick={() => setExpanded(expanded === g.id ? null : g.id)}>
-                <span className="ph-group-expand">
-                  {expanded === g.id ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                </span>
-                <span className="ph-group-name">{g.name}</span>
-                <span className="ph-group-meta">
-                  <Users size={11} /> {g.targets}
-                </span>
-                <span className="ph-group-meta" style={{ marginLeft: 10, color: T.textSubtle }}>
-                  {g.modified_date ? new Date(g.modified_date).toLocaleDateString("pt-BR") : "—"}
-                </span>
+          filtered.map((g) => {
+            const open = expanded === g.id;
+            return (
+              <div key={g.id} className={`ph-grp${open ? " open" : ""}`}>
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setExpanded(open ? null : g.id)}
+                >
+                  <b title={g.name}>{g.name}</b>
+                  <span className="mono dim">{g.targets} pessoas</span>
+                  <span className="dim" style={{ fontSize: 12.5 }}>
+                    {g.modified_date ? `alterado ${fmtRel(g.modified_date)}` : "—"}
+                  </span>
+                  <ChevronDown size={16} className="chev" />
+                </button>
+                {open && (
+                  <div className="ph-grp-b">
+                    {g.members.length === 0 ? (
+                      <div className="dim">Nenhum membro.</div>
+                    ) : (
+                      g.members.map((m, i) => (
+                        <div key={i}>
+                          <span className="mono" title={m.email}>
+                            {m.email}
+                          </span>
+                          <span>
+                            {[m.first_name, m.last_name].filter(Boolean).join(" ") || "—"}
+                          </span>
+                          <span className="dim">{m.position || "—"}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
-              {expanded === g.id && (
-                <div className="ph-group-body">
-                  {g.members.length === 0 ? (
-                    <div style={{ padding: "10px 14px", fontSize: 11, color: T.textMuted }}>Nenhum membro.</div>
-                  ) : (
-                    g.members.map((m, i) => (
-                      <div key={i} className="ph-member-row">
-                        <span
-                          className="mono dim"
-                          style={{
-                            flex: "0 0 200px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {m.email}
-                        </span>
-                        <span style={{ flex: 1, color: T.textSecondary }}>
-                          {[m.first_name, m.last_name].filter(Boolean).join(" ") || "—"}
-                        </span>
-                        <span className="mono dim">{m.position || "—"}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </React.Fragment>
-          ))
+            );
+          })
         )}
       </div>
     </div>
   );
 }
 
-// ── Users Panel ───────────────────────────────────────────────────────────────
 function UsersPanel({ users }: { users: Array<{ id: number; username: string; role?: string }> }) {
-  const [search, setSearch] = React.useState("");
-  const filtered = React.useMemo(() => {
-    const s = search.trim().toLowerCase();
-    return s ? users.filter((u) => u.username.toLowerCase().includes(s)) : users;
-  }, [users, search]);
-
   return (
     <div className="ph-panel">
       <div className="ph-panel-hdr">
-        <div className="ph-panel-title">
-          <Lock size={11} color={T.accent} /> Usuários ({users.length})
-        </div>
-        <div className="ph-search-wrap">
-          <Search size={12} className="ph-search-icon" />
-          <input
-            className="ph-search"
-            style={{ width: 180 }}
-            placeholder="Buscar usuário…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <h2 className="ph-panel-title">
+          Usuários do Gophish <span className="n">({users.length})</span>
+        </h2>
+        <p className="ph-panel-sub">Contas com acesso ao console</p>
       </div>
-      <div style={{ maxHeight: 380, overflowY: "auto" }}>
-        <table className="ph-table">
-          <thead>
-            <tr>
-              <th style={{ paddingLeft: 18 }}>Usuário</th>
-              <th>Papel</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
+      {users.length === 0 ? (
+        <div className="ph-empty">Nenhum usuário.</div>
+      ) : (
+        <div className="ph-scroll" style={{ marginTop: 8 }}>
+          <table className="ph-table">
+            <thead>
               <tr>
-                <td colSpan={2}>
-                  <div className="ph-empty">Nenhum usuário.</div>
-                </td>
+                <th>Usuário</th>
+                <th>Papel</th>
               </tr>
-            ) : (
-              filtered.map((u) => (
-                <tr key={u.id}>
-                  <td className="mono" style={{ paddingLeft: 18 }}>
-                    {u.username}
-                  </td>
-                  <td>
-                    <span className="ph-badge info">{u.role ?? "—"}</span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {users.map((u) => {
+                const admin = (u.role ?? "").toLowerCase() === "admin";
+                return (
+                  <tr key={u.id}>
+                    <td className="mono">{u.username}</td>
+                    <td>
+                      <span
+                        className="ph-pill"
+                        style={
+                          {
+                            "--c": admin ? "var(--v2-accent)" : "var(--v2-fg-3)",
+                          } as React.CSSProperties
+                        }
+                      >
+                        {admin ? "Admin" : u.role || "Usuário"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Running Campaigns ─────────────────────────────────────────────────────────
 type RunningCampaign = {
   id: number;
   name: string;
@@ -1472,59 +1039,77 @@ type RunningCampaign = {
   counters: { sent: number; opened: number; clicked: number; submitted: number; reported: number };
 };
 
-function RunningCampaignsPanel({
-  campaigns,
-  syncing,
-  onSync,
-}: {
-  campaigns: RunningCampaign[];
-  syncing: boolean;
-  onSync: () => void;
-}) {
+function RunningCampaignsPanel({ campaigns }: { campaigns: RunningCampaign[] }) {
   return (
     <div className="ph-panel">
       <div className="ph-panel-hdr">
-        <div className="ph-panel-title">
-          <Fish size={11} color={T.danger} /> Campanhas em andamento ({campaigns.length})
-        </div>
-        <button className="ph-btn ghost" onClick={onSync} disabled={syncing}>
-          <RefreshCw size={12} className={syncing ? "ph-spin" : ""} /> {syncing ? "Sincronizando…" : "Sincronizar"}
-        </button>
+        <h2 className="ph-panel-title">
+          Campanhas em andamento <span className="n">({campaigns.length})</span>
+        </h2>
+        <p className="ph-panel-sub">Ao serem concluídas no Gophish, entram no Dashboard</p>
       </div>
       <div className="ph-panel-body">
         {campaigns.length === 0 ? (
           <div className="ph-empty">Nenhuma campanha em andamento.</div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12 }}>
-            {campaigns.map((c) => (
-              <div key={c.id} className="ph-camp-card">
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, marginBottom: 3 }}>{c.name}</div>
-                    <div style={{ fontSize: 11, color: T.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
-                      {c.template ?? "—"} · {c.launch_date ? fmtDate(c.launch_date) : "—"}
+          <div className="ph-camps">
+            {campaigns.map((c) => {
+              const { sent, opened, clicked, submitted, reported } = c.counters;
+              return (
+                <div key={c.id} className="ph-camp">
+                  <div className="ph-camp-h">
+                    <div style={{ minWidth: 0 }}>
+                      <b>{c.name}</b>
+                      <small>
+                        {c.template ?? "—"} · lançada {c.launch_date ? fmtDate(c.launch_date) : "—"}
+                      </small>
                     </div>
+                    <span
+                      className="ph-pill live"
+                      style={{ "--c": "var(--v2-accent)" } as React.CSSProperties}
+                    >
+                      {c.status === "In progress" ? "Em andamento" : c.status}
+                    </span>
                   </div>
-                  <span className="ph-badge info">{c.status}</span>
-                </div>
-                <div className="ph-camp-counters">
-                  {[
-                    { l: "Enviado", v: c.counters.sent, color: T.accent },
-                    { l: "Aberto", v: c.counters.opened, color: T.purple },
-                    { l: "Clicou", v: c.counters.clicked, color: T.warning },
-                    { l: "Submeteu", v: c.counters.submitted, color: T.danger },
-                    { l: "Reportou", v: c.counters.reported, color: T.success },
-                  ].map((k) => (
-                    <div key={k.l} className="ph-camp-counter">
-                      <div className="ph-camp-counter-num" style={{ color: k.color }}>
-                        {k.v}
+                  <div className="ph-mini">
+                    {(
+                      [
+                        ["Enviados", sent, undefined],
+                        ["Abriram", opened, undefined],
+                        ["Clicaram", clicked, "var(--v2-high)"],
+                        ["Submeteram", submitted, "var(--v2-crit)"],
+                        ["Reportaram", reported, "var(--v2-ok)"],
+                      ] as Array<[string, number, string | undefined]>
+                    ).map(([l, v, color]) => (
+                      <div key={l}>
+                        <b style={color ? { color } : undefined}>{v}</b>
+                        <span>{l}</span>
                       </div>
-                      <div className="ph-camp-counter-lbl">{k.l}</div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  <div
+                    className="ph-stk"
+                    title={`Clique ${pct(clicked, sent)}% · submissão ${pct(submitted, sent)}% · reporte ${pct(reported, sent)}%`}
+                  >
+                    <i
+                      style={{ width: `${pct(submitted, sent)}%`, background: "var(--v2-crit)" }}
+                    />
+                    <i
+                      style={{
+                        width: `${pct(Math.max(0, clicked - submitted), sent)}%`,
+                        background: "var(--v2-high)",
+                      }}
+                    />
+                    <i
+                      style={{
+                        width: `${pct(Math.max(0, opened - clicked), sent)}%`,
+                        background: "var(--v2-med)",
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

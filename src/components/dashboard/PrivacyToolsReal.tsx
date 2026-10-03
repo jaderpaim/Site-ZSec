@@ -1,3 +1,4 @@
+import { SyncActions } from "@/components/layout/SyncActions";
 import * as React from "react";
 import {
   ResponsiveContainer,
@@ -709,6 +710,7 @@ export function PrivacyToolsRealDashboard() {
                 <div className="pt-hdr-sub">Consentimentos · Cookies Incrementais · Relatório de Uso</div>
               </div>
             </div>
+            <SyncActions moduleSlug="privacy-tools" jobs={["privacy-tools-sync"]}>
             <div className="pt-hdr-pills">
               {canManage && (
                 <button
@@ -721,6 +723,7 @@ export function PrivacyToolsRealDashboard() {
                 </button>
               )}
             </div>
+            </SyncActions>
           </div>
 
           {/* Tabs */}

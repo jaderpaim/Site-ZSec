@@ -34,3 +34,6 @@ dist-ssr
 # testes locais
 cloudflared.exe
 worker-index.b64
+
+# Agente Z-Sec
+agent/dist/

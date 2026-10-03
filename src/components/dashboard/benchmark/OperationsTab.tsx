@@ -1,8 +1,9 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, Save } from "lucide-react";
+import { Plus, Pencil, Trash2, Save } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -120,13 +121,7 @@ export function BenchmarkOperationsTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (isLoading) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", padding: 48, color: T.textMuted }}>
-        <Loader2 className="size-5 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <ModuleLoading />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, fontFamily: "'DM Sans',sans-serif" }}>

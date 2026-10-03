@@ -1,0 +1,168 @@
+// Treinamentos — utilidades só do servidor: sessão do colaborador, login Microsoft
+// (fluxo separado do login do painel) e envio de e-mail.
+//
+// O colaborador não tem conta no Z-Sec. Ele prova quem é com a conta Microsoft do
+// tenant e recebe um cookie assinado que só abre as páginas de treinamento. O link
+// recebido por e-mail não dá acesso a nada sozinho: quem decide é a identidade.
+import { createClient } from "@supabase/supabase-js";
+
+export const LEARNER_COOKIE = "zsec_trn";
+const LEARNER_TTL_SEC = 8 * 60 * 60; // 8 horas
+export const VIDEO_BUCKET = "treinamentos";
+
+/** Cliente service role sem tipos gerados (as tabelas novas ainda não estão em types.ts). */
+export function adminDb() {
+  const url = process.env.SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+function secret(): string {
+  const s = process.env.SSO_STATE_SECRET;
+  if (!s) throw new Error("SSO_STATE_SECRET não configurado");
+  return s;
+}
+
+async function hmac(payload: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret()),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
+  return Buffer.from(sig).toString("base64url");
+}
+
+/** Comparação em tempo constante para assinaturas. */
+function safeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+export type LearnerSession = { c: string; e: string; n: string; exp: number };
+
+export async function signLearnerSession(s: Omit<LearnerSession, "exp">): Promise<string> {
+  const body: LearnerSession = { ...s, exp: Math.floor(Date.now() / 1000) + LEARNER_TTL_SEC };
+  const payload = Buffer.from(JSON.stringify(body)).toString("base64url");
+  return `${payload}.${await hmac(payload)}`;
+}
+
+export async function verifyLearnerSession(
+  raw: string | undefined | null,
+): Promise<LearnerSession | null> {
+  if (!raw) return null;
+  const [payload, sig] = raw.split(".");
+  if (!payload || !sig) return null;
+  if (!safeEqual(await hmac(payload), sig)) return null;
+  try {
+    const body = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8")) as LearnerSession;
+    if (!body.c || body.exp < Math.floor(Date.now() / 1000)) return null;
+    return body;
+  } catch {
+    return null;
+  }
+}
+
+export const learnerCookieOptions = {
+  path: "/",
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax" as const,
+  maxAge: LEARNER_TTL_SEC,
+};
+
+/** Sessão do colaborador a partir do cookie da requisição atual (server functions). */
+export async function currentLearner(): Promise<LearnerSession | null> {
+  const { getCookie } = await import("@tanstack/react-start/server");
+  return verifyLearnerSession(getCookie(LEARNER_COOKIE));
+}
+
+export function learnerRedirectUri(): string {
+  const fromEnv = process.env.TREINAMENTOS_SSO_REDIRECT_URI;
+  if (fromEnv) return fromEnv;
+  const base = process.env.PUBLIC_APP_URL ?? "";
+  return `${base.replace(/\/$/, "")}/api/public/treinamentos/sso/callback`;
+}
+
+export function appBaseUrl(): string {
+  return (process.env.PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+}
+
+// ── E-mail (mesmo caminho dos demais módulos: edge function send-smtp) ────────
+export async function sendMail(
+  to: string,
+  subject: string,
+  html: string,
+  template: string,
+): Promise<boolean> {
+  const sb = adminDb();
+  const { data: cfg } = await sb.from("smtp_config").select("*").limit(1).maybeSingle();
+  if (!cfg?.host) throw new Error("SMTP não configurado");
+  const password = cfg.password || process.env.SMTP_PASSWORD;
+  if (!password) throw new Error("Senha SMTP não configurada");
+  const res = await fetch(`${process.env.SUPABASE_URL}/functions/v1/send-smtp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({
+      host: cfg.host,
+      port: cfg.port || 587,
+      secure: !!cfg.secure,
+      username: cfg.username || null,
+      password,
+      from: { name: cfg.from_name || "Z-Sec · Segurança da Informação", email: cfg.from_email },
+      to,
+      subject,
+      html,
+    }),
+  });
+  const out = (await res.json().catch(() => ({ ok: false }))) as { ok?: boolean; error?: string };
+  await sb.from("email_logs").insert({
+    to_email: to,
+    subject,
+    template,
+    status: out.ok ? "success" : "error",
+    error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+  });
+  return !!out.ok;
+}
+
+const esc = (s: string) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+/** Convite de treinamento. O link é fixo (Meus treinamentos) e só funciona com o login Microsoft da pessoa. */
+export function buildConviteHtml(a: {
+  nome: string;
+  titulo: string;
+  prazo: string | null;
+  link: string;
+}) {
+  const prazo = a.prazo ? a.prazo.split("-").reverse().join("/") : null;
+  return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px">
+<tr><td style="padding:24px 28px 8px;font-size:13px;color:#2563eb;font-weight:bold;letter-spacing:.04em">Z-SEC · SEGURANÇA DA INFORMAÇÃO</td></tr>
+<tr><td style="padding:4px 28px 0;font-size:20px;font-weight:bold;color:#111827">Olá, ${esc(a.nome.split(" ")[0] ?? a.nome)}</td></tr>
+<tr><td style="padding:12px 28px 0;font-size:15px;line-height:1.6">Você tem um treinamento de segurança para fazer: <b>${esc(a.titulo)}</b>.${prazo ? ` O prazo é <b>${prazo}</b>.` : ""}</td></tr>
+<tr><td style="padding:20px 28px 4px"><a href="${esc(a.link)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px">Abrir Meus treinamentos</a></td></tr>
+<tr><td style="padding:12px 28px 0;font-size:13px;line-height:1.6;color:#4b5563">Você vai entrar com a sua conta Microsoft da empresa. Prefere não clicar em links de e-mail? Ótimo hábito: acesse a intranet e abra <b>Meus treinamentos</b>.</td></tr>
+<tr><td style="padding:20px 28px 24px;font-size:12px;color:#9ca3af">Enviado automaticamente pelo Z-Sec · Segurança da Informação. Dúvidas: responda este e-mail.</td></tr>
+</table></td></tr></table></body></html>`;
+}
+
+export function clientIp(req: Request | null): string | null {
+  if (!req) return null;
+  return (
+    req.headers.get("cf-connecting-ip") ??
+    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+    req.headers.get("x-real-ip") ??
+    null
+  );
+}

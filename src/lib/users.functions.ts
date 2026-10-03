@@ -439,6 +439,95 @@ export const setUserPermission = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Grava várias permissões de uma vez (botão "Salvar" do painel do usuário).
+// Mesmas regras de setUserPermission, mas com uma única checagem de acesso e
+// gravações agrupadas — uma linha de auditoria por permissão alterada.
+export const setUserPermissionsBatch = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .inputValidator((d) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        changes: z
+          .array(
+            z.object({
+              module: z.string().min(1).max(64),
+              action: z.string().min(1).max(64),
+              granted: z.boolean(),
+            }),
+          )
+          .min(1)
+          .max(500),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const auth = await assertCanManageUsers(context.supabase, context.userId);
+    for (const c of data.changes) {
+      if (isExclusiveModule(c.module) && !auth.isGlobalAdmin) {
+        throw new Error("Forbidden: módulo exclusivo — apenas super admin concede permissão");
+      }
+      if (!auth.isGlobalAdmin && !auth.isAdminRole && !auth.moduleAdmins.has(c.module)) {
+        throw new Error(`Forbidden: você não é admin do módulo ${c.module}`);
+      }
+    }
+
+    const grants = data.changes.filter((c) => c.granted);
+    const revokes = data.changes.filter((c) => !c.granted);
+    const errors: string[] = [];
+
+    if (grants.length) {
+      const { error } = await supabaseAdmin.from("user_module_permissions").upsert(
+        grants.map((c) => ({
+          user_id: data.userId,
+          module_slug: c.module,
+          action: c.action,
+          granted_by: context.userId,
+        })),
+        { onConflict: "user_id,module_slug,action" },
+      );
+      if (error) errors.push(error.message);
+    }
+
+    // Revogações agrupadas por módulo (uma query por módulo)
+    const revokeByModule = new Map<string, string[]>();
+    for (const c of revokes) revokeByModule.set(c.module, [...(revokeByModule.get(c.module) ?? []), c.action]);
+    for (const [module, actions] of revokeByModule) {
+      const { error } = await supabaseAdmin
+        .from("user_module_permissions")
+        .delete()
+        .eq("user_id", data.userId)
+        .eq("module_slug", module)
+        .in("action", actions);
+      if (error) errors.push(error.message);
+    }
+
+    const targetLabel = await targetProfileLabel(data.userId);
+    const failed = errors.length > 0;
+    await Promise.all(
+      data.changes.map((c) =>
+        logAudit({
+          userId: context.userId,
+          modulo: "usuarios",
+          acao: c.granted ? "grant_permission" : "revoke_permission",
+          descricao: `${c.granted ? "Concedeu" : "Revogou"} a permissão "${c.action}" no módulo "${c.module}" para ${targetLabel}`,
+          status: failed ? "error" : "success",
+          mensagemErro: failed ? errors.join("; ") : null,
+          detalhes: {
+            targetUserId: data.userId,
+            module: c.module,
+            action: c.action,
+            granted: c.granted,
+            batch: true,
+          },
+        }),
+      ),
+    );
+
+    if (failed) throw new Error(errors.join("; "));
+    return { ok: true, count: data.changes.length };
+  });
+
 export const setModuleAdmin = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) =>

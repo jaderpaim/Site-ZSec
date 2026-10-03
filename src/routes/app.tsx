@@ -1,8 +1,9 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/lib/auth-context";
-import { AppSidebar, BrandMark } from "@/components/layout/AppSidebar";
+import { AppSidebar } from "@/components/layout/AppSidebar";
 import { CommandMenu } from "@/components/layout/CommandMenu";
 import { ShellStateProvider } from "@/components/layout/shell-state";
 import { FiltersProvider } from "@/lib/filters-context";
@@ -55,14 +56,7 @@ function AppLayout() {
     (navigate as any)({ to: "/login", search: { redirect: redirectTo, sso_error: undefined }, replace: true });
   }, [user, loading, navigate, location.pathname, location.searchStr]);
 
-  if (loading || !user) {
-    return (
-      <div className="font-ui min-h-screen flex flex-col items-center justify-center gap-3 bg-v2-bg text-v2-fg-3 text-[13px]">
-        <BrandMark className="w-8 h-9 animate-pulse motion-reduce:animate-none" />
-        Carregando…
-      </div>
-    );
-  }
+  if (loading || !user) return <ModuleLoading fullScreen />;
   return (
     <FiltersProvider>
       <ShellStateProvider>

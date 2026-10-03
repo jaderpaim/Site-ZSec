@@ -1,3 +1,4 @@
+import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -13,7 +14,7 @@ import {
   LabelList,
   ReferenceLine,
 } from "recharts";
-import { Loader2, TrendingUp, AlertTriangle, Target, Wallet, Gauge, ArrowUpRight } from "lucide-react";
+import { TrendingUp, AlertTriangle, Target, Wallet, Gauge, ArrowUpRight } from "lucide-react";
 import { getBenchmarkOverview, type MaturidadeRefRow, type InvestimentoRefRow } from "@/lib/benchmark.functions";
 
 // ── Tokens — mesma paleta do Painel Executivo (consistência entre painéis) ────
@@ -360,13 +361,7 @@ export function BenchmarkDashboardTab() {
     queryFn: () => fetchOverview(),
   });
 
-  if (isLoading) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", padding: 48, color: T.textMuted }}>
-        <Loader2 className="size-5 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <ModuleLoading />;
   if (error) {
     return (
       <div style={{ color: T.danger, fontSize: 13 }}>

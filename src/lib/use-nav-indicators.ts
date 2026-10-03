@@ -97,6 +97,32 @@ const LOADERS: Record<string, () => Promise<NavIndicator | null>> = {
     return { count: n, tone: expired > 0 ? "crit" : "warn", label };
   },
 
+  // Contratos de fornecedores vencidos ou dentro da janela de alerta de cada um (alert_days)
+  fornecedores: async () => {
+    const { data, error } = await supabase
+      .from("fornecedores")
+      .select("data_expiracao, alert_days");
+    if (error) throw error;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let expired = 0;
+    let expiring = 0;
+    for (const f of data ?? []) {
+      if (!f.data_expiracao) continue;
+      const days = Math.floor(
+        (new Date(f.data_expiracao + "T12:00:00").getTime() - today.getTime()) / 86400000,
+      );
+      if (days < 0) expired++;
+      else if (days <= (f.alert_days ?? 30)) expiring++;
+    }
+    const n = expired + expiring;
+    const label =
+      expired > 0
+        ? `${plural(expired, "contrato vencido", "contratos vencidos")}${expiring ? `, ${expiring} a vencer` : ""}`
+        : plural(n, "contrato a vencer", "contratos a vencer");
+    return { count: n, tone: expired > 0 ? "crit" : "warn", label };
+  },
+
   // Mudanças aguardando aprovação
   gmud: async () => {
     const n = await headCount(() =>

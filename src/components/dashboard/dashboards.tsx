@@ -39,11 +39,11 @@ import { UsersManagementDashboard } from "./UsersManagement";
 import { DominiosSslDashboard } from "./DominiosSsl";
 import { AprovadoresDashboard } from "./Aprovadores";
 import { FornecedoresDashboard } from "./Fornecedores";
-import Segmentos from "./Segmentos";
 import { NpsDashboard } from "./NpsReal";
 import { CmdbDashboard } from "./CmdbReal";
 import { AplicacoesDashboard } from "./Aplicacoes";
 import { PilulasSiDashboard } from "./PilulasSi";
+import { TreinamentosDashboard } from "./Treinamentos";
 import { BenchmarkDashboard } from "./Benchmark";
 import { ComitesDashboard } from "./Comites";
 import { PhishingDashboard } from "./Phishing";
@@ -233,37 +233,8 @@ import { RankingIaDashboard } from "./RankingIaReal";
 export { RankingIaDashboard };
 
 /* ===== ORGANIZAÇÃO ===== */
-export function OrganizacaoDashboard() {
-  return (
-    <div className="space-y-6">
-      <Grid cols={3}>
-        <KpiCard label="Equipe SI" value="18" hint="distribuídos em 4 squads" accent="primary" />
-        <KpiCard label="Funções Críticas Cobertas" value="100%" accent="success" />
-        <KpiCard label="Treinamentos Ativos" value="12" />
-      </Grid>
-      <Panel title="Estrutura Organizacional">
-        <div className="space-y-3 text-sm">
-          {[
-            { role: "CISO", name: "Diretor Segurança", count: 1 },
-            { role: "Gerência GRC", name: "Governance, Risk & Compliance", count: 4 },
-            { role: "SOC", name: "Security Operations Center", count: 6 },
-            { role: "Red Team", name: "Ofensivo / Pentests", count: 3 },
-            { role: "Privacidade & LGPD", name: "DPO + Analistas", count: 2 },
-            { role: "AppSec", name: "Application Security", count: 2 },
-          ].map((r) => (
-            <div key={r.role} className="flex items-center justify-between p-3 bg-accent/30 rounded-md">
-              <div>
-                <div className="font-medium text-foreground">{r.role}</div>
-                <div className="text-xs text-muted-foreground">{r.name}</div>
-              </div>
-              <Badge tone="info">{r.count} pessoas</Badge>
-            </div>
-          ))}
-        </div>
-      </Panel>
-    </div>
-  );
-}
+import { OrganizacaoDashboard } from "./OrganizacaoSI";
+export { OrganizacaoDashboard };
 
 /* ===== SOPHOS XDR ===== */
 export function SophosDashboard() {
@@ -508,11 +479,11 @@ export const DASHBOARDS: Record<string, () => React.ReactElement> = {
   "dominios-ssl": DominiosSslDashboard,
   aprovadores: AprovadoresDashboard,
   fornecedores: FornecedoresDashboard,
-  segmentos: Segmentos,
   nps: NpsDashboard,
   cmdb: CmdbDashboard,
   aplicacoes: AplicacoesDashboard,
   "pilulas-si": PilulasSiDashboard,
+  treinamentos: TreinamentosDashboard,
   "sso-ldap": SsoLdapDashboard,
   alertas: AlertasConfigDashboard,
   "cron-jobs": CronJobsDashboard,
