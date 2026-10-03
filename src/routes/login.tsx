@@ -380,7 +380,8 @@ function LoginPage() {
   const ssoEnabled = !!sso.data?.oauthEnabled;
 
   return (
-    <div className="lg">
+    // Login é sempre claro; o tema escolhido vale só dentro do app
+    <div className="lg v2-light">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       {/* ── Autenticação ──────────────────────────────────────────────────── */}

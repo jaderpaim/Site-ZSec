@@ -123,8 +123,11 @@
   --v2-ok: oklch(0.75 0.14 162);
 }
 
-/* Tema claro (botão ☀/☾ no cabeçalho; valor salvo em localStorage "bsec.theme"). */
-:root[data-theme="light"] {
+/* Tema claro (seletor Escuro/Claro no cabeçalho; valor salvo em localStorage "bsec.theme").
+   `.v2-light` força o claro num trecho da página, independente da escolha — usado
+   na tela de login, que é sempre clara. */
+:root[data-theme="light"],
+.v2-light {
   color-scheme: light;
   --v2-bg: oklch(0.972 0.004 255);
   --v2-surface: oklch(1 0 0);

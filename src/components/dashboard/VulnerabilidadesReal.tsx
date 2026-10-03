@@ -157,7 +157,19 @@ const CSS = `
   .vr .recharts-cartesian-axis-line { stroke:var(--v2-line-strong) !important; }
   .vr .recharts-cartesian-grid line { stroke:var(--v2-line) !important; }
   .vr .recharts-line-dots circle, .vr .recharts-active-dot circle { stroke:var(--v2-surface) !important; }
-  .vr-arc-track { stroke:var(--v2-line); }
+  .vr-sev-total { font-size:12.5px; color:var(--v2-fg-3); font-variant-numeric:tabular-nums; }
+  .vr-sev-tiles { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .vr-sev-tile { position:relative; overflow:hidden; display:grid; gap:6px; padding:12px 12px 12px 14px; border-radius:10px; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); font:inherit; text-align:left; cursor:pointer; transition:background .15s, border-color .15s, opacity .2s; min-width:0; }
+  .vr-sev-tile::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--c); }
+  .vr-sev-tile:hover { background:var(--v2-hover); }
+  .vr-sev-tile[aria-pressed="true"] { border-color:var(--c); background:color-mix(in oklch, var(--c) 8%, var(--v2-surface)); }
+  .vr-sev-tile.dim { opacity:0.4; }
+  .vr-sev-tile .h { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--v2-fg-2); }
+  .vr-sev-tile .h svg { color:var(--c); flex:none; }
+  .vr-sev-tile b { font-size:24px; font-weight:600; letter-spacing:-0.02em; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .vr-sev-tile .bar { height:4px; border-radius:2px; background:var(--v2-surface-2); overflow:hidden; }
+  .vr-sev-tile .bar i { display:block; height:100%; background:var(--c); border-radius:2px; }
+  .vr-sev-tile .ft { font:12px var(--font-data); color:var(--v2-fg-3); font-variant-numeric:tabular-nums; }
   .vr .recharts-legend-item-text { color:var(--v2-fg-2) !important; font-size:11px; font-family:'IBM Plex Mono',monospace; }
   .vr-tooltip { background:var(--v2-surface); border:1px solid var(--v2-line-strong); border-radius:8px; padding:10px 14px; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
   .vr-tooltip-label { font-size:10px; font-family:'IBM Plex Mono',monospace; color:var(--v2-fg-3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
@@ -297,6 +309,21 @@ const CSS = `
 
 // ── Back-end helpers — ALL UNCHANGED ──────────────────────────────────────────
 const SEVS = ["Crítica", "Alta", "Média", "Baixa"] as const;
+
+// Forma por severidade (◆ ▲ ■ ●) — identifica sem depender só da cor
+function SevShape({ sev }: { sev: string }) {
+  const d: Record<string, React.ReactNode> = {
+    Crítica: <path d="M6 0.8 11.2 6 6 11.2 0.8 6Z" fill="currentColor" />,
+    Alta: <path d="M6 1 11.3 10.8H0.7Z" fill="currentColor" />,
+    Média: <rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="currentColor" />,
+    Baixa: <circle cx="6" cy="6" r="5" fill="currentColor" />,
+  };
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
+      {d[sev] ?? d.Baixa}
+    </svg>
+  );
+}
 const STATUSES = ["Aberta", "Em tratamento", "Mitigada", "Fechada"] as const;
 const PAGE_SIZE = 15;
 function daysBetween(a: Date, b: Date) {
@@ -1515,84 +1542,50 @@ export function VulnerabilidadesRealDashboard() {
 
           {/* ── Charts grid ──────────────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5" style={{ gridAutoFlow: "row dense" }}>
-            {/* ── Severidade: arcos radiais ── */}
+            {/* ── Severidade: cartões com a fatia do total ── */}
             <div className="lg:col-span-1 vr-block" style={{ minHeight: 260 }}>
               <div className="vr-block-hdr">
                 <div className="vr-block-title">
                   <span>Severidade</span>
                 </div>
+                <span className="vr-sev-total">
+                  {bySev.reduce((n, x) => n + x.value, 0).toLocaleString("pt-BR")} no total
+                </span>
               </div>
-              <div
-                className="vr-block-body"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-              >
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, width: "100%" }}>
-                  {bySev.map((s) => {
-                    const maxVal = Math.max(...bySev.map((x) => x.value), 1);
-                    const pct = s.value / maxVal;
-                    const r = 44;
-                    const circ = Math.PI * r;
-                    const offset = circ * (1 - pct);
-                    const isActive = sevFilter === s.name;
-                    const isDimmed = sevFilter !== "all" && !isActive;
-                    return (
-                      <div
-                        key={s.name}
-                        onClick={() => setSevFilter(s.name === sevFilter ? "all" : s.name)}
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: 6,
-                          cursor: "pointer",
-                          opacity: isDimmed ? 0.25 : 1,
-                          transition: "opacity 0.2s",
-                          padding: "8px 4px",
-                        }}
-                      >
-                        <svg width="108" height="62" viewBox="0 0 108 62" fill="none">
-                          <path
-                            className="vr-arc-track"
-                            d="M10,56 A44,44 0 0,1 98,56"
-                            stroke={T.border}
-                            strokeWidth={isActive ? 9 : 7}
-                            strokeLinecap="round"
-                          />
-                          <path
-                            d="M10,56 A44,44 0 0,1 98,56"
-                            stroke={s.fill}
-                            strokeWidth={isActive ? 9 : 7}
-                            strokeLinecap="round"
-                            strokeDasharray={circ}
-                            strokeDashoffset={offset}
-                            style={{ filter: isActive ? `drop-shadow(0 0 6px color-mix(in srgb, ${s.fill} 60%, transparent))` : "none" }}
-                          />
-                        </svg>
-                        <span
-                          style={{
-                            fontSize: 22,
-                            fontWeight: 700,
-                            fontFamily: "'Space Grotesk',sans-serif",
-                            color: s.fill,
-                            lineHeight: 1,
-                            marginTop: -6,
-                          }}
-                        >
-                          {s.value}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: V.fg,
-                            fontFamily: "'IBM Plex Mono',monospace",
-                            letterSpacing: "0.04em",
-                          }}
-                        >
-                          {s.name}
-                        </span>
-                      </div>
+              <div className="vr-block-body">
+                <div className="vr-sev-tiles">
+                  {(() => {
+                    const total = Math.max(
+                      bySev.reduce((n, x) => n + x.value, 0),
+                      1,
                     );
-                  })}
+                    return bySev.map((s) => {
+                      const share = s.value / total;
+                      const isActive = sevFilter === s.name;
+                      const isDimmed = sevFilter !== "all" && !isActive;
+                      return (
+                        <button
+                          key={s.name}
+                          type="button"
+                          className={`vr-sev-tile${isDimmed ? " dim" : ""}`}
+                          aria-pressed={isActive}
+                          title={`${s.name}: ${s.value.toLocaleString("pt-BR")} (${(share * 100).toFixed(1).replace(".", ",")}%)`}
+                          style={{ "--c": s.fill } as React.CSSProperties}
+                          onClick={() => setSevFilter(s.name === sevFilter ? "all" : s.name)}
+                        >
+                          <span className="h">
+                            <SevShape sev={s.name} />
+                            {s.name}
+                          </span>
+                          <b>{s.value.toLocaleString("pt-BR")}</b>
+                          <span className="bar">
+                            <i style={{ width: `${share * 100}%` }} />
+                          </span>
+                          <span className="ft">{(share * 100).toFixed(1).replace(".", ",")}% do total</span>
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
