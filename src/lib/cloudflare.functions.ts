@@ -2101,6 +2101,12 @@ async function getCfToken(): Promise<{ ok: true; token: string } | { ok: false; 
 
 const CUSTOM_PHASE_PATH = "rulesets/phases/http_request_firewall_custom/entrypoint";
 const CF_ACTIONS = ["block", "challenge", "managed_challenge", "js_challenge", "log", "skip", "allow"] as const;
+// "Execution order" (First / Last / Custom) — `before: ""` = primeira posição
+type CustomRulePosition = { before: string } | { after: string };
+const customRulePositionSchema = z.union([
+  z.object({ before: z.string().max(64) }),
+  z.object({ after: z.string().max(64) }),
+]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type CustomRule = {
@@ -2234,6 +2240,7 @@ export const listCustomRules = createServerFn({ method: "POST" })
       expression: String(r.expression ?? ""),
       action: String(r.action ?? "block"),
       action_parameters: r.action_parameters ?? null,
+      logging: r.logging?.enabled === false ? { enabled: false } : null,
       enabled: r.enabled !== false,
       last_updated: r.last_updated ?? null,
     }));
@@ -2242,15 +2249,30 @@ export const listCustomRules = createServerFn({ method: "POST" })
 
 export const createCustomRule = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
-  .inputValidator((input: { zoneId: string; description: string; expression: string; action: string }) =>
-    z
-      .object({
-        zoneId: z.string().min(1).max(64),
-        description: z.string().min(1).max(500),
-        expression: z.string().min(1).max(4096),
-        action: z.enum(CF_ACTIONS),
-      })
-      .parse(input),
+  .inputValidator(
+    (input: {
+      zoneId: string;
+      description: string;
+      expression: string;
+      action: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      action_parameters?: Record<string, any> | null;
+      enabled?: boolean;
+      position?: CustomRulePosition;
+      logging?: { enabled: boolean };
+    }) =>
+      z
+        .object({
+          zoneId: z.string().min(1).max(64),
+          description: z.string().min(1).max(500),
+          expression: z.string().min(1).max(4096),
+          action: z.enum(CF_ACTIONS),
+          action_parameters: z.record(z.any()).nullable().optional(),
+          enabled: z.boolean().optional(),
+          position: customRulePositionSchema.optional(),
+          logging: z.object({ enabled: z.boolean() }).optional(),
+        })
+        .parse(input),
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_custom_rules");
@@ -2263,7 +2285,12 @@ export const createCustomRule = createServerFn({ method: "POST" })
         description: data.description,
         expression: data.expression,
         action: data.action,
-        enabled: true,
+        enabled: data.enabled ?? true,
+        ...(data.action_parameters != null ? { action_parameters: data.action_parameters } : {}),
+        // Sem `position`, a Cloudflare adiciona no fim (Last)
+        ...(data.position ? { position: data.position } : {}),
+        // "Log matching requests" do Skip
+        ...(data.logging ? { logging: data.logging } : {}),
       }),
     });
     const json: any = await res.json().catch(() => ({}));
@@ -2284,6 +2311,8 @@ export const updateCustomRule = createServerFn({ method: "POST" })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       action_parameters?: Record<string, any> | null;
       enabled?: boolean;
+      position?: CustomRulePosition;
+      logging?: { enabled: boolean };
     }) =>
       z
         .object({
@@ -2295,6 +2324,8 @@ export const updateCustomRule = createServerFn({ method: "POST" })
           action: z.enum(CF_ACTIONS),
           action_parameters: z.record(z.any()).nullable().optional(),
           enabled: z.boolean().optional(),
+          position: customRulePositionSchema.optional(),
+          logging: z.object({ enabled: z.boolean() }).optional(),
         })
         .parse(input),
   )
@@ -2313,6 +2344,9 @@ export const updateCustomRule = createServerFn({ method: "POST" })
     if (data.action_parameters != null) {
       body.action_parameters = data.action_parameters;
     }
+    // "Execution order" — só vai quando o usuário mudou a posição
+    if (data.position) body.position = data.position;
+    if (data.logging) body.logging = data.logging;
 
     // Endpoint correto: PATCH /zones/{zone}/rulesets/{ruleset_id}/rules/{rule_id}
     const res = await fetch(

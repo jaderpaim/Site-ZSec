@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -62,6 +62,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Search,
+  RefreshCw,
+  Copy,
   Trash2,
   Plus,
   Globe,
@@ -75,6 +77,7 @@ import {
   Power,
   Shield,
   ArrowUp,
+  MoreHorizontal,
   ArrowDown,
   Info,
   BookOpen,
@@ -84,6 +87,8 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { usePermissions } from "@/lib/use-permissions";
+import { SharedZoneContext } from "./shared-zone";
+import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 
 // ── Design Tokens (same as CloudflareReal) ────────────────────────────────────
 const T = {
@@ -160,10 +165,12 @@ const CSS = `
   .ops-cards.one { grid-template-columns:minmax(0, 1fr); }
   @media (max-width: 1100px) { .ops-cards { grid-template-columns:minmax(0, 1fr); } }
   .ops-card { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; display:flex; flex-direction:column; min-width:0; }
-  .ops-card-h { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:14px 18px 6px; }
+  .ops-card-h { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:16px 18px 8px; }
+  .ops-card-h > div { display:flex; align-items:baseline; gap:4px 10px; flex-wrap:wrap; min-width:0; }
   .ops-card-title { font-size:14px; font-weight:600; color:var(--v2-fg); margin:0; }
-  .ops-card-desc { margin:2px 0 0; font-size:12.5px; color:var(--v2-fg-3); }
-  .ops-card-body { padding:8px 18px 18px; flex:1; min-width:0; }
+  .ops-card-desc { margin:0; font-size:12.5px; color:var(--v2-fg-3); }
+  .ops-card-body { padding:8px 18px 18px; flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; }
+  .ops-card-body .ops-field .ops-hint { margin-top:0; }
   /* O título interno de cada ferramenta vira o título do cartão */
   .ops-card .ops-section-title { display:none; }
   .ops-card-btn { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border-radius:8px; font-size:13px; font-weight:500; font-family:var(--font-ui); cursor:pointer; white-space:nowrap; border:1px solid var(--v2-accent); background:var(--v2-accent); color:var(--v2-accent-ink); }
@@ -180,128 +187,136 @@ const CSS = `
 
   /* ── Form field ── */
   .ops-field { display:flex; flex-direction:column; gap:5px; }
-  .ops-label { font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); }
+  .ops-label { font-size:12.5px; font-weight:500; color:var(--v2-fg-2); font-family:var(--font-ui); }
 
   /* ── Input override ── */
   .ops-root input, .ops-root textarea, .ops-root select {
-    background:var(--v2-surface-2) !important;
+    background:var(--v2-bg) !important;
     border-color:var(--v2-line) !important;
     color:var(--v2-fg) !important;
-    font-family:'IBM Plex Mono',monospace !important;
-    font-size:12px !important;
-    border-radius:6px !important;
+    font-family:var(--font-ui) !important;
+    font-size:13px !important;
+    border-radius:8px !important;
   }
   .ops-root input:focus, .ops-root textarea:focus {
-    border-color:rgba(59,130,246,0.5) !important;
+    border-color:var(--v2-accent) !important;
     outline:none !important;
-    box-shadow:0 0 0 2px rgba(59,130,246,0.1) !important;
+    box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent) !important;
   }
   .ops-root input::placeholder, .ops-root textarea::placeholder { color:var(--v2-fg-3) !important; }
 
   /* ── SearchableSelect trigger ── */
-  .ops-select-trigger { display:flex; width:100%; align-items:center; justify-content:space-between; border-radius:6px; border:1px solid var(--v2-line); background:var(--v2-surface-2); padding:7px 10px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--v2-fg); cursor:pointer; transition:border-color 0.15s; }
+  .ops-select-trigger { display:flex; width:100%; align-items:center; justify-content:space-between; min-height:34px; border-radius:8px; border:1px solid var(--v2-line); background:var(--v2-bg); padding:0 10px; font-size:13px; font-family:var(--font-ui); color:var(--v2-fg); cursor:pointer; transition:border-color 0.15s; }
   .ops-select-trigger:hover:not(:disabled) { border-color:var(--v2-line-strong); }
   .ops-select-trigger:disabled { opacity:0.45; cursor:not-allowed; }
-  .ops-select-trigger.open { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 2px rgba(59,130,246,0.1); }
+  .ops-select-trigger.open { border-color:var(--v2-accent); box-shadow:0 0 0 3px color-mix(in oklch, var(--v2-accent) 18%, transparent); }
 
   .ops-select-popover { background:var(--v2-surface); border:1px solid var(--v2-line-strong); border-radius:8px; box-shadow:0 20px 40px rgba(0,0,0,0.5); overflow:hidden; }
   .ops-select-search { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--v2-line); background:var(--v2-surface-2); }
   .ops-select-search input { background:transparent !important; border:none !important; box-shadow:none !important; font-size:12px; color:var(--v2-fg); outline:none; width:100%; }
   .ops-select-list { max-height:220px; overflow-y:auto; }
   .ops-select-opt { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--v2-fg); cursor:pointer; transition:background 0.1s; }
-  .ops-select-opt:hover { background:rgba(59,130,246,0.06); color:var(--v2-fg); }
-  .ops-select-opt.selected { background:rgba(59,130,246,0.08); color:${T.accent}; font-weight:600; }
+  .ops-select-opt:hover { background:var(--v2-hover); color:var(--v2-fg); }
+  .ops-select-opt.selected { background:color-mix(in oklch, var(--v2-accent) 10%, transparent); color:var(--v2-fg); font-weight:500; }
   .ops-select-footer { padding:5px 12px; border-top:1px solid var(--v2-line); background:var(--v2-surface-2); font-size:10px; color:var(--v2-fg-3); font-family:'IBM Plex Mono',monospace; }
   .ops-select-empty { padding:20px; text-align:center; font-size:12px; color:var(--v2-fg); font-family:var(--font-ui); }
 
   /* ── Day selector ── */
-  .ops-day-btn { padding:5px 14px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid var(--v2-line); cursor:pointer; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; color:var(--v2-fg-3); background:transparent; }
-  .ops-day-btn.active { background:${T.accentGlow}; border-color:rgba(59,130,246,0.4); color:${T.accent}; }
+  .ops-day-btn { height:30px; padding:0 12px; border-radius:7px; font-size:13px; font-weight:500; border:1px solid var(--v2-line); cursor:pointer; font-family:var(--font-ui); transition:all 0.15s; color:var(--v2-fg-2); background:var(--v2-surface); }
+  .ops-day-btn.active { background:var(--v2-surface-2); border-color:var(--v2-line-strong); color:var(--v2-fg); box-shadow:inset 0 0 0 1px var(--v2-line); }
   .ops-day-btn:hover:not(.active) { border-color:var(--v2-line-strong); color:var(--v2-fg-2); }
 
   /* ── Rules submenu (Overview / Page Rules) ── */
   .ops-subtabs { display:flex; align-items:center; gap:2px; border-bottom:1px solid var(--v2-line); padding-bottom:0; }
-  .ops-subtab { padding:7px 14px; border-radius:6px 6px 0 0; font-size:12px; font-weight:500; border:1px solid transparent; cursor:pointer; font-family:var(--font-ui); color:var(--v2-fg-3); background:transparent;   margin-bottom:-1px; }
-  .ops-subtab.active { color:${T.accent}; border-color:var(--v2-line); border-bottom-color:var(--v2-surface); background:var(--v2-surface-2); }
+  .ops-subtab { height:34px; padding:0 12px; font-size:13px; font-weight:500; border:0; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); color:var(--v2-fg-2); background:transparent; margin-bottom:-1px; }
+  .ops-subtab.active { color:var(--v2-fg); border-bottom-color:var(--v2-accent); }
   .ops-subtab:hover:not(.active) { color:var(--v2-fg-2); }
   .ops-subtab:disabled { opacity:0.4; cursor:not-allowed; }
   .ops-subtab:disabled:hover { color:var(--v2-fg-3); }
 
   /* ── Rule category card (Rules → Overview) ── */
-  .ops-rule-cat { border:1px solid var(--v2-line); border-radius:8px; overflow:hidden; }
-  .ops-rule-cat-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--v2-surface-2); border-bottom:1px solid var(--v2-line); gap:10px; flex-wrap:wrap; }
-  .ops-rule-cat-title { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--v2-fg); font-family:var(--font-ui); }
-  .ops-rule-cat-count { font-size:10px; font-weight:700; color:${T.success}; font-family:'IBM Plex Mono',monospace; }
-  .ops-rule-status-active { display:inline-flex; align-items:center; gap:4px; color:${T.success}; font-size:11px; font-weight:600; }
-  .ops-rule-status-active::before { content:''; width:6px; height:6px; border-radius:50%; background:${T.success}; }
-  .ops-rule-status-disabled { color:var(--v2-fg-3); font-size:11px; }
+  .ops-rule-cat { border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; background:var(--v2-surface); }
+  .ops-rule-cat-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--v2-line); gap:10px; flex-wrap:wrap; }
+  .ops-rule-cat-title { display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; color:var(--v2-fg); font-family:var(--font-ui); }
+  .ops-rule-cat-count { font-size:11.5px; font-weight:500; color:var(--v2-fg-3); font-family:var(--font-data); padding:1px 7px; border-radius:99px; background:var(--v2-surface-2); }
+  .ops-rule-status-active { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; background:color-mix(in oklch, var(--v2-ok) 14%, transparent); color:color-mix(in oklch, var(--v2-ok) 72%, var(--v2-fg)); }
+  .ops-rule-status-active::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--v2-ok); }
+  .ops-rule-status-disabled { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; background:color-mix(in oklch, var(--v2-fg-3) 14%, transparent); color:var(--v2-fg-2); }
 
   /* ── Exec button ── */
-  .ops-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font-ui); transition:all 0.15s; border:none; white-space:nowrap; }
+  .ops-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; height:34px; padding:0 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:var(--font-ui); transition:background 0.15s, border-color 0.15s, filter 0.15s; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg); white-space:nowrap; }
   .ops-btn:disabled { opacity:0.45; cursor:not-allowed; }
-  .ops-btn.primary { background:${T.accentGlow}; border:1px solid rgba(59,130,246,0.4); color:${T.accent}; }
-  .ops-btn.primary:hover:not(:disabled) { background:rgba(59,130,246,0.22); }
-  .ops-btn.success { background:${T.successBg}; border:1px solid rgba(16,185,129,0.3); color:${T.success}; }
-  .ops-btn.success:hover:not(:disabled) { background:rgba(16,185,129,0.2); }
-  .ops-btn.danger { background:${T.dangerBg}; border:1px solid rgba(239,68,68,0.35); color:${T.danger}; }
-  .ops-btn.danger:hover:not(:disabled) { background:rgba(239,68,68,0.2); }
-  .ops-btn.outline { background:transparent; border:1px solid var(--v2-line); color:var(--v2-fg); }
-  .ops-btn.outline:hover:not(:disabled) { border-color:var(--v2-line-strong); color:var(--v2-fg); }
+  .ops-btn:hover:not(:disabled) { background:var(--v2-hover); }
+  .ops-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .ops-btn.primary:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .ops-btn.success { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .ops-btn.success:hover:not(:disabled) { background:var(--v2-accent); filter:brightness(1.08); }
+  .ops-btn.danger { background:var(--v2-surface); border-color:color-mix(in oklch, var(--v2-crit) 45%, var(--v2-line)); color:var(--v2-crit); }
+  .ops-btn.danger:hover:not(:disabled) { background:color-mix(in oklch, var(--v2-crit) 8%, var(--v2-surface)); }
+  .ops-btn.outline { background:var(--v2-surface); border:1px solid var(--v2-line); color:var(--v2-fg); }
+  .ops-btn.outline:hover:not(:disabled) { background:var(--v2-hover); border-color:var(--v2-line-strong); }
   .ops-btn.full { width:100%; }
-  .ops-btn.sm { padding:5px 10px; font-size:11px; }
-  .ops-btn.ghost { background:transparent; border:none; color:var(--v2-fg-3); padding:4px 6px; border-radius:4px; }
-  .ops-btn.ghost:hover { background:rgba(var(--tl-ink, 255,255,255),0.06); color:var(--v2-fg); }
+  .ops-btn.sm { height:28px; padding:0 10px; font-size:12.5px; }
+  .ops-btn.ghost { background:transparent; border-color:transparent; color:var(--v2-fg-2); height:28px; padding:0 8px; border-radius:6px; }
+  .ops-btn.ghost:hover:not(:disabled) { background:var(--v2-hover); color:var(--v2-fg); }
 
   /* ── Table ── */
   .ops-table-wrap { border:1px solid var(--v2-line); border-radius:8px; overflow:auto; max-height:360px; }
-  .ops-table { width:100%; border-collapse:separate; border-spacing:0; font-size:12px; }
+  .ops-table-wrap.flat { border:0; border-radius:12px 12px 0 0; max-height:560px; }
+  .ops-table-foot { padding:10px 16px; border-top:1px solid var(--v2-line); font-size:12.5px; color:var(--v2-fg-3); }
+  .ops-table { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
   .ops-table thead { position:sticky; top:0; z-index:20; }
-  .ops-table th { padding:8px 12px; font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
-  .ops-table td { padding:9px 12px; border-bottom:1px solid rgba(var(--tl-line-rgb, 30,38,64),0.45); color:var(--v2-fg); vertical-align:middle; }
-  .ops-table tbody tr:hover td { background:rgba(59,130,246,0.04); }
+  .ops-table th { padding:10px 14px; font-size:12.5px; font-weight:500; color:var(--v2-fg-3); font-family:var(--font-ui); text-align:left; background:var(--v2-surface); border-bottom:1px solid var(--v2-line); white-space:nowrap; }
+  .ops-table td { padding:10px 14px; border-bottom:1px solid var(--v2-line); color:var(--v2-fg); vertical-align:middle; }
+  .ops-table tbody tr:hover td { background:var(--v2-hover); }
   .ops-table tbody tr:last-child td { border-bottom:none; }
-  .ops-table .mono { font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .ops-table .mono { font-family:var(--font-data); font-size:12.5px; }
   .ops-table .dim { color:var(--v2-fg); }
   .ops-table .trunc { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ops-table .right { text-align:right; }
 
   /* ── DNS Result badge (Proxy) ── */
-  .ops-proxy-yes { color:${T.warning}; font-weight:600; font-size:11px; font-family:'IBM Plex Mono',monospace; }
-  .ops-proxy-no  { color:var(--v2-fg-3); font-size:11px; font-family:'IBM Plex Mono',monospace; }
+  .ops-proxy-yes { color:color-mix(in oklch, var(--v2-high) 72%, var(--v2-fg)); font-weight:500; font-size:12px; }
+  .ops-proxy-no  { color:var(--v2-fg-3); font-size:12px; }
+  .ops-pill { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; white-space:nowrap; background:color-mix(in oklch, var(--c) 14%, transparent); color:color-mix(in oklch, var(--c) 72%, var(--v2-fg)); }
+  .ops-pill::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--c); }
 
   /* ── Badge ── */
   .ops-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:500;   font-family:var(--font-ui); white-space:nowrap; }
 
   /* ── Hostname chips ── */
   .ops-chip-list { display:flex; flex-wrap:wrap; gap:6px; }
-  .ops-chip { display:inline-flex; align-items:center; gap:4px; background:${T.accentSoft}; border:1px solid rgba(59,130,246,0.2); color:${T.accent}; font-size:11px; font-family:'IBM Plex Mono',monospace; padding:3px 8px; border-radius:4px; }
-  .ops-chip button { background:none; border:none; cursor:pointer; color:${T.accent}; opacity:0.6; display:flex; align-items:center; transition:opacity 0.15s; padding:0; }
+  .ops-chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 6px 0 10px; background:var(--v2-surface-2); border:1px solid var(--v2-line); color:var(--v2-fg); font-size:12.5px; font-family:var(--font-data); border-radius:6px; }
+  .ops-chip button { background:none; border:none; cursor:pointer; color:var(--v2-fg-3); display:flex; align-items:center; transition:color 0.15s; padding:2px; border-radius:4px; }
+  .ops-chip button:hover { color:var(--v2-crit); }
   .ops-chip button:hover { opacity:1; }
 
   /* ── Cache metrics grid ── */
+  .ops-cache-stack { display:flex; height:12px; border-radius:6px; overflow:hidden; gap:2px; background:var(--v2-surface); }
+  .ops-cache-stack i { display:block; height:100%; min-width:3px; }
   .ops-cache-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
   @media(min-width:640px) { .ops-cache-grid { grid-template-columns:repeat(4,1fr); } }
-  .ops-cache-card { background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:3px; }
+  .ops-cache-card { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; }
   .ops-cache-card-label { display:flex; align-items:center; gap:5px; }
   .ops-cache-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-  .ops-cache-value { font-size:18px; font-weight:700; font-family:var(--font-ui); letter-spacing:-0.02em; line-height:1; }
-  .ops-cache-pct { font-size:10px; color:var(--v2-fg-3); font-family:'IBM Plex Mono',monospace; }
+  .ops-cache-value { font-size:18px; font-weight:600; font-family:var(--font-ui); letter-spacing:-0.02em; line-height:1.2; color:var(--v2-fg) !important; font-variant-numeric:tabular-nums; }
+  .ops-cache-pct { font-size:11.5px; color:var(--v2-fg-3); font-family:var(--font-data); }
 
   /* ── Cache total card ── */
-  .ops-cache-total { background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; }
-  .ops-cache-total-label { font-size:12px; font-weight:500;   color:var(--v2-fg); font-family:var(--font-ui); margin-bottom:4px; }
-  .ops-cache-total-val { font-size:26px; font-weight:700; font-family:var(--font-ui); letter-spacing:-0.02em; color:var(--v2-fg); }
+  .ops-cache-total { border-top:1px solid var(--v2-line); padding-top:12px; display:flex; align-items:flex-end; justify-content:space-between; gap:8px; }
+  .ops-cache-total-label { font-size:12.5px; font-weight:400; color:var(--v2-fg-3); font-family:var(--font-ui); margin-bottom:2px; }
+  .ops-cache-total-val { font-size:24px; font-weight:600; font-family:var(--font-ui); letter-spacing:-0.02em; color:var(--v2-fg); font-variant-numeric:tabular-nums; }
 
   /* ── WAF action badge ── */
-  .ops-action-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; background:rgba(107,114,128,0.1); border:1px solid rgba(107,114,128,0.2); color:${T.neutral}; }
+  .ops-action-pill { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:5px; font-size:12px; font-weight:500; font-family:var(--font-data); background:var(--v2-surface-2); border:1px solid var(--v2-line); color:var(--v2-fg-2); }
 
   /* ── Status indicator ── */
-  .ops-status-active { color:${T.success}; font-weight:600; font-size:12px; display:flex; align-items:center; gap:4px; }
-  .ops-status-active::before { content:''; width:6px; height:6px; border-radius:50%; background:${T.success}; box-shadow:0 0 6px ${T.success}; flex-shrink:0; }
+  .ops-status-active { color:color-mix(in oklch, var(--v2-ok) 72%, var(--v2-fg)); font-weight:500; font-size:12.5px; display:flex; align-items:center; gap:6px; }
+  .ops-status-active::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--v2-ok); flex-shrink:0; }
   .ops-status-disabled { color:var(--v2-fg-3); font-size:12px; }
 
   /* ── Empty state ── */
-  .ops-empty { padding:32px; text-align:center; color:var(--v2-fg-3); font-size:12px; font-family:var(--font-ui); }
+  .ops-empty { padding:32px; text-align:center; color:var(--v2-fg-3); font-size:13px; font-family:var(--font-ui); }
 
   /* ── Scrollbar ── */
   .ops-root ::-webkit-scrollbar { width:4px; height:4px; }
@@ -314,10 +329,10 @@ const CSS = `
 
   /* ── Dialog override ── */
   .ops-dialog-content { background:var(--v2-surface) !important; border:1px solid var(--v2-line-strong) !important; border-radius:12px !important; color:var(--v2-fg) !important; }
-  .ops-dialog-title { color:var(--v2-fg) !important; font-family:var(--font-ui); font-weight:700 !important; font-size:15px !important; }
+  .ops-dialog-title { color:var(--v2-fg) !important; font-family:var(--font-ui); font-weight:600 !important; font-size:17px !important; }
 
   /* ── Helper hint ── */
-  .ops-hint { font-size:10px; color:var(--v2-fg-3); font-family:'IBM Plex Mono',monospace; margin-top:3px; }
+  .ops-hint { font-size:12px; color:var(--v2-fg-3); font-family:var(--font-ui); margin-top:3px; line-height:1.5; }
 
   /* ── Grid form ── */
   .ops-form-grid { display:grid; grid-template-columns:1fr; gap:12px; }
@@ -326,6 +341,51 @@ const CSS = `
 
   /* ── Checkbox row ── */
   .ops-check-row { display:flex; align-items:center; gap:8px; }
+  .ops-seg { display:inline-flex; padding:2px; gap:2px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface); width:fit-content; }
+  .ops-seg button { height:30px; padding:0 12px; border:0; border-radius:6px; background:transparent; color:var(--v2-fg-2); font:500 13px var(--font-ui); cursor:pointer; white-space:nowrap; }
+  .ops-seg button[aria-pressed="true"] { background:var(--v2-surface-2); color:var(--v2-fg); box-shadow:0 0 0 1px var(--v2-line); }
+  .ops-types { display:flex; flex-wrap:wrap; gap:4px; }
+  .ops-types button { height:30px; min-width:52px; padding:0 10px; border:1px solid var(--v2-line); border-radius:7px; background:var(--v2-surface); color:var(--v2-fg-2); font:500 12.5px var(--font-data); cursor:pointer; }
+  .ops-types button:hover { color:var(--v2-fg); }
+  .ops-types button[aria-pressed="true"] { border-color:var(--v2-accent); background:color-mix(in oklch, var(--v2-accent) 10%, transparent); color:var(--v2-fg); }
+  .ops-dns-grid { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.4fr) 160px; gap:12px; align-items:end; }
+  @media(max-width:640px) { .ops-dns-grid { grid-template-columns:1fr; } }
+  .ops-toggle-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); }
+  .ops-toggle-row b { display:block; font-size:13px; font-weight:500; color:var(--v2-fg); }
+  .ops-toggle-row small { display:block; font-size:12px; color:var(--v2-fg-3); }
+  .ops-cache-form { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:12px; align-items:start; }
+  @media(max-width:640px) { .ops-cache-form { grid-template-columns:1fr; } }
+  .ops-warn { padding:10px 12px; border-radius:8px; font-size:13px; line-height:1.5; color:var(--v2-fg-2); background:color-mix(in oklch, var(--v2-crit) 7%, transparent); border:1px solid color-mix(in oklch, var(--v2-crit) 30%, transparent); }
+  .ops-details summary { cursor:pointer; font-size:12.5px; color:var(--v2-fg-2); width:fit-content; }
+  .ops-details summary:hover { color:var(--v2-fg); }
+  .ops-details[open] summary { margin-bottom:8px; }
+  .ops-row-click { cursor:pointer; }
+  .ops-row-click:focus-visible td { outline:none; background:var(--v2-hover); }
+  .ops-code-wrap { position:relative; }
+  .ops-code-copy { position:absolute; top:6px; right:6px; }
+  .ops-waf-sec { border:1px solid var(--v2-line); border-radius:10px; background:var(--v2-surface); padding:16px 18px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .ops-waf-sec h4 { margin:0; font:600 13px/1.3 var(--font-ui); color:var(--v2-fg); }
+  .ops-waf-cond { display:grid; grid-template-columns:minmax(0,170px) minmax(0,170px) minmax(0,1fr) auto; gap:10px; align-items:start; }
+  .ops-waf-cond-actions { display:flex; gap:6px; align-self:end; min-height:36px; align-items:center; }
+  @media (max-width:720px) { .ops-waf-cond { grid-template-columns:1fr; } .ops-waf-cond-actions { align-self:start; } }
+  .ops-waf-comb { font:600 11px var(--font-data); color:var(--v2-fg-3); text-transform:uppercase; letter-spacing:.04em; }
+  .ops-waf-preview-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
+  .ops-waf-link { background:none; border:0; padding:0; cursor:pointer; font:500 12px var(--font-ui); color:var(--v2-accent); text-decoration:underline; text-underline-offset:3px; }
+  .ops-waf-preview { border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); padding:12px 14px; }
+  .ops-waf-preview pre { margin:0; font:12px/1.55 var(--font-data); color:var(--v2-fg); white-space:pre-wrap; word-break:break-all; }
+  .ops-waf-count { text-align:right; font:11px var(--font-data); color:var(--v2-fg-3); margin-top:6px; }
+  .ops-waf-check { display:flex; align-items:center; gap:8px; font:13px var(--font-ui); color:var(--v2-fg); cursor:pointer; }
+  .ops-waf-check-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:8px; }
+  .ops-waf-api-toggle { display:flex; align-items:center; gap:6px; background:none; border:0; padding:0; cursor:pointer; font:600 13px var(--font-ui); color:var(--v2-fg); }
+  .ops-waf-curl { margin:0; padding:12px 14px; padding-right:90px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); font:11.5px/1.55 var(--font-data); color:var(--v2-fg); white-space:pre-wrap; word-break:break-all; }
+  .ops-code { margin:0; padding:12px 14px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font:12.5px/1.65 var(--font-data); color:var(--v2-fg); white-space:pre-wrap; overflow-wrap:anywhere; max-height:420px; overflow:auto; }
+  .ops-dns-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .ops-dns-toolbar-right { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  .ops-dns-search { position:relative; display:flex; align-items:center; min-width:260px; flex:0 1 320px; }
+  .ops-dns-search > svg { position:absolute; left:10px; color:var(--v2-fg-3); pointer-events:none; }
+  .ops-dns-search input { padding-left:32px !important; height:34px; }
+  .ops-dns-preview { padding:10px 12px; border-radius:8px; background:var(--v2-surface-2); border:1px solid var(--v2-line); font:12.5px/1.6 var(--font-data); color:var(--v2-fg-2); white-space:normal; overflow-wrap:anywhere; min-width:0; }
+  .ops-dns-preview strong { color:var(--v2-fg); }
   .ops-check-label { font-size:12px; color:var(--v2-fg); cursor:pointer; font-family:var(--font-ui); }
 `;
 
@@ -793,6 +853,20 @@ function OpsCard({
 // ══════════════════════════════════════════════════════════════════════════════
 // OperationsTab
 // ══════════════════════════════════════════════════════════════════════════════
+function useZoneState(initial: string, onSharedChange?: () => void) {
+  const shared = React.useContext(SharedZoneContext);
+  const [zoneId, setZoneId] = React.useState<string>(shared ?? initial);
+  const prev = React.useRef(shared);
+  React.useEffect(() => {
+    if (shared && shared !== prev.current) {
+      prev.current = shared;
+      setZoneId(shared);
+      onSharedChange?.();
+    }
+  }, [shared, onSharedChange]);
+  return [zoneId, setZoneId, !!shared] as const;
+}
+
 export function OperationsTab() {
   const { can } = usePermissions();
 
@@ -839,8 +913,8 @@ export function OperationsTab() {
 
   const has = (id: string) => visibleIds.has(id);
   const newDnsButton = has("create-dns") ? (
-    <button type="button" className="ops-card-btn" onClick={() => setCreateDnsOpen(true)}>
-      <Plus size={14} /> Novo registro
+    <button type="button" className="ops-btn primary" onClick={() => setCreateDnsOpen(true)}>
+      <Plus size={14} /> Adicionar registro
     </button>
   ) : null;
 
@@ -874,9 +948,7 @@ export function OperationsTab() {
       {section === "dns" && (
         <div className="ops-cards one">
           {has("dns-lookup") ? (
-            <OpsCard title="Buscar registros DNS" description="Busca em uma zona ou em todas" action={newDnsButton}>
-              <DnsLookupInner zones={zones} />
-            </OpsCard>
+            <DnsLookupInner zones={zones} action={newDnsButton} />
           ) : has("create-dns") ? (
             <OpsCard title="Novo registro DNS" description="Na zona escolhida">
               <CreateDnsInner zones={zones} />
@@ -919,7 +991,7 @@ export function OperationsTab() {
           <DialogHeader>
             <DialogTitle>Novo registro DNS</DialogTitle>
           </DialogHeader>
-          <div className="ops-root ops-card" style={{ border: 0, background: "transparent" }}>
+          <div className="ops-root ops-card" style={{ border: 0, background: "transparent", minWidth: 0 }}>
             <CreateDnsInner zones={zones} />
           </div>
         </DialogContent>
@@ -931,8 +1003,17 @@ export function OperationsTab() {
 // ══════════════════════════════════════════════════════════════════════════════
 // DNS LOOKUP
 // ══════════════════════════════════════════════════════════════════════════════
-function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | null }> }) {
-  const [zoneId, setZoneId] = React.useState<string>("__all__");
+function DnsLookupInner({
+  zones,
+  action,
+}: {
+  zones: Array<Zone & { status?: string | null }>;
+  action?: React.ReactNode;
+}) {
+  const sharedZone = React.useContext(SharedZoneContext);
+  const [ownZoneId, setZoneId] = React.useState<string>("__all__");
+  const [allZones, setAllZones] = React.useState(false);
+  const zoneId = sharedZone ? (allZones ? "__all__" : sharedZone) : ownZoneId;
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<any[] | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -959,16 +1040,39 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
     ...zones.map((z) => ({ value: z.id, label: z.name })),
   ];
 
-  async function onSearch() {
+  // Numa zona só, carrega todos os registros e filtra na tela; em "todas as
+  // zonas" a busca vai ao servidor (Enter / Buscar), como antes.
+  const singleZone = zoneId !== "__all__";
+  const [typeFilter, setTypeFilter] = React.useState("all");
+
+  async function onSearch(q = query) {
     setLoading(true);
     try {
-      const res = await doSearch({ data: { zoneId: zoneId === "__all__" ? undefined : zoneId, query } });
+      const res = await doSearch({ data: { zoneId: singleZone ? zoneId : undefined, query: singleZone ? "" : q } });
       if (res.ok) setResults(res.records);
       else toast.error(res.error);
     } finally {
       setLoading(false);
     }
   }
+
+  React.useEffect(() => {
+    setTypeFilter("all");
+    if (singleZone) onSearch("");
+    else setResults(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoneId]);
+
+  const typesInResults = React.useMemo(
+    () => Array.from(new Set((results ?? []).map((r) => String(r.type)))).sort(),
+    [results],
+  );
+  const q = query.trim().toLowerCase();
+  const visible = (results ?? []).filter(
+    (r) =>
+      (typeFilter === "all" || r.type === typeFilter) &&
+      (!singleZone || !q || `${r.name} ${r.content} ${r.type} ${r.comment ?? ""}`.toLowerCase().includes(q)),
+  );
 
   function openEdit(r: any) {
     setEditRecord(r);
@@ -997,7 +1101,7 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
             name: editForm.name,
             content: editForm.content,
             ttl: editForm.ttl,
-            proxied: editForm.proxied,
+            proxied: PROXIABLE.has(editForm.type) && editForm.proxied,
             comment: editForm.comment,
           },
         });
@@ -1035,143 +1139,191 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
 
   return (
     <>
-      <div className="ops-section-title">
-        <Search size={14} color={T.accent} />
-        <span className="ops-section-title-text">Busca de DNS</span>
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
-        <div className="ops-field" style={{ flex: "1 1 160px" }}>
-          <ExecLabel>Subdomínio / nome</ExecLabel>
+      <div className="ops-dns-toolbar">
+        <div className="ops-dns-search">
+          <Search size={14} />
           <Input
-            placeholder="ex.: www, mail, *"
+            placeholder={singleZone ? "Buscar por nome, conteúdo ou tipo" : "Nome para buscar em todas as zonas (Enter)"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onSearch()}
+            onKeyDown={(e) => e.key === "Enter" && !singleZone && onSearch()}
+            aria-label="Buscar registros DNS"
           />
         </div>
-        <div className="ops-field" style={{ flex: "1 1 200px" }}>
-          <ExecLabel>Domínio (zona)</ExecLabel>
-          <SearchableSelect
-            options={zoneOptions}
-            value={zoneId}
-            onValueChange={setZoneId}
-            placeholder="Todas as zonas"
-            searchPlaceholder="Buscar zona…"
-          />
-        </div>
-        <button className="ops-btn primary" onClick={onSearch} disabled={loading}>
-          {loading ? <Loader2 size={13} className="ops-spin" /> : <Search size={13} />}
-          {loading ? "Buscando…" : "Buscar"}
-        </button>
-      </div>
-
-      {results && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <span className="ops-hint">
-            {results.length} registro{results.length === 1 ? "" : "s"} encontrado{results.length === 1 ? "" : "s"}.
-          </span>
-          {results.length > 0 && (
+        {sharedZone ? (
+          <div className="ops-seg" role="group" aria-label="Onde buscar">
+            <button type="button" aria-pressed={!allZones} onClick={() => setAllZones(false)}>
+              Esta zona
+            </button>
+            <button type="button" aria-pressed={allZones} onClick={() => setAllZones(true)}>
+              Todas as zonas
+            </button>
+          </div>
+        ) : (
+          <div style={{ minWidth: 220 }}>
+            <SearchableSelect
+              options={zoneOptions}
+              value={zoneId}
+              onValueChange={setZoneId}
+              placeholder="Todas as zonas"
+              searchPlaceholder="Buscar zona…"
+            />
+          </div>
+        )}
+        {!singleZone && (
+          <button className="ops-btn outline" onClick={() => onSearch()} disabled={loading}>
+            {loading ? <Loader2 size={13} className="ops-spin" /> : <Search size={13} />}
+            {loading ? "Buscando…" : "Buscar"}
+          </button>
+        )}
+        {typesInResults.length > 1 && (
+          <div className="ops-seg" role="group" aria-label="Tipo">
+            <button type="button" aria-pressed={typeFilter === "all"} onClick={() => setTypeFilter("all")}>
+              Todos
+            </button>
+            {typesInResults.slice(0, 6).map((t) => (
+              <button key={t} type="button" aria-pressed={typeFilter === t} onClick={() => setTypeFilter(t)}>
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="ops-dns-toolbar-right">
+          {results && results.length > 0 && (
             <button className="ops-btn outline" onClick={() => setExportOpen(true)}>
-              <Download size={12} /> Exportar
+              <Download size={13} /> Exportar
             </button>
           )}
+          {action}
         </div>
-      )}
+      </div>
 
-      {results && (
-        <div className="ops-table-wrap">
+      <section className="ops-card">
+        <div className="ops-table-wrap flat">
           <table className="ops-table">
             <thead>
               <tr>
-                <th>Nome</th>
                 <th>Tipo</th>
+                <th>Nome</th>
                 <th>Conteúdo</th>
                 <th>Proxy</th>
                 <th>TTL</th>
-                <th>Zona</th>
-                {canEdit && <th style={{ textAlign: "right" }}>Ações</th>}
+                {!singleZone && <th>Zona</th>}
+                {canEdit && (
+                  <th>
+                    <span className="sr-only">Ações</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {results.length === 0 && (
+              {loading && (
                 <tr>
-                  <td colSpan={canEdit ? 7 : 6} className="ops-empty">
+                  <td colSpan={7} className="ops-empty">
+                    <Loader2 size={14} className="ops-spin" style={{ verticalAlign: -2, marginRight: 6 }} />
+                    Carregando registros…
+                  </td>
+                </tr>
+              )}
+              {!loading && !results && (
+                <tr>
+                  <td colSpan={7} className="ops-empty">
+                    {singleZone ? "Selecione uma zona." : "Digite um nome e busque em todas as zonas."}
+                  </td>
+                </tr>
+              )}
+              {!loading && results && visible.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="ops-empty">
                     Nenhum registro encontrado.
                   </td>
                 </tr>
               )}
-              {results.map((r) => (
-                <tr key={r.id}>
-                  <td className="mono">{r.name}</td>
-                  <td>
-                    <span className="ops-action-pill">{r.type}</span>
-                  </td>
-                  <td className="mono trunc">{r.content}</td>
-                  <td>
-                    {r.proxied ? <span className="ops-proxy-yes">Sim</span> : <span className="ops-proxy-no">Não</span>}
-                  </td>
-                  <td className="mono dim">{r.ttl === 1 ? "Auto" : r.ttl}</td>
-                  <td style={{ color: V2.textPrimary, fontSize: 11 }}>{r.zone_name}</td>
-                  {canEdit && (
-                    <td style={{ textAlign: "right" }}>
-                      <button className="ops-btn ghost sm" onClick={() => openEdit(r)} title="Editar">
-                        <Pencil size={13} />
-                      </button>
+              {!loading &&
+                visible.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <span className="ops-pill" style={{ "--c": "var(--v2-low)" } as React.CSSProperties}>
+                        {r.type}
+                      </span>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="mono">{r.name}</td>
+                    <td className="mono trunc" title={r.content}>
+                      {r.content}
+                    </td>
+                    <td>
+                      {r.proxied ? (
+                        <span className="ops-pill" style={{ "--c": "var(--v2-high)" } as React.CSSProperties}>
+                          Proxied
+                        </span>
+                      ) : (
+                        <span className="ops-pill" style={{ "--c": "var(--v2-fg-3)" } as React.CSSProperties}>
+                          DNS only
+                        </span>
+                      )}
+                    </td>
+                    <td className="mono">{r.ttl === 1 ? "Auto" : r.ttl}</td>
+                    {!singleZone && <td className="mono">{r.zone_name}</td>}
+                    {canEdit && (
+                      <td style={{ textAlign: "right" }}>
+                        <button className="ops-btn outline sm" onClick={() => openEdit(r)}>
+                          <Pencil size={12} /> Editar
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
-      )}
+        {results && results.length > 0 && (
+          <div className="ops-table-foot">
+            {visible.length === results.length
+              ? `${results.length} registro${results.length === 1 ? "" : "s"}`
+              : `${visible.length} de ${results.length} registros`}
+          </div>
+        )}
+      </section>
 
       {/* Dialog: Editar registro DNS */}
       <Dialog open={!!editRecord} onOpenChange={(o) => !o && setEditRecord(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Pencil size={16} color={T.accent} /> Editar Registro DNS
+              Editar registro DNS
             </DialogTitle>
           </DialogHeader>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "8px 0" }}>
+          <div className="ops-root" style={{ display: "flex", flexDirection: "column", gap: 14, padding: "4px 0", minWidth: 0 }}>
+            <p className="ops-hint" style={{ margin: 0 }}>
+              Zona <strong style={{ fontFamily: "var(--font-data)" }}>{editRecord?.zone_name}</strong>
+            </p>
             <div className="ops-field">
-              <ExecLabel>Zona</ExecLabel>
-              <Input value={editRecord?.zone_name ?? ""} disabled />
-            </div>
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <div className="ops-field" style={{ flex: "0 0 130px" }}>
-                <ExecLabel>Tipo</ExecLabel>
-                <Select value={editForm.type} onValueChange={(v) => setEditForm({ ...editForm, type: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["A", "AAAA", "CNAME", "TXT", "MX", "NS", "SRV", "CAA"].map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <ExecLabel>Tipo</ExecLabel>
+              <div className="ops-types" role="radiogroup" aria-label="Tipo de registro">
+                {DNS_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={editForm.type === t}
+                    aria-pressed={editForm.type === t}
+                    onClick={() => setEditForm({ ...editForm, type: t })}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
-              <div className="ops-field" style={{ flex: "1 1 auto" }}>
+            </div>
+            <div className="ops-dns-grid">
+              <div className="ops-field">
                 <ExecLabel>Nome (subdomínio ou @)</ExecLabel>
                 <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
               </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
-              <div className="ops-field" style={{ flex: "1 1 auto" }}>
+              <div className="ops-field">
                 <ExecLabel>Conteúdo</ExecLabel>
-                <Input
-                  value={editForm.content}
-                  onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                />
+                <Input value={editForm.content} onChange={(e) => setEditForm({ ...editForm, content: e.target.value })} />
               </div>
-              <div className="ops-field" style={{ flex: "0 0 100px" }}>
+              <div className="ops-field">
                 <ExecLabel>TTL (1 = Auto)</ExecLabel>
                 <Input
                   type="number"
@@ -1180,20 +1332,25 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
                   min={1}
                 />
               </div>
-              <div className="ops-field" style={{ flex: "0 0 auto" }}>
-                <div className="ops-check-row" style={{ marginBottom: 2 }}>
-                  <Checkbox
-                    id="proxied-edit"
-                    checked={editForm.proxied}
-                    onCheckedChange={(v) => setEditForm({ ...editForm, proxied: !!v })}
-                  />
-                  <label htmlFor="proxied-edit" className="ops-check-label">
-                    Proxy Cloudflare
-                  </label>
-                </div>
-              </div>
             </div>
-
+            <div className="ops-toggle-row">
+              <span>
+                <b>Proxy Cloudflare</b>
+                <small>
+                  {!PROXIABLE.has(editForm.type)
+                    ? `Não se aplica a registros ${editForm.type}`
+                    : editForm.proxied
+                      ? "Tráfego passa pela Cloudflare (WAF e cache)"
+                      : "Só resolve o DNS, sem proteção"}
+                </small>
+              </span>
+              <Switch
+                checked={PROXIABLE.has(editForm.type) && editForm.proxied}
+                disabled={!PROXIABLE.has(editForm.type)}
+                onCheckedChange={(v) => setEditForm({ ...editForm, proxied: !!v })}
+                aria-label="Proxy Cloudflare"
+              />
+            </div>
             <div className="ops-field">
               <ExecLabel>Comentário</ExecLabel>
               <Input
@@ -1202,6 +1359,11 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
                 placeholder="ex.: solicitado por Fulano"
                 maxLength={100}
               />
+            </div>
+            <div className="ops-dns-preview">
+              Vai ficar: <strong>{editForm.name}</strong> {editForm.type} → <strong>{editForm.content || "…"}</strong> ·{" "}
+              {PROXIABLE.has(editForm.type) && editForm.proxied ? "Proxied" : "DNS only"} · TTL{" "}
+              {editForm.ttl === 1 ? "Auto" : `${editForm.ttl}s`}
             </div>
           </div>
           <DialogFooter>
@@ -1213,7 +1375,7 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
               onClick={() => setEditConfirmOpen(true)}
               disabled={!editForm.name || !editForm.content}
             >
-              <Check size={12} /> Salvar
+              <Check size={12} /> Revisar
             </button>
           </DialogFooter>
         </DialogContent>
@@ -1253,7 +1415,7 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
                   TTL: <strong>{editForm.ttl === 1 ? "Auto" : editForm.ttl}</strong>
                 </div>
                 <div>
-                  Proxy: <strong>{editForm.proxied ? "Ativo" : "Desativado"}</strong>
+                  Proxy: <strong>{PROXIABLE.has(editForm.type) && editForm.proxied ? "Ativo" : "Desativado"}</strong>
                 </div>
               </div>
             </AlertDialogDescription>
@@ -1261,7 +1423,7 @@ function DnsLookupInner({ zones }: { zones: Array<Zone & { status?: string | nul
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={executeEdit} disabled={saving}>
-              {saving ? "Salvando…" : "Continuar"}
+              {saving ? "Salvando…" : "Salvar alteração"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1466,7 +1628,8 @@ function DnsExportDialog({
 // PURGE CACHE
 // ══════════════════════════════════════════════════════════════════════════════
 function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
-  const [zoneId, setZoneId] = React.useState("");
+  const resetOnZone = React.useCallback(() => setHostnames(""), []);
+  const [zoneId, setZoneId, zoneShared] = useZoneState("", resetOnZone);
   const [hostnames, setHostnames] = React.useState("");
   const [purgeAll, setPurgeAll] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -1543,80 +1706,101 @@ function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
         <span className="ops-section-title-text">Purge de Cache</span>
       </div>
 
-      <div className="ops-field">
-        <ExecLabel>Zona</ExecLabel>
-        <SearchableSelect
-          options={zoneOptions}
-          value={zoneId}
-          onValueChange={(v) => {
-            setZoneId(v);
-            setHostnames("");
-          }}
-          placeholder="Selecione a zona"
-          searchPlaceholder="Buscar zona…"
-          emptyMessage="Nenhuma zona encontrada."
-        />
-      </div>
-
-      {zoneId && (
+      {!zoneShared && (
         <div className="ops-field">
-          <ExecLabel>
-            Adicionar subdomínio {dnsLoading && <Loader2 size={10} className="ops-spin" style={{ marginLeft: 4 }} />}
-          </ExecLabel>
+          <ExecLabel>Zona</ExecLabel>
           <SearchableSelect
-            options={subdomainOptions}
-            value=""
-            onValueChange={addSubdomain}
-            placeholder={
-              dnsLoading
-                ? "Carregando subdomínios…"
-                : subdomainOptions.length === 0
-                  ? "Nenhum subdomínio encontrado"
-                  : "Selecione para adicionar à lista"
-            }
-            searchPlaceholder="Buscar subdomínio…"
-            disabled={purgeAll || dnsLoading || subdomainOptions.length === 0}
-            loading={dnsLoading}
-            emptyMessage="Nenhum subdomínio encontrado."
-            keepOpenOnSelect
+            options={zoneOptions}
+            value={zoneId}
+            onValueChange={(v) => {
+              setZoneId(v);
+              setHostnames("");
+            }}
+            placeholder="Selecione a zona"
+            searchPlaceholder="Buscar zona…"
+            emptyMessage="Nenhuma zona encontrada."
           />
-          <p className="ops-hint">Cada subdomínio selecionado é acumulado na lista abaixo.</p>
         </div>
       )}
 
-      {hostList.length > 0 && !purgeAll && (
-        <div className="ops-chip-list">
-          {hostList.map((h) => (
-            <span key={h} className="ops-chip">
-              {h}
-              <button onClick={() => removeHostname(h)} title="Remover">
-                <X size={10} />
-              </button>
-            </span>
-          ))}
+      <div className="ops-seg" role="group" aria-label="O que limpar">
+        <button type="button" aria-pressed={!purgeAll} onClick={() => setPurgeAll(false)}>
+          Por hostname
+        </button>
+        <button type="button" aria-pressed={purgeAll} onClick={() => setPurgeAll(true)}>
+          Tudo da zona
+        </button>
+      </div>
+
+      {purgeAll ? (
+        <div className="ops-warn">
+          Remove <strong>todo</strong> o cache da zona <strong>{zoneName}</strong>. A origem vai receber mais
+          requisições até o cache se refazer.
         </div>
+      ) : (
+        <>
+          {zoneId && (
+            <div className="ops-field">
+              <ExecLabel>
+                Hostnames {dnsLoading && <Loader2 size={10} className="ops-spin" style={{ marginLeft: 4 }} />}
+              </ExecLabel>
+              <SearchableSelect
+                options={subdomainOptions}
+                value=""
+                onValueChange={addSubdomain}
+                placeholder={
+                  dnsLoading
+                    ? "Carregando subdomínios…"
+                    : subdomainOptions.length === 0
+                      ? "Nenhum subdomínio encontrado"
+                      : "Selecione subdomínios para adicionar…"
+                }
+                searchPlaceholder="Buscar subdomínio…"
+                disabled={dnsLoading || subdomainOptions.length === 0}
+                loading={dnsLoading}
+                emptyMessage="Nenhum subdomínio encontrado."
+                keepOpenOnSelect
+              />
+              <p className="ops-hint">Cada subdomínio escolhido entra na lista abaixo.</p>
+            </div>
+          )}
+
+          {hostList.length > 0 && (
+            <div className="ops-chip-list">
+              {hostList.map((h) => (
+                <span key={h} className="ops-chip">
+                  {h}
+                  <button onClick={() => removeHostname(h)} title="Remover" aria-label={`Remover ${h}`}>
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <details className="ops-details">
+            <summary>Colar uma lista de hostnames</summary>
+            <Textarea
+              value={hostnames}
+              onChange={(e) => setHostnames(e.target.value)}
+              placeholder={"www.exemplo.com\napp.exemplo.com"}
+              rows={3}
+            />
+            <p className="ops-hint">Um por linha ou separados por vírgula.</p>
+          </details>
+        </>
       )}
 
-      <div className="ops-field">
-        <ExecLabel>Hostnames (um por linha ou vírgula)</ExecLabel>
-        <Textarea
-          value={hostnames}
-          onChange={(e) => setHostnames(e.target.value)}
-          placeholder={"www.exemplo.com\napp.exemplo.com"}
-          rows={3}
-          disabled={purgeAll}
-        />
-      </div>
-
-      <div className="ops-check-row">
-        <Checkbox id="purge-all-inner" checked={purgeAll} onCheckedChange={(v) => setPurgeAll(!!v)} />
-        <label htmlFor="purge-all-inner" className="ops-check-label">
-          Purge TUDO da zona
-        </label>
-      </div>
-
-      <button className="ops-btn danger full" disabled={!canSubmit} onClick={() => setConfirmOpen(true)}>
-        <Trash2 size={13} /> Limpar Cache
+      <button
+        className={`ops-btn ${purgeAll ? "danger" : "primary"}`}
+        style={{ alignSelf: "flex-start" }}
+        disabled={!canSubmit}
+        onClick={() => setConfirmOpen(true)}
+      >
+        <Trash2 size={13} />
+        {purgeAll
+          ? "Limpar todo o cache da zona"
+          : `Executar purge${hostList.length ? ` (${hostList.length} ${hostList.length === 1 ? "host" : "hosts"})` : ""}`}
       </button>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -1695,7 +1879,11 @@ type CacheStatusResultOk = {
 };
 
 function CacheStatusInner({ zones }: { zones: CRZone[] }) {
-  const [zoneId, setZoneId] = React.useState("");
+  const resetOnZone = React.useCallback(() => {
+    setSelectedSubdomain("");
+    setStatusResult(null);
+  }, []);
+  const [zoneId, setZoneId, zoneShared] = useZoneState("", resetOnZone);
   const [selectedSubdomain, setSelectedSubdomain] = React.useState("");
   const [days, setDays] = React.useState(1);
   const [statusResult, setStatusResult] = React.useState<CacheStatusResultOk | null>(null);
@@ -1747,18 +1935,21 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
         <span className="ops-section-title-text">Cache Performance</span>
       </div>
 
-      <div className="ops-field">
-        <ExecLabel>Zona</ExecLabel>
-        <SearchableSelect
-          options={zoneOptions}
-          value={zoneId}
-          onValueChange={handleZoneChange}
-          placeholder="Selecione uma zona"
-          searchPlaceholder="Buscar zona…"
-          emptyMessage="Nenhuma zona encontrada."
-        />
-      </div>
+      {!zoneShared && (
+        <div className="ops-field">
+          <ExecLabel>Zona</ExecLabel>
+          <SearchableSelect
+            options={zoneOptions}
+            value={zoneId}
+            onValueChange={handleZoneChange}
+            placeholder="Selecione uma zona"
+            searchPlaceholder="Buscar zona…"
+            emptyMessage="Nenhuma zona encontrada."
+          />
+        </div>
+      )}
 
+      <div className="ops-cache-form">
       {zoneId && (
         <div className="ops-field">
           <ExecLabel>
@@ -1783,28 +1974,25 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
             loading={dnsLoading}
             emptyMessage="Nenhum subdomínio encontrado."
           />
-          <p className="ops-hint">Cache Performance exibe dados somente para 1 subdomínio por vez.</p>
+          <p className="ops-hint">Mostra 1 subdomínio por vez.</p>
         </div>
       )}
 
       <div className="ops-field">
         <ExecLabel>Período</ExecLabel>
-        <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+        <div className="ops-seg" role="group" aria-label="Período">
           {[1, 2, 3].map((n) => (
-            <button
-              key={n}
-              className={`ops-day-btn${days === n ? " active" : ""}`}
-              onClick={() => setDays(n)}
-              style={{ flex: 1 }}
-            >
-              {n === 1 ? "24h" : `${n}d`}
+            <button key={n} type="button" aria-pressed={days === n} onClick={() => setDays(n)}>
+              {n === 1 ? "24 h" : `${n} dias`}
             </button>
           ))}
         </div>
       </div>
+      </div>
 
       <button
-        className="ops-btn primary full"
+        className="ops-btn primary"
+        style={{ alignSelf: "flex-start" }}
         onClick={checkStatus}
         disabled={!selectedSubdomain || !zoneId || loading}
       >
@@ -1814,7 +2002,7 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
           </>
         ) : (
           <>
-            <ShieldCheck size={13} /> Verificar Cache
+            <ShieldCheck size={13} /> Verificar cache
           </>
         )}
       </button>
@@ -1842,6 +2030,17 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
             </span>
           </div>
 
+          {t.total > 0 && (
+            <div className="ops-cache-stack" role="img" aria-label="Proporção de cada status de cache">
+              {STATUS_KEYS.filter((k) => t[k] > 0).map((key) => (
+                <i
+                  key={key}
+                  style={{ flex: t[key], background: CACHE_COLORS[key] }}
+                  title={`${CACHE_LABELS[key]}: ${fmtNum(t[key])} (${((t[key] / t.total) * 100).toFixed(1)}%)`}
+                />
+              ))}
+            </div>
+          )}
           <div className="ops-cache-grid">
             {STATUS_KEYS.filter((k) => t[k] > 0 || ["hit", "miss", "none", "dynamic"].includes(k)).map((key) => (
               <div key={key} className="ops-cache-card">
@@ -1940,9 +2139,13 @@ function CacheStatusInner({ zones }: { zones: CRZone[] }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // CREATE DNS
 // ══════════════════════════════════════════════════════════════════════════════
+const DNS_TYPES = ["A", "AAAA", "CNAME", "TXT", "MX", "NS", "SRV", "CAA"] as const;
+// Só A/AAAA/CNAME podem passar pelo proxy da Cloudflare
+const PROXIABLE = new Set(["A", "AAAA", "CNAME"]);
+
 function CreateDnsInner({ zones }: { zones: CRZone[] }) {
   const qc = useQueryClient();
-  const [zoneId, setZoneId] = React.useState("");
+  const [zoneId, setZoneId, zoneShared] = useZoneState("");
   const [type, setType] = React.useState("A");
   const [name, setName] = React.useState("");
   const [content, setContent] = React.useState("");
@@ -1956,6 +2159,9 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
   const zoneOptions: SearchableOption[] = zones.map((z) => ({ value: z.id, label: z.name }));
   const canSubmit = zoneId && name && content && comment.trim();
   const zoneName = zones.find((z) => z.id === zoneId)?.name ?? "—";
+  const proxiable = PROXIABLE.has(type);
+  const effectiveProxied = proxiable && proxied;
+  const fqdn = name && name !== "@" ? `${name}.${zoneName}` : zoneName;
 
   async function execute() {
     setLoading(true);
@@ -1963,7 +2169,7 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
     try {
       let res: Awaited<ReturnType<typeof doCreate>>;
       try {
-        res = await doCreate({ data: { zoneId, type, name, content, ttl, proxied, comment } });
+        res = await doCreate({ data: { zoneId, type, name, content, ttl, proxied: effectiveProxied, comment } });
       } catch (err: any) {
         toast.error(err?.message ?? "Erro inesperado ao criar registro DNS.");
         return;
@@ -1984,12 +2190,11 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
 
   return (
     <>
-      <div className="ops-section-title">
-        <Plus size={14} color={T.success} />
-        <span className="ops-section-title-text">Adicionar DNS</span>
-      </div>
-
-      <div className="ops-form-grid">
+      {zoneShared ? (
+        <p className="ops-hint" style={{ margin: 0 }}>
+          Zona <strong style={{ fontFamily: "var(--font-data)" }}>{zoneName}</strong> · a mesma escolhida na barra
+        </p>
+      ) : (
         <div className="ops-field">
           <ExecLabel>Zona</ExecLabel>
           <SearchableSelect
@@ -2001,21 +2206,20 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
             emptyMessage="Nenhuma zona encontrada."
           />
         </div>
-        <div className="ops-field">
-          <ExecLabel>Tipo</ExecLabel>
-          <Select value={type} onValueChange={setType}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {["A", "AAAA", "CNAME", "TXT", "MX", "NS", "SRV", "CAA"].map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      )}
+
+      <div className="ops-field">
+        <ExecLabel>Tipo</ExecLabel>
+        <div className="ops-types" role="radiogroup" aria-label="Tipo de registro">
+          {DNS_TYPES.map((t) => (
+            <button key={t} type="button" role="radio" aria-checked={type === t} aria-pressed={type === t} onClick={() => setType(t)}>
+              {t}
+            </button>
+          ))}
         </div>
+      </div>
+
+      <div className="ops-dns-grid">
         <div className="ops-field">
           <ExecLabel>Nome (subdomínio ou @)</ExecLabel>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="api" />
@@ -2025,21 +2229,34 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
           <Input
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder={type === "A" ? "192.0.2.1" : type === "CNAME" ? "alvo.exemplo.com" : "valor"}
+            placeholder={
+              type === "A" ? "192.0.2.1" : type === "AAAA" ? "2001:db8::1" : type === "CNAME" ? "alvo.exemplo.com" : "valor"
+            }
           />
         </div>
         <div className="ops-field">
           <ExecLabel>TTL (segundos · 1 = Auto)</ExecLabel>
           <Input type="number" value={ttl} onChange={(e) => setTtl(Number(e.target.value) || 1)} min={1} />
         </div>
-        <div className="ops-field" style={{ justifyContent: "flex-end" }}>
-          <div className="ops-check-row" style={{ marginBottom: 2 }}>
-            <Checkbox id="proxied-inner" checked={proxied} onCheckedChange={(v) => setProxied(!!v)} />
-            <label htmlFor="proxied-inner" className="ops-check-label">
-              Proxy Cloudflare
-            </label>
-          </div>
-        </div>
+      </div>
+
+      <div className="ops-toggle-row">
+        <span>
+          <b>Proxy Cloudflare</b>
+          <small>
+            {!proxiable
+              ? `Não se aplica a registros ${type}`
+              : proxied
+                ? "Tráfego passa pela Cloudflare (WAF e cache)"
+                : "Só resolve o DNS, sem proteção"}
+          </small>
+        </span>
+        <Switch
+          checked={effectiveProxied}
+          disabled={!proxiable}
+          onCheckedChange={(v) => setProxied(!!v)}
+          aria-label="Proxy Cloudflare"
+        />
       </div>
 
       <div className="ops-field">
@@ -2052,8 +2269,15 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
         />
       </div>
 
-      <button className="ops-btn success full" disabled={!canSubmit} onClick={() => setConfirmOpen(true)}>
-        <Globe size={13} /> Criar Registro
+      {(name || content) && (
+        <div className="ops-dns-preview">
+          Vai ficar: <strong>{fqdn}</strong> {type} → <strong>{content || "…"}</strong> ·{" "}
+          {effectiveProxied ? "Proxied" : "DNS only"} · TTL {ttl === 1 ? "Auto" : `${ttl}s`}
+        </div>
+      )}
+
+      <button className="ops-btn primary full" disabled={!canSubmit} onClick={() => setConfirmOpen(true)}>
+        <Globe size={13} /> Revisar e criar
       </button>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -2086,7 +2310,7 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
                   TTL: <strong>{ttl === 1 ? "Auto" : ttl}</strong>
                 </div>
                 <div>
-                  Proxy: <strong>{proxied ? "Ativo" : "Desativado"}</strong>
+                  Proxy: <strong>{effectiveProxied ? "Ativo" : "Desativado"}</strong>
                 </div>
                 {comment && (
                   <div>
@@ -2099,7 +2323,7 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={execute} disabled={loading}>
-              {loading ? "Criando…" : "Continuar"}
+              {loading ? "Criando…" : "Criar registro"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2112,18 +2336,17 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
 // CUSTOM RULES (WAF)
 // ══════════════════════════════════════════════════════════════════════════════
 function CustomRulesInner({ zones }: { zones: CRZone[] }) {
-  const [zoneId, setZoneId] = React.useState("");
+  const resetOnZone = React.useCallback(() => setRulesetId(null), []);
+  const [zoneId, setZoneId, zoneShared] = useZoneState("", resetOnZone);
   const [search, setSearch] = React.useState("");
   const [rulesetId, setRulesetId] = React.useState<string | null>(null);
-  const [creating, setCreating] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
-  const [editRule, setEditRule] = React.useState<any | null>(null);
-  const [form, setForm] = React.useState({ description: "", expression: "", action: "block" });
-  const [editForm, setEditForm] = React.useState({ description: "", expression: "", action: "block" });
+  const [editRule, setEditRule] = React.useState<WafRule | null>(null);
+  // Regra aberta no painel lateral (só leitura)
+  const [viewRuleId, setViewRuleId] = React.useState<string | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
 
   const list = useServerFn(listCustomRules);
-  const create = useServerFn(createCustomRule);
   const update = useServerFn(updateCustomRule);
   const qc = useQueryClient();
 
@@ -2145,27 +2368,6 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
           r.expression.toLowerCase().includes(search.toLowerCase()),
       )
     : rules;
-
-  async function handleCreate() {
-    if (!zoneId || !form.description || !form.expression) {
-      toast.error("Preencha zona, descrição e expressão.");
-      return;
-    }
-    setCreating(true);
-    try {
-      const res: any = await create({ data: { zoneId, ...form } });
-      if (res.ok) {
-        toast.success("Custom rule criada.");
-        setForm({ description: "", expression: "", action: "block" });
-        setCreateOpen(false);
-        qc.invalidateQueries({ queryKey: ["cf-custom-rules", zoneId] });
-      } else {
-        toast.error(res.error);
-      }
-    } finally {
-      setCreating(false);
-    }
-  }
 
   async function handleToggle(rule: any) {
     if (!rulesetId) {
@@ -2191,35 +2393,8 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
     } else toast.error(res.error);
   }
 
-  function openEdit(rule: any) {
+  function openEdit(rule: WafRule) {
     setEditRule(rule);
-    setEditForm({ description: rule.description, expression: rule.expression, action: rule.action });
-  }
-
-  async function handleEdit() {
-    if (!editRule || !rulesetId) return;
-    setSaving(true);
-    try {
-      const res: any = await update({
-        data: {
-          zoneId,
-          rulesetId,
-          ruleId: editRule.id,
-          description: editForm.description,
-          expression: editForm.expression,
-          action: editForm.action,
-          action_parameters: editRule.action_parameters ?? null,
-          enabled: editRule.enabled,
-        },
-      });
-      if (res.ok) {
-        toast.success("Rule atualizada.");
-        setEditRule(null);
-        qc.invalidateQueries({ queryKey: ["cf-custom-rules", zoneId] });
-      } else toast.error(res.error);
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -2231,19 +2406,21 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
 
       {/* Toolbar */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div className="ops-field" style={{ flex: "1 1 220px" }}>
-          <ExecLabel>Domínio (zona)</ExecLabel>
-          <SearchableSelect
-            options={zones.map((z) => ({ value: z.id, label: z.name }))}
-            value={zoneId}
-            onValueChange={(v) => {
-              setZoneId(v);
-              setRulesetId(null);
-            }}
-            placeholder="Selecione uma zona…"
-            searchPlaceholder="Buscar por domínio…"
-          />
-        </div>
+        {!zoneShared && (
+          <div className="ops-field" style={{ flex: "1 1 220px" }}>
+            <ExecLabel>Domínio (zona)</ExecLabel>
+            <SearchableSelect
+              options={zones.map((z) => ({ value: z.id, label: z.name }))}
+              value={zoneId}
+              onValueChange={(v) => {
+                setZoneId(v);
+                setRulesetId(null);
+              }}
+              placeholder="Selecione uma zona…"
+              searchPlaceholder="Buscar por domínio…"
+            />
+          </div>
+        )}
         <div className="ops-field" style={{ flex: "1 1 200px" }}>
           <ExecLabel>Buscar rule</ExecLabel>
           <Input
@@ -2285,9 +2462,24 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
                 </tr>
               )}
               {filtered.map((r: any) => (
-                <tr key={r.id}>
+                <tr
+                  key={r.id}
+                  className="ops-row-click"
+                  tabIndex={0}
+                  title="Ver a regra completa"
+                  onClick={() => {
+                    setViewRuleId(r.id);
+                    setViewOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setViewRuleId(r.id);
+                      setViewOpen(true);
+                    }
+                  }}
+                >
                   <td style={{ fontWeight: 500 }}>{r.description || "—"}</td>
-                  <td className="mono trunc" style={{ maxWidth: 220 }}>
+                  <td className="mono trunc" style={{ maxWidth: 220 }} title={r.expression}>
                     {r.expression}
                   </td>
                   <td>
@@ -2300,10 +2492,10 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
                       <span className="ops-status-disabled">Desabilitada</span>
                     )}
                   </td>
-                  <td style={{ textAlign: "right" }}>
+                  <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-                      <button className="ops-btn ghost sm" onClick={() => openEdit(r)} title="Editar">
-                        <Pencil size={13} />
+                      <button className="ops-btn outline sm" onClick={() => openEdit(r)}>
+                        <Pencil size={12} /> Editar
                       </button>
                       <button
                         className="ops-btn ghost sm"
@@ -2321,112 +2513,777 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
         </div>
       )}
 
-      {/* Dialog: Criar */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Plus size={16} color={T.accent} /> Adicionar Custom Rule
-            </DialogTitle>
-          </DialogHeader>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "8px 0" }}>
-            <div className="ops-field">
-              <ExecLabel>Descrição</ExecLabel>
-              <Input
-                placeholder="Ex.: Bloquear IP suspeito"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </div>
-            <div className="ops-field">
-              <ExecLabel>Expressão</ExecLabel>
-              <Textarea
-                placeholder={'(ip.src eq 1.2.3.4) or (http.host eq "exemplo.com")'}
-                rows={3}
-                value={form.expression}
-                onChange={(e) => setForm({ ...form, expression: e.target.value })}
-              />
-            </div>
-            <div className="ops-field">
-              <ExecLabel>Action</ExecLabel>
-              <Select value={form.action} onValueChange={(v) => setForm({ ...form, action: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CF_ACTION_LIST.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <button className="ops-btn outline" onClick={() => setCreateOpen(false)}>
-              Cancelar
-            </button>
-            <button className="ops-btn primary" onClick={handleCreate} disabled={creating}>
-              {creating ? <Loader2 size={12} className="ops-spin" /> : <Plus size={12} />}
-              Criar Rule
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {(() => {
+        const idx = rules.findIndex((x: { id: string }) => x.id === viewRuleId);
+        const vr = idx >= 0 ? rules[idx] : null;
+        const asRule: OverviewRule | null = vr
+          ? {
+              order: idx + 1,
+              id: vr.id,
+              description: vr.description ?? "",
+              expression: vr.expression ?? "",
+              action: vr.action ?? "",
+              action_parameters: vr.action_parameters ?? null,
+              enabled: !!vr.enabled,
+            }
+          : null;
+        return (
+          <DetailSheet
+            open={viewOpen && !!asRule}
+            onOpenChange={setViewOpen}
+            width={620}
+            eyebrow={`Custom Rules (WAF) · ordem ${asRule?.order ?? "—"}`}
+            title={asRule?.description || "Regra sem nome"}
+            badges={
+              asRule && (
+                <>
+                  {asRule.enabled ? (
+                    <span className="ops-rule-status-active">Ativa</span>
+                  ) : (
+                    <span className="ops-rule-status-disabled">Desabilitada</span>
+                  )}
+                  <span className="ops-action-pill">{asRule.action}</span>
+                </>
+              )
+            }
+            footer={
+              <>
+                <button className="ops-btn outline" style={{ marginRight: "auto" }} onClick={() => setViewOpen(false)}>
+                  Fechar
+                </button>
+                {vr && (
+                  <button
+                    className="ops-btn primary"
+                    onClick={() => {
+                      setViewOpen(false);
+                      openEdit(vr);
+                    }}
+                  >
+                    <Pencil size={13} /> Editar
+                  </button>
+                )}
+              </>
+            }
+          >
+            {asRule && <RuleReadOnly rule={asRule} />}
+          </DetailSheet>
+        );
+      })()}
 
-      {/* Dialog: Editar */}
-      <Dialog open={!!editRule} onOpenChange={(o) => !o && setEditRule(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Pencil size={16} color={T.accent} /> Editar Custom Rule
-            </DialogTitle>
-          </DialogHeader>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "8px 0" }}>
-            <div className="ops-field">
-              <ExecLabel>Descrição</ExecLabel>
-              <Input
-                value={editForm.description}
-                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-              />
+      <WafCustomRuleDialog
+        open={createOpen || !!editRule}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCreateOpen(false);
+            setEditRule(null);
+          }
+        }}
+        zoneId={zoneId}
+        rulesetId={rulesetId}
+        rules={rules}
+        editing={editRule}
+        onSaved={() => {
+          setCreateOpen(false);
+          setEditRule(null);
+          qc.invalidateQueries({ queryKey: ["cf-custom-rules", zoneId] });
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Custom Rules (WAF): criar/editar no mesmo fluxo do "Edit custom rule" ────
+// nativo — Nome, "Quando a requisição bater com…" (builder Field/Operator/
+// Value + And/Or, ou expressão livre), ação (com parâmetros de Block e Skip),
+// ordem de execução, status e o "Salvar via API" (cURL equivalente).
+type WafRule = {
+  id: string;
+  description: string;
+  expression: string;
+  action: string;
+  action_parameters: Record<string, unknown> | null;
+  logging?: { enabled: boolean } | null;
+  enabled: boolean;
+};
+const WAF_ACTIONS: Array<{ key: (typeof CF_ACTION_LIST)[number]; label: string; desc: string }> = [
+  { key: "managed_challenge", label: "Managed Challenge", desc: "A Cloudflare decide, pelas características da requisição, se apresenta um desafio ao visitante." },
+  { key: "block", label: "Block", desc: "Bloqueia as requisições que baterem e para de avaliar as demais regras." },
+  { key: "js_challenge", label: "JS Challenge", desc: "Apresenta um desafio JavaScript não interativo ao visitante." },
+  { key: "skip", label: "Skip", desc: "Deixa a requisição passar e pula os componentes de segurança selecionados." },
+  { key: "challenge", label: "Interactive Challenge", desc: "Apresenta um desafio interativo que o visitante precisa resolver." },
+  { key: "log", label: "Log", desc: "Só registra as requisições que baterem (disponível no plano Enterprise)." },
+  { key: "allow", label: "Allow", desc: "Libera a requisição sem aplicar a ação das regras seguintes." },
+];
+// Opções do Skip — mesmos componentes que o nativo deixa pular
+const WAF_SKIP_RULESETS = [{ key: "current", label: "Todas as custom rules restantes" }];
+const WAF_SKIP_PHASES = [
+  { key: "http_ratelimit", label: "Todas as rate limiting rules" },
+  { key: "http_request_firewall_managed", label: "Todas as managed rules" },
+  { key: "http_request_sbfm", label: "Todas as regras do Super Bot Fight Mode" },
+];
+const WAF_SKIP_PRODUCTS = [
+  { key: "zoneLockdown", label: "Zone Lockdown" },
+  { key: "uaBlock", label: "User Agent Blocking" },
+  { key: "bic", label: "Browser Integrity Check" },
+  { key: "hot", label: "Hotlink Protection" },
+  { key: "securityLevel", label: "Security Level" },
+  { key: "rateLimit", label: "Rate limiting rules (versão anterior)" },
+  { key: "waf", label: "Managed rules (versão anterior)" },
+];
+const WAF_BLOCK_RESPONSE_TYPES = [
+  { key: "default", label: "Página de bloqueio padrão da Cloudflare" },
+  { key: "text/html", label: "HTML customizado" },
+  { key: "text/plain", label: "Texto customizado" },
+  { key: "application/json", label: "JSON customizado" },
+  { key: "application/xml", label: "XML customizado" },
+];
+// ISO 3166-1 alfa-2 + T1 (Tor) — o "Country" do nativo é um dropdown com nome
+const COUNTRY_CODES =
+  "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW".split(
+    " ",
+  );
+const CONTINENTS: Record<string, string> = {
+  AF: "África",
+  AN: "Antártida",
+  AS: "Ásia",
+  EU: "Europa",
+  NA: "América do Norte",
+  OC: "Oceania",
+  SA: "América do Sul",
+  T1: "Tor",
+};
+let countryOptionsCache: Array<{ value: string; label: string }> | null = null;
+function countryOptions(): Array<{ value: string; label: string }> {
+  if (countryOptionsCache) return countryOptionsCache;
+  let names: Intl.DisplayNames | null = null;
+  try {
+    names = new Intl.DisplayNames(["pt-BR"], { type: "region" });
+  } catch {
+    names = null;
+  }
+  countryOptionsCache = [
+    ...COUNTRY_CODES.map((c) => ({ value: c, label: `${names?.of(c) ?? c} (${c})` })).sort((a, b) =>
+      a.label.localeCompare(b.label, "pt-BR"),
+    ),
+    { value: "T1", label: "Rede Tor (T1)" },
+  ];
+  return countryOptionsCache;
+}
+function geoValueOptions(field: string): Array<{ value: string; label: string }> | null {
+  if (field === "ip.src.country" || field === "ip.geoip.country") return countryOptions();
+  if (field === "ip.src.continent" || field === "ip.geoip.continent") return Object.entries(CONTINENTS).map(([value, n]) => ({ value, label: `${n} (${value})` }));
+  return null;
+}
+
+// Builder Field/Operator/Value + And/Or que escreve numa expressão de texto.
+// `seed` muda a cada abertura do diálogo: aí ele relê `value` e decide se
+// abre no builder (expressão reconhecida) ou no texto livre (não reconhecida —
+// nunca apaga o que já estava escrito).
+function ExpressionBuilderField({ value, onChange, seed }: { value: string; onChange: (v: string) => void; seed: number }) {
+  const blank: ExprCondition = { field: "ip.src.country", operator: "eq", value: "" };
+  const [mode, setMode] = React.useState<"builder" | "raw">("builder");
+  const [conditions, setConditions] = React.useState<ExprCondition[]>([blank]);
+  const [combinators, setCombinators] = React.useState<Array<"and" | "or">>([]);
+
+  React.useEffect(() => {
+    if (!value.trim()) {
+      setConditions([blank]);
+      setCombinators([]);
+      setMode("builder");
+      return;
+    }
+    const parsed = parseMultiCondition(value);
+    if (parsed) {
+      setConditions(parsed.conditions);
+      setCombinators(parsed.combinators);
+      setMode("builder");
+    } else setMode("raw");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
+
+  React.useEffect(() => {
+    if (mode === "builder") onChange(compileExpression(conditions, combinators));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conditions, combinators, mode]);
+
+  function patch(idx: number, p: Partial<ExprCondition>) {
+    setConditions((cs) => cs.map((c, i) => (i === idx ? { ...c, ...p } : c)));
+  }
+  function setField(idx: number, fieldKey: string) {
+    const op = getExprOperators(fieldKey)[0];
+    patch(idx, { field: fieldKey, operator: op.key, value: op.valueKind === "bool" ? "true" : "" });
+  }
+  function setOperator(idx: number, opKey: string, ops: ExprOperator[]) {
+    const op = ops.find((o) => o.key === opKey) ?? ops[0];
+    const prev = ops.find((o) => o.key === conditions[idx].operator);
+    // Mantém o valor quando o tipo de valor não muda (ex.: equals → does not equal)
+    patch(idx, { operator: opKey, value: prev?.valueKind === op.valueKind ? conditions[idx].value : op.valueKind === "bool" ? "true" : "" });
+  }
+  function add(comb: "and" | "or") {
+    setConditions((cs) => [...cs, blank]);
+    setCombinators((cb) => [...cb, comb]);
+  }
+  function remove(idx: number) {
+    if (conditions.length <= 1) return;
+    setConditions((cs) => cs.filter((_, i) => i !== idx));
+    setCombinators((cb) => cb.filter((_, i) => i !== (idx === 0 ? 0 : idx - 1)));
+  }
+  function toBuilder() {
+    if (!value.trim()) {
+      setConditions([blank]);
+      setCombinators([]);
+      setMode("builder");
+      return;
+    }
+    const parsed = parseMultiCondition(value);
+    if (!parsed) {
+      toast.warning("O builder não reconhece esta expressão. Continue editando no modo texto para não perdê-la.");
+      return;
+    }
+    setConditions(parsed.conditions);
+    setCombinators(parsed.combinators);
+    setMode("builder");
+  }
+
+  function valueInput(c: ExprCondition, idx: number, op: ExprOperator) {
+    const field = EXPR_FIELDS.find((f) => f.key === c.field) ?? EXPR_FIELDS[0];
+    if (op.valueKind === "bool")
+      return <Switch checked={c.value === "true"} onCheckedChange={(v) => patch(idx, { value: v ? "true" : "false" })} />;
+    const geo = geoValueOptions(c.field);
+    if (op.valueKind === "text" && geo)
+      return (
+        <SearchableSelect
+          options={geo}
+          value={c.value}
+          onValueChange={(v) => patch(idx, { value: v })}
+          placeholder="Selecione…"
+          searchPlaceholder="Buscar…"
+        />
+      );
+    const enumOptions = ENUM_VALUE_OPTIONS[c.field];
+    if (op.valueKind === "text" && enumOptions)
+      return (
+        <Select value={c.value} onValueChange={(v) => patch(idx, { value: v })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione…" />
+          </SelectTrigger>
+          <SelectContent>
+            {enumOptions.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    if (op.valueKind === "listref")
+      return <Input placeholder="nome_da_list" value={c.value} onChange={(e) => patch(idx, { value: e.target.value })} />;
+    if (op.valueKind === "list")
+      return (
+        <Input
+          placeholder={geo ? "BR, US, PT" : enumOptions ? `${enumOptions.slice(0, 2).join(", ")}, …` : "valor1, valor2, valor3"}
+          value={c.value}
+          onChange={(e) => patch(idx, { value: e.target.value })}
+        />
+      );
+    return (
+      <Input
+        placeholder={EXPR_VALUE_EXAMPLE[field.key] ?? (field.type === "ip" ? "e.g. 203.0.113.0/24" : "Valor")}
+        value={c.value}
+        onChange={(e) => patch(idx, { value: e.target.value })}
+      />
+    );
+  }
+
+  const preview = (
+    <div className="ops-waf-preview">
+      <pre>{value || "—"}</pre>
+    </div>
+  );
+
+  if (mode === "raw")
+    return (
+      <div className="ops-field">
+        <div className="ops-waf-preview-head">
+          <ExecLabel>Expressão</ExecLabel>
+          <button className="ops-waf-link" onClick={toBuilder}>
+            Usar o expression builder
+          </button>
+        </div>
+        <Textarea
+          className="mono"
+          rows={5}
+          placeholder={'(ip.src.country ne "BR")'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ fontFamily: "var(--font-data)", fontSize: 12 }}
+        />
+        <div className="ops-waf-count">{value.length} / 4000 caracteres</div>
+      </div>
+    );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {conditions.map((c, idx) => {
+        const field = EXPR_FIELDS.find((f) => f.key === c.field) ?? EXPR_FIELDS[0];
+        const ops = getExprOperators(c.field);
+        const op = ops.find((o) => o.key === c.operator) ?? ops[0];
+        const isLast = idx === conditions.length - 1;
+        return (
+          <React.Fragment key={idx}>
+            {idx > 0 && <div className="ops-waf-comb">{combinators[idx - 1]}</div>}
+            <div className="ops-waf-cond">
+              <div className="ops-field">
+                {idx === 0 && <ExecLabel>Campo</ExecLabel>}
+                <Select value={c.field} onValueChange={(v) => setField(idx, v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPR_FIELDS.map((f) => (
+                      <SelectItem key={f.key} value={f.key}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="ops-field">
+                {idx === 0 && <ExecLabel>Operador</ExecLabel>}
+                <Select value={c.operator} onValueChange={(v) => setOperator(idx, v, ops)} disabled={field.type === "bool"}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ops.map((o) => (
+                      <SelectItem key={o.key} value={o.key}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="ops-field" style={{ minWidth: 0 }}>
+                {idx === 0 && <ExecLabel>Valor</ExecLabel>}
+                {valueInput(c, idx, op)}
+                {geoValueOptions(c.field) && op.valueKind === "text" && <span className="ops-hint">e.g. GB</span>}
+              </div>
+              <div className="ops-waf-cond-actions">
+                {isLast && (
+                  <>
+                    <button className="ops-btn outline sm" onClick={() => add("and")}>
+                      And
+                    </button>
+                    <button className="ops-btn outline sm" onClick={() => add("or")}>
+                      Or
+                    </button>
+                  </>
+                )}
+                {conditions.length > 1 && (
+                  <button className="ops-btn ghost sm" onClick={() => remove(idx)} title="Remover condição" aria-label="Remover condição">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
+          </React.Fragment>
+        );
+      })}
+      <div>
+        <div className="ops-waf-preview-head">
+          <ExecLabel>Prévia da expressão</ExecLabel>
+          <button className="ops-waf-link" onClick={() => setMode("raw")}>
+            Editar expressão
+          </button>
+        </div>
+        {preview}
+        <div className="ops-waf-count">{value.length} / 4000 caracteres</div>
+      </div>
+    </div>
+  );
+}
+
+function WafCustomRuleDialog({
+  open,
+  onOpenChange,
+  zoneId,
+  rulesetId,
+  rules,
+  editing,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  zoneId: string;
+  rulesetId: string | null;
+  rules: WafRule[];
+  editing: WafRule | null;
+  onSaved: () => void;
+}) {
+  const create = useServerFn(createCustomRule);
+  const update = useServerFn(updateCustomRule);
+  const [seed, setSeed] = React.useState(0);
+  const [name, setName] = React.useState("");
+  const [expression, setExpression] = React.useState("");
+  const [action, setAction] = React.useState<(typeof CF_ACTION_LIST)[number]>("block");
+  const [enabled, setEnabled] = React.useState(true);
+  // Execution order
+  const [order, setOrder] = React.useState<"first" | "last" | "custom">("last");
+  const [afterId, setAfterId] = React.useState("");
+  const [initialOrder, setInitialOrder] = React.useState<{ order: string; afterId: string }>({ order: "last", afterId: "" });
+  // Block — resposta customizada
+  const [respType, setRespType] = React.useState("default");
+  const [respCode, setRespCode] = React.useState("403");
+  const [respContent, setRespContent] = React.useState("");
+  // Skip
+  const [skipRulesets, setSkipRulesets] = React.useState<string[]>([]);
+  const [skipPhases, setSkipPhases] = React.useState<string[]>([]);
+  const [skipProducts, setSkipProducts] = React.useState<string[]>([]);
+  const [skipLog, setSkipLog] = React.useState(true);
+  const [apiOpen, setApiOpen] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+
+  const others = rules.filter((r) => r.id !== editing?.id);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const ap = (editing?.action_parameters ?? {}) as {
+      response?: { status_code?: number; content_type?: string; content?: string };
+      ruleset?: string;
+      phases?: string[];
+      products?: string[];
+    };
+    setName(editing?.description ?? "");
+    setExpression(editing?.expression ?? "");
+    setSeed((s) => s + 1);
+    setAction(((CF_ACTION_LIST as readonly string[]).includes(editing?.action ?? "") ? editing!.action : "block") as (typeof CF_ACTION_LIST)[number]);
+    setEnabled(editing ? editing.enabled : true);
+    let o: "first" | "last" | "custom" = "last";
+    let after = "";
+    if (editing) {
+      const idx = rules.findIndex((r) => r.id === editing.id);
+      if (idx === 0) o = "first";
+      else if (idx === rules.length - 1) o = "last";
+      else if (idx > 0) {
+        o = "custom";
+        after = rules[idx - 1].id;
+      }
+    }
+    setOrder(o);
+    setAfterId(after);
+    setInitialOrder({ order: o, afterId: after });
+    setRespType(ap.response?.content_type ?? "default");
+    setRespCode(String(ap.response?.status_code ?? 403));
+    setRespContent(ap.response?.content ?? "");
+    setSkipRulesets(ap.ruleset ? [ap.ruleset] : editing ? [] : ["current"]);
+    setSkipPhases(ap.phases ?? []);
+    setSkipProducts(ap.products ?? []);
+    setSkipLog(editing?.logging?.enabled !== false);
+    setApiOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing]);
+
+  function actionParameters(): Record<string, unknown> | null {
+    if (action === "block") {
+      if (respType === "default") return null;
+      return { response: { status_code: Number(respCode) || 403, content_type: respType, content: respContent } };
+    }
+    if (action === "skip") {
+      const ap: Record<string, unknown> = {};
+      if (skipRulesets.includes("current")) ap.ruleset = "current";
+      if (skipPhases.length) ap.phases = skipPhases;
+      if (skipProducts.length) ap.products = skipProducts;
+      return ap;
+    }
+    return null;
+  }
+
+  function position(): { before: string } | { after: string } | undefined {
+    const changed = !editing || order !== initialOrder.order || (order === "custom" && afterId !== initialOrder.afterId);
+    if (!changed) return undefined;
+    if (order === "first") return { before: "" };
+    if (order === "custom" && afterId) return { after: afterId };
+    if (order === "last") return editing && others.length ? { after: others[others.length - 1].id } : undefined;
+    return undefined;
+  }
+
+  const ap = actionParameters();
+  const code = Number(respCode);
+  const blockedReason = !name.trim()
+    ? "Dê um nome para a regra."
+    : !expression.trim()
+      ? "Monte a expressão da regra."
+      : expression.length > 4000
+        ? "A expressão passa de 4000 caracteres."
+        : action === "block" && respType !== "default" && (!Number.isInteger(code) || code < 400 || code > 499)
+          ? "O código de resposta precisa estar entre 400 e 499."
+          : action === "skip" && !skipRulesets.length && !skipPhases.length && !skipProducts.length
+            ? "Escolha ao menos um componente para pular."
+            : order === "custom" && !afterId
+              ? "Escolha depois de qual regra esta deve rodar."
+              : null;
+
+  const pos = position();
+  const body: Record<string, unknown> = {
+    description: name,
+    expression,
+    action,
+    ...(ap ? { action_parameters: ap } : {}),
+    enabled,
+    ...(action === "skip" ? { logging: { enabled: skipLog } } : {}),
+    ...(pos ? { position: pos } : {}),
+  };
+  const curl = editing
+    ? `curl -X PATCH "https://api.cloudflare.com/client/v4/zones/${zoneId}/rulesets/${rulesetId ?? "{ruleset_id}"}/rules/${editing.id}" \\\n  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  --data '${JSON.stringify(body, null, 2)}'`
+    : `curl -X POST "https://api.cloudflare.com/client/v4/zones/${zoneId}/rulesets/phases/http_request_firewall_custom/entrypoint/rules" \\\n  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  --data '${JSON.stringify(body, null, 2)}'`;
+
+  async function save() {
+    if (blockedReason) {
+      toast.error(blockedReason);
+      return;
+    }
+    setSaving(true);
+    try {
+      const common = {
+        zoneId,
+        description: name.trim(),
+        expression,
+        action,
+        action_parameters: ap,
+        enabled,
+        ...(action === "skip" ? { logging: { enabled: skipLog } } : {}),
+        ...(pos ? { position: pos } : {}),
+      };
+      let res: { ok: boolean; error?: string };
+      if (editing) {
+        if (!rulesetId) {
+          toast.error("Ruleset ID não encontrado. Atualize a lista e tente de novo.");
+          return;
+        }
+        res = (await update({ data: { ...common, rulesetId, ruleId: editing.id } })) as { ok: boolean; error?: string };
+      } else {
+        res = (await create({ data: common })) as { ok: boolean; error?: string };
+      }
+      if (res.ok) {
+        toast.success(editing ? "Custom rule atualizada." : "Custom rule criada.");
+        onSaved();
+      } else toast.error(res.error ?? "Falha ao salvar a regra.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggle(list: string[], set: (v: string[]) => void, key: string, on: boolean) {
+    set(on ? [...list, key] : list.filter((k) => k !== key));
+  }
+  const actionMeta = WAF_ACTIONS.find((a) => a.key === action);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl" style={{ maxHeight: "88vh", overflowY: "auto", background: "var(--v2-bg)" }}>
+        <DialogHeader>
+          <DialogTitle style={{ fontSize: 20 }}>{editing ? "Editar custom rule" : "Criar custom rule"}</DialogTitle>
+          <p className="ops-hint" style={{ margin: 0 }}>
+            Proteja o site e as APIs contra tráfego malicioso com custom rules. Configure os critérios de mitigação e a ação.
+          </p>
+        </DialogHeader>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+          <section className="ops-waf-sec">
             <div className="ops-field">
-              <ExecLabel>Expressão</ExecLabel>
-              <Textarea
-                rows={3}
-                value={editForm.expression}
-                onChange={(e) => setEditForm({ ...editForm, expression: e.target.value })}
-              />
+              <ExecLabel>Nome da regra</ExecLabel>
+              <Input value={name} maxLength={500} placeholder="Ex.: Geoblock" onChange={(e) => setName(e.target.value)} />
+              <span className="ops-hint">Dê um nome descritivo para a regra.</span>
             </div>
-            <div className="ops-field">
-              <ExecLabel>Action</ExecLabel>
-              <Select value={editForm.action} onValueChange={(v) => setEditForm({ ...editForm, action: v })}>
+          </section>
+
+          <section className="ops-waf-sec">
+            <h4>Quando a requisição bater com…</h4>
+            <ExpressionBuilderField value={expression} onChange={setExpression} seed={seed} />
+          </section>
+
+          <section className="ops-waf-sec">
+            <h4>Então executar a ação…</h4>
+            <div className="ops-field" style={{ maxWidth: 320 }}>
+              <ExecLabel>Escolher ação</ExecLabel>
+              <Select value={action} onValueChange={(v) => setAction(v as (typeof CF_ACTION_LIST)[number])}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CF_ACTION_LIST.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
+                  {WAF_ACTIONS.map((a) => (
+                    <SelectItem key={a.key} value={a.key}>
+                      {a.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <span className="ops-hint">{actionMeta?.desc}</span>
             </div>
-          </div>
-          <DialogFooter>
-            <button className="ops-btn outline" onClick={() => setEditRule(null)}>
-              Cancelar
+
+            {action === "block" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <div className="ops-field" style={{ flex: "1 1 260px" }}>
+                    <ExecLabel>Tipo de resposta</ExecLabel>
+                    <Select value={respType} onValueChange={setRespType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WAF_BLOCK_RESPONSE_TYPES.map((t) => (
+                          <SelectItem key={t.key} value={t.key}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {respType !== "default" && (
+                    <div className="ops-field" style={{ flex: "0 0 140px" }}>
+                      <ExecLabel>Código de resposta</ExecLabel>
+                      <Input inputMode="numeric" value={respCode} onChange={(e) => setRespCode(e.target.value.replace(/\D/g, "").slice(0, 3))} />
+                      <span className="ops-hint">Entre 400 e 499.</span>
+                    </div>
+                  )}
+                </div>
+                {respType !== "default" && (
+                  <div className="ops-field">
+                    <ExecLabel>Corpo da resposta</ExecLabel>
+                    <Textarea
+                      rows={5}
+                      value={respContent}
+                      onChange={(e) => setRespContent(e.target.value)}
+                      style={{ fontFamily: "var(--font-data)", fontSize: 12 }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {action === "skip" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <ExecLabel>Componentes de WAF a pular</ExecLabel>
+                {[
+                  ...WAF_SKIP_RULESETS.map((o) => ({ ...o, list: skipRulesets, set: setSkipRulesets })),
+                  ...WAF_SKIP_PHASES.map((o) => ({ ...o, list: skipPhases, set: setSkipPhases })),
+                ].map((o) => (
+                  <label key={o.key} className="ops-waf-check">
+                    <Checkbox checked={o.list.includes(o.key)} onCheckedChange={(v) => toggle(o.list, o.set, o.key, v === true)} />
+                    {o.label}
+                  </label>
+                ))}
+                <ExecLabel>Mais componentes</ExecLabel>
+                <div className="ops-waf-check-grid">
+                  {WAF_SKIP_PRODUCTS.map((o) => (
+                    <label key={o.key} className="ops-waf-check">
+                      <Checkbox
+                        checked={skipProducts.includes(o.key)}
+                        onCheckedChange={(v) => toggle(skipProducts, setSkipProducts, o.key, v === true)}
+                      />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+                <label className="ops-waf-check" style={{ marginTop: 4 }}>
+                  <Checkbox checked={skipLog} onCheckedChange={(v) => setSkipLog(v === true)} />
+                  Registrar as requisições que baterem (Log matching requests)
+                </label>
+              </div>
+            )}
+          </section>
+
+          <section className="ops-waf-sec">
+            <h4>Ordem de execução</h4>
+            <span className="ops-hint" style={{ marginTop: -4 }}>
+              As regras são avaliadas em sequência. A posição escolhida define em que ponto dessa sequência esta regra avalia o tráfego.
+            </span>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div className="ops-field" style={{ flex: "0 1 240px" }}>
+                <ExecLabel>Selecionar ordem</ExecLabel>
+                <Select value={order} onValueChange={(v) => setOrder(v as "first" | "last" | "custom")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="first">Primeira (First)</SelectItem>
+                    <SelectItem value="last">Última (Last)</SelectItem>
+                    <SelectItem value="custom" disabled={others.length === 0}>
+                      Personalizada (Custom)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {order === "custom" && (
+                <div className="ops-field" style={{ flex: "1 1 280px" }}>
+                  <ExecLabel>Rodar depois da regra</ExecLabel>
+                  <Select value={afterId} onValueChange={setAfterId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a regra…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {others.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {rules.indexOf(r) + 1}. {r.description || r.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="ops-waf-sec">
+            <h4>Status</h4>
+            <span className="ops-hint" style={{ marginTop: -4 }}>
+              Controla se a regra avalia ativamente o tráfego que chega.
+            </span>
+            <label className="ops-waf-check">
+              <input type="radio" name="waf-status" checked={!enabled} onChange={() => setEnabled(false)} />
+              Desabilitada
+            </label>
+            <label className="ops-waf-check">
+              <input type="radio" name="waf-status" checked={enabled} onChange={() => setEnabled(true)} />
+              Ativa
+            </label>
+          </section>
+
+          <section className="ops-waf-sec">
+            <button className="ops-waf-api-toggle" onClick={() => setApiOpen((v) => !v)} aria-expanded={apiOpen}>
+              Salvar via chamada de API <ChevronDown size={14} style={{ transform: apiOpen ? "rotate(180deg)" : undefined }} />
             </button>
-            <button className="ops-btn primary" onClick={handleEdit} disabled={saving}>
+            {apiOpen && (
+              <div className="ops-code-wrap">
+                <pre className="ops-waf-curl">{curl}</pre>
+                <button
+                  className="ops-btn outline sm ops-code-copy"
+                  onClick={() =>
+                    navigator.clipboard.writeText(curl).then(
+                      () => toast.success("Comando copiado."),
+                      () => toast.error("Não foi possível copiar."),
+                    )
+                  }
+                >
+                  <Copy size={12} /> Copiar
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
+        <DialogFooter style={{ justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <button className="ops-btn outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {blockedReason && <span className="ops-hint">{blockedReason}</span>}
+            <button className="ops-btn primary" onClick={save} disabled={saving || !!blockedReason}>
               {saving ? <Loader2 size={12} className="ops-spin" /> : <Check size={12} />}
-              Salvar
+              {editing ? "Salvar" : "Criar regra"}
             </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2468,14 +3325,39 @@ function AccessRestrictedCard({ text }: { text?: string }) {
 }
 
 function RulesInner({ zones }: { zones: CRZone[] }) {
-  const [zoneId, setZoneId] = React.useState("");
+  const [zoneId, setZoneId, zoneShared] = useZoneState("");
+  const qc = useQueryClient();
+  const overviewFetching = useIsFetching({ queryKey: ["cf-rules-overview", zoneId] }) > 0;
+  const pageRulesFetching = useIsFetching({ queryKey: ["cf-page-rules", zoneId] }) > 0;
+  const refreshPageRules = zoneId ? (
+    <button
+      className="ops-btn outline sm"
+      onClick={() => qc.invalidateQueries({ queryKey: ["cf-page-rules", zoneId] })}
+      disabled={pageRulesFetching}
+    >
+      {pageRulesFetching ? <Loader2 size={12} className="ops-spin" /> : <RefreshCw size={12} />}
+      Atualizar
+    </button>
+  ) : null;
+  const refreshOverview = zoneId ? (
+    <button
+      className="ops-btn outline sm"
+      onClick={() => qc.invalidateQueries({ queryKey: ["cf-rules-overview", zoneId] })}
+      disabled={overviewFetching}
+    >
+      {overviewFetching ? <Loader2 size={12} className="ops-spin" /> : <RefreshCw size={12} />}
+      Atualizar
+    </button>
+  ) : null;
   const cfCan = useCfWafCan();
   const canOverview = cfCan("manage_rules_overview");
   const canPageRules = cfCan("manage_rules_page_rules");
+  const [rulesTab, setRulesTab] = React.useState<"overview" | "page">(canOverview ? "overview" : "page");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Zona compartilhada pelos dois cartões */}
+      {/* Zona compartilhada pelos dois cartões (escondida quando vem da barra do módulo) */}
+      {!zoneShared && (
       <div className="ops-zone-bar">
         <div className="ops-field">
           <ExecLabel>Domínio (zona)</ExecLabel>
@@ -2488,13 +3370,36 @@ function RulesInner({ zones }: { zones: CRZone[] }) {
           />
         </div>
       </div>
+      )}
 
       {!canOverview && !canPageRules ? (
         <AccessRestrictedCard text="Você não tem permissão pra ver Overview nem Page Rules. Solicite acesso ao administrador." />
       ) : (
         <div className="ops-cards one">
-          {canOverview && (
-            <OpsCard title="Visão geral das regras" description="Todas as regras da zona por categoria">
+          {canOverview && canPageRules && (
+            <div className="ops-subtabs" role="tablist" aria-label="Regras">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={rulesTab === "overview"}
+                className={`ops-subtab${rulesTab === "overview" ? " active" : ""}`}
+                onClick={() => setRulesTab("overview")}
+              >
+                Visão geral
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={rulesTab === "page"}
+                className={`ops-subtab${rulesTab === "page" ? " active" : ""}`}
+                onClick={() => setRulesTab("page")}
+              >
+                Page Rules
+              </button>
+            </div>
+          )}
+          {canOverview && (!canPageRules || rulesTab === "overview") && (
+            <OpsCard title="Visão geral das regras" description="Todas as regras da zona por categoria" action={refreshOverview}>
               {zoneId ? (
                 <RulesOverviewSection zoneId={zoneId} />
               ) : (
@@ -2504,8 +3409,8 @@ function RulesInner({ zones }: { zones: CRZone[] }) {
               )}
             </OpsCard>
           )}
-          {canPageRules && (
-            <OpsCard title="Page Rules" description="Regras por URL (modelo antigo da Cloudflare)">
+          {canPageRules && (!canOverview || rulesTab === "page") && (
+            <OpsCard title="Page Rules" description="Regras por URL (modelo antigo da Cloudflare)" action={refreshPageRules}>
               {zoneId ? (
                 <PageRulesSection zoneId={zoneId} />
               ) : (
@@ -2610,12 +3515,6 @@ function RulesOverviewSection({ zoneId }: { zoneId: string }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button className="ops-btn outline" onClick={() => refetch()} disabled={isFetching}>
-          {isFetching ? <Loader2 size={12} className="ops-spin" /> : <Search size={12} />}
-          Atualizar
-        </button>
-      </div>
 
       {topError && <div className="ops-empty">{topError}</div>}
 
@@ -2835,14 +3734,19 @@ function RuleRowActionsMenu({
     );
   }
   return (
+    <>
+    {onEdit && (
+      <button className="ops-btn outline sm" onClick={onEdit}>
+        <Pencil size={12} /> Editar
+      </button>
+    )}
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="ops-btn ghost sm" title="Mais ações" disabled={duplicating || moving}>
-          {duplicating || moving ? <Loader2 size={13} className="ops-spin" /> : <Pencil size={13} />}
+        <button className="ops-btn ghost sm" title="Mais ações" aria-label="Mais ações" disabled={duplicating || moving}>
+          {duplicating || moving ? <Loader2 size={13} className="ops-spin" /> : <MoreHorizontal size={14} />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {onEdit && <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>}
         <DropdownMenuItem onClick={onDuplicate}>Duplicate</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onMoveUp} disabled={!canMoveUp}>
@@ -2854,6 +3758,7 @@ function RuleRowActionsMenu({
         <DropdownMenuItem onClick={onMoveTo}>Move to…</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   );
 }
 
@@ -2918,6 +3823,91 @@ function MoveToPositionDialog({
   );
 }
 
+// Expressão da Cloudflare quebrada em linhas nos and/or do nível mais externo
+// em que eles aparecem (só para leitura; o texto enviado à API não muda)
+function formatRuleExpression(expr: string): string {
+  if (!expr) return "";
+  const tokenAt = (i: number) => /^ (and|or) /.exec(expr.slice(i));
+  // 1ª passada: menor profundidade de parênteses com and/or
+  let depth = 0;
+  let minDepth = Infinity;
+  let inStr = false;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (ch === '"') inStr = !inStr;
+    if (inStr) continue;
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+    else if (ch === " " && tokenAt(i)) minDepth = Math.min(minDepth, depth);
+  }
+  if (!Number.isFinite(minDepth)) return expr;
+  // 2ª passada: quebra só nessa profundidade
+  depth = 0;
+  inStr = false;
+  let out = "";
+  let i = 0;
+  while (i < expr.length) {
+    const ch = expr[i];
+    if (ch === '"') inStr = !inStr;
+    if (!inStr) {
+      if (ch === "(") depth++;
+      else if (ch === ")") depth = Math.max(0, depth - 1);
+      const m = ch === " " && depth === minDepth ? tokenAt(i) : null;
+      if (m) {
+        out += `\n${m[1]} `;
+        i += m[0].length;
+        continue;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+function RuleReadOnly({ rule }: { rule: OverviewRule }) {
+  const [copied, setCopied] = React.useState(false);
+  const params = rule.action_parameters && Object.keys(rule.action_parameters).length > 0 ? rule.action_parameters : null;
+  function copy() {
+    navigator.clipboard.writeText(rule.expression).then(
+      () => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      },
+      () => toast.error("Não foi possível copiar"),
+    );
+  }
+  return (
+    <div className="ops-root" style={{ display: "grid", gap: 20 }}>
+      <DetailSection title="Resumo">
+        <DetailList
+          items={[
+            ["Nome", rule.description || "—"],
+            ["Ação", rule.action, true],
+            ["Status", rule.enabled ? "Ativa" : "Desativada"],
+            ["Ordem", String(rule.order)],
+            ["ID", rule.id, true],
+          ]}
+        />
+      </DetailSection>
+      <DetailSection title="Quando dispara (expressão)">
+        <div className="ops-code-wrap">
+          <button type="button" className="ops-btn ghost sm ops-code-copy" onClick={copy}>
+            {copied ? <Check size={12} /> : <Copy size={12} />}
+            {copied ? "Copiado" : "Copiar"}
+          </button>
+          <pre className="ops-code">{rule.expression ? formatRuleExpression(rule.expression) : "—"}</pre>
+        </div>
+      </DetailSection>
+      {params && (
+        <DetailSection title="O que faz (parâmetros da ação)">
+          <pre className="ops-code">{JSON.stringify(params, null, 2)}</pre>
+        </DetailSection>
+      )}
+    </div>
+  );
+}
+
 function RuleCategoryCard({
   zoneId,
   category,
@@ -2955,6 +3945,11 @@ function RuleCategoryCard({
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null);
   const [movingId, setMovingId] = React.useState<string | null>(null);
   const [moveToTarget, setMoveToTarget] = React.useState<OverviewRule | null>(null);
+  // Regra aberta no painel lateral (só leitura). Guarda o id para refletir
+  // mudanças (ligar/desligar) feitas com o painel aberto.
+  const [viewRuleId, setViewRuleId] = React.useState<string | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
+  const viewRule = category.rules.find((x) => x.id === viewRuleId) ?? null;
 
   async function handleToggle(rule: OverviewRule) {
     if (!category.rulesetId || !category.supportsCrud || !canManage) return;
@@ -3085,6 +4080,7 @@ function RuleCategoryCard({
   const hasActions = !!(onEdit || onDelete || category.supportsCrud);
 
   return (
+    <>
     <div className="ops-rule-cat">
       <div className="ops-rule-cat-header">
         <div className="ops-rule-cat-title">
@@ -3124,7 +4120,22 @@ function RuleCategoryCard({
             </thead>
             <tbody>
               {category.rules.map((r, rowIdx) => (
-                <tr key={r.id}>
+                <tr
+                  key={r.id}
+                  className="ops-row-click"
+                  tabIndex={0}
+                  title="Ver a regra completa"
+                  onClick={() => {
+                    setViewRuleId(r.id);
+                    setViewOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setViewRuleId(r.id);
+                      setViewOpen(true);
+                    }
+                  }}
+                >
                   <td className="mono dim">{r.order}</td>
                   <td style={{ fontWeight: 500 }}>{r.description || "—"}</td>
                   <td className="mono trunc" style={{ maxWidth: 260 }} title={r.expression}>
@@ -3139,7 +4150,7 @@ function RuleCategoryCard({
                     )}
                   </td>
                   {hasActions && (
-                    <td style={{ textAlign: "right" }}>
+                    <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
                         {category.supportsCrud && (
                           <RuleRowActionsMenu
@@ -3207,6 +4218,46 @@ function RuleCategoryCard({
         />
       )}
     </div>
+      <DetailSheet
+        open={viewOpen && !!viewRule}
+        onOpenChange={setViewOpen}
+        width={620}
+        eyebrow={`${category.label} · ordem ${viewRule?.order ?? "—"}`}
+        title={viewRule?.description || "Regra sem nome"}
+        badges={
+          viewRule && (
+            <>
+              {viewRule.enabled ? (
+                <span className="ops-rule-status-active">Active</span>
+              ) : (
+                <span className="ops-rule-status-disabled">Disabled</span>
+              )}
+              <span className="ops-action-pill">{viewRule.action}</span>
+            </>
+          )
+        }
+        footer={
+          <>
+            <button className="ops-btn outline" style={{ marginRight: "auto" }} onClick={() => setViewOpen(false)}>
+              Fechar
+            </button>
+            {viewRule && onEdit && category.supportsCrud && canManage && (
+              <button
+                className="ops-btn primary"
+                onClick={() => {
+                  setViewOpen(false);
+                  onEdit(viewRule);
+                }}
+              >
+                <Pencil size={13} /> Editar
+              </button>
+            )}
+          </>
+        }
+      >
+        {viewRule && <RuleReadOnly rule={viewRule} />}
+      </DetailSheet>
+    </>
   );
 }
 
@@ -3336,13 +4387,21 @@ function RedirectRuleDialog({
   }
   function switchToExpressionBuilder() {
     const parsedMulti = parseMultiCondition(expression);
-    if (parsedMulti) {
-      setConditions(parsedMulti.conditions);
-      setCombinators(parsedMulti.combinators);
-    } else {
+    // Expressão vazia: começa o builder do zero
+    if (!expression.trim()) {
       setConditions([{ field: EXPR_FIELDS[0].key, operator: "wildcard", value: "" }]);
       setCombinators([]);
+      setExprMode("builder");
+      return;
     }
+    // Se o builder não reconhece a expressão, ficar no modo texto em vez de
+    // trocar e apagar o que já estava escrito
+    if (!parsedMulti) {
+      toast.warning("O builder não reconhece esta expressão. Continue editando no modo texto para não perdê-la.");
+      return;
+    }
+    setConditions(parsedMulti.conditions);
+    setCombinators(parsedMulti.combinators);
     setExprMode("builder");
   }
 
@@ -3438,7 +4497,15 @@ function RedirectRuleDialog({
                 </div>
               </label>
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
-                <input type="radio" checked={matchMode === "expression"} onChange={() => setMatchMode("expression")} style={{ marginTop: 3 }} />
+                <input type="radio" checked={matchMode === "expression"} onChange={() => {
+                    // Vindo do "Padrão wildcard": leva a URL para o builder em vez de abrir vazio
+                    if (matchMode === "wildcard" && wildcardUrl.trim() && conditions.every((c) => !c.value.trim())) {
+                      setConditions([{ field: "http.request.full_uri", operator: "wildcard", value: wildcardUrl.trim() }]);
+                      setCombinators([]);
+                      setExprMode("builder");
+                    }
+                    setMatchMode("expression");
+                  }} style={{ marginTop: 3 }} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Expressão customizada</div>
                   <div className="ops-hint">Só aplica a regra em requisições que baterem com a expressão.</div>
@@ -4208,13 +5275,21 @@ function CacheRuleDialog({
   }
   function switchToExpressionBuilder() {
     const parsedMulti = parseMultiCondition(expression);
-    if (parsedMulti) {
-      setConditions(parsedMulti.conditions);
-      setCombinators(parsedMulti.combinators);
-    } else {
+    // Expressão vazia: começa o builder do zero
+    if (!expression.trim()) {
       setConditions([{ field: EXPR_FIELDS[0].key, operator: "wildcard", value: "" }]);
       setCombinators([]);
+      setExprMode("builder");
+      return;
     }
+    // Se o builder não reconhece a expressão, ficar no modo texto em vez de
+    // trocar e apagar o que já estava escrito
+    if (!parsedMulti) {
+      toast.warning("O builder não reconhece esta expressão. Continue editando no modo texto para não perdê-la.");
+      return;
+    }
+    setConditions(parsedMulti.conditions);
+    setCombinators(parsedMulti.combinators);
     setExprMode("builder");
   }
 
@@ -5298,13 +6373,21 @@ function ConfigurationRuleDialog({
   }
   function switchToExpressionBuilder() {
     const parsedMulti = parseMultiCondition(expression);
-    if (parsedMulti) {
-      setConditions(parsedMulti.conditions);
-      setCombinators(parsedMulti.combinators);
-    } else {
+    // Expressão vazia: começa o builder do zero
+    if (!expression.trim()) {
       setConditions([{ field: EXPR_FIELDS[0].key, operator: "wildcard", value: "" }]);
       setCombinators([]);
+      setExprMode("builder");
+      return;
     }
+    // Se o builder não reconhece a expressão, ficar no modo texto em vez de
+    // trocar e apagar o que já estava escrito
+    if (!parsedMulti) {
+      toast.warning("O builder não reconhece esta expressão. Continue editando no modo texto para não perdê-la.");
+      return;
+    }
+    setConditions(parsedMulti.conditions);
+    setCombinators(parsedMulti.combinators);
     setExprMode("builder");
   }
 
@@ -5914,13 +6997,21 @@ function CacheResponseRuleDialog({
   }
   function switchToExpressionBuilder() {
     const parsedMulti = parseMultiCondition(expression);
-    if (parsedMulti) {
-      setConditions(parsedMulti.conditions);
-      setCombinators(parsedMulti.combinators);
-    } else {
+    // Expressão vazia: começa o builder do zero
+    if (!expression.trim()) {
       setConditions([{ field: EXPR_FIELDS[0].key, operator: "wildcard", value: "" }]);
       setCombinators([]);
+      setExprMode("builder");
+      return;
     }
+    // Se o builder não reconhece a expressão, ficar no modo texto em vez de
+    // trocar e apagar o que já estava escrito
+    if (!parsedMulti) {
+      toast.warning("O builder não reconhece esta expressão. Continue editando no modo texto para não perdê-la.");
+      return;
+    }
+    setConditions(parsedMulti.conditions);
+    setCombinators(parsedMulti.combinators);
     setExprMode("builder");
   }
 
@@ -6575,8 +7666,12 @@ const EXPR_FIELDS: Array<{ key: string; label: string; type: ExprFieldType }> = 
   { key: "http.cookie", label: "Cookie", type: "string" },
   { key: "http.x_forwarded_for", label: "X-Forwarded-For", type: "string" },
   { key: "ip.src", label: "IP Source Address", type: "ip" },
-  { key: "ip.geoip.country", label: "Country", type: "enum" },
-  { key: "ip.geoip.continent", label: "Continent", type: "enum" },
+  { key: "ip.src.country", label: "Country", type: "enum" },
+  { key: "ip.src.continent", label: "Continent", type: "enum" },
+  { key: "ip.src.asnum", label: "AS Num", type: "ip" },
+  // Nomes antigos dos mesmos campos — continuam aceitos em regras existentes
+  { key: "ip.geoip.country", label: "Country (ip.geoip)", type: "enum" },
+  { key: "ip.geoip.continent", label: "Continent (ip.geoip)", type: "enum" },
   { key: "ip.geoip.is_in_european_union", label: "European Union", type: "bool" },
   { key: "ssl", label: "SSL/HTTPS", type: "bool" },
   { key: "cf.tls_client_auth.cert_verified", label: "Client Certificate Verified", type: "bool" },
@@ -6593,6 +7688,7 @@ const EXPR_VALUE_EXAMPLE: Record<string, string> = {
   "http.referer": "e.g. https://www.google.com/",
   "http.cookie": "e.g. session=abc123",
   "http.x_forwarded_for": "e.g. 203.0.113.1",
+  "ip.src.asnum": "e.g. 13335",
 };
 type ExprValueKind = "text" | "list" | "listref" | "bool";
 type ExprOperator = { key: string; label: string; valueKind: ExprValueKind; build: (field: string, value: string) => string };
@@ -6612,6 +7708,10 @@ const STRING_OPERATORS: ExprOperator[] = [
   { key: "not_contains", label: "does not contain", valueKind: "text", build: (f, v) => `not (${f} contains "${escStr(v)}")` },
   { key: "matches", label: "matches regex", valueKind: "text", build: (f, v) => `${f} matches r"${escStr(v)}"` },
   { key: "not_matches", label: "does not match", valueKind: "text", build: (f, v) => `not (${f} matches r"${escStr(v)}")` },
+  { key: "starts_with", label: "starts with", valueKind: "text", build: (f, v) => `starts_with(${f}, "${escStr(v)}")` },
+  { key: "not_starts_with", label: "does not start with", valueKind: "text", build: (f, v) => `not starts_with(${f}, "${escStr(v)}")` },
+  { key: "ends_with", label: "ends with", valueKind: "text", build: (f, v) => `ends_with(${f}, "${escStr(v)}")` },
+  { key: "not_ends_with", label: "does not end with", valueKind: "text", build: (f, v) => `not ends_with(${f}, "${escStr(v)}")` },
 ];
 const ENUM_OPERATORS: ExprOperator[] = [
   { key: "eq", label: "equals", valueKind: "text", build: (f, v) => `${f} eq "${escStr(v)}"` },
@@ -6692,10 +7792,32 @@ function parseSingleCondition(expr: string): ExprCondition | null {
   if (m && EXPR_FIELDS.some((f) => f.key === m![1])) return { field: m[1], operator: "not_matches", value: unescStr(m[2]) };
   m = trimmed.match(/^([\w.]+) (eq|ne|contains) "((?:[^"\\]|\\.)*)"$/);
   if (m && EXPR_FIELDS.some((f) => f.key === m![1])) return { field: m[1], operator: m[2], value: unescStr(m[3]) };
-  m = trimmed.match(/^not \(([\w.]+) contains "((?:[^"\\]|\\.)*)"\)$/);
+  m = trimmed.match(/^not \(?([\w.]+) contains "((?:[^"\\]|\\.)*)"\)?$/);
   if (m && EXPR_FIELDS.some((f) => f.key === m![1])) return { field: m[1], operator: "not_contains", value: unescStr(m[2]) };
-  m = trimmed.match(/^(ip\.src) (eq|ne) (.+)$/);
+  m = trimmed.match(/^not \(?([\w.]+) matches r"((?:[^"\\]|\\.)*)"\)?$/);
+  if (m && EXPR_FIELDS.some((f) => f.key === m![1])) return { field: m[1], operator: "not_matches", value: unescStr(m[2]) };
+  // starts_with(campo, "x") / ends_with(...), com ou sem "not" na frente
+  m = trimmed.match(/^(not\s+)?\(?(starts_with|ends_with)\(([\w.]+),\s*"((?:[^"\\]|\\.)*)"\)\)?$/);
+  if (m && EXPR_FIELDS.some((f) => f.key === m![3]))
+    return { field: m[3], operator: `${m[1] ? "not_" : ""}${m[2]}`, value: unescStr(m[4]) };
+  m = trimmed.match(/^(ip\.src|ip\.src\.asnum) (eq|ne) ([^\s"()]+)$/);
   if (m) return { field: m[1], operator: m[2], value: m[3].trim() };
+  // campo in {"a" "b"} / not (campo in {...}) — lista de valores
+  m = trimmed.match(/^(not\s*\(\s*)?([\w.]+) in \{([^}]*)\}\s*(\))?$/);
+  if (m && !!m[1] === !!m[4] && EXPR_FIELDS.some((f) => f.key === m![2])) {
+    const vals = [...m[3].matchAll(/"((?:[^"\\]|\\.)*)"|(\S+)/g)].map((x) => (x[1] !== undefined ? unescStr(x[1]) : x[2]));
+    return { field: m[2], operator: m[1] ? "not_in" : "in", value: vals.join(", ") };
+  }
+  // campo in $lista / not (campo in $lista)
+  m = trimmed.match(/^(not\s*\(\s*)?([\w.]+) in \$(\w+)\s*(\))?$/);
+  if (m && !!m[1] === !!m[4] && EXPR_FIELDS.some((f) => f.key === m![2] && f.type === "ip"))
+    return { field: m[2], operator: m[1] ? "not_in_list" : "in_list", value: m[3] };
+  // booleanos: "ssl", "not ssl", "ssl eq true"
+  m = trimmed.match(/^(not\s+)?([\w.]+)(?: eq (true|false))?$/);
+  if (m && EXPR_FIELDS.some((f) => f.key === m![2] && f.type === "bool")) {
+    const v = (m[3] ?? "true") === "true";
+    return { field: m[2], operator: "eq", value: String(m[1] ? !v : v) };
+  }
   return null;
 }
 
@@ -6768,16 +7890,58 @@ function splitTopLevelBoolean(expr: string): { parts: string[]; combinators: Arr
 // 0 (com no máximo uma camada de parênteses ao redor) precisa bater com
 // parseSingleCondition; se qualquer pedaço não for reconhecido, devolve null
 // e a edição cai pro modo texto livre em vez de arriscar montar errado.
+// true quando o primeiro "(" fecha só no último caractere (envolve tudo)
+function wrapsWhole(e: string): boolean {
+  if (!e.startsWith("(") || !e.endsWith(")")) return false;
+  let depth = 0;
+  let inString = false;
+  for (let i = 0; i < e.length; i++) {
+    const ch = e[i];
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "(") depth++;
+    else if (ch === ")") {
+      depth--;
+      if (depth === 0 && i < e.length - 1) return false;
+    }
+  }
+  return depth === 0;
+}
+function unwrapParens(e: string): string {
+  let out = e.trim();
+  while (wrapsWhole(out)) out = out.slice(1, -1).trim();
+  return out;
+}
+
 function parseMultiCondition(expr: string): { conditions: ExprCondition[]; combinators: Array<"and" | "or"> } | null {
-  const { parts, combinators } = splitTopLevelBoolean(expr.trim());
+  const { parts, combinators } = splitTopLevelBoolean(unwrapParens(expr));
   if (parts.length === 0 || parts.some((p) => !p)) return null;
   const conditions: ExprCondition[] = [];
-  for (const part of parts) {
+  const outCombinators: Array<"and" | "or"> = [];
+  for (let k = 0; k < parts.length; k++) {
+    const part = parts[k];
+    if (k > 0) outCombinators.push(combinators[k - 1]);
     const cond = parseSingleCondition(part);
-    if (!cond) return null;
-    conditions.push(cond);
+    if (cond) {
+      conditions.push(cond);
+      continue;
+    }
+    // Grupo entre parênteses com várias condições: o builder monta tudo da
+    // esquerda pra direita, então só dá pra "achatar" sem mudar o sentido se o
+    // grupo for o primeiro pedaço ou se todos os combinadores forem iguais.
+    if (!wrapsWhole(part)) return null;
+    const inner = parseMultiCondition(part);
+    if (!inner) return null;
+    const allSame = new Set([...combinators, ...inner.combinators]).size <= 1;
+    if (k !== 0 && !allSame) return null;
+    conditions.push(...inner.conditions);
+    outCombinators.push(...inner.combinators);
   }
-  return { conditions, combinators };
+  return { conditions, combinators: outCombinators };
 }
 
 // URL Rewrite — espelha o nativo: "Preserve" (não manda a chave) ou
@@ -7012,13 +8176,21 @@ function OverviewRuleDialog({
   // pra uma condição em branco em vez de arriscar montar algo errado.
   function switchToExpressionBuilder() {
     const parsedMulti = parseMultiCondition(expression);
-    if (parsedMulti) {
-      setConditions(parsedMulti.conditions);
-      setCombinators(parsedMulti.combinators);
-    } else {
+    // Expressão vazia: começa o builder do zero
+    if (!expression.trim()) {
       setConditions([{ field: EXPR_FIELDS[0].key, operator: "wildcard", value: "" }]);
       setCombinators([]);
+      setExprMode("builder");
+      return;
     }
+    // Se o builder não reconhece a expressão, ficar no modo texto em vez de
+    // trocar e apagar o que já estava escrito
+    if (!parsedMulti) {
+      toast.warning("O builder não reconhece esta expressão. Continue editando no modo texto para não perdê-la.");
+      return;
+    }
+    setConditions(parsedMulti.conditions);
+    setCombinators(parsedMulti.combinators);
     setExprMode("builder");
   }
 
@@ -7201,7 +8373,15 @@ function OverviewRuleDialog({
                 </label>
               )}
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
-                <input type="radio" checked={matchMode === "expression"} onChange={() => setMatchMode("expression")} style={{ marginTop: 3 }} />
+                <input type="radio" checked={matchMode === "expression"} onChange={() => {
+                    // Vindo do "Padrão wildcard": leva a URL para o builder em vez de abrir vazio
+                    if (matchMode === "wildcard" && wildcardUrl.trim() && conditions.every((c) => !c.value.trim())) {
+                      setConditions([{ field: "http.request.full_uri", operator: "wildcard", value: wildcardUrl.trim() }]);
+                      setCombinators([]);
+                      setExprMode("builder");
+                    }
+                    setMatchMode("expression");
+                  }} style={{ marginTop: 3 }} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: V2.textPrimary, fontFamily: "var(--font-ui)" }}>Expressão customizada</div>
                   <div className="ops-hint">Só aplica a regra em requisições que baterem com a expressão.</div>
@@ -7810,6 +8990,9 @@ function PageRulesSection({ zoneId }: { zoneId: string }) {
 
   const [createOpen, setCreateOpen] = React.useState(false);
   const [editRule, setEditRule] = React.useState<PageRule | null>(null);
+  // Regra aberta no painel lateral (só leitura)
+  const [viewRuleId, setViewRuleId] = React.useState<string | null>(null);
+  const [viewOpen, setViewOpen] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<PageRule | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [togglingId, setTogglingId] = React.useState<string | null>(null);
@@ -7915,18 +9098,12 @@ function PageRulesSection({ zoneId }: { zoneId: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <span style={{ fontSize: 11, color: V2.textMuted, fontFamily: "'IBM Plex Mono',monospace" }}>
-          {rules.length} de 50 Page Rules disponíveis
+        <span className="ops-hint" style={{ margin: 0 }}>
+          {rules.length} de 50 Page Rules usadas
         </span>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="ops-btn outline" onClick={() => refetch()} disabled={isFetching}>
-            {isFetching ? <Loader2 size={12} className="ops-spin" /> : <Search size={12} />}
-            Atualizar
-          </button>
-          <button className="ops-btn primary" onClick={() => setCreateOpen(true)}>
-            <Plus size={12} /> Create Page Rule
-          </button>
-        </div>
+        <button className="ops-btn primary" onClick={() => setCreateOpen(true)}>
+          <Plus size={13} /> Create Page Rule
+        </button>
       </div>
 
       {topError ? (
@@ -7952,12 +9129,27 @@ function PageRulesSection({ zoneId }: { zoneId: string }) {
                 </tr>
               )}
               {rules.map((r, i) => (
-                <tr key={r.id}>
+                <tr
+                  key={r.id}
+                  className="ops-row-click"
+                  tabIndex={0}
+                  title="Ver a regra completa"
+                  onClick={() => {
+                    setViewRuleId(r.id);
+                    setViewOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setViewRuleId(r.id);
+                      setViewOpen(true);
+                    }
+                  }}
+                >
                   <td className="mono dim">{reordering === r.id ? <Loader2 size={11} className="ops-spin" /> : i + 1}</td>
-                  <td className="mono trunc" style={{ maxWidth: 260 }} title={r.urlPattern}>
+                  <td className="mono trunc" style={{ maxWidth: 320 }} title={r.urlPattern}>
                     {r.urlPattern}
                   </td>
-                  <td style={{ fontSize: 11 }} title={r.actionsLabel}>
+                  <td className="trunc" style={{ maxWidth: 280 }} title={r.actionsLabel}>
                     {r.actionsLabel}
                   </td>
                   <td>
@@ -7967,7 +9159,7 @@ function PageRulesSection({ zoneId }: { zoneId: string }) {
                       <span className="ops-rule-status-disabled">Disabled</span>
                     )}
                   </td>
-                  <td style={{ textAlign: "right" }}>
+                  <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
                       <RuleRowActionsMenu
                         onEdit={pageRuleCanEdit(r) ? () => setEditRule(r) : undefined}
@@ -8008,6 +9200,81 @@ function PageRulesSection({ zoneId }: { zoneId: string }) {
           </table>
         </div>
       )}
+      {(() => {
+        const idx = rules.findIndex((x) => x.id === viewRuleId);
+        const vr = idx >= 0 ? rules[idx] : null;
+        return (
+          <DetailSheet
+            open={viewOpen && !!vr}
+            onOpenChange={setViewOpen}
+            width={620}
+            eyebrow={`Page Rule · posição ${idx + 1}`}
+            title={<span style={{ fontFamily: "var(--font-data)", fontSize: 15, overflowWrap: "anywhere" }}>{vr?.urlPattern}</span>}
+            badges={
+              vr &&
+              (vr.status === "active" ? (
+                <span className="ops-rule-status-active">Active</span>
+              ) : (
+                <span className="ops-rule-status-disabled">Disabled</span>
+              ))
+            }
+            footer={
+              <>
+                <button className="ops-btn outline" style={{ marginRight: "auto" }} onClick={() => setViewOpen(false)}>
+                  Fechar
+                </button>
+                {vr && pageRuleCanEdit(vr) && (
+                  <button
+                    className="ops-btn primary"
+                    onClick={() => {
+                      setViewOpen(false);
+                      setEditRule(vr);
+                    }}
+                  >
+                    <Pencil size={13} /> Editar
+                  </button>
+                )}
+              </>
+            }
+          >
+            {vr && (
+              <div className="ops-root" style={{ display: "grid", gap: 20 }}>
+                <DetailSection title="Quando a URL bater com">
+                  <pre className="ops-code">{vr.urlPattern}</pre>
+                </DetailSection>
+                <DetailSection title="Configurações aplicadas">
+                  {vr.actions.length === 0 ? (
+                    <p className="ops-hint" style={{ margin: 0 }}>
+                      Nenhuma configuração.
+                    </p>
+                  ) : (
+                    <DetailList
+                      items={vr.actions.map((a): [string, React.ReactNode, boolean] => [
+                        PAGE_RULE_SETTINGS.find((d) => d.id === a.id)?.label ?? a.id,
+                        a.value === undefined || a.value === null
+                          ? "ativado"
+                          : typeof a.value === "object"
+                            ? JSON.stringify(a.value)
+                            : String(a.value),
+                        true,
+                      ])}
+                    />
+                  )}
+                </DetailSection>
+                <DetailSection title="Resumo">
+                  <DetailList
+                    items={[
+                      ["Posição", String(idx + 1)],
+                      ["Status", vr.status === "active" ? "Ativa" : "Desativada"],
+                      ["ID", vr.id, true],
+                    ]}
+                  />
+                </DetailSection>
+              </div>
+            )}
+          </DetailSheet>
+        );
+      })()}
       {moveToTarget && (
         <MoveToPositionDialog
           open={!!moveToTarget}

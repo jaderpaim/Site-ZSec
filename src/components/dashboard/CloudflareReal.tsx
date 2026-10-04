@@ -26,6 +26,7 @@ import {
   Maximize2,
   Minimize2,
   RotateCcw,
+  GripVertical,
   Save,
   Check,
   ChevronsUpDown,
@@ -46,6 +47,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OperationsTab } from "@/components/dashboard/cloudflare/OperationsTab";
+import { SharedZoneContext } from "@/components/dashboard/cloudflare/shared-zone";
 import { AnalyticsTab } from "@/components/dashboard/cloudflare/AnalyticsTab";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
@@ -286,6 +288,7 @@ const CSS = `
   .cf-block:hover .cf-resize-ctrl, .cf-resize-ctrl:focus-within { opacity:1; }
   .cf-resize-btn { width:26px; height:26px; display:grid; place-items:center; border:none; background:transparent; color:var(--v2-fg-3); cursor:pointer; border-radius:5px; }
   .cf-resize-btn:hover { color:var(--v2-fg); background:var(--v2-hover); }
+  .cf-resize-btn.grip { cursor:grab; }
   .cf-block-body { flex:1; padding:8px 18px 18px; display:flex; flex-direction:column; }
   .cf-block-body-scroll { flex:1; overflow:auto; max-height:240px; }
 
@@ -323,6 +326,19 @@ const CSS = `
   .cf-hbar-top span:last-child { font-family:var(--font-data); font-size:12.5px; font-weight:500; color:var(--v2-fg-2); }
   .cf-track { position:relative; height:8px; background:var(--v2-surface-2); border-radius:99px; overflow:hidden; }
   .cf-fill { position:absolute; inset:0 auto 0 0; background:var(--v2-accent); border-radius:99px; }
+  .cf-hbar.sel { width:100%; padding:4px 6px; margin:-4px -6px; border:0; border-radius:8px; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; box-sizing:content-box; }
+  .cf-hbar.sel:hover { background:var(--v2-hover); }
+  .cf-hbar.sel.on { background:color-mix(in oklch, var(--v2-accent) 10%, transparent); box-shadow:inset 0 0 0 1px color-mix(in oklch, var(--v2-accent) 35%, transparent); }
+  .cf-hbar.sel.dim { opacity:0.45; }
+  .cf-hbar-top span:first-child { display:inline-flex; align-items:center; gap:2px; }
+  .cf-dim { color:var(--v2-fg-3); }
+  .cf-ip-country { display:inline-flex; align-items:center; margin-left:8px; font-family:var(--font-ui); font-size:12px; }
+  .cf-proxy { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .cf-proxy-leg { flex:1; min-width:160px; display:grid; gap:10px; font-size:13px; color:var(--v2-fg-2); }
+  .cf-proxy-leg div { display:grid; grid-template-columns:10px minmax(0, 1fr) auto; gap:8px; align-items:center; }
+  .cf-proxy-leg i { width:10px; height:10px; border-radius:3px; }
+  .cf-proxy-leg b { font:500 13px var(--font-data); color:var(--v2-fg); }
+  .cf-proxy-leg .muted { padding-top:10px; border-top:1px solid var(--v2-line); color:var(--v2-fg-3); }
 
   /* ── Proxy ── */
   .cf-proxy-big { font-size:34px; font-weight:600; letter-spacing:-0.02em; line-height:1.1; font-variant-numeric:tabular-nums; margin-bottom:10px; }
@@ -501,6 +517,9 @@ function BlockHeader({
       </div>
       {showResize && (
         <div className="cf-resize-ctrl">
+          <span className="cf-resize-btn grip" aria-hidden="true" title="Arraste para reorganizar">
+            <GripVertical size={14} />
+          </span>
           <button className="cf-resize-btn" onClick={onShrink} title="Diminuir" aria-label="Diminuir cartão">
             <Minimize2 size={13} />
           </button>
@@ -518,23 +537,93 @@ function EmptyRow({ message }: { message: string }) {
   return <div className="cf-empty">{message}</div>;
 }
 
-// Barras horizontais (Hosts mais acessados, Hosts com mais skip)
-function HBars({ rows, color }: { rows: Array<{ label: string; value: number }>; color?: string }) {
-  const max = rows[0]?.value || 1;
+// Ranking com barra proporcional; com onSelect, cada linha vira um filtro
+const SKIP_COLOR = "var(--v2-med)";
+function RankBars({
+  rows,
+  color,
+  selected,
+  onSelect,
+}: {
+  rows: Array<{ key: string; label: React.ReactNode; value: number; title?: string }>;
+  color?: string;
+  selected?: string | null;
+  onSelect?: (key: string) => void;
+}) {
+  const max = Math.max(...rows.map((r) => r.value), 1);
   return (
     <div className="cf-hbars">
-      {rows.map((r) => (
-        <div key={r.label} className="cf-hbar" title={`${r.label}: ${r.value.toLocaleString("pt-BR")}`}>
-          <div className="cf-hbar-top">
-            <span>{r.label}</span>
-            <span>{fmtNum(r.value)}</span>
+      {rows.map((r) => {
+        const content = (
+          <>
+            <div className="cf-hbar-top">
+              <span>{r.label}</span>
+              <span>{fmtNum(r.value)}</span>
+            </div>
+            <div className="cf-track">
+              <div className="cf-fill" style={{ width: `${(r.value / max) * 100}%`, ...(color ? { background: color } : {}) }} />
+            </div>
+          </>
+        );
+        return onSelect ? (
+          <button
+            key={r.key}
+            type="button"
+            className={`cf-hbar sel${selected === r.key ? " on" : ""}${selected && selected !== r.key ? " dim" : ""}`}
+            title={r.title ?? `${r.key}: ${r.value.toLocaleString("pt-BR")} · clique para filtrar`}
+            aria-pressed={selected === r.key}
+            onClick={() => onSelect(r.key)}
+          >
+            {content}
+          </button>
+        ) : (
+          <div key={r.key} className="cf-hbar" title={r.title ?? `${r.key}: ${r.value.toLocaleString("pt-BR")}`}>
+            {content}
           </div>
-          <div className="cf-track">
-            <div className="cf-fill" style={{ width: `${(r.value / max) * 100}%`, ...(color ? { background: color } : {}) }} />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
+  );
+}
+
+// Rosca simples (proxy): fatias proporcionais com o valor principal no centro
+function Donut({ parts, center, sub }: { parts: Array<{ value: number; color: string }>; center: string; sub: string }) {
+  const total = Math.max(
+    parts.reduce((n, p) => n + p.value, 0),
+    1,
+  );
+  const r = 46;
+  const C = 2 * Math.PI * r;
+  let acc = 0;
+  return (
+    <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true" style={{ flex: "none" }}>
+      <circle cx="60" cy="60" r={r} fill="none" stroke="var(--v2-surface-2)" strokeWidth={14} />
+      {parts.map((p, i) => {
+        const len = (p.value / total) * C;
+        const el = (
+          <circle
+            key={i}
+            cx="60"
+            cy="60"
+            r={r}
+            fill="none"
+            stroke={p.color}
+            strokeWidth={14}
+            strokeDasharray={`${Math.max(len - (parts.length > 1 ? 2 : 0), 0)} ${C}`}
+            strokeDashoffset={-acc}
+            transform="rotate(-90 60 60)"
+          />
+        );
+        acc += len;
+        return el;
+      })}
+      <text x="60" y="60" textAnchor="middle" style={{ font: "600 18px var(--font-ui)", fill: "var(--v2-fg)" }}>
+        {center}
+      </text>
+      <text x="60" y="76" textAnchor="middle" style={{ font: "11px var(--font-ui)", fill: "var(--v2-fg-3)" }}>
+        {sub}
+      </text>
+    </svg>
   );
 }
 
@@ -814,7 +903,7 @@ export function CloudflareDashboardReal() {
             )}
           </div>
 
-          {activeTab !== "operations" && (
+          {(
             <div className="cf-bar-right">
               {/* Zona */}
               <Popover open={zonePopoverOpen} onOpenChange={setZonePopoverOpen}>
@@ -851,14 +940,16 @@ export function CloudflareDashboardReal() {
                   </Command>
                 </PopoverContent>
               </Popover>
-              {/* Período */}
-              <div className="cf-seg" role="group" aria-label="Período">
-                {[1, 2, 3].map((n) => (
-                  <button key={n} type="button" aria-pressed={days === n} onClick={() => setDays(n)}>
-                    {n === 1 ? "24 h" : `${n} dias`}
-                  </button>
-                ))}
-              </div>
+              {/* Período (não se aplica a Operações) */}
+              {activeTab !== "operations" && (
+                <div className="cf-seg" role="group" aria-label="Período">
+                  {[1, 2, 3].map((n) => (
+                    <button key={n} type="button" aria-pressed={days === n} onClick={() => setDays(n)}>
+                      {n === 1 ? "24 h" : `${n} dias`}
+                    </button>
+                  ))}
+                </div>
+              )}
               {/* Layout do Dashboard */}
               {activeTab === "dashboard" && canViewCf && (
                 <>
@@ -883,7 +974,11 @@ export function CloudflareDashboardReal() {
         {canAnalytics && activeTab === "analytics" && <AnalyticsTab zoneId={selectedZoneId} days={days} />}
 
         {/* ── Operations Tab content ───────────────────────────────────────── */}
-        {canManageCf && activeTab === "operations" && <OperationsTab />}
+        {canManageCf && activeTab === "operations" && (
+          <SharedZoneContext.Provider value={selectedZoneId}>
+            <OperationsTab />
+          </SharedZoneContext.Provider>
+        )}
 
         {/* ── Dashboard Tab content ────────────────────────────────────────── */}
         {canViewCf && activeTab === "dashboard" && (
@@ -1003,22 +1098,33 @@ export function CloudflareDashboardReal() {
                       return (
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
-                          <div className="cf-block-body" style={{ minHeight: 140 }}>
-                            <div className="cf-proxy-big">{proxyRate.toFixed(1).replace(".", ",")}%</div>
-                            <div className="cf-progress-track">
-                              <div className="cf-progress-fill" style={{ width: `${proxyRate}%`, background: T.success }} />
-                            </div>
-                            <div className="cf-proxy-row">
-                              <span>Com proxy</span>
-                              <span className="cf-proxy-val">{fmtNum(d.proxy.proxied)}</span>
-                            </div>
-                            <div className="cf-proxy-row">
-                              <span>Direto (sem proxy)</span>
-                              <span className="cf-proxy-val">{fmtNum(d.proxy.unproxied)}</span>
-                            </div>
-                            <div className="cf-proxy-row">
-                              <span>IPs únicos de origem</span>
-                              <span className="cf-proxy-val">{fmtNum(d.totals?.uniqueIps || 0)}</span>
+                          <div className="cf-block-body" style={{ minHeight: 140, justifyContent: "center" }}>
+                            <div className="cf-proxy">
+                              <Donut
+                                parts={[
+                                  { value: d.proxy.proxied ?? 0, color: "var(--v2-accent)" },
+                                  { value: d.proxy.unproxied ?? 0, color: "var(--v2-line-strong)" },
+                                ]}
+                                center={`${proxyRate.toFixed(1).replace(".", ",")}%`}
+                                sub="com proxy"
+                              />
+                              <div className="cf-proxy-leg">
+                                <div>
+                                  <i style={{ background: "var(--v2-accent)" }} />
+                                  <span>Com proxy</span>
+                                  <b>{fmtNum(d.proxy.proxied)}</b>
+                                </div>
+                                <div>
+                                  <i style={{ background: "var(--v2-line-strong)" }} />
+                                  <span>Direto (sem proxy)</span>
+                                  <b>{fmtNum(d.proxy.unproxied)}</b>
+                                </div>
+                                <div className="muted">
+                                  <i />
+                                  <span>IPs únicos de origem</span>
+                                  <b>{fmtNum(d.totals?.uniqueIps || 0)}</b>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1031,7 +1137,9 @@ export function CloudflareDashboardReal() {
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
                           <div className="cf-block-body" style={{ overflow: "auto", maxHeight: 320 }}>
-                            <HBars rows={d.topHosts.slice(0, 10).map((r: any) => ({ label: r.host, value: r.requests }))} />
+                            <RankBars
+                              rows={d.topHosts.slice(0, 10).map((r: any) => ({ key: r.host, label: r.host, value: r.requests }))}
+                            />
                           </div>
                         </div>
                       );
@@ -1042,25 +1150,17 @@ export function CloudflareDashboardReal() {
                       return (
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
-                          <div style={{ flex: 1, overflow: "auto", maxHeight: 220 }}>
-                            <table className="cf-table">
-                              <tbody>
-                                {d.securityActions.slice(0, 10).map((a: any, i: number) => (
-                                  <tr
-                                    key={i}
-                                    className={`clickrow${selectedAction === a.action ? " selected" : ""}`}
-                                    onClick={() => setSelectedAction(selectedAction === a.action ? null : a.action)}
-                                  >
-                                    <td>
-                                      <ExecBadge action={a.action} />
-                                    </td>
-                                    <td className="mono right" style={{ color: V.fg2 }}>
-                                      {fmtNum(a.count)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          <div className="cf-block-body" style={{ overflow: "auto", maxHeight: 320 }}>
+                            <RankBars
+                              color={T.danger}
+                              selected={selectedAction}
+                              onSelect={(k) => setSelectedAction(selectedAction === k ? null : k)}
+                              rows={d.securityActions.slice(0, 10).map((a: any) => ({
+                                key: a.action,
+                                label: ACTION_LABEL[String(a.action).toLowerCase()] ?? a.action,
+                                value: a.count,
+                              }))}
+                            />
                           </div>
                         </div>
                       );
@@ -1071,30 +1171,21 @@ export function CloudflareDashboardReal() {
                       return (
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
-                          <div style={{ flex: 1, overflow: "auto", maxHeight: 240 }}>
-                            <table className="cf-table">
-                              <tbody>
-                                {d.topCountries.map((c: any, i: number) => (
-                                  <tr
-                                    key={i}
-                                    className={`clickrow${selectedCountry === c.country ? " selected" : ""}`}
-                                    onClick={() => setSelectedCountry(selectedCountry === c.country ? null : c.country)}
-                                  >
-                                    <td style={{ display: "flex", alignItems: "center" }}>
-                                      <Flag name={c.country} />
-                                      <span
-                                        style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                                      >
-                                        {c.country}
-                                      </span>
-                                    </td>
-                                    <td className="mono right" style={{ color: V.fg2 }}>
-                                      {fmtNum(c.requests)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          <div className="cf-block-body" style={{ overflow: "auto", maxHeight: 320 }}>
+                            <RankBars
+                              selected={selectedCountry}
+                              onSelect={(k) => setSelectedCountry(selectedCountry === k ? null : k)}
+                              rows={d.topCountries.map((c: any) => ({
+                                key: c.country,
+                                label: (
+                                  <>
+                                    <Flag name={c.country} />
+                                    {c.country}
+                                  </>
+                                ),
+                                value: c.requests,
+                              }))}
+                            />
                           </div>
                         </div>
                       );
@@ -1105,47 +1196,20 @@ export function CloudflareDashboardReal() {
                       return (
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
-                          <div style={{ flex: 1, overflow: "auto", maxHeight: 240 }}>
-                            <table className="cf-table">
-                              <thead>
-                                <tr>
-                                  <th>Host</th>
-                                  <th>Path</th>
-                                  <th style={{ textAlign: "right" }}>Req.</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {d.topUrls.map((r: any, i: number) => (
-                                  <tr key={i}>
-                                    <td
-                                      className="mono dim"
-                                      style={{
-                                        maxWidth: 110,
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      {r.host}
-                                    </td>
-                                    <td
-                                      className="mono dim"
-                                      style={{
-                                        maxWidth: 120,
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      {r.path}
-                                    </td>
-                                    <td className="mono right" style={{ color: V.fg2 }}>
-                                      {fmtNum(r.requests)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          <div className="cf-block-body" style={{ overflow: "auto", maxHeight: 320 }}>
+                            <RankBars
+                              rows={d.topUrls.map((r: any, i: number) => ({
+                                key: `${r.host}${r.path}#${i}`,
+                                label: (
+                                  <>
+                                    <span className="cf-dim">{r.host}</span>
+                                    {r.path}
+                                  </>
+                                ),
+                                value: r.requests,
+                                title: `${r.host}${r.path}: ${Number(r.requests).toLocaleString("pt-BR")}`,
+                              }))}
+                            />
                           </div>
                         </div>
                       );
@@ -1156,41 +1220,27 @@ export function CloudflareDashboardReal() {
                       return (
                         <div key={block.id} {...dragProps} className={blockCls}>
                           {header()}
-                          <div style={{ flex: 1, overflow: "auto", maxHeight: 240 }}>
-                            <table className="cf-table">
-                              <thead>
-                                <tr>
-                                  <th>IP</th>
-                                  <th>País</th>
-                                  <th style={{ textAlign: "right" }}>Req.</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {filteredIps.map((r: any, i: number) => (
-                                  <tr key={i}>
-                                    <td className="mono" style={{ color: V.fg2 }}>
+                          <div className="cf-block-body" style={{ overflow: "auto", maxHeight: 320 }}>
+                            {filteredIps.length === 0 ? (
+                              <EmptyRow message="Nenhum IP com esses filtros." />
+                            ) : (
+                              <RankBars
+                                rows={filteredIps.map((r: any, i: number) => ({
+                                  key: `${r.ip}#${i}`,
+                                  label: (
+                                    <>
                                       {r.ip}
-                                    </td>
-                                    <td style={{ display: "flex", alignItems: "center" }}>
-                                      <Flag name={r.country} />
-                                      <span
-                                        style={{
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                          fontSize: 11,
-                                        }}
-                                      >
+                                      <span className="cf-dim cf-ip-country">
+                                        <Flag name={r.country} />
                                         {r.country}
                                       </span>
-                                    </td>
-                                    <td className="mono right" style={{ color: V.fg3 }}>
-                                      {fmtNum(r.requests)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                    </>
+                                  ),
+                                  value: r.requests,
+                                  title: `${r.ip} · ${r.country}: ${Number(r.requests).toLocaleString("pt-BR")}`,
+                                }))}
+                              />
+                            )}
                           </div>
                         </div>
                       );
@@ -1298,8 +1348,8 @@ export function CloudflareDashboardReal() {
                                 <AreaChart data={d.timeseries} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
                                   <defs>
                                     <linearGradient id="cf-skip" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="0%" stopColor={T.success} stopOpacity={0.35} />
-                                      <stop offset="100%" stopColor={T.success} stopOpacity={0.02} />
+                                      <stop offset="0%" stopColor={SKIP_COLOR} stopOpacity={0.35} />
+                                      <stop offset="100%" stopColor={SKIP_COLOR} stopOpacity={0.02} />
                                     </linearGradient>
                                   </defs>
                                   <CartesianGrid strokeDasharray="2 4" stroke={T.chartGrid} vertical={false} />
@@ -1311,18 +1361,18 @@ export function CloudflareDashboardReal() {
                                   <YAxis {...axisProps} axisLine={false} tickFormatter={(v) => fmtNum(Number(v))} />
                                   <Tooltip
                                     content={<ExecTrafficTooltip hostsByBucket={d?.hostsByBucket ?? {}} />}
-                                    cursor={{ fill: "rgba(16,185,129,0.05)" }}
+                                    cursor={{ fill: "rgba(245,158,11,0.05)" }}
                                   />
                                   <Legend wrapperStyle={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace" }} />
                                   <Area
                                     type="monotone"
                                     dataKey="skip"
-                                    stroke={T.success}
+                                    stroke={SKIP_COLOR}
                                     fill="url(#cf-skip)"
                                     strokeWidth={2}
                                     name="Skip"
                                     dot={false}
-                                    activeDot={{ r: 3, fill: T.success, stroke: T.surface, strokeWidth: 2 }}
+                                    activeDot={{ r: 3, fill: SKIP_COLOR, stroke: T.surface, strokeWidth: 2 }}
                                   />
                                 </AreaChart>
                               </ResponsiveContainer>
@@ -1344,7 +1394,7 @@ export function CloudflareDashboardReal() {
                             {rows.length === 0 ? (
                               <EmptyRow message="Sem hosts em skip no período." />
                             ) : (
-                              <HBars rows={rows.map((r) => ({ label: r.host, value: r.count }))} color={T.success} />
+                              <RankBars rows={rows.map((r) => ({ key: r.host, label: r.host, value: r.count }))} color={SKIP_COLOR} />
                             )}
                           </div>
                         </div>
@@ -1393,7 +1443,7 @@ export function CloudflareDashboardReal() {
                                   <Line
                                     type="monotone"
                                     dataKey="skip"
-                                    stroke={T.success}
+                                    stroke={SKIP_COLOR}
                                     strokeWidth={2}
                                     dot={false}
                                     name="Skip"
