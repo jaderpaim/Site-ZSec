@@ -16,7 +16,10 @@ import { DetailList, DetailSection, DetailSheet } from "@/components/layout/Deta
 import { dialogStyle } from "./ColaboradoresPanel";
 import { type CronJobRun, getCronHealth, fmtDateTime } from "./CronHealthBadge";
 import { toggleCronJob, createCronJobEntry, updateCronJobEntry } from "@/lib/cron-jobs.functions";
-import { AlertTriangle, Check, Plus } from "lucide-react";
+import { runCronJobNow } from "@/lib/cron-run.functions";
+import { CRON_JOB_MODULE, CRON_RULE_LABEL } from "@/lib/cron-modules";
+import { Link } from "@tanstack/react-router";
+import { AlertTriangle, Check, ExternalLink, Loader2, Plus, RefreshCw } from "lucide-react";
 
 const CSS = `
   .cj-root { font-family:var(--font-ui); color:var(--v2-fg); display:flex; flex-direction:column; gap:20px; font-size:14px; }
@@ -63,7 +66,7 @@ const CSS = `
   .cj-tl-h > b span { font-weight:400; font-size:13px; color:var(--v2-fg-3); }
   .cj-tl-h .cj-input { margin-left:auto; width:200px; max-width:100%; }
   .cj-tl-scroll { overflow-x:auto; }
-  .cj-tl-grid { min-width:900px; display:grid; grid-template-columns:250px minmax(0, 1fr) 64px; }
+  .cj-tl-grid { min-width:900px; display:grid; grid-template-columns:250px minmax(0, 1fr) 104px; }
   .cj-tl-grid > * { min-width:0; }
   .cj-tl-axis { position:relative; height:30px; border-bottom:1px solid var(--v2-line); }
   .cj-tl-axis span { position:absolute; top:9px; transform:translateX(-50%); font:500 11px var(--font-data); color:var(--v2-fg-3); white-space:nowrap; }
@@ -89,7 +92,19 @@ const CSS = `
   .cj-tl-track .gap { position:absolute; top:50%; height:18px; margin-top:-9px; border-radius:3px; background:repeating-linear-gradient(135deg, color-mix(in oklch, var(--v2-crit) 35%, transparent) 0 4px, transparent 4px 8px); border:1px solid color-mix(in oklch, var(--v2-crit) 45%, transparent); }
   .cj-tl-track .edge { position:absolute; left:4px; top:50%; transform:translateY(-50%); font:500 11px var(--font-data); color:var(--v2-crit); background:var(--v2-surface); padding:0 4px; z-index:2; white-space:nowrap; }
   .cj-tl-row:hover .edge { background:var(--v2-hover); }
-  .cj-tl-sw { display:grid; place-items:center; }
+  .cj-tl-sw { display:flex; gap:6px; align-items:center; justify-content:center; }
+  .cj-run { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; border:1px solid var(--v2-line); background:var(--v2-surface); color:var(--v2-fg-2); cursor:pointer; }
+  .cj-run:hover:not(:disabled) { background:var(--v2-hover); color:var(--v2-fg); border-color:var(--v2-line-strong); }
+  .cj-run:disabled { opacity:.45; cursor:not-allowed; }
+  .cj-spin { animation:cj-spin 1s linear infinite; }
+  @keyframes cj-spin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .cj-spin { animation:none; } }
+  .cj-btn.sm { height:28px; padding:0 10px; font-size:12.5px; }
+  .cj-lnk { display:inline-flex; align-items:center; gap:5px; margin-top:3px; color:var(--v2-accent); font-size:12.5px; font-weight:500; text-decoration:none; }
+  .cj-lnk:hover { text-decoration:underline; text-underline-offset:3px; }
+  .cj-modbox { display:flex; gap:12px; align-items:center; padding:12px 14px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface-2); }
+  .cj-modbox b { display:block; font-size:13px; font-weight:500; }
+  .cj-modbox small { display:block; font-size:12px; color:var(--v2-fg-3); }
   .cj-tl-leg { display:flex; flex-wrap:wrap; gap:6px 16px; padding:10px 18px; font-size:12px; color:var(--v2-fg-3); }
   .cj-tl-leg span { display:inline-flex; gap:6px; align-items:center; }
   .cj-tl-leg i { display:inline-block; }
@@ -101,7 +116,8 @@ const CSS = `
   .cj-lst h3 span { font-weight:400; font-size:12.5px; color:var(--v2-fg-3); }
   .cj-lst ol { list-style:none; margin:0; padding:4px 0; }
   .cj-lst li { display:grid; grid-template-columns:84px minmax(0, 1fr) auto; gap:12px; align-items:center; padding:8px 18px; cursor:pointer; }
-  .cj-lst li.prob { grid-template-columns:120px minmax(0, 1fr); }
+  .cj-lst li.prob { grid-template-columns:120px minmax(0, 1fr) auto; }
+  .cj-lst h3 { display:flex; align-items:center; gap:6px; }
   .cj-lst li:hover { background:var(--v2-hover); }
   .cj-lst .t { font:500 13px var(--font-data); }
   .cj-lst .t small { display:block; font-weight:400; font-size:11px; color:var(--v2-fg-3); }
@@ -477,7 +493,10 @@ export function CronJobsDashboard() {
       if (error) throw error;
       return (data ?? []) as CronJobRun[];
     },
-    refetchInterval: 60_000,
+    refetchInterval: (q) =>
+      (q.state.data ?? []).some((j) => getCronHealth(j).label.startsWith("Em execução"))
+        ? 5_000
+        : 60_000,
   });
 
   // Disparos do pg_cron nas últimas 24h (só admin lê; jobs agendados antes do log não aparecem)
@@ -599,6 +618,45 @@ export function CronJobsDashboard() {
     }
   }
 
+  // Disparo manual — chama a mesma rota que o pg_cron chama (runCronJobNow)
+  const runFn = useServerFn(runCronJobNow);
+  const [starting, setStarting] = React.useState<Set<string>>(new Set());
+  async function handleRun(list: CronJobRun[]) {
+    const names = list.map((j) => j.job_name).filter((n) => !starting.has(n));
+    if (!names.length) return;
+    setStarting((s) => new Set([...s, ...names]));
+    try {
+      const results = await Promise.all(names.map((jobName) => runFn({ data: { jobName } })));
+      const errs = results.filter((r) => !r.ok);
+      if (errs.length) toast.error(errs.map((r) => r.error).join(" · "));
+      else if (results.every((r) => r.finished))
+        toast.success(names.length > 1 ? "Jobs executados." : "Job executado.");
+      else
+        toast.info(
+          names.length > 1
+            ? "Jobs iniciados. O status atualiza quando terminarem."
+            : "Job iniciado. O status atualiza quando terminar.",
+        );
+    } finally {
+      setStarting((s) => {
+        const next = new Set(s);
+        names.forEach((n) => next.delete(n));
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["cron-job-runs"] });
+    }
+  }
+
+  // Link vindo da etiqueta de um módulo (#nome-do-job) abre o job direto
+  const hashHandled = React.useRef(false);
+  React.useEffect(() => {
+    if (hashHandled.current || !jobs.length) return;
+    hashHandled.current = true;
+    const target = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+    const job = target ? jobs.find((j) => j.job_name === target) : undefined;
+    if (job) openDetail(job);
+  }, [jobs]);
+
   function openDetail(job: CronJobRun) {
     setOpenJob(job.job_name);
     setEditLabel(job.label);
@@ -706,6 +764,21 @@ export function CronJobsDashboard() {
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
+        {(() => {
+          const busy = starting.has(i.job.job_name) || i.status.label === "Em execução";
+          const verb = i.kind === "sync" ? "Sincronizar agora" : "Executar agora";
+          return (
+            <button
+              className="cj-run"
+              onClick={() => handleRun([i.job])}
+              disabled={busy || !i.job.hook_path}
+              title={i.job.hook_path ? verb : "Job sem rota de execução"}
+              aria-label={`${verb}: ${i.job.label}`}
+            >
+              <RefreshCw size={14} className={busy ? "cj-spin" : ""} />
+            </button>
+          );
+        })()}
         <Switch
           checked={i.enabled}
           onCheckedChange={(v) => handleToggle(i.job, v)}
@@ -900,6 +973,15 @@ export function CronJobsDashboard() {
         <section className="cj-lst">
           <h3>
             Precisam de atenção <span>· {problems.length}</span>
+            {problems.length > 1 && (
+              <button
+                className="cj-btn sm"
+                style={{ marginLeft: "auto" }}
+                onClick={() => handleRun(problems.filter((i) => i.job.hook_path).map((i) => i.job))}
+              >
+                <RefreshCw size={13} /> Rodar todos
+              </button>
+            )}
           </h3>
           {problems.length ? (
             <ol>
@@ -921,7 +1003,35 @@ export function CronJobsDashboard() {
                           ? `sem execução desde ${fmtDateTime(i.job.last_attempt_at)}`
                           : "nunca executado")}
                     </span>
+                    {CRON_JOB_MODULE[i.job.job_name] && (
+                      <Link
+                        to="/app/$module"
+                        params={{ module: CRON_JOB_MODULE[i.job.job_name].module }}
+                        className="cj-lnk"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Abrir {CRON_JOB_MODULE[i.job.job_name].moduleLabel}{" "}
+                        <ExternalLink size={12} />
+                      </Link>
+                    )}
                   </span>
+                  {i.job.hook_path && (
+                    <button
+                      className="cj-btn sm"
+                      disabled={starting.has(i.job.job_name)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRun([i.job]);
+                      }}
+                    >
+                      {starting.has(i.job.job_name) ? (
+                        <Loader2 size={13} className="cj-spin" />
+                      ) : (
+                        <RefreshCw size={13} />
+                      )}
+                      {i.kind === "sync" ? "Sincronizar" : "Executar"}
+                    </button>
+                  )}
                 </li>
               ))}
             </ol>
@@ -962,6 +1072,29 @@ export function CronJobsDashboard() {
               >
                 Fechar
               </button>
+              {selected.job.hook_path && (
+                <button
+                  className="cj-btn"
+                  onClick={() => handleRun([selected.job])}
+                  disabled={
+                    starting.has(selected.job.job_name) || selected.status.label === "Em execução"
+                  }
+                >
+                  <RefreshCw
+                    size={14}
+                    className={
+                      starting.has(selected.job.job_name) || selected.status.label === "Em execução"
+                        ? "cj-spin"
+                        : ""
+                    }
+                  />
+                  {selected.status.label === "Em execução"
+                    ? "Rodando…"
+                    : selected.kind === "sync"
+                      ? "Sincronizar agora"
+                      : "Executar agora"}
+                </button>
+              )}
               <button
                 className="cj-btn primary"
                 onClick={() => handleUpdate(selected.job)}
@@ -976,6 +1109,24 @@ export function CronJobsDashboard() {
       >
         {selected && (
           <div className="cj-root" style={{ gap: 20 }}>
+            {CRON_JOB_MODULE[selected.job.job_name] && (
+              <div className="cj-modbox">
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <b>Dados exibidos em {CRON_JOB_MODULE[selected.job.job_name].moduleLabel}</b>
+                  <small>
+                    Quem pode disparar:{" "}
+                    {CRON_RULE_LABEL[CRON_JOB_MODULE[selected.job.job_name].rule]}
+                  </small>
+                </div>
+                <Link
+                  to="/app/$module"
+                  params={{ module: CRON_JOB_MODULE[selected.job.job_name].module }}
+                  className="cj-btn sm"
+                >
+                  Abrir módulo <ExternalLink size={13} />
+                </Link>
+              </div>
+            )}
             {selected.job.last_error && (
               <DetailSection title="Último erro">
                 <div className="cj-errbox">{selected.job.last_error}</div>

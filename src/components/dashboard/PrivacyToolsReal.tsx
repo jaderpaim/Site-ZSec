@@ -13,9 +13,8 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
 import {
   RefreshCw,
   ShieldCheck,
@@ -36,7 +35,6 @@ import {
   getPrivacyConsentamentos,
   getPrivacyCookies,
   getPrivacyUso,
-  triggerPrivacyToolsSync,
   type ConsentamentosFilter,
   type CookiesFilter,
 } from "@/lib/privacy-tools.functions";
@@ -660,26 +658,10 @@ const TABS: { key: Tab; label: string; icon: React.ElementType; cls: string }[] 
 export function PrivacyToolsRealDashboard() {
   const [activeTab, setActiveTab] = React.useState<Tab>("consentamentos");
   const { isAdmin, isModuleAdmin, can } = usePermissions();
-  const queryClient = useQueryClient();
 
   const canManage = isAdmin || isModuleAdmin("privacy-tools");
   const canView = canManage || can("privacy-tools", "view");
 
-  const syncFn = useServerFn(triggerPrivacyToolsSync);
-  const syncMut = useMutation({
-    mutationFn: () => syncFn(undefined),
-    onSuccess: (r: any) => {
-      if (r?.ok) {
-        toast.success(`Sincronizado: ${r.processed ?? 0} registros importados`);
-        queryClient.invalidateQueries({ queryKey: ["privacy-consentamentos"] });
-        queryClient.invalidateQueries({ queryKey: ["privacy-cookies"] });
-        queryClient.invalidateQueries({ queryKey: ["privacy-uso"] });
-      } else {
-        toast.error(`Falha na sincronização: ${r?.error ?? "erro desconhecido"}`);
-      }
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   return (
     <div className="pt" style={{ background: T.bg, minHeight: "100%", padding: "20px" }}>
@@ -710,20 +692,7 @@ export function PrivacyToolsRealDashboard() {
                 <div className="pt-hdr-sub">Consentimentos · Cookies Incrementais · Relatório de Uso</div>
               </div>
             </div>
-            <SyncActions moduleSlug="privacy-tools" jobs={["privacy-tools-sync"]}>
-            <div className="pt-hdr-pills">
-              {canManage && (
-                <button
-                  className="pt-sync-btn"
-                  onClick={() => syncMut.mutate()}
-                  disabled={syncMut.isPending}
-                >
-                  <RefreshCw size={13} className={syncMut.isPending ? "pt-spin" : ""} />
-                  {syncMut.isPending ? "Sincronizando..." : "Sincronizar agora"}
-                </button>
-              )}
-            </div>
-            </SyncActions>
+            <SyncActions moduleSlug="privacy-tools" />
           </div>
 
           {/* Tabs */}

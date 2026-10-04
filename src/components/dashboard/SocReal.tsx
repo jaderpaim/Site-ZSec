@@ -1,6 +1,6 @@
 import { SyncActions } from "@/components/layout/SyncActions";
 import * as React from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -14,28 +14,10 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { SekTicketsPanel } from "./soc/SekTicketsPanel";
-import { RefreshCw, AlertTriangle, Shield } from "lucide-react";
+import { AlertTriangle, Shield } from "lucide-react";
 import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import { toast } from "sonner";
 import { getCronHealth } from "./CronHealthBadge";
-
-// Contrato de retorno do POST /api/public/hooks/qradar-sync-manual (mesmo
-// shape de QradarSyncResult em qradar.server.ts) — não importamos o tipo de
-// lá porque esse arquivo é server-only ("NEVER import this from client code").
-type QradarSyncManualResult = {
-  ok: boolean;
-  counts: {
-    logSources: number;
-    epsSample: number;
-    offenses: number;
-    dropAlerts: number;
-    rdpEvents: number;
-    fortigatePolicyChanges: number;
-    fortigateAdminConfigChanges: number;
-    fortigateAdminLogins: number;
-  };
-  error?: string;
-};
 
 // ── Design Tokens — Executive Dark Intelligence Theme ──────────────────────────
 const T = {
@@ -498,8 +480,6 @@ function EmptyState({ message }: { message: string }) {
 // MAIN DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
 export function SocRealDashboard() {
-  const qc = useQueryClient();
-  const [syncing, setSyncing] = React.useState(false);
   const [sortBy, setSortBy] = React.useState<string>("status-asc");
   const [delSortBy, setDelSortBy] = React.useState<"event_count" | "username" | "event_time">(
     "event_count",
@@ -776,89 +756,6 @@ export function SocRealDashboard() {
     },
   });
 
-  // "syncing" só cobre o sync disparado por ESTE clique nesta instância do
-  // componente — ao sair do módulo e voltar, o componente é desmontado e
-  // remontado, "syncing" reseta para false mesmo que o sync ainda esteja
-  // rodando no servidor (confirmado: sync sobrevive à navegação, já que roda
-  // no backend independente do cliente ficar ouvindo). Cruza com o lease real
-  // (qradar_sync_state.sync_running_since) pra refletir o estado verdadeiro.
-  // 45min espelha SYNC_LEASE_STALE_MS em qradar.server.ts — mantido separado
-  // aqui porque esse arquivo é server-only e não pode ser importado no client.
-  const SYNC_LEASE_STALE_MS = 45 * 60 * 1000;
-  const serverSyncRunning = state.data?.sync_running_since
-    ? Date.now() - new Date(state.data.sync_running_since).getTime() < SYNC_LEASE_STALE_MS
-    : false;
-  const syncDisabled = syncing || serverSyncRunning;
-
-  // Chama via fetch() cru (não createServerFn) porque a resposta é um stream
-  // ndjson com heartbeats — necessário pra a borda da Cloudflare na frente de
-  // bernoulli.com.br não cortar a conexão em ~100s de silêncio (ver
-  // qradar-sync-manual.ts). O resultado final vem na última linha
-  // ({"status":"done","result":{...}}); as linhas de heartbeat no meio só
-  // existem pra manter a conexão viva e são ignoradas aqui.
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Sessão expirada — faça login novamente.");
-
-      const res = await fetch("/api/public/hooks/qradar-sync-manual", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (!res.ok || !res.body) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Falha ao iniciar sincronização (HTTP ${res.status})`);
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let final: QradarSyncManualResult | null = null;
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let newlineIndex: number;
-        while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
-          const line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-          if (!line.trim()) continue;
-          const msg = JSON.parse(line) as { status: string; result?: QradarSyncManualResult };
-          if (msg.status === "done" && msg.result) final = msg.result;
-        }
-      }
-
-      if (!final) throw new Error("Conexão encerrada antes do resultado final da sincronização.");
-
-      const r = final;
-      if (r.ok)
-        toast.success(
-          `Sincronizado: ${r.counts.logSources} fontes, ${r.counts.offenses} offenses, ${r.counts.rdpEvents} RDP, ${r.counts.fortigatePolicyChanges} policy change, ${r.counts.fortigateAdminConfigChanges} admin/config, ${r.counts.fortigateAdminLogins} login admin`,
-        );
-      else toast.error(`Sync com erros: ${r.error ?? "desconhecido"}`);
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["qradar-sync-state"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-eps-samples"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-log-sources"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-drop-alerts"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-offenses"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-rdp-events"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-external-offenders"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-internal-offenders"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-o365-downloads"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-o365-deletions"] }),
-        qc.invalidateQueries({ queryKey: ["qradar-fortigate-policy-changes"] }),
-      ]);
-    } catch (e) {
-      toast.error(`Falha ao sincronizar: ${(e as Error).message}`);
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   // ── Derived data (unchanged logic) ──────────────────────────────────────────
   // Pico do gráfico evolutivo usa peak_eps_avg — a MÉDIA da telemetria nativa do
@@ -1230,14 +1127,7 @@ export function SocRealDashboard() {
             <span>IBM QRadar SIEM, Microsoft 365 e chamados da Sek</span>
           </p>
         </div>
-        <SyncActions moduleSlug="soc" jobs={["qradar-sync", "sek-zendesk-sync"]}>
-          <div className="soc-actions">
-            <button className="soc-btn" onClick={handleSync} disabled={syncDisabled}>
-              <RefreshCw size={14} className={syncDisabled ? "spin" : ""} />
-              {syncDisabled ? "Sincronizando…" : "Sincronizar"}
-            </button>
-          </div>
-        </SyncActions>
+        <SyncActions moduleSlug="soc" />
       </div>
 
       {state.data?.last_error && (

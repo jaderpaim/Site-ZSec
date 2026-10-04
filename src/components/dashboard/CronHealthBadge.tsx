@@ -17,6 +17,7 @@ export type CronJobRun = {
   last_duration_ms: number | null;
   updated_at: string;
   enabled?: boolean;
+  hook_path?: string | null;
 };
 
 // Quanto tempo após o intervalo esperado consideramos o cron "atrasado"

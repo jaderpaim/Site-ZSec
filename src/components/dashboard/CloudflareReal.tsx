@@ -18,7 +18,6 @@ import {
 } from "recharts";
 import {
   getCloudflareAnalytics,
-  triggerCloudflareSync,
   listCloudflareZones,
   syncCloudflareZone,
 } from "@/lib/cloudflare.functions";
@@ -36,7 +35,6 @@ import {
   TrendingUp,
   AlertTriangle,
   Activity,
-  RefreshCw,
   Server,
   Link2,
   BarChart2,
@@ -634,7 +632,6 @@ export function CloudflareDashboardReal() {
   const { can, isModuleAdmin, isAdmin, loading: permLoading } = usePermissions();
   const canManageCf = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "manage");
   const canViewCf = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view");
-  const canSyncCf = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "execute");
   const canAnalyticsHttp = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view_analytics_http");
   const canAnalyticsSecurity =
     isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view_analytics_security");
@@ -677,7 +674,6 @@ export function CloudflareDashboardReal() {
   // Evento do firewall aberto no painel lateral
   const [selectedLog, setSelectedLog] = React.useState<SampleLog | null>(null);
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
-  const [syncing, setSyncing] = React.useState(false);
   const [selectedZoneId, setSelectedZoneId] = React.useState<string | null>(() => {
     try {
       return localStorage.getItem("cloudflare_selected_zone") || null;
@@ -734,29 +730,11 @@ export function CloudflareDashboardReal() {
   const [blocks, setBlocks] = React.useState<DashboardBlock[]>(loadSavedBlocks);
 
   const fetchAnalytics = useServerFn(getCloudflareAnalytics);
-  const triggerSync = useServerFn(triggerCloudflareSync);
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["cloudflare-analytics", days, selectedAction, selectedZoneId],
     enabled: canViewCf,
     queryFn: () => fetchAnalytics({ data: { days, action: selectedAction, zoneId: selectedZoneId } }),
   });
-
-  async function handleSync() {
-    setSyncing(true);
-    try {
-      const res = await triggerSync({ data: { fullResync: false } });
-      if ("ok" in res && res.ok) {
-        toast.success(`Sync concluído: ${res.zones} zonas, ${res.dnsRecords} DNS, ${res.firewallEvents} eventos.`);
-        refetch();
-      } else {
-        toast.error("Falha no sync: " + (res as any).error);
-      }
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   // Arrastar/redimensionar e trocar o período só alteram a tela; o botão Salvar
   // grava o layout e o período (aplicados de novo ao abrir o módulo).
@@ -872,15 +850,7 @@ export function CloudflareDashboardReal() {
               </span>
             </p>
           </div>
-          <SyncActions moduleSlug="cloudflare-waf" jobs={["cloudflare-daily-sync"]}>
-            {/* Sync — restrito a admin global ou admin do módulo */}
-            {canSyncCf && (
-              <button className="cf-btn primary" onClick={handleSync} disabled={syncing || isFetching}>
-                <RefreshCw size={14} className={syncing ? "exec-spin" : ""} />
-                {syncing ? "Sincronizando…" : "Sincronizar"}
-              </button>
-            )}
-          </SyncActions>
+          <SyncActions moduleSlug="cloudflare-waf" />
         </div>
 
         {/* ── Barra do módulo: abas + contexto (zona e período valem para Dashboard e Analytics) ── */}

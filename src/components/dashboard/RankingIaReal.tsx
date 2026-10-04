@@ -11,10 +11,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { RefreshCw, Download, Search } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { getIaRanking, getRankingIaUsuarios, syncIaWebEvents } from "@/lib/ia.functions";
+import { getIaRanking, getRankingIaUsuarios } from "@/lib/ia.functions";
 import { useRankingIA } from "@/lib/use-ranking-ia";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useFilters } from "@/lib/filters-context";
@@ -272,14 +272,12 @@ export function RankingIaDashboard() {
 
   const fetchRanking = useServerFn(getIaRanking);
   const fetchRankingUsuarios = useServerFn(getRankingIaUsuarios);
-  const syncFn = useServerFn(syncIaWebEvents);
-  const [syncing, setSyncing] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
   const [exportOpen, setExportOpen] = React.useState(false);
   const [busca, setBusca] = React.useState("");
   const [openUser, setOpenUser] = React.useState<string | null>(null);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["ia-ranking", f, from, to],
     queryFn: () =>
       fetchRanking({ data: { from, to, dept: f.dept, tool: f.tool, unit: f.unit, user: f.user } }),
@@ -293,18 +291,6 @@ export function RankingIaDashboard() {
   const ranking = useRankingIA(RANKING_LIMIT, rankingFilters);
   const rankRows = ranking.data ?? [];
 
-  const onSync = async () => {
-    setSyncing(true);
-    try {
-      const r = await syncFn();
-      toast.success(`Sincronizado: ${r.iaProcessed} eventos de IA processados`);
-      refetch();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const opts = data?.filterOptions;
   const byTool = data?.byTool ?? [];
@@ -498,10 +484,6 @@ export function RankingIaDashboard() {
                 </PopoverContent>
               </Popover>
             )}
-            <button className="iad-btn primary" onClick={onSync} disabled={syncing}>
-              <RefreshCw size={14} className={syncing ? "iad-spin" : ""} />
-              {syncing ? "Sincronizando…" : "Sincronizar agora"}
-            </button>
           </div>
         </SyncActions>
       </div>

@@ -37,3 +37,7 @@ worker-index.b64
 
 # Agente Z-Sec
 agent/dist/
+
+# Claude Code (local, não versionar)
+.claude/settings.local.json
+.claude/settings.json

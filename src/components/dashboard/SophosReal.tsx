@@ -581,12 +581,7 @@ export function SophosRealDashboard() {
             <span>Antivírus e EDR de estações e servidores</span>
           </p>
         </div>
-        <SyncActions moduleSlug="sophos-xdr" jobs={["sophos-sync", "sophos-audit-sync"]}>
-          <button className="sp-btn" onClick={handleSync} disabled={syncing || isFetching}>
-            <RefreshCw size={14} className={syncing ? "sp-spin" : ""} />
-            {syncing ? "Sincronizando…" : "Sincronizar"}
-          </button>
-        </SyncActions>
+        <SyncActions moduleSlug="sophos-xdr" />
       </div>
 
       {/* ── Submenu ─────────────────────────────────────────────────────────── */}

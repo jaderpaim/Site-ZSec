@@ -22,7 +22,6 @@ import {
   Diamond,
   Download,
   Loader2,
-  RefreshCw,
   Search,
   Square,
   Triangle,
@@ -40,7 +39,6 @@ import {
   listSastFindings,
   listSastScanRuns,
   setSastFindingStatus,
-  triggerSastSync,
 } from "@/lib/sast.functions";
 
 // Módulo SAST: achados das esteiras CI/CD (Gitleaks hoje, via App Insights --
@@ -330,12 +328,10 @@ const CSS = `
 `;
 
 export function SastDashboard() {
-  const qc = useQueryClient();
   const accessFn = useServerFn(getSastAccess);
   const findingsFn = useServerFn(listSastFindings);
   const runsFn = useServerFn(listSastScanRuns);
   const statusFn = useServerFn(getSastSyncStatus);
-  const syncFn = useServerFn(triggerSastSync);
 
   const access = useQuery({ queryKey: ["sast-access"], queryFn: () => accessFn() });
   const findingsQ = useQuery({
@@ -359,19 +355,6 @@ export function SastDashboard() {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const setF = <K extends keyof Filters>(k: K, v: Filters[K]) =>
     setFilters((f) => ({ ...f, [k]: v }));
-
-  const sync = useMutation({
-    mutationFn: () => syncFn(),
-    onSuccess: (r) => {
-      toast.success(
-        `Sincronizado: ${r.eventsRead} eventos lidos, ${r.detectionsInserted} detecções novas, ${r.findingsAutoResolved} fechados automaticamente`,
-      );
-      qc.invalidateQueries({ queryKey: ["sast-findings"] });
-      qc.invalidateQueries({ queryKey: ["sast-runs"] });
-      qc.invalidateQueries({ queryKey: ["sast-sync-status"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const allFindings = React.useMemo(
     () => (findingsQ.data?.findings ?? []) as SastFinding[],
@@ -792,12 +775,6 @@ export function SastDashboard() {
         </div>
         <SyncActions moduleSlug="sast" jobs={["sast-sync"]}>
           <div className="sa-actions">
-            {access.data?.canManage && st?.configured && st.enabled && (
-              <button className="sa-btn" onClick={() => sync.mutate()} disabled={sync.isPending}>
-                <RefreshCw size={14} className={sync.isPending ? "animate-spin" : ""} />
-                {sync.isPending ? "Sincronizando…" : "Sincronizar agora"}
-              </button>
-            )}
             <Popover>
               <PopoverTrigger asChild>
                 <button className="sa-btn" title="Exportar achados filtrados">

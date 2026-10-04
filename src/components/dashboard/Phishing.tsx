@@ -254,12 +254,7 @@ export function PhishingDashboard() {
             <span>Gophish: campanhas, cliques e comprometimentos</span>
           </p>
         </div>
-        <SyncActions moduleSlug="phishing" jobs={["gophish-sync"]}>
-          <button className="ph-btn lg" onClick={handleSync} disabled={syncing}>
-            <RefreshCw size={14} className={syncing ? "ph-spin" : ""} />
-            {syncing ? "Sincronizando…" : "Sincronizar"}
-          </button>
-        </SyncActions>
+        <SyncActions moduleSlug="phishing" />
       </div>
 
       <div className="ph-subnav" role="tablist" aria-label="Seções do Phishing">
