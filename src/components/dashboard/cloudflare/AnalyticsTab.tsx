@@ -179,13 +179,13 @@ const CSS = `
   .an-select-item[data-highlighted] { background:${T.accentGlow} !important; color:${T.accent} !important; }
 
   /* ── Toolbar / sub-nav ── */
-  .an-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:14px 20px; background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:10px; }
-  .an-toolbar-group { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .an-toolbar { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--v2-line); }
+  .an-toolbar-group { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-bottom:8px; }
 
-  .an-subnav { display:flex; align-items:center; gap:2px; padding:4px; background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; width:fit-content; flex-wrap:wrap; }
-  .an-subnav-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; border:none; cursor:pointer; font-family:var(--font-ui); transition:all 0.15s; color:var(--v2-fg-3); background:transparent; }
-  .an-subnav-btn.active { background:${T.accentGlow}; color:${T.accent}; border:1px solid rgba(59,130,246,0.25); }
-  .an-subnav-btn:hover:not(.active):not(:disabled) { color:var(--v2-fg-2); background:rgba(var(--tl-ink, 255,255,255),0.04); }
+  .an-subnav { display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin-bottom:-1px; }
+  .an-subnav-btn { display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 12px; font-size:13.5px; font-weight:500; border:0; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); color:var(--v2-fg-2); background:transparent; }
+  .an-subnav-btn.active { color:var(--v2-fg); border-bottom-color:var(--v2-accent); }
+  .an-subnav-btn:hover:not(.active):not(:disabled) { color:var(--v2-fg); }
   .an-subnav-btn:disabled { opacity:0.4; cursor:not-allowed; }
   .an-badge-soon { font-size:9px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; padding:1px 6px; border-radius:4px; background:rgba(107,114,128,0.18); color:${T.neutral}; font-family:'IBM Plex Mono',monospace; }
 
@@ -985,7 +985,9 @@ const HTTP_GROUP_TABS = [
 // ══════════════════════════════════════════════════════════════════════════════
 // AnalyticsTab
 // ══════════════════════════════════════════════════════════════════════════════
-export function AnalyticsTab() {
+// zoneId/days vêm da barra do módulo (compartilhados com o Dashboard). Sem eles,
+// a aba mantém os próprios seletores, como antes.
+export function AnalyticsTab({ zoneId: sharedZoneId, days: sharedDays }: { zoneId?: string | null; days?: number } = {}) {
   const { can, isModuleAdmin, isAdmin } = usePermissions();
   const canHttp = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view_analytics_http");
   const canSecurity = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view_analytics_security");
@@ -999,14 +1001,17 @@ export function AnalyticsTab() {
     else if (activeSection === "security" && !canSecurity && canHttp) setActiveSection("http");
   }, [canHttp, canSecurity, activeSection]);
 
-  const [days, setDays] = React.useState(1);
-  const [zoneId, setZoneId] = React.useState<string | null>(() => {
+  const shared = sharedZoneId !== undefined;
+  const [ownDays, setDays] = React.useState(1);
+  const days = sharedDays ?? ownDays;
+  const [ownZoneId, setZoneId] = React.useState<string | null>(() => {
     try {
       return localStorage.getItem("cloudflare_selected_zone") || null;
     } catch {
       return null;
     }
   });
+  const zoneId = shared ? sharedZoneId : ownZoneId;
   const isLiveWindow = !!(zoneId && days <= 4);
 
   const [httpFilters, setHttpFilters] = React.useState<AnalyticsFilterCondition[]>([]);
@@ -1405,12 +1410,16 @@ export function AnalyticsTab() {
           </div>
 
           <div className="an-toolbar-group">
-            {[1, 2, 3].map((n) => (
-              <button key={n} className={`an-day-btn${days === n ? " active" : ""}`} onClick={() => setDays(n)}>
-                {n === 1 ? "24h" : `${n}d`}
-              </button>
-            ))}
-            <ZonePicker zones={zones} zoneId={zoneId} onChange={persistZone} />
+            {!shared && (
+              <>
+                {[1, 2, 3].map((n) => (
+                  <button key={n} className={`an-day-btn${days === n ? " active" : ""}`} onClick={() => setDays(n)}>
+                    {n === 1 ? "24h" : `${n}d`}
+                  </button>
+                ))}
+                <ZonePicker zones={zones} zoneId={zoneId} onChange={persistZone} />
+              </>
+            )}
             <span className={`an-live-tag ${isLiveWindow ? "live" : "sampled"}`}>
               {isLiveWindow ? "ao vivo (adaptativo)" : "agregado (banco)"}
             </span>

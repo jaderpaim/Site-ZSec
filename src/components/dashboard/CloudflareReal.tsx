@@ -255,6 +255,15 @@ const CSS = `
   .cf-btn.ghost { background:transparent; border-color:transparent; color:var(--v2-fg-2); }
   .cf-btn.ghost:hover:not(:disabled) { background:var(--v2-hover); color:var(--v2-fg); }
   .cf-btn.sm { height:28px; padding:0 10px; font-size:12.5px; }
+  .cf-btn.primary { background:var(--v2-accent); border-color:var(--v2-accent); color:var(--v2-accent-ink); }
+  .cf-btn.primary:hover:not(:disabled) { background:var(--v2-accent); border-color:var(--v2-accent); filter:brightness(1.08); }
+  .cf-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-bottom:14px; border-bottom:1px solid var(--v2-line); }
+  .cf-bar-right { margin-left:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .cf-bar-sep { width:1px; height:22px; background:var(--v2-line); margin:0 2px; }
+  .cf-tabs button { height:28px; }
+  .cf-icon-btn { position:relative; width:34px; height:34px; display:inline-grid; place-items:center; border:0; border-radius:8px; background:transparent; color:var(--v2-fg-2); cursor:pointer; }
+  .cf-icon-btn:hover { background:var(--v2-hover); color:var(--v2-fg); }
+  .cf-icon-btn.dirty::after { content:""; position:absolute; top:6px; right:6px; width:7px; height:7px; border-radius:50%; background:var(--v2-med); box-shadow:0 0 0 2px var(--v2-bg); }
 
   .cf-zone-btn { display:inline-flex; align-items:center; justify-content:space-between; gap:8px; height:34px; padding:0 10px 0 12px; border:1px solid var(--v2-line); border-radius:8px; background:var(--v2-surface); font-size:12.5px; font-family:var(--font-data); color:var(--v2-fg); cursor:pointer; min-width:210px; }
   .cf-zone-btn:hover { background:var(--v2-hover); }
@@ -775,8 +784,38 @@ export function CloudflareDashboardReal() {
             </p>
           </div>
           <SyncActions moduleSlug="cloudflare-waf" jobs={["cloudflare-daily-sync"]}>
-          {canViewCf && activeTab === "dashboard" && (
-            <div className="cf-ph-actions">
+            {/* Sync — restrito a admin global ou admin do módulo */}
+            {canSyncCf && (
+              <button className="cf-btn primary" onClick={handleSync} disabled={syncing || isFetching}>
+                <RefreshCw size={14} className={syncing ? "exec-spin" : ""} />
+                {syncing ? "Sincronizando…" : "Sincronizar"}
+              </button>
+            )}
+          </SyncActions>
+        </div>
+
+        {/* ── Barra do módulo: abas + contexto (zona e período valem para Dashboard e Analytics) ── */}
+        <div className="cf-bar">
+          <div className="cf-seg cf-tabs" role="tablist" aria-label="Visão">
+            {canViewCf && (
+              <button type="button" role="tab" aria-pressed={activeTab === "dashboard"} onClick={() => handleTabChange("dashboard")}>
+                Dashboard
+              </button>
+            )}
+            {canAnalytics && (
+              <button type="button" role="tab" aria-pressed={activeTab === "analytics"} onClick={() => handleTabChange("analytics")}>
+                Analytics
+              </button>
+            )}
+            {canManageCf && (
+              <button type="button" role="tab" aria-pressed={activeTab === "operations"} onClick={() => handleTabChange("operations")}>
+                Operações
+              </button>
+            )}
+          </div>
+
+          {activeTab !== "operations" && (
+            <div className="cf-bar-right">
               {/* Zona */}
               <Popover open={zonePopoverOpen} onOpenChange={setZonePopoverOpen}>
                 <PopoverTrigger asChild>
@@ -812,7 +851,6 @@ export function CloudflareDashboardReal() {
                   </Command>
                 </PopoverContent>
               </Popover>
-
               {/* Período */}
               <div className="cf-seg" role="group" aria-label="Período">
                 {[1, 2, 3].map((n) => (
@@ -821,40 +859,28 @@ export function CloudflareDashboardReal() {
                   </button>
                 ))}
               </div>
-
-              {/* Sync — restrito a admin global ou admin do módulo */}
-              {canSyncCf && (
-                <button className="cf-btn" onClick={handleSync} disabled={syncing || isFetching}>
-                  <RefreshCw size={14} className={syncing ? "exec-spin" : ""} />
-                  {syncing ? "Sincronizando…" : "Sincronizar"}
-                </button>
+              {/* Layout do Dashboard */}
+              {activeTab === "dashboard" && canViewCf && (
+                <>
+                  <span className="cf-bar-sep" aria-hidden="true" />
+                  <button className="cf-icon-btn" onClick={resetLayout} title="Restaurar layout" aria-label="Restaurar layout">
+                    <RotateCcw size={15} />
+                  </button>
+                  <button
+                    className={`cf-icon-btn${unsaved ? " dirty" : ""}`}
+                    onClick={saveLayout}
+                    title={unsaved ? "Salvar layout e período (há alterações não salvas)" : "Salvar layout e período"}
+                    aria-label="Salvar layout e período"
+                  >
+                    <Save size={15} />
+                  </button>
+                </>
               )}
             </div>
           )}
-          </SyncActions>
         </div>
-
-        {/* ── Abas ─────────────────────────────────────────────────────────── */}
-        <div className="cf-seg" role="tablist" aria-label="Visão" style={{ alignSelf: "flex-start" }}>
-          {canViewCf && (
-            <button type="button" aria-pressed={activeTab === "dashboard"} onClick={() => handleTabChange("dashboard")}>
-              Dashboard
-            </button>
-          )}
-          {canAnalytics && (
-            <button type="button" aria-pressed={activeTab === "analytics"} onClick={() => handleTabChange("analytics")}>
-              Analytics
-            </button>
-          )}
-          {canManageCf && (
-            <button type="button" aria-pressed={activeTab === "operations"} onClick={() => handleTabChange("operations")}>
-              Operações
-            </button>
-          )}
-        </div>
-
         {/* ── Analytics Tab content ────────────────────────────────────────── */}
-        {canAnalytics && activeTab === "analytics" && <AnalyticsTab />}
+        {canAnalytics && activeTab === "analytics" && <AnalyticsTab zoneId={selectedZoneId} days={days} />}
 
         {/* ── Operations Tab content ───────────────────────────────────────── */}
         {canManageCf && activeTab === "operations" && <OperationsTab />}
@@ -881,9 +907,10 @@ export function CloudflareDashboardReal() {
               </div>
             ) : (
               <>
-                {/* Filtros ativos, saúde do sync e layout */}
+                {/* Filtros ativos (país / ação) — só aparecem quando existem */}
+                {(selectedCountry || selectedAction) && (
                 <div className="cf-filters">
-                  {(selectedCountry || selectedAction) && <span className="cf-filters-label">Filtrando por</span>}
+                  <span className="cf-filters-label">Filtrando por</span>
                   {selectedCountry && (
                     <button className="cf-filter-chip" onClick={() => setSelectedCountry(null)}>
                       <Flag name={selectedCountry} />
@@ -897,23 +924,8 @@ export function CloudflareDashboardReal() {
                       <X size={14} className="close" aria-label="Remover filtro" />
                     </button>
                   )}
-                  <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    {unsaved && <span className="cf-filters-label">Alterações não salvas</span>}
-                    <button className="cf-btn ghost sm" onClick={resetLayout}>
-                      <RotateCcw size={13} />
-                      Restaurar layout
-                    </button>
-                    <button
-                      className="cf-btn sm"
-                      onClick={saveLayout}
-                      title="Salvar layout e período"
-                      aria-label="Salvar layout e período"
-                      style={{ width: 28, padding: 0, justifyContent: "center" }}
-                    >
-                      <Save size={14} />
-                    </button>
-                  </span>
                 </div>
+                )}
 
                 {/* ── Grid ─────────────────────────────────────────────────────── */}
                 <div

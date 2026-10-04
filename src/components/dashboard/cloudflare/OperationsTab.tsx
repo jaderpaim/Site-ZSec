@@ -151,10 +151,10 @@ const CSS = `
   .ops-block-body { flex:1; padding:16px 20px; display:flex; flex-direction:column; gap:14px; overflow:auto; }
 
   /* ── Section title inside block ── */
-  .ops-subnav { display:flex; align-items:center; gap:2px; padding:4px; background:var(--v2-surface-2); border:1px solid var(--v2-line); border-radius:8px; width:fit-content; flex-wrap:wrap; }
-  .ops-subnav-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:6px; font-size:13px; font-weight:500; border:1px solid transparent; cursor:pointer; font-family:var(--font-ui); color:var(--v2-fg-3); background:transparent; }
-  .ops-subnav-btn:hover:not(.active):not(:disabled) { color:var(--v2-fg); background:var(--v2-hover); }
-  .ops-subnav-btn.active { background:var(--v2-surface); color:var(--v2-fg); border-color:var(--v2-line); }
+  .ops-subnav { display:flex; align-items:center; gap:4px; flex-wrap:wrap; border-bottom:1px solid var(--v2-line); }
+  .ops-subnav-btn { display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 12px; margin-bottom:-1px; font-size:13.5px; font-weight:500; border:0; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); color:var(--v2-fg-2); background:transparent; }
+  .ops-subnav-btn:hover:not(.active):not(:disabled) { color:var(--v2-fg); }
+  .ops-subnav-btn.active { color:var(--v2-fg); border-bottom-color:var(--v2-accent); }
   .ops-subnav-btn:disabled { opacity:0.4; cursor:not-allowed; }
   .ops-cards { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:20px; }
   .ops-cards.one { grid-template-columns:minmax(0, 1fr); }
