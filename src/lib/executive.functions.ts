@@ -579,11 +579,11 @@ export const getExecutiveOverview = createServerFn({ method: "GET" })
       }),
 
       // === MATURIDADE =======================================================
-      // Usa somente o segmento Bernoulli (is_bernoulli = true) para o painel executivo.
+      // Usa somente o segmento da própria organização (is_propria = true) para o painel executivo.
       // Compara com a média do segmento Educação (kind = "edu"), igual ao módulo Maturidade.
       safe(async () => {
         const [{ data: segs }, { data: mat }] = await Promise.all([
-          supabaseAdmin.from("segmentos").select("id,nome,is_bernoulli"),
+          supabaseAdmin.from("segmentos").select("id,nome,is_propria"),
           supabaseAdmin
             .from("maturidade")
             .select("segmento_id,periodo,periodo_ordem,nota_nist,nota_iso,delta_anterior")
@@ -591,21 +591,21 @@ export const getExecutiveOverview = createServerFn({ method: "GET" })
         ]);
         if (!mat?.length || !segs?.length) return null;
 
-        const bernoulliId = (segs ?? []).find((s: any) => s.is_bernoulli)?.id ?? null;
-        if (!bernoulliId) return null;
+        const propriaId = (segs ?? []).find((s: any) => s.is_propria)?.id ?? null;
+        if (!propriaId) return null;
 
-        // Histórico do Bernoulli ordenado por período
-        const bernRows = (mat ?? [])
-          .filter((r: any) => r.segmento_id === bernoulliId)
+        // Histórico da própria organização ordenado por período
+        const propriaRows = (mat ?? [])
+          .filter((r: any) => r.segmento_id === propriaId)
           .sort((a: any, b: any) => a.periodo_ordem - b.periodo_ordem);
-        if (!bernRows.length) return null;
+        if (!propriaRows.length) return null;
 
         // Avaliação mais recente — usa a última nota NÃO-NULA de cada métrica
         // (NIST e ISO podem ter sido avaliadas em períodos diferentes; o módulo
         // Maturidade também pega o último valor não-nulo por métrica).
-        const last = bernRows[bernRows.length - 1];
-        const lastNist = [...bernRows].reverse().find((r: any) => r.nota_nist != null) ?? null;
-        const lastIso = [...bernRows].reverse().find((r: any) => r.nota_iso != null) ?? null;
+        const last = propriaRows[propriaRows.length - 1];
+        const lastNist = [...propriaRows].reverse().find((r: any) => r.nota_nist != null) ?? null;
+        const lastIso = [...propriaRows].reverse().find((r: any) => r.nota_iso != null) ?? null;
         const nist = lastNist ? Math.round(Number(lastNist.nota_nist) * 100) / 100 : null;
         const iso = lastIso ? Math.round(Number(lastIso.nota_iso) * 100) / 100 : null;
         const periodoNist = lastNist?.periodo ?? null;
@@ -626,7 +626,7 @@ export const getExecutiveOverview = createServerFn({ method: "GET" })
         let mediaEduIso: number | null = null;
         for (const [segId, vals] of latestBySeg.entries()) {
           const seg = (segs ?? []).find((s: any) => s.id === segId);
-          if (!seg || seg.is_bernoulli) continue;
+          if (!seg || seg.is_propria) continue;
           if (/^educa/i.test(seg.nome)) {
             if (vals.nist != null) mediaEduNist = vals.nist;
             if (vals.iso != null) mediaEduIso = vals.iso;
@@ -638,7 +638,7 @@ export const getExecutiveOverview = createServerFn({ method: "GET" })
         const vsEduIso = iso != null && mediaEduIso != null ? Math.round((iso - mediaEduIso) * 100) / 100 : null;
 
         // Timeline para o gráfico de linha dupla (NIST + ISO por período)
-        const history = bernRows.map((r: any) => ({
+        const history = propriaRows.map((r: any) => ({
           periodo: r.periodo,
           nist: r.nota_nist != null ? Number(r.nota_nist) : null,
           iso: r.nota_iso != null ? Number(r.nota_iso) : null,
@@ -681,8 +681,6 @@ export const getExecutiveOverview = createServerFn({ method: "GET" })
       }),
 
       // === BLOQUEIOS · 30 DIAS (KPI "Ameaças contidas" do ribbon) ============
-      // Conta os MESMOS eventos, na MESMA janela, que o Painel C-Level — assim os
-      // dois painéis não mostram números diferentes para a mesma afirmação.
       // Antes o ribbon somava 4 parcelas com janelas distintas (Cloudflare 7d por
       // snapshot + QRadar instantâneo + Sophos 30d + vulns corrigidas 30d), e
       // vulnerabilidade corrigida não é ameaça contida — é remediação nossa.

@@ -22,7 +22,7 @@ import {
 import { usePermissions } from "@/lib/use-permissions";
 
 // Aba "Notas e segmentos" da Maturidade: cadastro das notas NIST/ISO por
-// período. O segmento marcado como da empresa (is_bernoulli) são as nossas
+// período. O segmento marcado como da empresa (is_propria) são as nossas
 // avaliações; os demais são benchmarks de mercado. O trigger
 // trg_segmentos_notas_sync recalcula a tabela maturidade a cada alteração.
 // Permissões continuam no slug "segmentos" (oculto do menu).
@@ -131,8 +131,8 @@ export function MaturidadeNotas() {
   };
 
   const segs = data ?? [];
-  const own = segs.find((s) => s.is_bernoulli) ?? null;
-  const market = segs.filter((s) => !s.is_bernoulli);
+  const own = segs.find((s) => s.is_propria) ?? null;
+  const market = segs.filter((s) => !s.is_propria);
   const detail = segs.find((s) => s.id === detailId) ?? null;
   const ownRows = own ? [...own.notas].sort(byOrdem) : [];
 
@@ -324,7 +324,7 @@ export function MaturidadeNotas() {
                           <td style={{ fontWeight: 500 }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                               {s.nome}
-                              {s.is_bernoulli && (
+                              {s.is_propria && (
                                 <span
                                   className="mn-dl"
                                   style={{
@@ -408,7 +408,7 @@ export function MaturidadeNotas() {
         open={!!detail}
         onOpenChange={(o) => !o && setDetailId(null)}
         eyebrow={
-          detail ? (detail.is_bernoulli ? "segmento da empresa" : "segmento de mercado") : ""
+          detail ? (detail.is_propria ? "segmento da empresa" : "segmento de mercado") : ""
         }
         title={detail?.nome ?? ""}
         width={540}
@@ -546,14 +546,14 @@ function SegmentoDialog({
   React.useEffect(() => {
     if (state.open) {
       setNome(state.row?.nome ?? "");
-      setIsOwn(state.row?.is_bernoulli ?? false);
+      setIsOwn(state.row?.is_propria ?? false);
     }
   }, [state.open, state.row]);
 
   async function save() {
     setSaving(true);
     try {
-      await upsert({ data: { id: state.row?.id ?? null, nome: nome.trim(), is_bernoulli: isOwn } });
+      await upsert({ data: { id: state.row?.id ?? null, nome: nome.trim(), is_propria: isOwn } });
       toast.success(state.row ? "Segmento atualizado" : "Segmento criado");
       onSaved();
     } catch (e) {
@@ -673,7 +673,7 @@ function NotaDialog({
     }
   }
 
-  const isOwn = !!state.segmento?.is_bernoulli;
+  const isOwn = !!state.segmento?.is_propria;
   return (
     <Dialog open={state.open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="font-ui sm:max-w-md" style={dialogStyle}>

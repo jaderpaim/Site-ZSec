@@ -141,7 +141,7 @@ O catálogo fica em [src/lib/modules.ts](src/lib/modules.ts) e o mapeamento para
 
 | Grupo | Módulos |
 | --- | --- |
-| **Executivo** | Painel Executivo, Painel C-Level |
+| **Executivo** | Painel Executivo |
 | **Monitoramento** | Cloudflare WAF, Domínios/SSL, Fornecedores, Privacy Tools (LGPD), DLP (Purview), Ranking de Uso de IA, SOC Monitoramento, Sophos XDR, Gestão de Vulnerabilidades |
 | **Operações** | DAST Security Scanner, Shadow IT, Simulação de Phishing, WSUS, CMDB, SAST |
 | **Governança** | Benchmark, Comitês, NPS, Gestão de Mudança (GMUD), Maturidade do Ambiente, Não Conformidade, Organização SI, Políticas e Processos, Pílulas de SI, Treinamentos, Disponibilidade de Ativos, Notas de maturidade (Segmentos) |
@@ -233,7 +233,7 @@ Exceções à regra do `HOOK_SECRET`:
 - **Papéis** (`app_role`): `super_admin`, `admin`, `analista`, `visualizador` (padrão) e `personalizado`.
 - **Permissões granulares por módulo:** view, edit, create, delete, approve, execute, manage, além de sub-ações da Cloudflare. Ficam nas tabelas `user_roles`, `module_admins` e `user_module_permissions`. O front é atualizado via Realtime.
 - **Helpers de servidor** em [src/lib/authz.ts](src/lib/authz.ts): `requirePermission`, `hasPermission`, `requireAdminOrAnalista`, `requireGlobalAdminRole`.
-- **Módulos exclusivos** (`benchmark`, `painel-executivo`, `painel-c-level`) só liberam acesso direto para `super_admin`. A lista em [src/lib/exclusive-modules.ts](src/lib/exclusive-modules.ts) precisa ficar igual à do SQL.
+- **Módulos exclusivos** (`benchmark`, `painel-executivo`) só liberam acesso direto para `super_admin`. A lista em [src/lib/exclusive-modules.ts](src/lib/exclusive-modules.ts) precisa ficar igual à do SQL.
 - **Ações destrutivas** exigem papel global de admin, além da permissão granular, e geram log de auditoria e alerta.
 - **Política de sessão:** limite absoluto de 24h e 8h de inatividade.
   - No cliente, `auth-context.tsx` verifica a sessão a cada 30s e manda heartbeat a cada 60s.
@@ -340,8 +340,8 @@ git push -u origin feature/nome           # depois: PR no Gitea
 
 ## Pendências conhecidas
 
-- **Coluna `is_bernoulli`** nas tabelas `segmentos` e `benchmark_maturidade_ref` (e os identificadores `kind: "bernoulli"` / `BernoulliRow` no código) ainda carregam o nome da empresa de origem. A renomeação para `is_propria` será feita junto com o banco novo.
-- **Regra "segmento Educação"**: Painel Executivo, C-Level e Maturidade comparam a organização com os segmentos cujo nome começa com "Educa". Precisa virar configuração.
+- **Regra "segmento Educação"**: Painel Executivo e Maturidade comparam a organização com os segmentos cujo nome começa com "Educa". Precisa virar configuração.
+- **Acesso ao DAST por nome de departamento**: `is_dast_allowed()` libera só admin de um departamento cujo nome contenha "Segurança da Informação". Precisa virar permissão de módulo.
 - **Integrações on-prem dependem de Cloudflare Access** com um único service token no `.env`. A direção é o Z-Sec Collector (ver [Arquitetura](#direção-para-várias-empresas-planejado)).
 - **`wrangler.jsonc` está com o conteúdo errado.** O arquivo contém uma cópia do código de `qradar-sync.ts`, não uma config do Wrangler. Não afeta o build Node.
 - **Existem dois lockfiles, `package-lock.json` e `bun.lock`.** O `bun.lock` é a referência, e o `package-lock.json` pode ficar defasado.

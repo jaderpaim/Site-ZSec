@@ -499,9 +499,7 @@ export function PainelExecutivoDashboard() {
     off: T.textMuted,
   };
   // KPI de topo: eventos barrados na borda (Cloudflare) + contidos no endpoint
-  // (Sophos), na MESMA janela de 30 dias. É a mesma conta do Painel C-Level,
-  // de propósito: os dois painéis precisam dar o mesmo número para a mesma
-  // afirmação. A soma antiga misturava 4 parcelas com janelas diferentes e
+  // (Sophos), na MESMA janela de 30 dias. A soma antiga misturava 4 parcelas com janelas diferentes e
   // incluía vulnerabilidades corrigidas, que é remediação, não ameaça contida —
   // esse dado continua visível no tile "Vulns corrigidas · 30 dias" do card
   // Defesa Ativa · Interno.

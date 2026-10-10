@@ -17,7 +17,7 @@ function admin() {
 export type SegmentoRow = {
   id: string;
   nome: string;
-  is_bernoulli: boolean;
+  is_propria: boolean;
   notas: Array<{
     id: string;
     periodo: string;
@@ -34,8 +34,8 @@ export const listSegmentos = createServerFn({ method: "POST" })
     const sb = admin();
     const { data: segs, error } = await sb
       .from("segmentos")
-      .select("id, nome, is_bernoulli")
-      .order("is_bernoulli", { ascending: false })
+      .select("id, nome, is_propria")
+      .order("is_propria", { ascending: false })
       .order("nome");
     if (error) throw new Error(error.message);
 
@@ -67,7 +67,7 @@ export const listSegmentos = createServerFn({ method: "POST" })
 const SegmentoSchema = z.object({
   id: z.string().uuid().optional().nullable(),
   nome: z.string().min(1).max(120),
-  is_bernoulli: z.boolean().optional().default(false),
+  is_propria: z.boolean().optional().default(false),
 });
 
 export const upsertSegmento = createServerFn({ method: "POST" })
@@ -76,7 +76,7 @@ export const upsertSegmento = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "segmentos", data.id ? "edit" : "create");
     const sb = admin();
-    const payload = { nome: data.nome.trim(), is_bernoulli: !!data.is_bernoulli };
+    const payload = { nome: data.nome.trim(), is_propria: !!data.is_propria };
     if (data.id) {
       const { error } = await sb.from("segmentos").update(payload).eq("id", data.id);
       if (error) throw new Error(error.message);
@@ -194,10 +194,10 @@ export type TimelinePoint = {
 export type RankRow = {
   name: string;
   v: number;
-  kind: "default" | "edu" | "bernoulli";
+  kind: "default" | "edu" | "propria";
 };
 
-export type BernoulliRow = {
+export type PropriaRow = {
   periodo: string;
   periodo_ordem: number;
   nota_nist: number | null;
@@ -208,8 +208,8 @@ export type BernoulliRow = {
 };
 
 export type MaturidadePayload = {
-  bernoulli: {
-    rows: BernoulliRow[];
+  propria: {
+    rows: PropriaRow[];
     nist_timeline: TimelinePoint[];
     iso_timeline: TimelinePoint[];
     latest_nist: { periodo: string; v: number } | null;
@@ -256,7 +256,7 @@ export const listMaturidade = createServerFn({ method: "POST" })
 
     const { data: segs, error: e1 } = await sb
       .from("segmentos")
-      .select("id, nome, is_bernoulli");
+      .select("id, nome, is_propria");
     if (e1) throw new Error(e1.message);
 
     const { data: mat, error: e2 } = await sb
@@ -265,14 +265,14 @@ export const listMaturidade = createServerFn({ method: "POST" })
       .order("periodo_ordem");
     if (e2) throw new Error(e2.message);
 
-    const segMap = new Map<string, { nome: string; is_bernoulli: boolean }>();
-    for (const s of segs ?? []) segMap.set(s.id, { nome: s.nome, is_bernoulli: s.is_bernoulli });
+    const segMap = new Map<string, { nome: string; is_propria: boolean }>();
+    for (const s of segs ?? []) segMap.set(s.id, { nome: s.nome, is_propria: s.is_propria });
 
-    // Linhas do Bernoulli
-    const bernoulliId = (segs ?? []).find((s) => s.is_bernoulli)?.id;
-    const bernRows = (mat ?? []).filter((r) => r.segmento_id === bernoulliId);
+    // Linhas da própria organização
+    const propriaId = (segs ?? []).find((s) => s.is_propria)?.id;
+    const propriaRows = (mat ?? []).filter((r) => r.segmento_id === propriaId);
 
-    const bernoulli_rows: BernoulliRow[] = bernRows.map((r) => ({
+    const propria_rows: PropriaRow[] = propriaRows.map((r) => ({
       periodo: r.periodo,
       periodo_ordem: r.periodo_ordem,
       nota_nist: r.nota_nist === null ? null : Number(r.nota_nist),
@@ -284,14 +284,14 @@ export const listMaturidade = createServerFn({ method: "POST" })
 
 
     const nist_timeline = buildTimeline(
-      bernRows.map((r) => ({
+      propriaRows.map((r) => ({
         periodo: r.periodo,
         periodo_ordem: r.periodo_ordem,
         value: r.nota_nist === null ? null : Number(r.nota_nist),
       })),
     );
     const iso_timeline = buildTimeline(
-      bernRows.map((r) => ({
+      propriaRows.map((r) => ({
         periodo: r.periodo,
         periodo_ordem: r.periodo_ordem,
         value: r.nota_iso === null ? null : Number(r.nota_iso),
@@ -301,12 +301,12 @@ export const listMaturidade = createServerFn({ method: "POST" })
     const lastNist = nist_timeline[nist_timeline.length - 1] ?? null;
     const lastIso = iso_timeline[iso_timeline.length - 1] ?? null;
 
-    const sortedScore = [...bernRows]
+    const sortedScore = [...propriaRows]
       .filter((r) => r.score !== null)
       .sort((a, b) => a.periodo_ordem - b.periodo_ordem);
     const lastScoreRow = sortedScore[sortedScore.length - 1] ?? null;
 
-    // Rankings — última nota por segmento (não-Bernoulli + Bernoulli)
+    // Rankings — última nota por segmento (mercado + própria organização)
     const latestBySeg = new Map<
       string,
       { nista: number | null; iso: number | null }
@@ -326,15 +326,15 @@ export const listMaturidade = createServerFn({ method: "POST" })
     for (const [segId, vals] of latestBySeg.entries()) {
       const meta = segMap.get(segId);
       if (!meta) continue;
-      const kind: RankRow["kind"] = meta.is_bernoulli
-        ? "bernoulli"
+      const kind: RankRow["kind"] = meta.is_propria
+        ? "propria"
         : /^educa/i.test(meta.nome)
           ? "edu"
           : "default";
       if (vals.nista !== null)
-        ranking_nist.push({ name: meta.is_bernoulli ? ownLabel : meta.nome, v: vals.nista, kind });
+        ranking_nist.push({ name: meta.is_propria ? ownLabel : meta.nome, v: vals.nista, kind });
       if (vals.iso !== null)
-        ranking_iso.push({ name: meta.is_bernoulli ? ownLabel : meta.nome, v: vals.iso, kind });
+        ranking_iso.push({ name: meta.is_propria ? ownLabel : meta.nome, v: vals.iso, kind });
     }
     ranking_nist.sort((a, b) => a.v - b.v);
     ranking_iso.sort((a, b) => a.v - b.v);
@@ -343,8 +343,8 @@ export const listMaturidade = createServerFn({ method: "POST" })
     const eduIso = ranking_iso.find((r) => r.kind === "edu")?.v ?? null;
 
     return {
-      bernoulli: {
-        rows: bernoulli_rows,
+      propria: {
+        rows: propria_rows,
         nist_timeline,
         iso_timeline,
         latest_nist: lastNist ? { periodo: lastNist.label, v: lastNist.v } : null,

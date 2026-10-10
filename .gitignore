@@ -46,3 +46,6 @@ agent/dist/
 .env
 .env.*
 !.env.example
+
+# Supabase CLI (estado local)
+supabase/.temp/

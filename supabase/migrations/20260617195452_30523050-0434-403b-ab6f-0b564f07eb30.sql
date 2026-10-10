@@ -9,26 +9,38 @@ GRANT EXECUTE ON FUNCTION public.schedule_hook_cron(text, text, text, text) TO s
 GRANT EXECUTE ON FUNCTION public.unschedule_hook_cron(text) TO service_role;
 
 -- 2) Restrict Realtime channel subscriptions to entitled users
-DROP POLICY IF EXISTS "Authenticated users can read realtime messages" ON realtime.messages;
-DROP POLICY IF EXISTS "Entitled users can read realtime messages" ON realtime.messages;
+--
+-- Ajustada em 2026-10-11 para rodar em projetos Supabase novos, onde
+-- realtime.messages pertence a um papel interno do Supabase: sem permissão,
+-- avisa e segue em vez de quebrar a criação do banco. Mesma policy de antes.
+DO $do$
+BEGIN
+  IF to_regclass('realtime.messages') IS NULL THEN
+    RETURN;
+  END IF;
+  DROP POLICY IF EXISTS "Authenticated users can read realtime messages" ON realtime.messages;
+  DROP POLICY IF EXISTS "Entitled users can read realtime messages" ON realtime.messages;
 
-CREATE POLICY "Entitled users can read realtime messages"
-ON realtime.messages
-FOR SELECT
-TO authenticated
-USING (
-  -- Admins and analysts can subscribe to any channel
-  public.has_role(auth.uid(), 'admin'::public.app_role)
-  OR public.has_role(auth.uid(), 'analista'::public.app_role)
-  -- Permission self-channels used by usePermissions hook
-  OR realtime.topic() = 'permissions:' || auth.uid()::text
-  -- Module-scoped topics: "<module-slug>:..." — require module view permission
-  OR (
-    position(':' in realtime.topic()) > 0
-    AND public.has_module_permission(
-      auth.uid(),
-      split_part(realtime.topic(), ':', 1),
-      'view'
+  CREATE POLICY "Entitled users can read realtime messages"
+  ON realtime.messages
+  FOR SELECT
+  TO authenticated
+  USING (
+    -- Admins and analysts can subscribe to any channel
+    public.has_role(auth.uid(), 'admin'::public.app_role)
+    OR public.has_role(auth.uid(), 'analista'::public.app_role)
+    -- Permission self-channels used by usePermissions hook
+    OR realtime.topic() = 'permissions:' || auth.uid()::text
+    -- Module-scoped topics: "<module-slug>:..." — require module view permission
+    OR (
+      position(':' in realtime.topic()) > 0
+      AND public.has_module_permission(
+        auth.uid(),
+        split_part(realtime.topic(), ':', 1),
+        'view'
+      )
     )
-  )
-);
+  );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'realtime.messages: sem permissão para ajustar policies (gerenciada pelo Supabase), seguindo.';
+END $do$;

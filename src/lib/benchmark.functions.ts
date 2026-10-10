@@ -18,7 +18,7 @@ export type MaturidadeRefRow = {
   ordem: number;
   fonte: string | null;
   ano: string | null;
-  is_bernoulli: boolean;
+  is_propria: boolean;
 };
 
 export type InvestimentoRefRow = {
@@ -48,7 +48,7 @@ export const getBenchmarkOverview = createServerFn({ method: "POST" })
     const [mat, inv, emp, segs, matHist] = await Promise.all([
       sb
         .from("benchmark_maturidade_ref")
-        .select("id, tipo, faixa, valor, ordem, fonte, ano, is_bernoulli")
+        .select("id, tipo, faixa, valor, ordem, fonte, ano, is_propria")
         .order("tipo", { ascending: true })
         .order("ordem", { ascending: true }),
       sb
@@ -59,7 +59,7 @@ export const getBenchmarkOverview = createServerFn({ method: "POST" })
         .from("benchmark_empresa")
         .select("id, ano, score_maturidade, faturamento_anual, investimento_ciber")
         .order("ano", { ascending: false }),
-      sb.from("segmentos").select("id, is_bernoulli"),
+      sb.from("segmentos").select("id, is_propria"),
       sb
         .from("maturidade")
         .select("segmento_id, periodo, periodo_ordem, nota_nist")
@@ -69,17 +69,17 @@ export const getBenchmarkOverview = createServerFn({ method: "POST" })
     if (inv.error) throw new Error(inv.error.message);
     if (emp.error) throw new Error(emp.error.message);
 
-    // Nota NIST atual da Bernoulli — a fonte de verdade é o módulo Maturidade.
-    // MESMA regra do Painel Executivo: segmento is_bernoulli, ordenado por
+    // Nota NIST atual da própria organização — a fonte de verdade é o módulo Maturidade.
+    // MESMA regra do Painel Executivo: segmento is_propria, ordenado por
     // periodo_ordem, última nota NÃO-NULA (NIST e ISO podem ter períodos diferentes).
     // Se essa consulta falhar, devolve null e o gráfico cai no valor cadastrado na faixa.
     let nist: NistAtual | null = null;
-    const bernoulliId = (segs.data ?? []).find((s: any) => s.is_bernoulli)?.id ?? null;
-    if (!segs.error && !matHist.error && bernoulliId) {
-      const bernRows = (matHist.data ?? [])
-        .filter((r: any) => r.segmento_id === bernoulliId)
+    const propriaId = (segs.data ?? []).find((s: any) => s.is_propria)?.id ?? null;
+    if (!segs.error && !matHist.error && propriaId) {
+      const propriaRows = (matHist.data ?? [])
+        .filter((r: any) => r.segmento_id === propriaId)
         .sort((a: any, b: any) => Number(a.periodo_ordem) - Number(b.periodo_ordem));
-      const lastNist = [...bernRows].reverse().find((r: any) => r.nota_nist != null) ?? null;
+      const lastNist = [...propriaRows].reverse().find((r: any) => r.nota_nist != null) ?? null;
       if (lastNist) {
         nist = {
           nota: Math.round(Number(lastNist.nota_nist) * 100) / 100,
@@ -103,7 +103,7 @@ const MatSchema = z.object({
   faixa: z.string().min(1).max(200),
   valor: z.number().min(0).max(5),
   ordem: z.number().int().min(0).max(999),
-  is_bernoulli: z.boolean().default(false),
+  is_propria: z.boolean().default(false),
   fonte: z.string().max(120).optional().nullable(),
   ano: z.string().max(40).optional().nullable(),
 });
@@ -119,7 +119,7 @@ export const upsertMaturidadeRef = createServerFn({ method: "POST" })
       faixa: data.faixa.trim(),
       valor: data.valor,
       ordem: data.ordem,
-      is_bernoulli: data.is_bernoulli,
+      is_propria: data.is_propria,
       fonte: data.fonte?.trim() || null,
       ano: data.ano?.trim() || null,
     };

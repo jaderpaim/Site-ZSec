@@ -191,7 +191,7 @@ export function BenchmarkOperationsTab() {
       <Card
         title="Faixas de referência de maturidade"
         action={
-          <Button size="sm" onClick={() => setMatDialog({ tipo: "faturamento", ordem: 0, is_bernoulli: false })}>
+          <Button size="sm" onClick={() => setMatDialog({ tipo: "faturamento", ordem: 0, is_propria: false })}>
             <Plus className="size-4 mr-1" /> Nova faixa
           </Button>
         }
@@ -215,7 +215,7 @@ export function BenchmarkOperationsTab() {
                   <td style={{ ...td, color: T.textPrimary }}>{r.faixa}</td>
                   <td style={td}>{Number(r.valor).toFixed(2)}</td>
                   <td style={td}>{r.ordem}</td>
-                  <td style={td}>{r.is_bernoulli ? "Sim" : "—"}</td>
+                  <td style={td}>{r.is_propria ? "Sim" : "—"}</td>
                   <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
                     <Button size="icon" variant="ghost" onClick={() => setMatDialog(r)}>
                       <Pencil className="size-4" />
@@ -305,10 +305,10 @@ export function BenchmarkOperationsTab() {
                   <Label className="text-xs">Valor (0 a 5)</Label>
                   <Input
                     value={matDialog.valor ?? ""}
-                    disabled={!!matDialog.is_bernoulli}
+                    disabled={!!matDialog.is_propria}
                     onChange={(e) => setMatDialog({ ...matDialog, valor: e.target.value as unknown as number })}
                   />
-                  {matDialog.is_bernoulli && (
+                  {matDialog.is_propria && (
                     <div style={{ fontSize: 10, color: T.textMuted, marginTop: 4 }}>
                       A barra de {org.rotulo} usa a nota NIST do módulo Maturidade
                     </div>
@@ -341,8 +341,8 @@ export function BenchmarkOperationsTab() {
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={!!matDialog.is_bernoulli}
-                  onChange={(e) => setMatDialog({ ...matDialog, is_bernoulli: e.target.checked })}
+                  checked={!!matDialog.is_propria}
+                  onChange={(e) => setMatDialog({ ...matDialog, is_propria: e.target.checked })}
                 />
                 É a barra de {org.rotulo} (destacada)
               </label>
@@ -362,7 +362,7 @@ export function BenchmarkOperationsTab() {
                   faixa: String(matDialog.faixa ?? ""),
                   valor: Number(String(matDialog.valor ?? "0").replace(",", ".")),
                   ordem: Number(matDialog.ordem ?? 0),
-                  is_bernoulli: !!matDialog.is_bernoulli,
+                  is_propria: !!matDialog.is_propria,
                   fonte: matDialog.fonte ?? null,
                   ano: matDialog.ano ?? null,
                 })

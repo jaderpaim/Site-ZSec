@@ -34,7 +34,6 @@ import {
   Radar,
   BarChart3,
   FileWarning,
-  Presentation,
   GitBranch,
   GraduationCap,
 } from "lucide-react";
@@ -66,14 +65,6 @@ export const MODULES: ModuleDef[] = [
     short: "Executivo",
     group: "Executivo",
     icon: Gauge,
-    headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
-  },
-  {
-    slug: "painel-c-level",
-    title: "Painel C-Level",
-    short: "C-Level",
-    group: "Executivo",
-    icon: Presentation,
     headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
   },
   // ── Monitoramento ──────────────────────────────────────────────────────────

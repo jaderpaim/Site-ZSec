@@ -172,9 +172,9 @@ function MaturidadeRuler({
   const org = useOrganizacao();
   const data = rows.map((r) => ({
     full: r.faixa,
-    name: r.is_bernoulli ? org.rotulo.toUpperCase() : shortFaixa(r.faixa),
-    valor: r.is_bernoulli && nota != null ? nota : Number(r.valor),
-    destaque: r.is_bernoulli,
+    name: r.is_propria ? org.rotulo.toUpperCase() : shortFaixa(r.faixa),
+    valor: r.is_propria && nota != null ? nota : Number(r.valor),
+    destaque: r.is_propria,
   }));
   const mercado = data.filter((d) => !d.destaque);
   const media = mercado.length ? mercado.reduce((a, d) => a + d.valor, 0) / mercado.length : null;
@@ -381,11 +381,11 @@ export function BenchmarkDashboardTab() {
   const nist = data?.nist ?? null;
 
   // Nota de referência: módulo Maturidade; se ausente, a faixa marcada como da organização.
-  const linhaBern = maturidade.find((m) => m.is_bernoulli);
-  const nota = nist?.nota ?? (linhaBern ? Number(linhaBern.valor) : null);
+  const linhaPropria = maturidade.find((m) => m.is_propria);
+  const nota = nist?.nota ?? (linhaPropria ? Number(linhaPropria.valor) : null);
 
   // Posição contra as faixas de mercado — contada, não afirmada.
-  const faixasMercado = maturidade.filter((m) => !m.is_bernoulli);
+  const faixasMercado = maturidade.filter((m) => !m.is_propria);
   const totalFaixas = faixasMercado.length;
   const superadas = nota != null ? faixasMercado.filter((m) => Number(m.valor) < nota).length : 0;
   const acimaDeNos = nota != null ? faixasMercado.filter((m) => Number(m.valor) > nota) : [];

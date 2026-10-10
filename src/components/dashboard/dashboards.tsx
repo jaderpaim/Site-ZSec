@@ -59,7 +59,6 @@ import { DastScannerDashboard } from "./DastScanner";
 import { ShadowItDashboard } from "./ShadowIt";
 import { SastDashboard } from "./Sast";
 import { DlpDashboard } from "./Dlp";
-import { PainelCLevelDashboard } from "./PainelCLevel";
 
 const C = {
   primary: "oklch(0.66 0.18 254)",
@@ -450,7 +449,6 @@ export { SocDashboard };
 /* ===== Map slug → component ===== */
 export const DASHBOARDS: Record<string, () => React.ReactElement> = {
   "painel-executivo": PainelExecutivoDashboard,
-  "painel-c-level": PainelCLevelDashboard,
   "excecao-sophos": SophosExcecoesDashboard,
   vulnerabilidades: VulnerabilidadesRealDashboard,
   "dast-scanner": DastScannerDashboard,

@@ -31,7 +31,6 @@ export function useVisibleModules(): ModuleDef[] {
   // faltar bypass automático pra admin e default novo pra papéis recém-criados.
   const canSeeBenchmark = can("benchmark", "view") || can("benchmark", "manage");
   const canSeePainelExecutivo = can("painel-executivo", "view");
-  const canSeePainelCLevel = can("painel-c-level", "view");
 
   // Regras de visibilidade (instantâneas via role):
   // - Grupo "Configurações": somente admin global
@@ -43,7 +42,6 @@ export function useVisibleModules(): ModuleDef[] {
     if (m.slug === "dast-scanner" || m.slug === "shadow-it") return isDastAllowed; // admin + depto Segurança da Informação -- Shadow IT reaproveita o mesmo gate do DAST
     if (m.slug === "benchmark") return canSeeBenchmark; // exige flag explícita, mesmo pra admin
     if (m.slug === "painel-executivo") return canSeePainelExecutivo; // idem
-    if (m.slug === "painel-c-level") return canSeePainelCLevel; // idem
     if (m.group === "Configurações") return globalAdmin;
     if (m.slug === "usuarios") return globalAdmin; // somente admin global
     if (m.slug === "sso-ldap") return globalAdmin; // somente admin global

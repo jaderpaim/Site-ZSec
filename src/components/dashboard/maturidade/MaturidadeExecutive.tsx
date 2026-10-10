@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   listMaturidade,
   type MaturidadePayload,
-  type BernoulliRow,
+  type PropriaRow,
 } from "@/lib/segmentos.functions";
 import { usePermissions } from "@/lib/use-permissions";
 import { MaturidadeNotas } from "./MaturidadeNotas";
@@ -136,7 +136,7 @@ const pctOf = (curr: number | null, base: number | null) =>
 function rankPosition(rows: RankRow[], ownValue: number | null) {
   if (rows.length === 0) return null;
   const sorted = [...rows].sort((a, b) => b.v - a.v);
-  const idx = sorted.findIndex((r) => r.kind === "bernoulli");
+  const idx = sorted.findIndex((r) => r.kind === "propria");
   if (idx >= 0) return { pos: idx + 1, of: sorted.length };
   if (ownValue === null) return null;
   const pos = sorted.filter((r) => r.v > ownValue).length + 1;
@@ -366,7 +366,7 @@ function EvolucaoChart({
 }
 
 /* ============ Tabela por avaliação ============ */
-function PorAvaliacao({ rows }: { rows: BernoulliRow[] }) {
+function PorAvaliacao({ rows }: { rows: PropriaRow[] }) {
   // Variação de cada nota sobre a avaliação anterior que tinha nota do mesmo framework
   const enriched = React.useMemo(() => {
     const asc = [...rows].sort((a, b) => a.periodo_ordem - b.periodo_ordem);
@@ -457,7 +457,7 @@ function RankingCard({
   const sorted = [...rows].sort((a, b) => b.v - a.v);
   const rank = rankPosition(rows, own?.v ?? null);
   const vsEdu = pctOf(own?.v ?? null, mediaEdu);
-  const ownName = rows.find((r) => r.kind === "bernoulli")?.name ?? "Nossa nota";
+  const ownName = rows.find((r) => r.kind === "propria")?.name ?? "Nossa nota";
 
   return (
     <div className="mt-card">
@@ -475,7 +475,7 @@ function RankingCard({
         ) : (
           <div className="mt-rank">
             {sorted.map((r) => {
-              const me = r.kind === "bernoulli";
+              const me = r.kind === "propria";
               const edu = r.kind === "edu";
               return (
                 <div
@@ -592,7 +592,7 @@ export function MaturidadeExecutive() {
     );
   }
 
-  const b = data.bernoulli;
+  const b = data.propria;
   const nistTl = b.nist_timeline;
   const isoTl = b.iso_timeline;
   const latestNist = b.latest_nist;
@@ -603,7 +603,7 @@ export function MaturidadeExecutive() {
   // Chart combinado: união por periodo_ordem
   const chartData = [...b.rows]
     .sort((a, c) => a.periodo_ordem - c.periodo_ordem)
-    .map((r: BernoulliRow) => ({ p: r.periodo, NIST: r.nota_nist, ISO: r.nota_iso }));
+    .map((r: PropriaRow) => ({ p: r.periodo, NIST: r.nota_nist, ISO: r.nota_iso }));
 
   const lastPeriodo = b.latest_score?.periodo ?? latestNist?.periodo ?? latestIso?.periodo ?? "—";
 

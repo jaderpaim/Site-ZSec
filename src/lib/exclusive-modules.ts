@@ -15,7 +15,7 @@
 // migrations 20260826120000_exclusive_modules_rbac.sql e
 // 20260827120000_painel_executivo_exclusive.sql) — não há uma fonte única
 // compartilhada entre TS e SQL.
-export const EXCLUSIVE_MODULE_SLUGS = new Set<string>(["benchmark", "painel-executivo", "painel-c-level"]);
+export const EXCLUSIVE_MODULE_SLUGS = new Set<string>(["benchmark", "painel-executivo"]);
 
 export function isExclusiveModule(moduleSlug: string): boolean {
   return EXCLUSIVE_MODULE_SLUGS.has(moduleSlug);
