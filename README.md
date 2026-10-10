@@ -230,6 +230,7 @@ Exceções à regra do `HOOK_SECRET`:
 ## Autenticação, RBAC e sessão
 
 - **Login:** e-mail e senha (Supabase Auth) ou SSO Microsoft Entra ID. O SSO exige que o usuário já esteja pré-cadastrado.
+- **Cadastro só por convite.** O papel de um usuário novo nunca vem dos metadados que o próprio usuário envia (`raw_user_meta_data`): o gatilho `handle_new_user` só aceita `raw_app_meta_data` (gravável apenas pela service role) e, sem isso, cria como `visualizador`. O convite define o papel no servidor. Mantenha **"Allow new users to sign up" desligado** no Supabase (Authentication → Sign In / Providers).
 - **Papéis** (`app_role`): `super_admin`, `admin`, `analista`, `visualizador` (padrão) e `personalizado`.
 - **Permissões granulares por módulo:** view, edit, create, delete, approve, execute, manage, além de sub-ações da Cloudflare. Ficam nas tabelas `user_roles`, `module_admins` e `user_module_permissions`. O front é atualizado via Realtime.
 - **Helpers de servidor** em [src/lib/authz.ts](src/lib/authz.ts): `requirePermission`, `hasPermission`, `requireAdminOrAnalista`, `requireGlobalAdminRole`.

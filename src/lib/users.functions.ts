@@ -599,28 +599,7 @@ export const setUserRole = createServerFn({ method: "POST" })
     const targetLabel = await targetProfileLabel(data.userId);
 
     try {
-      // Reset role
-      await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
-      const { error: e2 } = await supabaseAdmin.from("user_roles").insert({
-        user_id: data.userId,
-        role: data.role as any,
-      });
-      if (e2) throw new Error(e2.message);
-
-      // Wipe existing module admins and granular perms so defaults reflect the new role.
-      await supabaseAdmin.from("module_admins").delete().eq("user_id", data.userId);
-      await supabaseAdmin.from("user_module_permissions").delete().eq("user_id", data.userId);
-      // O rótulo "perfil aplicado" só faz sentido enquanto as permissões ainda
-      // são exatamente a cópia daquele perfil — a troca de papel acima já
-      // zerou tudo, então o rótulo fica sem sentido independente do novo papel.
-      await supabaseAdmin.from("profiles").update({ permission_profile_id: null }).eq("id", data.userId);
-
-      // Re-apply defaults for the new role (admin = todos os módulos + ações).
-      const { error: e3 } = await supabaseAdmin.rpc("apply_role_defaults", {
-        _user_id: data.userId,
-        _role: data.role as any,
-      });
-      if (e3) throw new Error(e3.message);
+      await resetUserRole(data.userId, data.role);
 
       await logAudit({
         userId: context.userId,
@@ -770,6 +749,36 @@ export const inviteUser = createServerFn({ method: "POST" })
     return result;
   });
 
+// Troca o papel de um usuário e recria as permissões padrão dele. Usado ao
+// alterar o papel e no convite. Só o servidor (service role) define papel:
+// o gatilho handle_new_user ignora o que o próprio usuário envia no cadastro.
+async function resetUserRole(
+  userId: string,
+  role: "admin" | "analista" | "visualizador" | "personalizado" | "super_admin",
+) {
+  await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
+  const { error: e2 } = await supabaseAdmin.from("user_roles").insert({
+    user_id: userId,
+    role: role as any,
+  });
+  if (e2) throw new Error(e2.message);
+
+  // Wipe existing module admins and granular perms so defaults reflect the new role.
+  await supabaseAdmin.from("module_admins").delete().eq("user_id", userId);
+  await supabaseAdmin.from("user_module_permissions").delete().eq("user_id", userId);
+  // O rótulo "perfil aplicado" só faz sentido enquanto as permissões ainda
+  // são exatamente a cópia daquele perfil — a troca de papel acima já
+  // zerou tudo, então o rótulo fica sem sentido independente do novo papel.
+  await supabaseAdmin.from("profiles").update({ permission_profile_id: null }).eq("id", userId);
+
+  // Re-apply defaults for the new role (admin = todos os módulos + ações).
+  const { error: e3 } = await supabaseAdmin.rpc("apply_role_defaults", {
+    _user_id: userId,
+    _role: role as any,
+  });
+  if (e3) throw new Error(e3.message);
+}
+
 async function inviteUserCore(
   data: {
     email: string;
@@ -791,7 +800,8 @@ async function inviteUserCore(
     type: "invite",
     email: data.email,
     options: {
-      data: { full_name: data.fullName, role: data.role },
+      // Só o nome vai nos metadados do usuário; o papel é definido abaixo.
+      data: { full_name: data.fullName },
       redirectTo: `${origin}/login`,
     },
   });
@@ -811,6 +821,8 @@ async function inviteUserCore(
   if (redirectErr) throw new Error("Erro ao preparar link de ativação.");
   const inviteUrl = `${origin}/ativar?t=${redirect.id}`;
   const userId = linkData.user?.id;
+  if (!userId) throw new Error("Não foi possível criar o usuário do convite.");
+  await resetUserRole(userId, data.role);
 
   const subject = `Bem-vindo ao ${APP_NAME} — ative seu acesso`;
   const html = buildUserInviteHtml({
