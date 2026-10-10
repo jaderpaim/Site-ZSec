@@ -1,12 +1,10 @@
-# B-Security — Painel de Segurança da Informação
+# Z-Sec — Plataforma de Segurança da Informação
 
-Aplicação web corporativa da área de Segurança da Informação do Bernoulli. Ela centraliza, em dashboards interativos, os indicadores que antes ficavam no Power BI. Também reúne ferramentas operacionais: scanner DAST, Shadow IT, regras da Cloudflare, CMDB, GMUD e chamados do SOC.
+Aplicação web para áreas de Segurança da Informação. Ela reúne, em dashboards, os indicadores de segurança da empresa (WAF, XDR, SOC, vulnerabilidades, DLP, maturidade) e também ferramentas operacionais: scanner DAST, Shadow IT, simulação de phishing, CMDB, gestão de mudanças (GMUD), treinamentos e chamados do SOC.
 
-- **Produção:** https://b-security.bernoulli.com.br
-- **Preview Lovable:** https://b-security.lovable.app
-- **Projeto Lovable:** https://lovable.dev/projects/ad2d9bfd-cf80-4493-9684-3c4d936f53e3
+> **Nome do produto:** "Z-Sec" é provisório. O nome exibido vem da variável `VITE_APP_NAME` (ver [src/lib/brand.ts](src/lib/brand.ts)), então trocar o nome não exige mexer no código.
 
-> O projeto nasceu no [Lovable](https://lovable.dev) e continua sincronizado com ele: o que é editado no Lovable vira commit neste repositório, e o que é enviado para `main` volta para o Lovable.
+> **Origem:** o projeto nasceu no [Lovable](https://lovable.dev) como painel interno de uma empresa e está sendo transformado em produto para várias empresas. O build ainda usa o pacote `@lovable.dev/vite-tanstack-config`, mas o repositório não é mais sincronizado com o Lovable.
 
 ---
 
@@ -15,18 +13,19 @@ Aplicação web corporativa da área de Segurança da Informação do Bernoulli.
 1. [Stack](#stack)
 2. [Arquitetura](#arquitetura)
 3. [Estrutura de pastas](#estrutura-de-pastas)
-4. [Módulos do painel](#módulos-do-painel)
-5. [Integrações externas](#integrações-externas)
+4. [Módulos](#módulos)
+5. [Integrações](#integrações)
 6. [Endpoints públicos (hooks e cron)](#endpoints-públicos-hooks-e-cron)
 7. [Autenticação, RBAC e sessão](#autenticação-rbac-e-sessão)
 8. [Banco de dados (Supabase)](#banco-de-dados-supabase)
 9. [Variáveis de ambiente](#variáveis-de-ambiente)
 10. [Scripts](#scripts)
 11. [Build e deploy](#build-e-deploy)
-12. [Convenções do código](#convenções-do-código)
-13. [Pendências conhecidas](#pendências-conhecidas)
-14. [Configurando o ambiente de desenvolvimento (Windows + VSCode)](#configurando-o-ambiente-de-desenvolvimento-windows--vscode)
-15. [Configurando o ambiente de desenvolvimento (macOS + VSCode)](#configurando-o-ambiente-de-desenvolvimento-macos--vscode)
+12. [Fluxo de trabalho com Git](#fluxo-de-trabalho-com-git)
+13. [Convenções do código](#convenções-do-código)
+14. [Pendências conhecidas](#pendências-conhecidas)
+15. [Ambiente de desenvolvimento (Windows + VSCode)](#ambiente-de-desenvolvimento-windows--vscode)
+16. [Ambiente de desenvolvimento (macOS + VSCode)](#ambiente-de-desenvolvimento-macos--vscode)
 
 ---
 
@@ -40,34 +39,54 @@ Aplicação web corporativa da área de Segurança da Informação do Bernoulli.
 | Dados no cliente | TanStack Query, react-hook-form + zod |
 | Gráficos e planilhas | Recharts, react-grid-layout, SheetJS (`xlsx`) |
 | Backend / BaaS | Supabase: Postgres, Auth, Realtime, RLS, `pg_cron`, `pg_net` e Edge Functions |
-| Servidor de produção | Nitro (`node_server`), rodando como Node standalone no Azure App Service |
+| Servidor de produção | Nitro (`node_server`): um servidor Node standalone em `.output/server/index.mjs` |
 | Linguagem | TypeScript 5 (`strict`) |
-| Gerenciador de pacotes | **Bun**: o `bun.lock` é a fonte de verdade das versões, porque é o lockfile que o Lovable mantém. O `npm` roda os scripts normalmente |
+| Gerenciador de pacotes | **Bun**: o `bun.lock` é a fonte de verdade das versões. O `npm` roda os scripts normalmente |
 | Qualidade | ESLint 9 (flat config) + Prettier 3 |
-| Config de build | `@lovable.dev/vite-tanstack-config`, que já inclui os plugins TanStack, React, Tailwind e tsconfig-paths |
+| Agente de estações | Go (pasta [agent/](agent/)) |
+| Servidor de scanner | Python/FastAPI (pasta [scripts/dast-provisioning/](scripts/dast-provisioning/)) |
 
 ---
 
 ## Arquitetura
 
+### Modelo: um banco por empresa
+
+Cada empresa cliente tem **o próprio projeto Supabase** (banco, Auth e Storage) e a própria instância da aplicação. Nada é compartilhado entre clientes, o que dá isolamento total dos dados. Por isso o código continua "de empresa única": não existe coluna `empresa_id` nas tabelas.
+
+Os dados da empresa que opera cada instância (nome, nome curto, domínio corporativo) ficam na tabela `organizacao_config` e são editados em **Configurações → Dados da Organização**.
+
+### Como as peças conversam
+
 ```
 Navegador (React SSR/CSR)
    │  server functions (createServerFn) + Bearer do Supabase
    ▼
-Servidor TanStack Start / Nitro (Node)  ──►  APIs externas (Cloudflare, Sophos, QRadar, Zabbix...)
-   │         ▲                                   (algumas atrás de Cloudflare Access)
+Servidor TanStack Start / Nitro (Node)  ──►  APIs na nuvem (Cloudflare, Sophos, Purview, Azure DevOps...)
+   │         ▲                         ──►  sistemas on-prem do cliente (via Cloudflare Access, hoje)
    │         │ POST /api/public/hooks/*  (HOOK_SECRET)
    ▼         │
 Supabase (Postgres + RLS + pg_cron/pg_net) ──► agenda os hooks de sincronização
    ▲
-   │ callbacks cifrados
-Serviços externos: motor DAST/ZAP + Shadow IT (FastAPI), worker SEK/Zendesk
+   │ push com chave própria
+Agente das estações · pipelines SAST · servidor de scanner (callbacks)
 ```
 
-- **Leitura e escrita de dados:** o cliente usa o Supabase com a chave publishable, respeitando RLS. Operações privilegiadas passam por server functions (`src/lib/*.functions.ts`), que usam a service role só no servidor (`client.server.ts`).
-- **Sincronizações:** o `pg_cron` do Supabase chama os endpoints `/api/public/hooks/*` via `pg_net`, enviando o `HOOK_SECRET`. Os agendamentos são gerenciados na tela **Configurações → Cron Jobs**.
-- **Credenciais de fornecedores** (Cloudflare, Sophos, QRadar etc.) **não ficam em variáveis de ambiente**. Elas são cadastradas na tela **Integração API** e gravadas cifradas (AES-256-GCM) na tabela `integrations`.
+- **Leitura e escrita de dados:** o navegador usa o Supabase com a chave publishable, respeitando o RLS. Operações privilegiadas passam por server functions (`src/lib/*.functions.ts`), que usam a service role só no servidor.
+- **Sincronizações:** o `pg_cron` do Supabase chama os endpoints `/api/public/hooks/*` via `pg_net`, enviando o `HOOK_SECRET`. Os agendamentos são gerenciados em **Configurações → Cron Jobs**, que monta a URL a partir de `APP_URL`.
+- **Credenciais de fornecedores** (Cloudflare, Sophos, QRadar etc.) **não ficam em variáveis de ambiente**. Elas são cadastradas em **Configurações → Integração API** e gravadas cifradas (AES-256-GCM) na tabela `integrations`.
 - `src/server.ts` é a entrada do servidor. Ele aplica os headers de segurança (`X-Frame-Options`, CSP `frame-ancestors 'none'`) e define uma página de erro própria.
+
+### Direção para várias empresas (planejado)
+
+| Camada | O que é | Onde roda |
+| --- | --- | --- |
+| **Z-Sec** | A aplicação, um banco por cliente | Nuvem |
+| **Serviços gerenciados** | DAST externo e Gophish, operados por nós | Nuvem |
+| **Z-Sec Collector** | Appliance na rede do cliente: scanner interno, SIEM on-prem, AD/DNS/SMB/LDAP, Zabbix. Evolução do `scripts/dast-provisioning` | Rede do cliente, **só conexão de saída** (busca trabalho na nuvem, como um runner de CI) |
+| **Agentes** | Estações: uso de IA, Shadow IT | Máquinas do cliente, enviam por push |
+
+O SIEM será tratado por adaptadores: SIEM em nuvem (Wazuh Cloud, Sentinel, Elastic, Splunk Cloud) direto pela API, SIEM on-prem (QRadar, Wazuh, Splunk) pelo Collector, ou o próprio SIEM enviando alertas por webhook/syslog.
 
 ---
 
@@ -79,42 +98,44 @@ src/
 │  ├─ index.tsx                # redireciona para /login ou /app
 │  ├─ login.tsx, reset-password.tsx, ativar.tsx
 │  ├─ trust.tsx                # página pública "Confiança e Segurança"
+│  ├─ treinamentos.tsx         # portal do colaborador (treinamentos atribuídos)
 │  ├─ app.tsx                  # layout autenticado (sidebar + header)
 │  ├─ app.$module.tsx          # renderiza o dashboard a partir do slug
 │  └─ api/public/              # endpoints HTTP (hooks de cron, callbacks, SSO)
 ├─ components/
 │  ├─ dashboard/               # um componente por módulo (*Real.tsx = dados reais)
 │  │  ├─ dashboards.tsx        # mapa slug → componente
-│  │  ├─ primitives.tsx        # KpiCard, Panel, Badge
 │  │  └─ benchmark/ cloudflare/ cmdb/ fornecedores/ gmud/ maturidade/
 │  │     nao-conformidade/ soc/ vulnerabilidades/   # abas e diálogos de cada módulo
-│  ├─ layout/                  # AppHeader (filtros e export) e AppSidebar (menu por permissão)
+│  ├─ layout/                  # AppHeader, AppSidebar, CommandMenu, DetailSheet
 │  └─ ui/                      # componentes shadcn/ui
 ├─ lib/
 │  ├─ *.functions.ts           # server functions (createServerFn), chamadas pelo cliente
-│  ├─ *.server.ts              # código exclusivo de servidor (nunca vai para o bundle do browser)
+│  ├─ *.server.ts              # código exclusivo de servidor (nunca vai para o bundle do navegador)
+│  ├─ brand.ts                 # APP_NAME (nome do produto)
+│  ├─ app-url.ts               # APP_URL (endereço público da instância)
+│  ├─ organizacao.*.ts         # dados da organização (organizacao_config)
 │  ├─ modules.ts               # catálogo de módulos e grupos da sidebar
 │  ├─ authz.ts, use-permissions.ts, exclusive-modules.ts, session-policy.middleware.ts
-│  ├─ auth-context.tsx, filters-context.tsx
 │  └─ crypto.server.ts, ssrf-guard.server.ts, hook-auth.server.ts, http-retry.ts ...
-├─ integrations/supabase/      # clients (browser/servidor), middleware de auth, types.ts gerado
-├─ hooks/                      # use-mobile
+├─ integrations/supabase/      # clients (navegador/servidor), middleware de auth, types.ts gerado
 ├─ server.ts, start.ts, router.tsx, styles.css
 └─ routeTree.gen.ts            # GERADO automaticamente, não editar
 
 supabase/
-├─ config.toml
-├─ migrations/                 # ~290 migrations SQL (schema, RLS, RPCs, cron)
-└─ functions/send-smtp/        # Edge Function: envio de e-mail via SendGrid
+├─ config.toml                 # config do Supabase CLI local (project_id "zsec-local")
+├─ migrations/                 # ~300 migrations SQL (schema, RLS, RPCs, cron)
+└─ functions/send-smtp/        # Edge Function de envio de e-mail
 
-cicd/                          # pipelines do Azure DevOps
-.github/workflows/             # sync manual HMG → repositório de produção
-.lovable/                      # planos gerados pelo Lovable
+agent/                         # agente Go das estações (Windows/macOS) → /api/public/hooks/agent-ingest
+scripts/dast-provisioning/     # servidor de scanner (FastAPI): DAST, Shadow IT, DNS/AD, proxy do SEK
+Documentações/                 # PDFs de PoC técnicas
+.env.example                   # modelo de todas as variáveis de ambiente
 ```
 
 ---
 
-## Módulos do painel
+## Módulos
 
 O catálogo fica em [src/lib/modules.ts](src/lib/modules.ts) e o mapeamento para componentes em [src/components/dashboard/dashboards.tsx](src/components/dashboard/dashboards.tsx).
 
@@ -122,34 +143,66 @@ O catálogo fica em [src/lib/modules.ts](src/lib/modules.ts) e o mapeamento para
 | --- | --- |
 | **Executivo** | Painel Executivo, Painel C-Level |
 | **Monitoramento** | Cloudflare WAF, Domínios/SSL, Fornecedores, Privacy Tools (LGPD), DLP (Purview), Ranking de Uso de IA, SOC Monitoramento, Sophos XDR, Gestão de Vulnerabilidades |
-| **Operações** | DAST Security Scanner, Shadow IT, Simulação de Phishing, WSUS, CMDB |
-| **Governança** | Benchmark, Comitês, NPS, Gestão de Mudança (GMUD), Maturidade do Ambiente, Não Conformidade, Organização SI, Políticas e Processos, Pílulas de SI, Disponibilidade de Ativos |
-| **Cadastros** | Aprovadores, Aplicações, Departamentos, Segmentos, Importação de Dados (CSV/XLSX) |
-| **Configurações** *(só admin)* | Exceção Sophos, Logs, SMTP, SSO/LDAP, Usuários e Permissões, Integração API, Alertas, Cron Jobs |
+| **Operações** | DAST Security Scanner, Shadow IT, Simulação de Phishing, WSUS, CMDB, SAST |
+| **Governança** | Benchmark, Comitês, NPS, Gestão de Mudança (GMUD), Maturidade do Ambiente, Não Conformidade, Organização SI, Políticas e Processos, Pílulas de SI, Treinamentos, Disponibilidade de Ativos, Notas de maturidade (Segmentos) |
+| **Cadastros** | Aprovadores, Aplicações, Departamentos, Importação de Dados (CSV/XLSX) |
+| **Configurações** *(só admin)* | Dados da Organização, Exceção Sophos, Logs, SMTP, SSO/LDAP, Usuários e Permissões, Integração API, Alertas, Cron Jobs |
 
 ---
 
-## Integrações externas
+## Integrações
 
-| Fornecedor | Uso | Código |
+Agrupadas pelo jeito como o Z-Sec alcança o sistema de destino.
+
+### 1. APIs na nuvem
+
+Funcionam para qualquer cliente. As credenciais ficam na tabela `integrations` de cada banco.
+
+| Integração | Módulos | Destino | Código |
+| --- | --- | --- | --- |
+| Cloudflare | WAF, DNS, Analytics, Load Balancing, RUM | `api.cloudflare.com` | `cloudflare*.ts` |
+| Sophos Central | Sophos XDR, Exceções, Ranking IA, licenças | `api.central.sophos.com` | `sophos*.ts`, `ia*.ts` |
+| Microsoft Purview | DLP | `manage.office.com` | `dlp*.ts` |
+| Azure DevOps / App Insights | SAST | `dev.azure.com`, `api.loganalytics.io` | `sast*.ts` |
+| SendGrid | Estatísticas de e-mail | `api.sendgrid.com` | `sendgrid*.ts` |
+| Privacy Tools | LGPD | API do fornecedor | `privacy-tools*.ts` |
+| ssl-checker / RDAP | Domínios e certificados | Serviços públicos | `domains.functions.ts`, `ssl*.ts` |
+| Microsoft Entra ID | SSO e portal de Treinamentos | `login.microsoftonline.com` | `sso.functions.ts`, `treinamentos*.ts` |
+
+### 2. Sistemas on-prem via Cloudflare Access
+
+Hoje o servidor chama o sistema do cliente através de um túnel Cloudflare, usando o service token `CF_ACCESS_CLIENT_ID/SECRET`.
+
+| Integração | Módulos | Código |
 | --- | --- | --- |
-| Cloudflare | WAF, analytics, load balancing, regras, DNS, RUM | `cloudflare*.functions.ts`, `cloudflare.server.ts` |
-| Sophos Central | eventos XDR, auditoria, eventos web (base do Ranking IA), licenças | `sophos*.ts`, `ia*.ts` |
-| IBM QRadar | ofensas do SOC (via Cloudflare Access) | `qradar*.ts` |
-| SEK / Zendesk | chamados do SOC (worker externo) | `sek-zendesk*.ts` |
-| OWASP ZAP (motor FastAPI) | scanner DAST black/white box | `dast*.ts` |
-| Motor Shadow IT (FastAPI) | varredura SMB/FTP/HTTP/NetBIOS | `shadowit*.ts` |
-| Gophish | simulação de phishing | `phishing*.ts`, `gophish.server.ts` |
-| Zabbix | disponibilidade de ativos, alertas Telegram/Teams | `zabbix*.ts`, `disponibilidade*.ts` |
-| Microsoft Purview | eventos de DLP | `dlp*.ts` |
-| Microsoft Entra ID | login SSO | `sso.functions.ts`, `routes/api/public/auth/azure/callback.ts` |
-| Privacy Tools | LGPD | `privacy-tools*.ts` |
-| SendGrid / SMTP | e-mails de alerta | `sendgrid*.ts`, `smtp.functions.ts`, Edge Function `send-smtp` |
-| RDAP / IANA / ssl-checker | vencimento de domínios e certificados | `domains.functions.ts`, `ssl*.ts` |
+| IBM QRadar | SOC | `qradar*.ts` |
+| Zabbix | Disponibilidade, CMDB | `zabbix*.ts`, `disponibilidade*.ts` |
+| Gophish | Simulação de Phishing | `phishing*.ts`, `gophish.server.ts` |
+| Servidor de scanner | DAST, SEK | `dast*.ts`, `sek-zendesk*.ts` |
 
-O WSUS não tem API: os dados entram pela tela **Importação de Dados**.
+### 3. Rede interna via servidor de scanner
 
-> O motor DAST/Shadow IT e o worker SEK/Zendesk são **serviços separados** e não estão neste repositório. Eles se comunicam com o painel por HTTP autenticado e callbacks.
+O servidor de [scripts/dast-provisioning/](scripts/dast-provisioning/) roda na rede do cliente e faz o que precisa de acesso interno.
+
+| Função | Módulo |
+| --- | --- |
+| Resolução DNS do AD (`/resolve`) | CMDB |
+| Varredura SMB/FTP/HTTP/NetBIOS | Shadow IT |
+| Consulta ao AD/LDAP | DAST (descoberta de ativos) |
+| Proxy `/sek-worker` (`SEK_WORKER_URL`) | SOC (chamados SEK/Zendesk) |
+
+### 4. Push (o cliente envia)
+
+Só conexão de saída do lado do cliente, autenticada por chave própria.
+
+| Origem | Endpoint | Chave |
+| --- | --- | --- |
+| Agente das estações ([agent/](agent/)) | `/api/public/hooks/agent-ingest` | `AGENT_INGEST_KEY` |
+| Pipelines do Azure DevOps | `/api/public/hooks/sast-ingest` | Chave gerada no card SAST |
+
+### 5. Importação manual
+
+O WSUS não tem API: os dados entram pela tela **Importação de Dados**, assim como outras planilhas.
 
 ---
 
@@ -159,17 +212,18 @@ Todos ficam em `src/routes/api/public/hooks/` e são `POST`, protegidos por `HOO
 
 | Grupo | Hooks |
 | --- | --- |
-| Sincronizações | `cloudflare-sync`, `sophos-sync`, `sophos-audit-sync`, `sophos-ia-sync`, `ranking-ia-sync`, `qradar-sync` (streaming com heartbeat), `qradar-sync-watchdog`, `dlp-sync`, `gophish-sync`, `privacy-tools-sync` |
+| Sincronizações | `cloudflare-sync`, `sophos-sync`, `sophos-audit-sync`, `sophos-ia-sync`, `ranking-ia-sync`, `qradar-sync` (streaming com heartbeat), `qradar-sync-watchdog`, `dlp-sync`, `gophish-sync`, `privacy-tools-sync`, `sast-sync` |
 | Caches | `zabbix-cache-refresh`, `cmdb-dns-cache-refresh` |
 | Alertas | `domains-check`, `ssl-check`, `fornecedores-check`, `cmdb-device-alerts`, `gmud-escalate` |
-| DAST / Shadow IT | `dast-callback`, `dast-schedules-run`, `shadowit-callback`, `vuln-snapshot` |
+| DAST / Shadow IT | `dast-callback`, `dast-schedules-run`, `dast-stale-scan-sweep`, `shadowit-callback`, `vuln-snapshot` |
 | SEK / Zendesk | `sek-zendesk-sync`, `sek-zendesk-tickets-sync`, `sek-zendesk-auth-log` |
 
 Exceções à regra do `HOOK_SECRET`:
 
 - `qradar-sync-manual` usa o Bearer do usuário (admin ou analista).
 - `sek-zendesk-session-upload` valida um JWT próprio (`SEK_RENEWAL_SECRET`).
-- `api/public/auth/azure/callback` (GET) é o callback OAuth do SSO.
+- `agent-ingest` e `sast-ingest` usam as chaves de ingestão (ver [Integrações → Push](#4-push-o-cliente-envia)).
+- `api/public/auth/azure/callback` e `api/public/treinamentos/sso/callback` (GET) são callbacks OAuth do login Microsoft.
 
 ---
 
@@ -190,53 +244,37 @@ Exceções à regra do `HOOK_SECRET`:
 
 ## Banco de dados (Supabase)
 
-- O projeto Supabase está definido em [supabase/config.toml](supabase/config.toml).
 - As migrations ficam em `supabase/migrations/` e cobrem schema, RLS, RPCs de RBAC (`has_role`, `has_module_permission`, `is_module_admin`...) e agendamentos `pg_cron`.
-- Os tipos gerados ficam em [src/integrations/supabase/types.ts](src/integrations/supabase/types.ts). Algumas tabelas criadas manualmente (ex.: `sek_tickets`) ainda não aparecem nesse arquivo.
-- **Regra da equipe:** nunca edite uma migration já criada. Toda mudança entra como uma **nova migration incremental** (`ALTER ...`).
-- **Escritas no Supabase de produção são feitas manualmente** pelo responsável, nunca por script automático.
+- O [supabase/config.toml](supabase/config.toml) serve só ao Supabase CLI local. O vínculo com um projeto real é feito por comando: `supabase link --project-ref <id>`.
+- Os tipos gerados ficam em [src/integrations/supabase/types.ts](src/integrations/supabase/types.ts). Algumas tabelas (ex.: `sek_tickets`, `organizacao_config`) ainda não aparecem nesse arquivo e são acessadas por cast.
+- **Nunca edite uma migration já criada.** Toda mudança entra como uma **nova migration incremental** (`ALTER ...`).
+- **Escritas em bancos de produção são feitas manualmente** pelo responsável, nunca por script automático.
 
 ---
 
 ## Variáveis de ambiente
 
-Crie um arquivo **`.env.local`** na raiz do projeto. Ele já está no `.gitignore`, porque o padrão `*.local` é ignorado. **Nunca faça commit dele.** Peça os valores ao responsável pelo projeto.
+O modelo completo, com a explicação de cada variável, está em [.env.example](.env.example).
 
-```dotenv
-# --- Supabase (obrigatório para o app subir) ---
-VITE_SUPABASE_URL=https://<project-id>.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=<publishable/anon key>
-VITE_SUPABASE_PROJECT_ID=<project-id>
-SUPABASE_URL=https://<project-id>.supabase.co
-SUPABASE_PUBLISHABLE_KEY=<publishable/anon key>
-SUPABASE_PROJECT_ID=<project-id>
-SUPABASE_SERVICE_ROLE_KEY=<service role key>      # só servidor
-
-# --- Hooks / criptografia ---
-HOOK_SECRET=<segredo dos endpoints /api/public/hooks>
-INTEGRATIONS_ENCRYPTION_KEY=<chave AES das credenciais de integração>
-
-# --- Cloudflare Access (QRadar, Gophish, Zabbix, DAST, SEK) ---
-CF_ACCESS_CLIENT_ID=
-CF_ACCESS_CLIENT_SECRET=
-
-# --- SSO Microsoft Entra ID ---
-AZURE_CLIENT_SECRET=
-SSO_STATE_SECRET=
-SSO_REDIRECT_URI=http://localhost:8080/api/public/auth/azure/callback
-
-# --- SEK / Zendesk ---
-SEK_RENEWAL_SECRET=
-
-# --- Opcionais ---
-SMTP_PASSWORD=
-APP_URL=http://localhost:8080          # padrão: https://b-security.bernoulli.com.br
-PUBLIC_APP_URL=http://localhost:8080
+```bash
+cp .env.example .env.local   # desenvolvimento
 ```
 
-Algumas variáveis aparecem no `.env.local` da equipe mas são usadas pelos serviços externos (motor DAST e worker SEK), não por este app: `ZAP_API_KEY`, `SCANNER_API_SECRET`, `SESSION_ENCRYPTION_KEY` e `BSECURITY_HOOK_URL`.
+Preencha o `.env.local`. **Nunca faça commit dele.** O `.gitignore` ignora `.env`, `.env.*` e `*.local`, liberando só o `.env.example`.
+
+| Grupo | Variáveis | Obrigatória? |
+| --- | --- | --- |
+| Aplicação | `APP_URL`, `VITE_APP_NAME` | `APP_URL` sim (links, convites, SSO e crons) |
+| Supabase | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Sim |
+| Segredos internos | `INTEGRATIONS_ENCRYPTION_KEY`, `HOOK_SECRET`, `SSO_STATE_SECRET` | Sim |
+| SSO Microsoft | `AZURE_CLIENT_SECRET`, `SSO_REDIRECT_URI`, `TREINAMENTOS_SSO_REDIRECT_URI` | Só com SSO; as URIs são opcionais (derivadas de `APP_URL`) |
+| E-mail | `SMTP_PASSWORD` | Opcional |
+| Agente | `AGENT_INGEST_KEY` | Só com o agente |
+| Scanner / SEK | `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `SEK_WORKER_URL`, `SEK_RENEWAL_SECRET` | Só com DAST/SEK |
 
 > Variáveis com prefixo `VITE_` são embutidas no bundle do navegador. **Nunca** coloque segredo em variável `VITE_`.
+
+> `ZAP_API_KEY` e `SCANNER_API_SECRET` pertencem ao servidor de scanner (`scripts/dast-provisioning`), não a este app.
 
 ---
 
@@ -256,21 +294,42 @@ Algumas variáveis aparecem no `.env.local` da equipe mas são usadas pelos serv
 
 ## Build e deploy
 
-- **Azure DevOps** ([cicd/azure-pipelines.yml](cicd/azure-pipelines.yml)): roda nas branches `homolog` (Beta) e `main` (Prod).
-  - Executa `npm run build` e publica `.output/` no Azure App Service com `node server/index.mjs`.
-  - Aplica as migrations do Supabase e roda Sonar e Gitleaks.
-  - As variáveis `VITE_*` vêm dos Key Vaults `b-kv-seg-info` (Beta) e `p-kv-seg-info` (Prod).
-- **Espelhamento GitHub → Azure DevOps** ([cicd/lovable-pipelines.yml](cicd/lovable-pipelines.yml)): disparo manual. Cria um commit squash na branch `homolog` do repositório `b-security`.
-- **GitHub Actions** ([.github/workflows/sync-prod.yml](.github/workflows/sync-prod.yml)): disparo manual. Espelha HMG para `Si-Bernoulli/indicadores-de-seguran-a`.
-- O [vite.config.ts](vite.config.ts) força o preset Nitro `node_server` fora do Lovable. Dentro do Lovable, o padrão é `cloudflare-module`.
+- `npm run build` gera a pasta `.output/`. Para rodar em produção: `node .output/server/index.mjs`, com as variáveis de ambiente carregadas (porta via `PORT`, padrão 3000).
+- O [vite.config.ts](vite.config.ts) força o preset Nitro `node_server` (servidor Node standalone).
+- O build precisa de **2 a 3 GB de RAM**. Em máquinas pequenas, faça o build em outro lugar e copie só a pasta `.output/`.
+- **Pipeline de deploy: em definição.** O plano é um ambiente de homologação (branch `hmg`) com build automático a partir do Gitea e publicação via Cloudflare Tunnel.
+
+---
+
+## Fluxo de trabalho com Git
+
+- **O Gitea é a fonte oficial** do código. O GitHub é só um **espelho de mão única** (push mirror do Gitea): o que for alterado direto no GitHub é sobrescrito no próximo sync.
+- **PRs, merges e exclusão de branch: sempre no Gitea.**
+- **Uma branch curta por assunto**, criada a partir da `main` atualizada: `feature/...`, `fix/...`, `redesign/...`, `chore/...`, `docs/...`.
+- **A `main` é o que vai para o ar.** Não commite direto nela, exceto ajustes pequenos de documentação.
+- **Merge com squash** quando os commits da branch forem só "salvando progresso", para a `main` ficar com um commit por assunto e uma mensagem clara.
+- Mensagens de commit curtas, no formato `tipo: o que mudou` (ex.: `fix: filtro do SOC ignorava o período`).
+
+Guia rápido:
+
+```bash
+git switch main && git pull               # main atualizada
+git switch -c feature/nome                # branch nova
+# ... altera, testa ...
+git add -A && git commit -m "feature: ..."
+git push -u origin feature/nome           # depois: PR no Gitea
+```
 
 ---
 
 ## Convenções do código
 
-- **Não rode `prettier --write` / `npm run format` em massa.** O repositório nunca foi formatado com o `.prettierrc` atual, então o comando reformataria todos os arquivos e sujaria o diff. Formate só o trecho que você editou.
+- **Não rode `prettier --write` / `npm run format` em massa.** O repositório nunca foi formatado com o `.prettierrc` atual, então o comando reformataria todos os arquivos e sujaria o diff. Formate só os arquivos novos ou o trecho que você editou.
 - **`*.server.ts`** guarda código só de servidor: service role, segredos, chamadas a APIs externas. Não use o pacote `server-only` do Next.js; o ESLint bloqueia esse import.
-- **`*.functions.ts`** guarda as server functions (`createServerFn`) chamadas pelo cliente.
+- **`*.functions.ts`** guarda as server functions (`createServerFn`) chamadas pelo cliente. Esses arquivos também vão para o bundle do navegador, então:
+  - código que usa a service role fica num `*.server.ts`, importado **dentro** do handler (`await import("./x.server")`);
+  - `process.env` é lido **dentro de funções**, nunca no topo do módulo.
+- **Nada da empresa fixo no código.** Nome do produto vem de `APP_NAME` ([src/lib/brand.ts](src/lib/brand.ts)), endereço da instância de `appUrl()` ([src/lib/app-url.ts](src/lib/app-url.ts)) e dados da organização de `useOrganizacao()` / `loadOrganizacao()`.
 - **Não use `throw new Response(...)` dentro de middleware de `createServerFn`.** O cliente recebe isso como um "sucesso" com dado corrompido. Lance um `Error` ou retorne o erro de forma explícita.
 - **Novas regras e criações sensíveis** (ex.: regras da Cloudflare) são criadas **desativadas** e disparam alerta.
 - **Imports** usam o alias `@/` para `src/`.
@@ -281,17 +340,18 @@ Algumas variáveis aparecem no `.env.local` da equipe mas são usadas pelos serv
 
 ## Pendências conhecidas
 
-- **`wrangler.jsonc` está com o conteúdo errado.** O arquivo contém uma cópia do código de `qradar-sync.ts`, não uma config do Wrangler. Não afeta o build Node (Azure), mas precisa ser corrigido se o deploy Cloudflare for usado.
-- **Arquivos soltos na raiz:** `cloudflared.exe` (~55 MB) e `worker-index.b64` (vazio) estão versionados e deveriam sair do repositório ou entrar no `.gitignore`.
-- **Não existe `.env.example`.** Use o modelo da seção [Variáveis de ambiente](#variáveis-de-ambiente).
-- **Existem dois lockfiles, `package-lock.json` e `bun.lock`.** O Lovable atualiza o `bun.lock`, e o `package-lock.json` pode ficar defasado.
+- **Coluna `is_bernoulli`** nas tabelas `segmentos` e `benchmark_maturidade_ref` (e os identificadores `kind: "bernoulli"` / `BernoulliRow` no código) ainda carregam o nome da empresa de origem. A renomeação para `is_propria` será feita junto com o banco novo.
+- **Regra "segmento Educação"**: Painel Executivo, C-Level e Maturidade comparam a organização com os segmentos cujo nome começa com "Educa". Precisa virar configuração.
+- **Integrações on-prem dependem de Cloudflare Access** com um único service token no `.env`. A direção é o Z-Sec Collector (ver [Arquitetura](#direção-para-várias-empresas-planejado)).
+- **`wrangler.jsonc` está com o conteúdo errado.** O arquivo contém uma cópia do código de `qradar-sync.ts`, não uma config do Wrangler. Não afeta o build Node.
+- **Existem dois lockfiles, `package-lock.json` e `bun.lock`.** O `bun.lock` é a referência, e o `package-lock.json` pode ficar defasado.
 - **ESLint:** o projeto tem ~10,7 mil avisos `prettier/prettier` (só formatação) e ~1,2 mil `no-explicit-any`. Nenhum deles quebra o build. A seção abaixo mostra como deixar o editor limpo sem reformatar o código.
 
 ---
 
-## Configurando o ambiente de desenvolvimento (Windows + VSCode)
+## Ambiente de desenvolvimento (Windows + VSCode)
 
-Passo a passo para uma máquina nova rodar o projeto sem erros no editor e com a interface igual à de produção.
+Passo a passo para uma máquina nova rodar o projeto sem erros no editor.
 
 ### 1. Instalar as ferramentas base
 
@@ -329,8 +389,8 @@ bun -v            # 1.x
 
 ```powershell
 cd $HOME\Documents
-git clone <url-do-repositório> b-security
-cd b-security
+git clone <url-do-repositório-no-gitea> Projeto_Z-Sec
+cd Projeto_Z-Sec
 code .
 ```
 
@@ -342,15 +402,19 @@ code .
 bun install --frozen-lockfile
 ```
 
-- Esse comando instala **todas** as bibliotecas do `package.json` exatamente nas versões do `bun.lock`: React, TanStack, Radix/shadcn, Tailwind, Supabase, Recharts, ESLint, Prettier, TypeScript etc. Não é preciso instalar nenhuma delas separadamente.
-- **Use o Bun, não o `npm install`.** O `package-lock.json` está defasado em relação ao `bun.lock`, então o npm instala versões mais novas do TanStack Router. Com elas, o projeto passa a ter erro de tipo (veja [Problemas comuns](#8-problemas-comuns)). Se você rodou `npm install` por engano, desfaça com `git checkout package-lock.json`, apague o `node_modules` e rode o comando acima.
+- Esse comando instala **todas** as bibliotecas do `package.json` exatamente nas versões do `bun.lock`. Não é preciso instalar nenhuma delas separadamente.
+- **Use o Bun, não o `npm install`.** O `package-lock.json` pode estar defasado em relação ao `bun.lock`, e o npm instalaria versões mais novas do TanStack Router, que causam erro de tipo (veja [Problemas comuns](#8-problemas-comuns)). Se você rodou `npm install` por engano, desfaça com `git checkout package-lock.json`, apague o `node_modules` e rode o comando acima.
 - Depois de instalar com o Bun, os scripts podem ser rodados com `npm run ...` ou `bun run ...`, tanto faz.
-- A biblioteca `xlsx` é baixada de `cdn.sheetjs.com`. Se a rede corporativa bloquear esse domínio, a instalação falha. Libere o acesso ou use outra rede.
+- A biblioteca `xlsx` é baixada de `cdn.sheetjs.com`. Se a rede bloquear esse domínio, a instalação falha. Libere o acesso ou use outra rede.
 - Se aparecer erro de binário nativo (`rollup`, `lightningcss`, `@tailwindcss/oxide`), apague o `node_modules` e rode `bun install --frozen-lockfile` de novo.
 
 ### 4. Configurar as variáveis de ambiente
 
-Crie o arquivo `.env.local` na raiz, conforme a seção [Variáveis de ambiente](#variáveis-de-ambiente), e preencha os valores. Sem as variáveis do Supabase, o app não consegue fazer login.
+```powershell
+copy .env.example .env.local
+```
+
+Preencha o `.env.local` conforme a seção [Variáveis de ambiente](#variáveis-de-ambiente). Sem as variáveis do Supabase, o app não consegue fazer login.
 
 ### 5. Instalar as extensões do VSCode
 
@@ -471,13 +535,14 @@ npm run build      # deve gerar a pasta .output/ sem erros
 | Centenas de erros `Cannot find module 'react'` / `'@tanstack/...'` no editor | O `node_modules` não existe: faltou o passo 3 |
 | Erros de tipo em rota nova (`createFileRoute`) | O `routeTree.gen.ts` ainda não foi regenerado: rode `npm run dev` uma vez |
 | Erro `Missing Supabase environment variable(s)` | `.env.local` ausente, ou sem as variáveis `VITE_SUPABASE_*` e `SUPABASE_*` |
+| Erro `APP_URL não configurado no servidor` | Falta `APP_URL` no `.env.local` |
 | `npm install` falha no pacote `xlsx` | Acesso a `cdn.sheetjs.com` bloqueado pela rede |
 | Porta 8080 ocupada | Libere a porta: `Get-Process -Id (Get-NetTCPConnection -LocalPort 8080).OwningProcess \| Stop-Process` |
 | Acentos quebrados (`SeguranÃ§a`) | Arquivo salvo fora de UTF-8: confira `files.encoding: utf8` e o canto inferior direito do VSCode |
 
 ---
 
-## Configurando o ambiente de desenvolvimento (macOS + VSCode)
+## Ambiente de desenvolvimento (macOS + VSCode)
 
 A maior parte do guia do Windows também vale para o Mac. Os passos **3 (dependências), 4 (`.env.local`), 6 (`settings.json`) e 7 (rodar)** são idênticos: o mesmo `settings.json` funciona nos dois sistemas. Esta seção cobre só o que muda.
 
@@ -520,6 +585,7 @@ Com as ferramentas instaladas, na pasta do projeto:
 
 ```bash
 bun install --frozen-lockfile
+cp .env.example .env.local
 npx tsc --noEmit   # deve terminar sem nenhuma saída
 ```
 
@@ -542,8 +608,8 @@ Depois disso, clone e abra o projeto normalmente:
 
 ```bash
 cd ~/Documents
-git clone <url-do-repositório> b-security
-cd b-security
+git clone <url-do-repositório-no-gitea> Projeto_Z-Sec
+cd Projeto_Z-Sec
 code .
 ```
 
