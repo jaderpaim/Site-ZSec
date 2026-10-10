@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { hasPermission, requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit-log.functions";
 import { recordCronAttemptStart, recordCronRun } from "@/lib/cron-tracking.server";
+import { readSecret } from "@/lib/crypto.server";
 
 // Módulo SAST (achados das esteiras CI/CD). Leitura via context.supabase
 // (user-scoped): a RLS de sast_* já filtra por has_module_permission('sast',
@@ -130,7 +131,7 @@ export const getSastSyncStatus = createServerFn({ method: "POST" })
     const cfg = (integ?.config ?? {}) as Record<string, unknown>;
     return {
       // Só booleano -- nunca devolve credencial pro browser.
-      configured: !!(integ?.api_key && cfg.tenant_id && cfg.client_id && cfg.workspace_id),
+      configured: !!(readSecret(integ?.api_key) && cfg.tenant_id && cfg.client_id && cfg.workspace_id),
       enabled: !!integ?.enabled,
       lastSyncAt: (cursor?.updated_at as string | null) ?? null,
       lastEventAt: (cursor?.last_event_at as string | null) ?? null,

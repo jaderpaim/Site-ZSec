@@ -5,6 +5,7 @@ import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.
 import { buildCmdbDeviceAlertHtml, buildCmdbDeviceStoppedHtml } from "./email-templates.defaults";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
+import { sendMail } from "@/lib/mailer.server";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -318,7 +319,6 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
     return { alertCount: alertBucket.length, stoppedCount: stoppedBucket.length, notifiedRecipients: 0 };
   }
 
-  const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
 
   type Email = { subject: string; html: string; template: string };
   const emails: Email[] = [];
@@ -357,13 +357,7 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
   for (const email of emails) {
     for (const to of recipients) {
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
+        const out: any = await sendMail({
             host: cfg.host,
             port: cfg.port || 587,
             secure: !!cfg.secure,
@@ -373,15 +367,13 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
             to,
             subject: email.subject,
             html: email.html,
-          }),
-        });
-        const out: any = await res.json().catch(() => ({ ok: false }));
+          });
         await sb.from("email_logs").insert({
           to_email: to,
           subject: email.subject,
           template: email.template,
           status: out.ok ? "success" : "error",
-          error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+          error_message: out.ok ? null : String(out.error ?? "falha no envio"),
         });
         if (out.ok) notifiedRecipients++;
       } catch (e: any) {

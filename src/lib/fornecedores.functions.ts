@@ -5,6 +5,7 @@ import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.functions";
 import { buildFornecedorExpiryAlertHtml } from "./email-templates.defaults";
 import { APP_NAME } from "@/lib/brand";
+import { sendMail } from "@/lib/mailer.server";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -275,7 +276,6 @@ export async function checkExpiringFornecedoresAndNotify(): Promise<{ notified: 
   const password = (cfg as any).password || process.env.SMTP_PASSWORD;
   if (!password) return { notified: 0, fornecedores: expiring.length };
 
-  const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
   const templateOverride = await getEmailTemplateOverride(sb, "fornecedor_expiry_alert");
 
   // Cache de e-mails por departamento
@@ -318,13 +318,7 @@ export async function checkExpiringFornecedoresAndNotify(): Promise<{ notified: 
     let sentToAny = false;
     for (const to of recipients) {
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
+        const out: any = await sendMail({
             host: cfg.host,
             port: cfg.port || 587,
             secure: !!cfg.secure,
@@ -334,15 +328,13 @@ export async function checkExpiringFornecedoresAndNotify(): Promise<{ notified: 
             to,
             subject,
             html,
-          }),
-        });
-        const out: any = await res.json().catch(() => ({ ok: false }));
+          });
         await sb.from("email_logs").insert({
           to_email: to,
           subject,
           template: "fornecedor_expiry_alert",
           status: out.ok ? "success" : "error",
-          error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+          error_message: out.ok ? null : String(out.error ?? "falha no envio"),
         });
         if (out.ok) {
           notified++;

@@ -11,6 +11,7 @@ import {
   applySupabaseFilterConditions,
   filtersInputSchema,
 } from "@/lib/cloudflare.analytics-filters";
+import { readSecret } from "@/lib/crypto.server";
 
 // ─── Supabase client factory (service_role para bypassar RLS server-side) ─────
 function makeSupabase() {
@@ -131,7 +132,7 @@ async function fetchCloudflareAnalyticsCore(data: {
       if (!integ?.enabled) return { ok: false, error: "Integração Cloudflare não está ativa." };
       if (!integ?.api_key) return { ok: false, error: "API Token da Cloudflare não configurado." };
 
-      const live = await fetchLiveAnalytics(integ.api_key, data.zoneId, sinceIso, untilIso, data.days, mergedFilters);
+      const live = await fetchLiveAnalytics(readSecret(integ.api_key), data.zoneId, sinceIso, untilIso, data.days, mergedFilters);
 
       // sample logs do banco para a zona escolhida
       let logQ = supabase
@@ -587,7 +588,7 @@ export const getHttpTrafficAnalytics = createServerFn({ method: "POST" })
           .select("api_key, enabled")
           .eq("provider", "cloudflare")
           .maybeSingle();
-        if (integ?.enabled && integ?.api_key) {
+        if (integ?.enabled && readSecret(integ?.api_key)) {
           const until = new Date(full.range.until);
           const since = new Date(full.range.since);
           const rangeMs = until.getTime() - since.getTime();
@@ -606,7 +607,7 @@ export const getHttpTrafficAnalytics = createServerFn({ method: "POST" })
           const apiExtra = `${eyeball}, OR:[{edgeResponseContentTypeName:"json"},{edgeResponseContentTypeName:"xml"},{edgeResponseContentTypeName:"grpc"},{edgeResponseContentTypeName:"grpcweb"}]`;
 
           const zone = await gqlZone(
-            integ.api_key,
+            readSecret(integ.api_key),
             `query($zone:String!,$since:Time!,$until:Time!,$prevSince:Time!,$prevUntil:Time!${fc.declarations}){
               viewer { zones(filter:{zoneTag:$zone}) {
                 prevTotals: httpRequests1hGroups(limit:1, filter:{datetime_geq:$prevSince, datetime_leq:$prevUntil}) {
@@ -762,7 +763,7 @@ export const getHttpTrafficTopStatsByMetric = createServerFn({ method: "POST" })
     const until = new Date();
     const since = new Date(until.getTime() - data.days * 24 * 60 * 60 * 1000);
     const { topStats, warnings } = await fetchHttpTopStats(
-      integ.api_key,
+      readSecret(integ.api_key),
       data.zoneId,
       since.toISOString(),
       until.toISOString(),
@@ -839,7 +840,7 @@ export const getHttpTrafficGroupedTimeseries = createServerFn({ method: "POST" }
         return { ok: false, error: "Integração Cloudflare não está ativa ou sem token configurado." };
       }
       return fetchGroupedTimeseriesLive(
-        integ.api_key,
+        readSecret(integ.api_key),
         data.zoneId,
         sinceIso,
         untilIso,
@@ -1605,7 +1606,7 @@ export const searchDnsRecords = createServerFn({ method: "POST" })
     if (!integ?.enabled) return { ok: false as const, error: "Integração Cloudflare não está ativa." };
     if (!integ?.api_key) return { ok: false as const, error: "API Token da Cloudflare não configurado." };
 
-    const token = integ.api_key;
+    const token = readSecret(integ.api_key);
     const CF = "https://api.cloudflare.com/client/v4";
 
     // Se não passou zoneId, busca todas as zonas primeiro
@@ -2010,7 +2011,7 @@ export const getCacheStatus = createServerFn({ method: "POST" })
 
     const res = await fetch("https://api.cloudflare.com/client/v4/graphql", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${integ.api_key}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${readSecret(integ.api_key)}` },
       body: JSON.stringify({ query, variables: { zone: zoneId, since: sinceIso, until: untilIso, host: hostname } }),
     });
 
@@ -2096,7 +2097,7 @@ async function getCfToken(): Promise<{ ok: true; token: string } | { ok: false; 
   if (error) return { ok: false, error: error.message };
   if (!data?.enabled) return { ok: false, error: "Integração Cloudflare não está ativa." };
   if (!data?.api_key) return { ok: false, error: "API Token da Cloudflare não configurado." };
-  return { ok: true, token: data.api_key };
+  return { ok: true, token: readSecret(data.api_key) };
 }
 
 const CUSTOM_PHASE_PATH = "rulesets/phases/http_request_firewall_custom/entrypoint";

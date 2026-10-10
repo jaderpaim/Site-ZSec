@@ -28,6 +28,7 @@ import {
 } from "@/lib/sast-normalize";
 import type { SastDetectionRow, VerifiedBuildScope } from "@/lib/sast-normalize";
 import { APP_NAME } from "@/lib/brand";
+import { readSecret } from "@/lib/crypto.server";
 
 const adminDb = supabaseAdmin as unknown as {
   from: (t: string) => any;
@@ -95,8 +96,8 @@ async function getIngestConfig(): Promise<{
   };
   const org = String(cfg.organization ?? "").trim();
   const creds: ReaderCreds | null =
-    cfg.tenant_id && cfg.client_id && data?.api_key
-      ? { tenantId: cfg.tenant_id, clientId: cfg.client_id, clientSecret: data.api_key }
+    cfg.tenant_id && cfg.client_id && readSecret(data?.api_key)
+      ? { tenantId: cfg.tenant_id, clientId: cfg.client_id, clientSecret: readSecret(data.api_key) }
       : null;
   return {
     enabled: !!data?.enabled,

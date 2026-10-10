@@ -6,6 +6,7 @@
 // escopado, não é uma identidade de domínio real como shadowit_smb/dast_ad_ldap),
 // então não usa crypto.server.ts.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { readSecret } from "@/lib/crypto.server";
 
 const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
 
@@ -32,7 +33,7 @@ export async function getPurviewDlpCreds(): Promise<PurviewDlpCreds | null> {
     .maybeSingle();
   const cfg = data?.config as { tenant_id?: string; client_id?: string } | null;
   if (!data?.enabled || !data.api_key || !cfg?.tenant_id || !cfg?.client_id) return null;
-  return { tenantId: cfg.tenant_id, clientId: cfg.client_id, clientSecret: data.api_key as string };
+  return { tenantId: cfg.tenant_id, clientId: cfg.client_id, clientSecret: readSecret(data.api_key) as string };
 }
 
 // OAuth2 client_credentials contra o Microsoft Entra ID (endpoint v1 -- é o

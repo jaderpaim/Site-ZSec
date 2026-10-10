@@ -20,6 +20,7 @@ import {
   RUM_VISITS_FILTER_FIELDS,
   type AnalyticsFilterCondition,
 } from "@/lib/cloudflare.analytics-filters";
+import { readSecret } from "@/lib/crypto.server";
 
 function makeSupabase() {
   const url = process.env.SUPABASE_URL!;
@@ -459,7 +460,7 @@ async function resolveWebAnalyticsContext(
     return { ok: false, error: "Integração Cloudflare não está ativa ou sem token configurado." };
   }
 
-  const lookup = await resolveRumSiteTag(integ.api_key, zoneRow.account_id, zoneRow.id, zoneRow.name);
+  const lookup = await resolveRumSiteTag(readSecret(integ.api_key), zoneRow.account_id, zoneRow.id, zoneRow.name);
   if (!lookup.ok) {
     // "token sem permissão" é um problema diferente de "RUM não configurado" —
     // só trata como empty-state amigável quando de fato não achou site nenhum
@@ -469,7 +470,7 @@ async function resolveWebAnalyticsContext(
     return { ok: false, error: lookup.error, notConfigured: !isPermissionIssue };
   }
 
-  return { apiToken: integ.api_key, accountId: zoneRow.account_id, siteTag: lookup.siteTag };
+  return { apiToken: readSecret(integ.api_key), accountId: zoneRow.account_id, siteTag: lookup.siteTag };
 }
 
 // ─── Totais (Visits/Page views/Page load time) usados por getWebAnalytics ─────

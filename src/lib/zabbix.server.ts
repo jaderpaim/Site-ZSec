@@ -1,5 +1,6 @@
 // Server-only Zabbix API client. Reads credentials from `integrations` table.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { readSecret } from "@/lib/crypto.server";
 
 export type ZabbixCreds = { baseUrl: string; apiKey: string };
 
@@ -29,7 +30,7 @@ export async function getZabbixCreds(): Promise<ZabbixCreds | null> {
     .eq("provider", "zabbix")
     .maybeSingle();
   if (!data?.enabled || !data?.api_key || !data?.base_url) return null;
-  return { baseUrl: data.base_url.replace(/\/+$/, ""), apiKey: data.api_key.trim() };
+  return { baseUrl: data.base_url.replace(/\/+$/, ""), apiKey: readSecret(data.api_key).trim() };
 }
 
 type RpcResp<T> = { result?: T; error?: { code: number; message: string; data?: string } };

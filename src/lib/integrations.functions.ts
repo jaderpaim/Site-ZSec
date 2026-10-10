@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { logAudit } from "@/lib/audit-log.functions";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { readSecret, writeSecret } from "@/lib/crypto.server";
 
 const PROVIDER_LABEL: Record<string, string> = {
   cloudflare: "Cloudflare",
@@ -94,13 +95,13 @@ export const listIntegrations = createServerFn({ method: "GET" })
       const secrets: Record<string, string> = {};
       for (const [k, v] of Object.entries(raw)) {
         if ((SECRET_CONFIG_KEYS as readonly string[]).includes(k)) {
-          const hint = secretHint(v, k !== "password");
+          const hint = secretHint(typeof v === "string" ? readSecret(v) : v, k !== "password");
           if (hint) secrets[k] = hint;
         } else {
           config[k] = v;
         }
       }
-      const keyHint = secretHint(row.api_key, true);
+      const keyHint = secretHint(readSecret(row.api_key), true);
       if (keyHint) secrets.api_key = keyHint;
       return {
         id: row.id,
@@ -142,7 +143,8 @@ export const upsertIntegration = createServerFn({ method: "POST" })
     for (const [k, v] of Object.entries(data.config)) {
       const isSecret = (SECRET_CONFIG_KEYS as readonly string[]).includes(k);
       if (isSecret && (typeof v !== "string" || !v.trim())) continue;
-      config[k] = v;
+      // Segredos dentro de config também vão cifrados (crypto.server.ts).
+      config[k] = isSecret ? writeSecret(String(v).trim()) : v;
     }
     const newKey = data.api_key?.trim();
 
@@ -152,7 +154,7 @@ export const upsertIntegration = createServerFn({ method: "POST" })
         name: data.name,
         enabled: data.enabled,
         base_url: data.base_url,
-        api_key: newKey || existing?.api_key || null,
+        api_key: newKey ? writeSecret(newKey) : existing?.api_key || null,
         config: config as Json,
       },
       { onConflict: "provider" },

@@ -4,6 +4,8 @@ import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { logAudit } from "@/lib/audit-log.functions";
 import { APP_NAME } from "@/lib/brand";
+import { sendMail } from "@/lib/mailer.server";
+import { writeSecret } from "@/lib/crypto.server";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -57,7 +59,8 @@ export const upsertSmtpConfig = createServerFn({ method: "POST" })
     const sb = admin();
     const { password, ...rest } = data;
     const payload: Record<string, any> = { ...rest };
-    if (password && password.length > 0) payload.password = password;
+    // Gravada cifrada; sendMail (mailer.server.ts) decifra no envio.
+    if (password && password.length > 0) payload.password = writeSecret(password);
 
     const { data: existing } = await sb.from("smtp_config").select("id").limit(1).maybeSingle();
     let error: { message: string } | null = null;
@@ -104,14 +107,7 @@ export const sendTestSmtpEmail = createServerFn({ method: "POST" })
     const subject = `${APP_NAME} · Teste de SMTP`;
     const html = `<div style="font-family:Arial,sans-serif"><h3>Teste de SMTP</h3><p>Se você recebeu este e-mail, sua configuração SMTP está funcionando corretamente.</p></div>`;
     try {
-      const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
+      const out = await sendMail({
           host: cfg.host,
           port: cfg.port || 587,
           secure: !!cfg.secure,
@@ -121,9 +117,7 @@ export const sendTestSmtpEmail = createServerFn({ method: "POST" })
           to: data.to,
           subject,
           html,
-        }),
-      });
-      const out = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+        });
       await sb.from("email_logs").insert({
         to_email: data.to,
         subject,

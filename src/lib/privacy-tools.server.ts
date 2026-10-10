@@ -11,6 +11,7 @@
 //   basta substituir a função stubSync() pela implementação real.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { readSecret } from "@/lib/crypto.server";
 
 const PROVIDER = "privacy_tools";
 
@@ -39,9 +40,9 @@ async function getCredentials(): Promise<OAuthCreds | { ok: false; error: string
 
   const cfg = (data.config ?? {}) as Record<string, string>;
   const clientId = (cfg.client_id ?? "").trim();
-  const clientSecret = ((data.api_key ?? "") as string).trim();
+  const clientSecret = ((readSecret(data.api_key) ?? "") as string).trim();
   const username = (cfg.username ?? "").trim();
-  const password = (cfg.password ?? "").trim();
+  const password = (readSecret(cfg.password) ?? "").trim();
   const baseUrl = ((data.base_url ?? "") as string).replace(/\/+$/, "");
 
   if (!baseUrl) return { ok: false, error: "Base URL do Privacy Tools não configurada." };

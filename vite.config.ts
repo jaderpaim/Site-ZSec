@@ -41,6 +41,13 @@ export default defineConfig({
       ssr: {
         build: { minify: false },
       },
+      // nodemailer (src/lib/mailer.server.ts) só roda no servidor, mas os
+      // *.functions.ts que o importam também passam pelo build do navegador,
+      // onde os módulos node:* dele não existem. Externo só no client: o
+      // import nunca executa no navegador; o build do servidor inclui normal.
+      client: {
+        build: { rollupOptions: { external: ["nodemailer"] } },
+      },
     },
   },
 });

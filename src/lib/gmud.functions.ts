@@ -12,6 +12,7 @@ import {
 import { requirePermission, requireAdminOrAnalista, hasPermission } from "@/lib/authz";
 import { APP_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/app-url";
+import { sendMail } from "@/lib/mailer.server";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -619,7 +620,6 @@ async function sendApprovedEmail(gmudId: string) {
     return;
   }
   const password = (cfg as any).password || process.env.SMTP_PASSWORD || "";
-  const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
   const approveUrl = `${appUrl()}/app/gmud?gmud=${g.id}`;
   const defaultHtml = buildGmudApprovedHtml(g, approveUrl);
   const approvedOverride = await getEmailTemplateOverride(sb, "gmud_approved");
@@ -637,13 +637,7 @@ async function sendApprovedEmail(gmudId: string) {
     defaultHtml,
   );
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
+    const out = await sendMail({
         host: cfg.host,
         port: cfg.port || 587,
         secure: !!cfg.secure,
@@ -656,9 +650,7 @@ async function sendApprovedEmail(gmudId: string) {
         to: { name: toEmail, email: toEmail },
         subject,
         html,
-      }),
-    });
-    const out = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      });
     await sb.from("email_logs").insert({
       to_email: toEmail,
       subject,
@@ -706,7 +698,6 @@ async function sendRejectedEmail(gmudId: string, rejectedByName: string, motivo:
     return;
   }
   const password = (cfg as any).password || process.env.SMTP_PASSWORD || "";
-  const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
   const approveUrl = `${appUrl()}/app/gmud?gmud=${g.id}`;
   const defaultHtml = buildGmudRejectedHtml(g, approveUrl, rejectedByName, motivo);
   const rejectedOverride = await getEmailTemplateOverride(sb, "gmud_rejected");
@@ -726,13 +717,7 @@ async function sendRejectedEmail(gmudId: string, rejectedByName: string, motivo:
     defaultHtml,
   );
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
+    const out = await sendMail({
         host: cfg.host,
         port: cfg.port || 587,
         secure: !!cfg.secure,
@@ -745,9 +730,7 @@ async function sendRejectedEmail(gmudId: string, rejectedByName: string, motivo:
         to: { name: toEmail, email: toEmail },
         subject,
         html,
-      }),
-    });
-    const out = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      });
     await sb.from("email_logs").insert({
       to_email: toEmail,
       subject,
@@ -792,7 +775,6 @@ async function sendApprovalEmailToOne(
     return;
   }
   const password = (cfg as any).password || process.env.SMTP_PASSWORD || "";
-  const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
   const approveUrl2 = `${appUrl()}/app/gmud?gmud=${encodeURIComponent(g.id)}`;
   const defaultHtml = buildGmudApprovalRequestHtml(g, a, fromUser, approveUrl2, {
     reminder: isReminder,
@@ -817,13 +799,7 @@ async function sendApprovalEmailToOne(
     defaultHtml,
   );
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
+    const out = await sendMail({
         host: cfg.host,
         port: cfg.port || 587,
         secure: !!cfg.secure,
@@ -836,9 +812,7 @@ async function sendApprovalEmailToOne(
         to: { name: a.nome_aprovador, email: a.email_aprovador },
         subject,
         html,
-      }),
-    });
-    const out = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      });
     await sb.from("email_logs").insert({
       to_email: a.email_aprovador,
       subject,

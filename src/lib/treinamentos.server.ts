@@ -7,6 +7,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { appUrl } from "@/lib/app-url";
 import { APP_NAME } from "@/lib/brand";
+import { sendMail as deliverMail } from "@/lib/mailer.server";
 
 export const LEARNER_COOKIE = "zsec_trn";
 const LEARNER_TTL_SEC = 8 * 60 * 60; // 8 horas
@@ -94,7 +95,7 @@ export function appBaseUrl(): string {
   return appUrl();
 }
 
-// ── E-mail (mesmo caminho dos demais módulos: edge function send-smtp) ────────
+// ── E-mail (mesmo caminho dos demais módulos: sendMail em mailer.server.ts) ──
 export async function sendMail(
   to: string,
   subject: string,
@@ -106,31 +107,23 @@ export async function sendMail(
   if (!cfg?.host) throw new Error("SMTP não configurado");
   const password = cfg.password || process.env.SMTP_PASSWORD;
   if (!password) throw new Error("Senha SMTP não configurada");
-  const res = await fetch(`${process.env.SUPABASE_URL}/functions/v1/send-smtp`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify({
-      host: cfg.host,
-      port: cfg.port || 587,
-      secure: !!cfg.secure,
-      username: cfg.username || null,
-      password,
-      from: { name: cfg.from_name || `${APP_NAME} · Segurança da Informação`, email: cfg.from_email },
-      to,
-      subject,
-      html,
-    }),
+  const out = await deliverMail({
+    host: cfg.host,
+    port: cfg.port || 587,
+    secure: !!cfg.secure,
+    username: cfg.username || null,
+    password,
+    from: { name: cfg.from_name || `${APP_NAME} · Segurança da Informação`, email: cfg.from_email },
+    to,
+    subject,
+    html,
   });
-  const out = (await res.json().catch(() => ({ ok: false }))) as { ok?: boolean; error?: string };
   await sb.from("email_logs").insert({
     to_email: to,
     subject,
     template,
     status: out.ok ? "success" : "error",
-    error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+    error_message: out.ok ? null : String(out.error ?? "falha no envio"),
   });
   return !!out.ok;
 }

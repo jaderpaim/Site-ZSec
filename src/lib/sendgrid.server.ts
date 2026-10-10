@@ -2,6 +2,7 @@
 // Somente leitura (estatísticas, conta, logs de atividade) — o envio de e-mails é
 // feito exclusivamente pelo módulo SMTP, nunca por aqui.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { readSecret } from "@/lib/crypto.server";
 
 export type SendGridCredentials = { baseUrl: string; apiKey: string };
 
@@ -28,7 +29,7 @@ export async function getSendGridCredentials(): Promise<SendGridCredentials | { 
   if (error) return { ok: false, error: error.message };
   if (!data || !data.enabled) return { ok: false, error: "Integração SendGrid não está ativa." };
   if (!data.api_key) return { ok: false, error: "API Key do SendGrid não configurada." };
-  return { baseUrl: (data.base_url || "https://api.sendgrid.com/v3").replace(/\/+$/, ""), apiKey: data.api_key.trim() };
+  return { baseUrl: (data.base_url || "https://api.sendgrid.com/v3").replace(/\/+$/, ""), apiKey: readSecret(data.api_key).trim() };
 }
 
 type SgFetchResult<T> = { ok: true; status: number; json: T } | { ok: false; status: number; error: string };

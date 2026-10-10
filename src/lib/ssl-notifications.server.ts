@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isAlertModuleEnabled } from "@/lib/alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/app-url";
+import { sendMail } from "@/lib/mailer.server";
 
 const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
 
@@ -125,16 +126,9 @@ export async function notifySslCertRenewed(args: {
 <tr><td align="center" style="padding:24px 32px 32px;"><a href="${link}" style="display:inline-block;background:#10b981;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:6px;">Abrir Domínios / SSL</a></td></tr>
 </table></td></tr></table></body></html>`;
 
-    const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
     for (const to of recipients) {
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
+        const out: any = await sendMail({
             host: smtpCfg.host,
             port: smtpCfg.port || 587,
             secure: !!smtpCfg.secure,
@@ -144,15 +138,13 @@ export async function notifySslCertRenewed(args: {
             to,
             subject,
             html,
-          }),
-        });
-        const out: any = await res.json().catch(() => ({ ok: false }));
+          });
         await adminDb.from("email_logs").insert({
           to_email: to,
           subject,
           template: "ssl_cert_renewed",
           status: out.ok ? "success" : "error",
-          error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+          error_message: out.ok ? null : String(out.error ?? "falha no envio"),
         });
       } catch (e: any) {
         await adminDb.from("email_logs").insert({

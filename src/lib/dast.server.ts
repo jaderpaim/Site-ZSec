@@ -3,7 +3,7 @@
 // (provider='dast_scanner'). NUNCA importar este arquivo em código de cliente.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { encryptSecret, decryptSecret } from "@/lib/crypto.server";
+import { encryptSecret, decryptSecret, readSecret } from "@/lib/crypto.server";
 
 // types.ts gerado não conhece as tabelas dast_* — acesso por cast.
 const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
@@ -17,7 +17,7 @@ export async function getDastCreds(): Promise<DastCreds | null> {
     .eq("provider", "dast_scanner")
     .maybeSingle();
   if (!data?.enabled || !data.api_key || !data.base_url) return null;
-  return { baseUrl: (data.base_url as string).replace(/\/+$/, ""), apiKey: data.api_key as string };
+  return { baseUrl: (data.base_url as string).replace(/\/+$/, ""), apiKey: readSecret(data.api_key) as string };
 }
 
 // Token da integração Cloudflare -- lido via admin client de propósito (mesmo
@@ -32,7 +32,7 @@ export async function getCloudflareApiToken(): Promise<string | null> {
     .eq("provider", "cloudflare")
     .maybeSingle();
   if (!data?.enabled || !data.api_key) return null;
-  return data.api_key as string;
+  return readSecret(data.api_key) as string;
 }
 
 // Credencial de domínio pra descoberta de aplicações internas via LDAP

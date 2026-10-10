@@ -17,6 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { requirePermission, requireGlobalAdminRole } from "@/lib/authz";
 import type { ModuleAction } from "@/lib/authz";
+import { readSecret } from "@/lib/crypto.server";
 
 function makeSupabase() {
   const url = process.env.SUPABASE_URL!;
@@ -44,7 +45,7 @@ async function resolveRulesContext(
   if (!integ?.enabled || !integ?.api_key) {
     return { ok: false, error: "Integração Cloudflare não está ativa ou sem token configurado." };
   }
-  return { apiToken: integ.api_key, zoneId: zoneRow.id };
+  return { apiToken: readSecret(integ.api_key), zoneId: zoneRow.id };
 }
 
 // Page Rules (API legada) rejeita "Account API Token" — code 1011 "Page Rules
@@ -67,7 +68,7 @@ async function resolvePageRulesContext(
   if (!integ?.enabled) {
     return { ok: false, error: "Integração Cloudflare não está ativa." };
   }
-  const pageRulesToken = (integ.config as any)?.page_rules_api_key;
+  const pageRulesToken = readSecret((integ.config as any)?.page_rules_api_key as string | null | undefined);
   if (!pageRulesToken) {
     return {
       ok: false,

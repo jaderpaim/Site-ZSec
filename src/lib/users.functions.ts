@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit-log.functions";
 import { isExclusiveModule } from "@/lib/exclusive-modules";
 import { APP_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/app-url";
+import { sendMail } from "@/lib/mailer.server";
 
 async function targetProfileLabel(userId: string): Promise<string> {
   const { data } = await supabaseAdmin.from("profiles").select("email, full_name").eq("id", userId).maybeSingle();
@@ -832,16 +833,9 @@ async function inviteUserCore(
     inviteUrl,
   });
   const password = (cfg as any).password || process.env.SMTP_PASSWORD || "";
-  const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
+    const out = await sendMail({
         host: cfg.host,
         port: cfg.port || 587,
         secure: !!cfg.secure,
@@ -854,9 +848,7 @@ async function inviteUserCore(
         to: { name: data.fullName, email: data.email },
         subject,
         html,
-      }),
-    });
-    const out = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      });
     await supabaseAdmin.from("email_logs").insert({
       to_email: data.email,
       subject,

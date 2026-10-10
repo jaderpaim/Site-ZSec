@@ -2,6 +2,7 @@
 // and the public cron endpoint. NEVER import this from client code.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { syncIndisponibilidadesCore } from "@/lib/disponibilidade.functions";
+import { readSecret } from "@/lib/crypto.server";
 
 export type QradarCredentials = {
   baseUrl: string;
@@ -33,7 +34,7 @@ async function getCredentials(): Promise<QradarCredentials | { ok: false; error:
   if (!data || !data.enabled) return { ok: false, error: "Integração QRadar não está ativa." };
   if (!data.api_key) return { ok: false, error: "SEC Token do QRadar não configurado." };
   if (!data.base_url) return { ok: false, error: "Base URL do QRadar não configurada." };
-  return { baseUrl: data.base_url.replace(/\/+$/, ""), secToken: data.api_key };
+  return { baseUrl: data.base_url.replace(/\/+$/, ""), secToken: readSecret(data.api_key) };
 }
 
 async function logApi(

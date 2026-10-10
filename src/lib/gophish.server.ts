@@ -1,5 +1,6 @@
 // Server-only Gophish API client. Reads credentials from `integrations` table.
 import { createClient } from "@supabase/supabase-js";
+import { readSecret } from "@/lib/crypto.server";
 
 function makeAdmin() {
   const url = process.env.SUPABASE_URL!;
@@ -17,7 +18,7 @@ export async function getGophishCreds(): Promise<GophishCreds | null> {
     .eq("provider", "gophish")
     .maybeSingle();
   if (!data?.enabled || !data?.api_key || !data?.base_url) return null;
-  return { baseUrl: data.base_url.replace(/\/+$/, ""), apiKey: data.api_key };
+  return { baseUrl: data.base_url.replace(/\/+$/, ""), apiKey: readSecret(data.api_key) };
 }
 
 export async function gophishFetch<T>(creds: GophishCreds, path: string): Promise<T> {

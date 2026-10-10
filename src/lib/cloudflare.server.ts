@@ -7,6 +7,8 @@ import { buildDnsRecordCreatedHtml, buildDnsRecordUpdatedHtml, buildRuleAlertHtm
 import { isAlertModuleEnabled } from "./alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/app-url";
+import { sendMail } from "@/lib/mailer.server";
+import { readSecret } from "@/lib/crypto.server";
 
 const CF_API = "https://api.cloudflare.com/client/v4";
 const GQL_URL = `${CF_API}/graphql`;
@@ -22,7 +24,7 @@ async function getCredentials(): Promise<Credentials | { ok: false; error: strin
   if (error) return { ok: false, error: error.message };
   if (!data || !data.enabled) return { ok: false, error: "Integração Cloudflare não está ativa." };
   if (!data.api_key) return { ok: false, error: "API Token da Cloudflare não configurado." };
-  return { apiToken: data.api_key };
+  return { apiToken: readSecret(data.api_key) };
 }
 
 async function logApi(status: "success" | "error", httpStatus: number | null, message: string, ms: number) {
@@ -638,16 +640,9 @@ export async function notifyDnsRecordCreated(record: {
     const override = await getEmailTemplateOverride(supabaseAdmin, "cloudflare_dns_created");
     const html = applyEmailTemplate("cloudflare_dns_created", override, vars, defaultHtml);
 
-    const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
     for (const to of recipients) {
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
+        const out: any = await sendMail({
             host: smtpCfg.host,
             port: smtpCfg.port || 587,
             secure: !!smtpCfg.secure,
@@ -657,15 +652,13 @@ export async function notifyDnsRecordCreated(record: {
             to,
             subject,
             html,
-          }),
-        });
-        const out: any = await res.json().catch(() => ({ ok: false }));
+          });
         await supabaseAdmin.from("email_logs").insert({
           to_email: to,
           subject,
           template: "cloudflare_dns_created",
           status: out.ok ? "success" : "error",
-          error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+          error_message: out.ok ? null : String(out.error ?? "falha no envio"),
         });
       } catch (e: any) {
         await supabaseAdmin.from("email_logs").insert({
@@ -786,16 +779,9 @@ export async function notifyDnsRecordUpdated(record: {
     const override = await getEmailTemplateOverride(supabaseAdmin, "cloudflare_dns_updated");
     const html = applyEmailTemplate("cloudflare_dns_updated", override, vars, defaultHtml);
 
-    const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
     for (const to of recipients) {
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
+        const out: any = await sendMail({
             host: smtpCfg.host,
             port: smtpCfg.port || 587,
             secure: !!smtpCfg.secure,
@@ -805,15 +791,13 @@ export async function notifyDnsRecordUpdated(record: {
             to,
             subject,
             html,
-          }),
-        });
-        const out: any = await res.json().catch(() => ({ ok: false }));
+          });
         await supabaseAdmin.from("email_logs").insert({
           to_email: to,
           subject,
           template: "cloudflare_dns_updated",
           status: out.ok ? "success" : "error",
-          error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+          error_message: out.ok ? null : String(out.error ?? "falha no envio"),
         });
       } catch (e: any) {
         await supabaseAdmin.from("email_logs").insert({
@@ -989,16 +973,9 @@ export async function notifyRuleChanged(args: {
     const override = await getEmailTemplateOverride(supabaseAdmin, alertKey);
     const html = applyEmailTemplate(alertKey, override, vars, defaultHtml);
 
-    const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
     for (const to of recipients) {
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
+        const out: any = await sendMail({
             host: smtpCfg.host,
             port: smtpCfg.port || 587,
             secure: !!smtpCfg.secure,
@@ -1008,15 +985,13 @@ export async function notifyRuleChanged(args: {
             to,
             subject,
             html,
-          }),
-        });
-        const out: any = await res.json().catch(() => ({ ok: false }));
+          });
         await supabaseAdmin.from("email_logs").insert({
           to_email: to,
           subject,
           template: alertKey,
           status: out.ok ? "success" : "error",
-          error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+          error_message: out.ok ? null : String(out.error ?? "falha no envio"),
         });
       } catch (e: any) {
         await supabaseAdmin.from("email_logs").insert({

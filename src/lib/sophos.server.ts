@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { ingestWebEventsFromSophos } from "./ia.server";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
+import { readSecret } from "@/lib/crypto.server";
 
 const TOKEN_URL = "https://id.sophos.com/api/v2/oauth2/token";
 const WHOAMI_URL = "https://api.central.sophos.com/whoami/v1";
@@ -74,7 +75,7 @@ async function getCredentials(): Promise<SophosCredentials | { ok: false; error:
   if (!clientId) return { ok: false, error: "Client ID da Sophos não configurado." };
   return {
     clientId,
-    clientSecret: data.api_key,
+    clientSecret: readSecret(data.api_key),
     tenantId: typeof cfg.tenant_id === "string" ? cfg.tenant_id.trim() : "",
     dataRegionUrl: typeof cfg.data_region_url === "string" ? cfg.data_region_url.trim() : "",
   };
@@ -757,7 +758,7 @@ async function getAuditCredentials(): Promise<SophosCredentials | { ok: false; e
   const cfg = (data.config ?? {}) as Record<string, unknown>;
   if (cfg.audit_enabled !== true) return { ok: false, error: "Sincronização de Auditoria da Sophos não está ativa." };
   const clientId = typeof cfg.audit_client_id === "string" ? cfg.audit_client_id.trim() : "";
-  const clientSecret = typeof cfg.audit_client_secret === "string" ? cfg.audit_client_secret.trim() : "";
+  const clientSecret = typeof cfg.audit_client_secret === "string" ? readSecret(cfg.audit_client_secret).trim() : "";
   if (!clientId || !clientSecret) return { ok: false, error: "Credencial de Audit Log da Sophos não configurada." };
   return { clientId, clientSecret };
 }

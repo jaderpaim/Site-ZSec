@@ -16,6 +16,7 @@ import {
   SECURITY_EVENTS_FILTER_FIELDS,
   type AnalyticsFilterCondition,
 } from "@/lib/cloudflare.analytics-filters";
+import { readSecret } from "@/lib/crypto.server";
 
 function makeSupabase() {
   const url = process.env.SUPABASE_URL!;
@@ -62,7 +63,7 @@ async function resolveSecurityContext(
   if (!integ?.enabled || !integ?.api_key) {
     return { ok: false, error: "Integração Cloudflare não está ativa ou sem token configurado." };
   }
-  return { apiToken: integ.api_key, zoneId: zoneRow.id };
+  return { apiToken: readSecret(integ.api_key), zoneId: zoneRow.id };
 }
 
 // Ações que a Cloudflare conta como "mitigado" nesse relatório — confirmado na

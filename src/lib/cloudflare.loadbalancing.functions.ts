@@ -13,6 +13,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { requirePermission } from "@/lib/authz";
+import { readSecret } from "@/lib/crypto.server";
 
 function makeSupabase() {
   const url = process.env.SUPABASE_URL!;
@@ -78,7 +79,7 @@ async function resolveLbContext(
   if (!integ?.enabled || !integ?.api_key) {
     return { ok: false, error: "Integração Cloudflare não está ativa ou sem token configurado." };
   }
-  return { apiToken: integ.api_key, accountId: zoneRow.account_id, zoneId: zoneRow.id, zoneName: zoneRow.name };
+  return { apiToken: readSecret(integ.api_key), accountId: zoneRow.account_id, zoneId: zoneRow.id, zoneName: zoneRow.name };
 }
 
 // Busca os load balancers configurados na zona (REST — confirmado:

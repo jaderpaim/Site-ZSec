@@ -74,7 +74,9 @@ Agente das estações · pipelines SAST · servidor de scanner (callbacks)
 
 - **Leitura e escrita de dados:** o navegador usa o Supabase com a chave publishable, respeitando o RLS. Operações privilegiadas passam por server functions (`src/lib/*.functions.ts`), que usam a service role só no servidor.
 - **Sincronizações:** o `pg_cron` do Supabase chama os endpoints `/api/public/hooks/*` via `pg_net`, enviando o `HOOK_SECRET`. Os agendamentos são gerenciados em **Configurações → Cron Jobs**, que monta a URL a partir de `APP_URL`.
-- **Credenciais de fornecedores** (Cloudflare, Sophos, QRadar etc.) **não ficam em variáveis de ambiente**. Elas são cadastradas em **Configurações → Integração API** e gravadas cifradas (AES-256-GCM) na tabela `integrations`.
+- **Credenciais de fornecedores** (Cloudflare, Sophos, QRadar etc.) **não ficam em variáveis de ambiente**. Elas são cadastradas em **Configurações → Integração API** e gravadas **cifradas (AES-256-GCM)** na tabela `integrations` (`api_key` e os segredos dentro de `config`), assim como a senha do SMTP em `smtp_config`. A chave é a `INTEGRATIONS_ENCRYPTION_KEY`, que fica só no `.env`: um dump do banco sozinho não revela os segredos.
+  - Código: `writeSecret` / `readSecret` em [src/lib/crypto.server.ts](src/lib/crypto.server.ts). Toda leitura de credencial passa por `readSecret`, que também aceita valores antigos em texto puro (eles passam a ser cifrados no próximo salvamento).
+  - **Perder ou trocar a `INTEGRATIONS_ENCRYPTION_KEY` invalida todas as credenciais gravadas** (é preciso recadastrá-las). Guarde-a num cofre de senhas.
 - `src/server.ts` é a entrada do servidor. Ele aplica os headers de segurança (`X-Frame-Options`, CSP `frame-ancestors 'none'`) e define uma página de erro própria.
 
 ### Direção para várias empresas (planejado)
@@ -124,8 +126,7 @@ src/
 
 supabase/
 ├─ config.toml                 # config do Supabase CLI local (project_id "zsec-local")
-├─ migrations/                 # ~300 migrations SQL (schema, RLS, RPCs, cron)
-└─ functions/send-smtp/        # Edge Function de envio de e-mail
+└─ migrations/                 # ~300 migrations SQL (schema, RLS, RPCs, cron)
 
 agent/                         # agente Go das estações (Windows/macOS) → /api/public/hooks/agent-ingest
 scripts/dast-provisioning/     # servidor de scanner (FastAPI): DAST, Shadow IT, DNS/AD, proxy do SEK
@@ -164,7 +165,8 @@ Funcionam para qualquer cliente. As credenciais ficam na tabela `integrations` d
 | Sophos Central | Sophos XDR, Exceções, Ranking IA, licenças | `api.central.sophos.com` | `sophos*.ts`, `ia*.ts` |
 | Microsoft Purview | DLP | `manage.office.com` | `dlp*.ts` |
 | Azure DevOps / App Insights | SAST | `dev.azure.com`, `api.loganalytics.io` | `sast*.ts` |
-| SendGrid | Estatísticas de e-mail | `api.sendgrid.com` | `sendgrid*.ts` |
+| SMTP (qualquer provedor) | Envio de todos os e-mails | Servidor SMTP configurado na tela SMTP | `mailer.server.ts` (nodemailer) |
+| SendGrid | Estatísticas de e-mail (opcional) | `api.sendgrid.com` | `sendgrid*.ts` |
 | Privacy Tools | LGPD | API do fornecedor | `privacy-tools*.ts` |
 | ssl-checker / RDAP | Domínios e certificados | Serviços públicos | `domains.functions.ts`, `ssl*.ts` |
 | Microsoft Entra ID | SSO e portal de Treinamentos | `login.microsoftonline.com` | `sso.functions.ts`, `treinamentos*.ts` |

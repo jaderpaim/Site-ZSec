@@ -8,6 +8,8 @@ import { applyEmailTemplate, getEmailTemplateOverride, escapeHtml } from "./emai
 import { buildSslExpiryAlertHtml } from "./email-templates.defaults";
 import { fetchWithTimeout, fetchWithRetry } from "./http-retry";
 import { APP_NAME } from "@/lib/brand";
+import { sendMail } from "@/lib/mailer.server";
+import { readSecret } from "@/lib/crypto.server";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -138,7 +140,7 @@ async function getCfToken(): Promise<string | null> {
       .eq("provider", "cloudflare")
       .maybeSingle();
     if (!data?.enabled || !data.api_key) return null;
-    return data.api_key;
+    return readSecret(data.api_key);
   } catch {
     return null;
   }
@@ -1140,17 +1142,10 @@ export async function checkExpiringSslAndNotify(): Promise<{ notified: number; c
     defaultHtml,
   );
 
-  const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
   let notified = 0;
   for (const to of emails) {
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
+      const out: any = await sendMail({
           host: cfg.host,
           port: cfg.port || 587,
           secure: !!cfg.secure,
@@ -1160,15 +1155,13 @@ export async function checkExpiringSslAndNotify(): Promise<{ notified: number; c
           to,
           subject,
           html,
-        }),
-      });
-      const out: any = await res.json().catch(() => ({ ok: false }));
+        });
       await sb.from("email_logs").insert({
         to_email: to,
         subject,
         template: "ssl_expiry_alert",
         status: out.ok ? "success" : "error",
-        error_message: out.ok ? null : String(out.error ?? `HTTP ${res.status}`),
+        error_message: out.ok ? null : String(out.error ?? "falha no envio"),
       });
       if (out.ok) notified++;
     } catch (e: any) {

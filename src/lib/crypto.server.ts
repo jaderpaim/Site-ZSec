@@ -43,6 +43,33 @@ export function decryptSecret(encoded: string): string {
   return plaintext.toString("utf8");
 }
 
+// Segredos de integração e a senha SMTP gravados no banco (integrations.api_key,
+// segredos dentro de integrations.config, smtp_config.password).
+//
+// writeSecret cifra na gravação. readSecret decifra na leitura e, por
+// compatibilidade, devolve como está um valor antigo em texto puro (gravado
+// antes da cifra existir) -- ele passa a ser cifrado no próximo salvamento.
+// Assim um dump do banco sozinho não revela nada: a chave fica só no .env.
+
+const B64 = "[A-Za-z0-9+/]";
+// iv de 12 bytes (16 chars base64) : tag de 16 bytes (24 chars) : ciphertext
+const ENCRYPTED_RE = new RegExp(`^${B64}{16}:${B64}{22}==:${B64}*={0,2}$`);
+
+export function isEncryptedSecret(value: unknown): value is string {
+  return typeof value === "string" && ENCRYPTED_RE.test(value);
+}
+
+export function writeSecret(plaintext: string): string {
+  return encryptSecret(plaintext);
+}
+
+export function readSecret(value: string): string;
+export function readSecret(value: string | null | undefined): string | null;
+export function readSecret(value: string | null | undefined): string | null {
+  if (value == null || value === "") return value ?? null;
+  return isEncryptedSecret(value) ? decryptSecret(value) : value;
+}
+
 // Cifra separada, só pro transporte do callback scanner -> app (achados de
 // scan ativo em dast-callback.ts) -- substitui o base64 que era usado antes.
 // Motivo: WAF gerenciado (Cloudflare Managed Ruleset) normaliza/decodifica
