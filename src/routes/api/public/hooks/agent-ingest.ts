@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { APP_NAME } from "@/lib/brand";
 
 // Ingestão do agente Z-Sec (Windows/macOS) — uso de apps de IA fora do
 // navegador. NÃO usa HOOK_SECRET: cada máquina envia com a chave de ingestão
@@ -12,7 +13,7 @@ export const Route = createFileRoute("/api/public/hooks/agent-ingest")({
           return await handleAgentIngest(request);
         } catch (e) {
           console.error("[agent-ingest] erro inesperado:", (e as Error).message);
-          return new Response(JSON.stringify({ ok: false, error: "Erro interno no Z-Sec." }), {
+          return new Response(JSON.stringify({ ok: false, error: `Erro interno no ${APP_NAME}.` }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
           });

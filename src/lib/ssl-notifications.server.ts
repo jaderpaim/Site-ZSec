@@ -4,14 +4,9 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isAlertModuleEnabled } from "@/lib/alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
+import { appUrl } from "@/lib/app-url";
 
 const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
-
-function getAppBaseUrl() {
-  const explicitUrl = process.env.APP_URL || process.env.PUBLIC_APP_URL;
-  if (explicitUrl) return explicitUrl.replace(/\/+$/, "");
-  return "https://b-security.bernoulli.com.br";
-}
 
 function escapeHtml(s: string): string {
   return s.replace(
@@ -61,7 +56,7 @@ export async function notifySslCertRenewed(args: {
       .maybeSingle();
     const actorName: string = profile?.full_name || profile?.email || "—";
     const title = "Certificado SSL renovado";
-    const link = `${getAppBaseUrl()}/app/dominios-ssl`;
+    const link = `${appUrl()}/app/dominios-ssl`;
     const facts = [
       { name: "Domínio", value: args.domain },
       { name: "Emissor", value: `${args.previous.issuer ?? "—"} → ${args.current.issuer}` },

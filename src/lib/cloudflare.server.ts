@@ -6,15 +6,10 @@ import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.
 import { buildDnsRecordCreatedHtml, buildDnsRecordUpdatedHtml, buildRuleAlertHtml } from "./email-templates.defaults";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
+import { appUrl } from "@/lib/app-url";
 
 const CF_API = "https://api.cloudflare.com/client/v4";
 const GQL_URL = `${CF_API}/graphql`;
-
-function getAppBaseUrl() {
-  const explicitUrl = process.env.APP_URL || process.env.PUBLIC_APP_URL;
-  if (explicitUrl) return explicitUrl.replace(/\/+$/, "");
-  return "https://b-security.bernoulli.com.br";
-}
 
 type Credentials = { apiToken: string };
 
@@ -637,7 +632,7 @@ export async function notifyDnsRecordCreated(record: {
       conteudo: record.content,
       proxy: record.proxied ? "Ativo" : "Desativado",
       criado_por: createdBy,
-      link: `${getAppBaseUrl()}/app/cloudflare-waf`,
+      link: `${appUrl()}/app/cloudflare-waf`,
     };
     const defaultHtml = buildDnsRecordCreatedHtml(vars);
     const override = await getEmailTemplateOverride(supabaseAdmin, "cloudflare_dns_created");
@@ -785,7 +780,7 @@ export async function notifyDnsRecordUpdated(record: {
       proxy: record.proxied ? "Ativo" : "Desativado",
       alteracoes: record.changes && record.changes.length > 0 ? summarizeChanges(record.changes) : "",
       editado_por: updatedBy,
-      link: `${getAppBaseUrl()}/app/cloudflare-waf`,
+      link: `${appUrl()}/app/cloudflare-waf`,
     };
     const defaultHtml = buildDnsRecordUpdatedHtml({ ...vars, changes: record.changes });
     const override = await getEmailTemplateOverride(supabaseAdmin, "cloudflare_dns_updated");
@@ -955,7 +950,7 @@ export async function notifyRuleChanged(args: {
     const password = (smtpCfg as any).password || process.env.SMTP_PASSWORD;
     if (!password) return;
 
-    const link = `${getAppBaseUrl()}/app/cloudflare-waf`;
+    const link = `${appUrl()}/app/cloudflare-waf`;
     const subject = `${APP_NAME} · ${presentation.title} em ${zoneName}`;
     const changesSummary = args.kind === "update" && args.changes && args.changes.length > 0 ? summarizeChanges(args.changes) : "";
     const vars: Record<string, string> =

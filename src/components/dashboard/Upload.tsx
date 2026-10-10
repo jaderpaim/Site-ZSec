@@ -19,6 +19,7 @@ import {
   Unlock,
   Upload,
 } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 const TARGET_FIELDS = [
   { key: "fqdn", label: "FQDN / Host *", required: true },
@@ -1595,7 +1596,7 @@ export function UploadDashboard() {
         <div>
           <h1 className="up-ph-title">Importar dados</h1>
           <p className="up-ph-sub">
-            Carregue planilhas ou JSON nos módulos do Z-Sec, com mapeamento de colunas
+            Carregue planilhas ou JSON nos módulos do {APP_NAME}, com mapeamento de colunas
           </p>
         </div>
         <div
@@ -1849,7 +1850,7 @@ export function UploadDashboard() {
                 {previewCols.length > 0 && (
                   <div>
                     <div className="up-grp-t" style={{ marginBottom: 8 }}>
-                      Prévia das primeiras linhas, já com os campos do Z-Sec
+                      Prévia das primeiras linhas, já com os campos do {APP_NAME}
                     </div>
                     <div className="up-prev">
                       <table>

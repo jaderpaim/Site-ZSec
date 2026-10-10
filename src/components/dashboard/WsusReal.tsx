@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Search, Server, Trash2, Upload, X } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 const META = 85;
 type KpiFilter = "all" | "ok" | "failures" | "pending" | "alerts";
@@ -613,7 +614,7 @@ export function WsusDashboard() {
           </DialogHeader>
           <p style={{ margin: 0, fontSize: 13.5, color: "var(--v2-fg-2)", lineHeight: 1.55 }}>
             {selected.size} servidor{selected.size > 1 ? "es serão removidos" : " será removido"} do
-            WSUS no Z-Sec. A próxima importação pode trazê-los de volta. Não dá para desfazer.
+            WSUS no {APP_NAME}. A próxima importação pode trazê-los de volta. Não dá para desfazer.
           </p>
           <DialogFooter style={{ gap: 8 }}>
             <button

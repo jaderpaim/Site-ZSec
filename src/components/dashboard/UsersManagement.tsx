@@ -70,6 +70,7 @@ import { DetailSheet } from "@/components/layout/DetailSheet";
 import { useAuth } from "@/lib/auth-context";
 import { getSsoPublicConfig } from "@/lib/sso.functions";
 import * as React from "react";
+import { APP_NAME } from "@/lib/brand";
 
 type ModuleSlug = string;
 
@@ -535,7 +536,7 @@ export function UsersManagementDashboard() {
       <div className="um-ph">
         <div>
           <h1 className="um-ph-title">Usuários</h1>
-          <p className="um-ph-sub">Quem acessa o Z-Sec, com qual papel e quais permissões</p>
+          <p className="um-ph-sub">Quem acessa o {APP_NAME}, com qual papel e quais permissões</p>
         </div>
         <div className="um-ph-act">
           <span

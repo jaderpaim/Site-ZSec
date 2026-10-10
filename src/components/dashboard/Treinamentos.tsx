@@ -42,6 +42,7 @@ import {
   type TreinamentoStatus,
   type TreinamentoTipo,
 } from "@/lib/treinamentos.functions";
+import { APP_NAME } from "@/lib/brand";
 
 const META = 80;
 const TIPOS: TreinamentoTipo[] = ["Política", "Phishing", "Conscientização"];
@@ -525,7 +526,7 @@ function TreinamentoDialog({
                     </span>
                     <span style={{ minWidth: 0 }}>
                       <b>{fileName ?? "vídeo enviado"}</b>
-                      <small>{minutos(f.duracao_seg)} · privado no Z-Sec</small>
+                      <small>{minutos(f.duracao_seg)} · privado no {APP_NAME}</small>
                     </span>
                     <button
                       type="button"
@@ -554,7 +555,7 @@ function TreinamentoDialog({
                     <b>
                       {uploading ? "Enviando o vídeo…" : "Arraste o vídeo ou clique para escolher"}
                     </b>
-                    <small>MP4 (H.264) ou WebM · recomendado 720p · fica privado no Z-Sec</small>
+                    <small>MP4 (H.264) ou WebM · recomendado 720p · fica privado no {APP_NAME}</small>
                   </div>
                 )}
               </>
@@ -569,7 +570,7 @@ function TreinamentoDialog({
                 <small>
                   {isStream
                     ? "Vídeos do Stream não informam quanto foi assistido: a conclusão dependerá só da confirmação de ciência."
-                    : "Com link externo, a conclusão é pela confirmação de ciência (a medição de % é para vídeos enviados ao Z-Sec)."}
+                    : `Com link externo, a conclusão é pela confirmação de ciência (a medição de % é para vídeos enviados ao ${APP_NAME}).`}
                 </small>
                 <div className="tr-field" style={{ maxWidth: 220 }}>
                   <label htmlFor="tr-dur">Duração (minutos)</label>
@@ -1344,7 +1345,7 @@ export function TreinamentosDashboard() {
                         t.video_url
                           ? "vídeo externo"
                           : t.video_path
-                            ? "vídeo no Z-Sec"
+                            ? `vídeo no ${APP_NAME}`
                             : "sem vídeo",
                         minutos(t.duracao_seg),
                         t.video_path && t.exigir_pct_assistido > 0

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { logAudit } from "@/lib/audit-log.functions";
+import { appUrl } from "@/lib/app-url";
 
 function admin() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -28,8 +29,7 @@ function minutesToCron(minutes: number): string {
 }
 
 function hookUrlFor(hookPath: string): string {
-  const baseUrl = process.env.APP_BASE_URL ?? process.env.VITE_APP_URL ?? "https://b-security.bernoulli.com.br";
-  return `${baseUrl}${hookPath}`;
+  return `${appUrl()}${hookPath}`;
 }
 
 // ─── Schemas ───────────────────────────────────────────────────────────────────

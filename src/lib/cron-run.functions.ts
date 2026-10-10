@@ -10,6 +10,7 @@ import { hasPermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit-log.functions";
 import { recordCronAttemptStart } from "@/lib/cron-tracking.server";
 import { CRON_JOB_MODULE, MODULE_CRON_JOBS } from "@/lib/cron-modules";
+import { appUrl } from "@/lib/app-url";
 
 export type ModuleSyncJob = {
   job_name: string;
@@ -26,9 +27,7 @@ export type ModuleSyncJob = {
 };
 
 function hookUrlFor(hookPath: string): string {
-  const baseUrl =
-    process.env.APP_BASE_URL ?? process.env.VITE_APP_URL ?? "https://b-security.bernoulli.com.br";
-  return `${baseUrl}${hookPath}`;
+  return `${appUrl()}${hookPath}`;
 }
 
 async function hasRole(sb: SupabaseClient, userId: string, role: string): Promise<boolean> {

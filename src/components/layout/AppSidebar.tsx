@@ -9,6 +9,7 @@ import {
   type NavIndicatorTone,
 } from "@/lib/use-nav-indicators";
 import { ChevronDown, LogOut } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 const COLLAPSED_KEY = "bsec.sidebar.collapsed";
 
@@ -112,7 +113,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-2.5 px-4 pt-4 pb-3.5">
           <BrandMark className="w-7 h-8 shrink-0" />
           <div className="min-w-0">
-            <div className="text-[15px] font-bold tracking-[-0.03em] leading-tight text-v2-fg">Z-Sec</div>
+            <div className="text-[15px] font-bold tracking-[-0.03em] leading-tight text-v2-fg">{APP_NAME}</div>
             <div className="font-data text-[10px] uppercase tracking-[0.14em] text-v2-accent">Security Suite</div>
           </div>
         </div>

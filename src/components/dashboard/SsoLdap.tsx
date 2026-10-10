@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Switch } from "@/components/ui/switch";
 import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import { AlertTriangle, Check, ChevronDown, Copy, Plus, X } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
 
@@ -486,7 +487,7 @@ export function SsoLdapDashboard() {
             <div className="sso-card-h">
               <span>
                 <b>Como o login funciona</b>
-                <small>do e-mail digitado até a sessão no Z-Sec</small>
+                <small>do e-mail digitado até a sessão no {APP_NAME}</small>
               </span>
             </div>
             <div className="sso-flow">

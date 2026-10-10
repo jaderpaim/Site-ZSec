@@ -5,6 +5,8 @@
 // tenant e recebe um cookie assinado que só abre as páginas de treinamento. O link
 // recebido por e-mail não dá acesso a nada sozinho: quem decide é a identidade.
 import { createClient } from "@supabase/supabase-js";
+import { appUrl } from "@/lib/app-url";
+import { APP_NAME } from "@/lib/brand";
 
 export const LEARNER_COOKIE = "zsec_trn";
 const LEARNER_TTL_SEC = 8 * 60 * 60; // 8 horas
@@ -85,12 +87,11 @@ export async function currentLearner(): Promise<LearnerSession | null> {
 export function learnerRedirectUri(): string {
   const fromEnv = process.env.TREINAMENTOS_SSO_REDIRECT_URI;
   if (fromEnv) return fromEnv;
-  const base = process.env.PUBLIC_APP_URL ?? "";
-  return `${base.replace(/\/$/, "")}/api/public/treinamentos/sso/callback`;
+  return `${appUrl()}/api/public/treinamentos/sso/callback`;
 }
 
 export function appBaseUrl(): string {
-  return (process.env.PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  return appUrl();
 }
 
 // ── E-mail (mesmo caminho dos demais módulos: edge function send-smtp) ────────
@@ -117,7 +118,7 @@ export async function sendMail(
       secure: !!cfg.secure,
       username: cfg.username || null,
       password,
-      from: { name: cfg.from_name || "Z-Sec · Segurança da Informação", email: cfg.from_email },
+      from: { name: cfg.from_name || `${APP_NAME} · Segurança da Informação`, email: cfg.from_email },
       to,
       subject,
       html,
@@ -148,12 +149,12 @@ export function buildConviteHtml(a: {
   return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px">
-<tr><td style="padding:24px 28px 8px;font-size:13px;color:#2563eb;font-weight:bold;letter-spacing:.04em">Z-SEC · SEGURANÇA DA INFORMAÇÃO</td></tr>
+<tr><td style="padding:24px 28px 8px;font-size:13px;color:#2563eb;font-weight:bold;letter-spacing:.04em">${APP_NAME.toUpperCase()} · SEGURANÇA DA INFORMAÇÃO</td></tr>
 <tr><td style="padding:4px 28px 0;font-size:20px;font-weight:bold;color:#111827">Olá, ${esc(a.nome.split(" ")[0] ?? a.nome)}</td></tr>
 <tr><td style="padding:12px 28px 0;font-size:15px;line-height:1.6">Você tem um treinamento de segurança para fazer: <b>${esc(a.titulo)}</b>.${prazo ? ` O prazo é <b>${prazo}</b>.` : ""}</td></tr>
 <tr><td style="padding:20px 28px 4px"><a href="${esc(a.link)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px">Abrir Meus treinamentos</a></td></tr>
 <tr><td style="padding:12px 28px 0;font-size:13px;line-height:1.6;color:#4b5563">Você vai entrar com a sua conta Microsoft da empresa. Prefere não clicar em links de e-mail? Ótimo hábito: acesse a intranet e abra <b>Meus treinamentos</b>.</td></tr>
-<tr><td style="padding:20px 28px 24px;font-size:12px;color:#9ca3af">Enviado automaticamente pelo Z-Sec · Segurança da Informação. Dúvidas: responda este e-mail.</td></tr>
+<tr><td style="padding:20px 28px 24px;font-size:12px;color:#9ca3af">Enviado automaticamente pelo ${APP_NAME} · Segurança da Informação. Dúvidas: responda este e-mail.</td></tr>
 </table></td></tr></table></body></html>`;
 }
 

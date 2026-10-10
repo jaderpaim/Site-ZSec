@@ -14,6 +14,7 @@ import { isAlertModuleEnabled } from "@/lib/alert-modules.functions";
 import { normalizeScanCompleted, normalizeSecretDetected } from "@/lib/sast-normalize";
 import type { SastDetectionRow, SastScanRunRow } from "@/lib/sast-normalize";
 import { APP_NAME } from "@/lib/brand";
+import { appUrl } from "@/lib/app-url";
 
 const adminDb = supabaseAdmin as unknown as {
   from: (t: string) => any;
@@ -292,12 +293,6 @@ const STATUS_LABEL: Record<string, string> = {
   risco_aceito: "Risco aceito",
 };
 
-function getAppBaseUrl() {
-  const explicitUrl = process.env.APP_URL || process.env.PUBLIC_APP_URL;
-  if (explicitUrl) return explicitUrl.replace(/\/+$/, "");
-  return "https://b-security.bernoulli.com.br";
-}
-
 function escapeHtml(s: string): string {
   return s.replace(
     /[&<>"']/g,
@@ -351,7 +346,7 @@ export async function notifySastTriage(args: {
     const location = f.file_path ? `${f.file_path}${f.line ? `:${f.line}` : ""}` : "—";
     const statusLabel = STATUS_LABEL[args.newStatus] ?? args.newStatus;
     const title = `Achado SAST: ${statusLabel}`;
-    const link = `${getAppBaseUrl()}/app/sast`;
+    const link = `${appUrl()}/app/sast`;
     const facts = [
       { name: "Repositório", value: `${f.project} / ${f.repository} (${f.branch})` },
       { name: "Ferramenta / regra", value: `${f.tool} · ${f.rule_id}` },

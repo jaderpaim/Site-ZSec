@@ -41,3 +41,8 @@ agent/dist/
 # Claude Code (local, não versionar)
 .claude/settings.local.json
 .claude/settings.json
+
+# Arquivos de ambiente (só o exemplo vai para o git)
+.env
+.env.*
+!.env.example

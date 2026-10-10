@@ -21,6 +21,7 @@ import {
   startLearnerSso,
   type MeuTreinamento,
 } from "@/lib/treinamentos.functions";
+import { APP_NAME } from "@/lib/brand";
 
 // Página pública do colaborador. Não usa a sessão do painel: a identidade vem do
 // login Microsoft do tenant (cookie de treinamento emitido no callback).
@@ -30,7 +31,7 @@ export const Route = createFileRoute("/treinamentos")({
     t: typeof s.t === "string" ? s.t : undefined,
     erro: typeof s.erro === "string" ? s.erro : undefined,
   }),
-  head: () => ({ meta: [{ title: "Meus treinamentos — Z-Sec" }] }),
+  head: () => ({ meta: [{ title: `Meus treinamentos — ${APP_NAME}` }] }),
 });
 
 const CSS = `
@@ -160,7 +161,7 @@ function TreinamentosPage() {
         <span className="lr-brand">
           <ZMark />
           <span>
-            Z-Sec <small>Treinamentos</small>
+            {APP_NAME} <small>Treinamentos</small>
           </span>
         </span>
         {session.data && <LearnerMenu nome={session.data.nome} />}
@@ -176,7 +177,7 @@ function TreinamentosPage() {
           <SignIn erro={search.erro} t={search.t} />
         )}
       </main>
-      <footer className="lr-foot">Z-Sec · Segurança da Informação</footer>
+      <footer className="lr-foot">{APP_NAME} · Segurança da Informação</footer>
     </div>
   );
 }
@@ -248,7 +249,7 @@ function SignIn({ erro, t }: { erro?: string; t?: string }) {
       </button>
       <p className="lr-note">
         Você só vê os treinamentos atribuídos a você. Esta página não dá acesso a outras áreas do
-        Z-Sec.
+        {APP_NAME}.
       </p>
     </div>
   );

@@ -40,6 +40,7 @@ import {
   listSastScanRuns,
   setSastFindingStatus,
 } from "@/lib/sast.functions";
+import { APP_NAME } from "@/lib/brand";
 
 // Módulo SAST: achados das esteiras CI/CD (Gitleaks hoje, via App Insights --
 // ver sast.server.ts). Layout aprovado em preview (2026-09-28): filtros ->
@@ -1722,7 +1723,7 @@ function FindingSheet({
           </div>
 
           <div className="text-[11.5px] text-v2-fg-3">
-            O valor do segredo nunca é armazenado no Z-Sec. Só metadados: regra, arquivo, linha,
+            O valor do segredo nunca é armazenado no {APP_NAME}. Só metadados: regra, arquivo, linha,
             commit e autor.
           </div>
         </div>

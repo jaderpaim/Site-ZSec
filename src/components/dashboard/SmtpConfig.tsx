@@ -23,6 +23,7 @@ import { ModuleLoading } from "@/components/layout/ModuleLoading";
 import { DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import { dialogStyle } from "./ColaboradoresPanel";
 import { Check, ChevronRight, KeyRound, Send } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -214,7 +215,7 @@ export function SmtpConfigDashboard() {
   const [password, setPassword] = React.useState("");
   const [replacingPw, setReplacingPw] = React.useState(false);
   const [fromEmail, setFromEmail] = React.useState("");
-  const [fromName, setFromName] = React.useState("Z-Sec");
+  const [fromName, setFromName] = React.useState(APP_NAME);
   const [secure, setSecure] = React.useState(true);
   const [enabled, setEnabled] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -232,7 +233,7 @@ export function SmtpConfigDashboard() {
       setPort(c.port ?? 587);
       setUsername(c.username ?? "");
       setFromEmail(c.from_email ?? "");
-      setFromName(c.from_name ?? "Z-Sec");
+      setFromName(c.from_name ?? APP_NAME);
       setSecure(!!c.secure);
       setEnabled(!!c.enabled);
     }
@@ -491,7 +492,7 @@ export function SmtpConfigDashboard() {
                     className="sm-input"
                     value={fromName}
                     onChange={(e) => setFromName(e.target.value)}
-                    placeholder="Z-Sec"
+                    placeholder={APP_NAME}
                   />
                 </label>
               </div>
@@ -880,7 +881,7 @@ function TemplateSheet({
 
         {mode === "default" && (
           <div className="sm-defbox">
-            Este e-mail usa o layout padrão do Z-Sec, mantido junto com o código. Escolha{" "}
+            Este e-mail usa o layout padrão do {APP_NAME}, mantido junto com o código. Escolha{" "}
             <b>HTML próprio</b> para escrever outro corpo usando os campos abaixo
             {html.trim() ? " (o HTML salvo antes continua guardado e volta ao trocar de modo)" : ""}
             .

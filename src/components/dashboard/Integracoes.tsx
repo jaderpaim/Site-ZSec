@@ -40,6 +40,7 @@ import {
   Check,
   ChevronRight,
 } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 // ── Types — INALTERADOS ────────────────────────────────────────────────────────
 type Provider =
@@ -554,7 +555,7 @@ export function IntegracoesDashboard() {
       <div>
         <h1 className="int-ph-title">Integrações de API</h1>
         <p className="int-ph-sub">
-          Credenciais das ferramentas externas · cada integração alimenta um módulo do Z-Sec
+          Credenciais das ferramentas externas · cada integração alimenta um módulo do {APP_NAME}
         </p>
       </div>
 
@@ -1532,7 +1533,7 @@ function SastSheet({
                 title="Ingestão direta ativa"
                 hint={
                   adoEnabled
-                    ? "Pipelines enviam o relatório direto para o Z-Sec"
+                    ? `Pipelines enviam o relatório direto para o ${APP_NAME}`
                     : "Desligada — envios das pipelines recebem 503"
                 }
                 checked={adoEnabled}
@@ -1613,14 +1614,14 @@ function SastSheet({
                     </button>
                   </div>
                   <div className="int-help">
-                    Copie agora: esta chave não aparece de novo (o Z-Sec guarda só o hash). Coloque
+                    Copie agora: esta chave não aparece de novo (o {APP_NAME} guarda só o hash). Coloque
                     no template de pipeline e, depois que todas as builds estiverem usando a nova,
                     revogue a anterior.
                   </div>
                 </div>
               )}
               <div className="int-help">
-                A chave só serve para enviar relatório ao Z-Sec, sem acesso a nada no Azure DevOps.
+                A chave só serve para enviar relatório ao {APP_NAME}, sem acesso a nada no Azure DevOps.
                 Sozinha não basta para forjar dado: todo envio é conferido contra uma build real em
                 execução.
               </div>

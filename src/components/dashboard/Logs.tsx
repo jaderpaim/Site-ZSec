@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 // ─── Tipos das tabelas de log ─────────────────────────────────────────────────
 
@@ -906,7 +907,7 @@ export function LogsDashboard() {
       <div>
         <h1 className="lg-ph-title">Central de Logs</h1>
         <p className="lg-ph-sub">
-          Tudo o que aconteceu no Z-Sec em um só lugar: ações, acessos, importações, integrações e
+          Tudo o que aconteceu no {APP_NAME} em um só lugar: ações, acessos, importações, integrações e
           e-mails
         </p>
       </div>

@@ -18,6 +18,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { cleanUserName } from "@/lib/ia.server";
+import { APP_NAME } from "@/lib/brand";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabelas/colunas novas ainda fora dos tipos gerados
 const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
@@ -276,6 +277,6 @@ export async function handleAgentIngest(request: Request): Promise<Response> {
     return json(200, { ok: true, accepted: rows.length, user: userName, user_resolved: resolved });
   } catch (e) {
     await logIngest("error", 500, (e as Error).message, Date.now() - t0);
-    return json(500, { ok: false, error: "Erro interno no Z-Sec." });
+    return json(500, { ok: false, error: `Erro interno no ${APP_NAME}.` });
   }
 }

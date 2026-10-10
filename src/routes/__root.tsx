@@ -3,6 +3,7 @@ import { Outlet, Link, createRootRouteWithContext, useRouter, HeadContent, Scrip
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
 import { Toaster } from "@/components/ui/sonner";
+import { APP_NAME } from "@/lib/brand";
 
 function NotFoundComponent() {
   return (
@@ -48,14 +49,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Z-Sec — Security Suite" },
+      { title: `${APP_NAME} — Security Suite` },
       { name: "description", content: "Plataforma corporativa de Segurança da Informação." },
-      { property: "og:title", content: "Z-Sec — Security Suite" },
-      { name: "twitter:title", content: "Z-Sec — Security Suite" },
+      { property: "og:title", content: `${APP_NAME} — Security Suite` },
+      { name: "twitter:title", content: `${APP_NAME} — Security Suite` },
       { property: "og:description", content: "Plataforma corporativa de Segurança da Informação." },
       { name: "twitter:description", content: "Plataforma corporativa de Segurança da Informação." },
-      { property: "og:image", content: "https://b-security.bernoulli.com.br/og-image.png" },
-      { name: "twitter:image", content: "https://b-security.bernoulli.com.br/og-image.png" },
+      { property: "og:image", content: "/og-image.png" },
+      { name: "twitter:image", content: "/og-image.png" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],

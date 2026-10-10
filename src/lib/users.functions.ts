@@ -6,6 +6,7 @@ import { buildUserInviteHtml } from "./email-templates.defaults";
 import { logAudit } from "@/lib/audit-log.functions";
 import { isExclusiveModule } from "@/lib/exclusive-modules";
 import { APP_NAME } from "@/lib/brand";
+import { appUrl } from "@/lib/app-url";
 
 async function targetProfileLabel(userId: string): Promise<string> {
   const { data } = await supabaseAdmin.from("profiles").select("email, full_name").eq("id", userId).maybeSingle();
@@ -777,7 +778,7 @@ async function inviteUserCore(
   },
   context: { userId: string },
 ) {
-  const origin = process.env.APP_URL || process.env.PUBLIC_APP_URL || "https://b-security.bernoulli.com.br";
+  const origin = appUrl();
 
   // SMTP é pré-requisito: o convite agora é enviado por nós (e-mail branded), não pelo Supabase.
   const { data: cfg } = await supabaseAdmin.from("smtp_config").select("*").limit(1).maybeSingle();

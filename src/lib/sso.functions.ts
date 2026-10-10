@@ -5,6 +5,7 @@ import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { isSafeRedirectPath } from "@/lib/safe-redirect";
 import { logAudit } from "@/lib/audit-log.functions";
 import type { Database } from "@/integrations/supabase/types";
+import { appUrlOrNull } from "@/lib/app-url";
 
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
 const PENDING_REDIRECT_COOKIE = "pending_redirect";
@@ -20,8 +21,9 @@ async function assertAdmin(context: any) {
 function getRedirectUri(): string {
   const fromEnv = process.env.SSO_REDIRECT_URI;
   if (fromEnv) return fromEnv;
-  const base = process.env.PUBLIC_APP_URL ?? process.env.SUPABASE_URL ?? "";
-  return `${base.replace(/\/$/, "")}/api/public/auth/azure/callback`;
+  // Sem APP_URL devolve "" -- a tela de SSO mostra o campo vazio em vez de quebrar.
+  const base = appUrlOrNull();
+  return base ? `${base}/api/public/auth/azure/callback` : "";
 }
 
 function createPublicServerClient() {

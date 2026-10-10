@@ -11,6 +11,7 @@ import {
 } from "./email-templates.defaults";
 import { requirePermission, requireAdminOrAnalista, hasPermission } from "@/lib/authz";
 import { APP_NAME } from "@/lib/brand";
+import { appUrl } from "@/lib/app-url";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -619,7 +620,7 @@ async function sendApprovedEmail(gmudId: string) {
   }
   const password = (cfg as any).password || process.env.SMTP_PASSWORD || "";
   const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
-  const approveUrl = `${getAppBaseUrl()}/app/gmud?gmud=${g.id}`;
+  const approveUrl = `${appUrl()}/app/gmud?gmud=${g.id}`;
   const defaultHtml = buildGmudApprovedHtml(g, approveUrl);
   const approvedOverride = await getEmailTemplateOverride(sb, "gmud_approved");
   const html = applyEmailTemplate(
@@ -706,7 +707,7 @@ async function sendRejectedEmail(gmudId: string, rejectedByName: string, motivo:
   }
   const password = (cfg as any).password || process.env.SMTP_PASSWORD || "";
   const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
-  const approveUrl = `${getAppBaseUrl()}/app/gmud?gmud=${g.id}`;
+  const approveUrl = `${appUrl()}/app/gmud?gmud=${g.id}`;
   const defaultHtml = buildGmudRejectedHtml(g, approveUrl, rejectedByName, motivo);
   const rejectedOverride = await getEmailTemplateOverride(sb, "gmud_rejected");
   const html = applyEmailTemplate(
@@ -792,7 +793,7 @@ async function sendApprovalEmailToOne(
   }
   const password = (cfg as any).password || process.env.SMTP_PASSWORD || "";
   const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
-  const approveUrl2 = `${getAppBaseUrl()}/app/gmud?gmud=${encodeURIComponent(g.id)}`;
+  const approveUrl2 = `${appUrl()}/app/gmud?gmud=${encodeURIComponent(g.id)}`;
   const defaultHtml = buildGmudApprovalRequestHtml(g, a, fromUser, approveUrl2, {
     reminder: isReminder,
   });
@@ -878,13 +879,6 @@ async function sendApprovalEmailToOne(
       detalhes: { subject, error: e?.message },
     });
   }
-}
-
-function getAppBaseUrl() {
-  const explicitUrl = process.env.APP_URL || process.env.PUBLIC_APP_URL;
-  if (explicitUrl) return explicitUrl.replace(/\/+$/, "");
-
-  return "https://b-security.bernoulli.com.br";
 }
 
 export const decideGmudApproval = createServerFn({ method: "POST" })

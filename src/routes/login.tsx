@@ -7,6 +7,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getSsoPublicConfig, startAzureLogin } from "@/lib/sso.functions";
 import { isSafeRedirectPath } from "@/lib/safe-redirect";
 import { ArrowRight, Check, Eye, EyeOff, GitBranch, Loader2, Lock } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -167,7 +168,7 @@ function MicrosoftLogo() {
 /** Vitrine: prévia ilustrativa do painel (não são dados reais). */
 const ProductShowcase = React.memo(function ProductShowcase() {
   return (
-    <aside className="lg-show" aria-label="Sobre o Z-Sec">
+    <aside className="lg-show" aria-label={`Sobre o ${APP_NAME}`}>
       <div className="lg-pitch">
         <div className="lg-eyebrow">
           <i />
@@ -391,12 +392,12 @@ function LoginPage() {
             <div className="lg-brand">
               <ZSecMark />
               <div>
-                <b>Z-Sec</b>
+                <b>{APP_NAME}</b>
                 <small>Security Suite</small>
               </div>
             </div>
 
-            <h1>Entre no Z-Sec</h1>
+            <h1>Entre no {APP_NAME}</h1>
             <p className="lg-lead">Use sua conta corporativa para acessar o painel.</p>
 
             {step === "email" && ssoEnabled && (
@@ -483,7 +484,7 @@ function LoginPage() {
             </form>
 
             <p className="lg-help">
-              Esqueceu a senha ou ainda não tem acesso? Fale com o administrador do Z-Sec.
+              Esqueceu a senha ou ainda não tem acesso? Fale com o administrador do {APP_NAME}.
             </p>
           </main>
         </div>

@@ -8,6 +8,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { requirePermission, type ModuleAction } from "@/lib/authz";
+import { APP_NAME } from "@/lib/brand";
 
 const MOD = "treinamentos";
 
@@ -423,7 +424,7 @@ export const startLearnerSso = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     const c = (cfg ?? {}) as { azure_tenant_id?: string; azure_client_id?: string };
     if (!c.azure_tenant_id || !c.azure_client_id)
-      throw new Error("Login Microsoft não configurado no Z-Sec");
+      throw new Error(`Login Microsoft não configurado no ${APP_NAME}`);
     if (!process.env.AZURE_CLIENT_SECRET || !process.env.SSO_STATE_SECRET) {
       throw new Error("Login Microsoft não configurado (segredos pendentes)");
     }
