@@ -1067,7 +1067,7 @@ function ProviderSheet({
         config.tenant_id = dlpTenantId.trim();
         config.client_id = dlpClientId.trim();
       }
-      await upsertIntegrationFn({
+      return upsertIntegrationFn({
         data: {
           provider: provider.key,
           name: provider.name,
@@ -1078,8 +1078,10 @@ function ProviderSheet({
         },
       });
     },
-    onSuccess: () => {
-      toast.success(`${provider.name} salvo`);
+    onSuccess: (r) => {
+      // Cloudflare: o servidor já lista as zonas ao salvar (info ou aviso).
+      if (r && "warning" in r && r.warning) toast.warning(r.warning);
+      else toast.success(`${provider.name} salvo${r && "info" in r && r.info ? ` · ${r.info}` : ""}`);
       setSaveCount((c) => c + 1);
       onSaved();
     },

@@ -12,6 +12,7 @@ import {
   filtersInputSchema,
 } from "@/lib/cloudflare.analytics-filters";
 import { readSecret } from "@/lib/crypto.server";
+import { cfGraphql } from "@/lib/cloudflare-plan";
 
 // ─── Supabase client factory (service_role para bypassar RLS server-side) ─────
 function makeSupabase() {
@@ -907,12 +908,8 @@ export const getSecurityGroupedTimeseries = createServerFn({ method: "POST" })
 
 // ─── Live GraphQL helper (Cloudflare Analytics direto) ─────────────────────────
 async function gqlZone(apiToken: string, query: string, variables: Record<string, any>) {
-  const res = await fetch("https://api.cloudflare.com/client/v4/graphql", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` },
-    body: JSON.stringify({ query, variables }),
-  });
-  const json: any = await res.json().catch(() => ({}));
+  const res = await cfGraphql(apiToken, query, variables);
+  const json = res.json;
   if (!res.ok || json.errors?.length) {
     const msg = json.errors?.[0]?.message ?? `HTTP ${res.status}`;
     const err: any = new Error(msg);
@@ -930,13 +927,12 @@ async function gqlZonePartial(
   query: string,
   variables: Record<string, any>,
 ): Promise<{ zone: Record<string, any>; errors: string[] }> {
-  const res = await fetch("https://api.cloudflare.com/client/v4/graphql", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` },
-    body: JSON.stringify({ query, variables }),
-  });
-  const json: any = await res.json().catch(() => ({}));
-  const errors: string[] = (json.errors ?? []).map((e: any) => String(e.message ?? "erro desconhecido"));
+  const res = await cfGraphql(apiToken, query, variables);
+  const json = res.json;
+  const errors: string[] = [
+    // Limite de plano não entra como aviso: os cards sem dado já somem da tela.
+    ...new Set<string>((json.errors ?? []).map((e: any) => String(e.message ?? "erro desconhecido"))),
+  ];
   const zone = json.data?.viewer?.zones?.[0] ?? {};
   if (!res.ok && Object.keys(zone).length === 0) {
     throw new Error(errors[0] ?? `HTTP ${res.status}`);

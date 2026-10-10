@@ -241,6 +241,7 @@ const CSS = `
 
   /* ── Top statistics grid ── */
   .an-stats-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; }
+  .an-stats-grid:empty::before { content:"Sem dados no período para esta zona."; grid-column:1 / -1; padding:18px; text-align:center; font-size:12px; color:var(--v2-fg-3); border:1px dashed var(--v2-line); border-radius:10px; }
   .an-stat-panel { background:var(--v2-surface); border:1px solid var(--v2-line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; transition:border-color 0.15s; }
   .an-stat-panel:hover { border-color:var(--v2-line-strong); }
   .an-stat-panel-header { display:flex; align-items:center; gap:8px; padding:14px 16px 6px; font-size:14px; font-weight:600; color:var(--v2-fg); font-family:var(--font-ui); }
@@ -504,6 +505,10 @@ function StatPanel({
   valueFormatter?: (n: number) => string;
 }) {
   const [expanded, setExpanded] = React.useState(false);
+  // Sem linhas = card fora do plano da zona (consulta omitida) ou sem tráfego
+  // naquela dimensão no período: não exibe. Volta sozinho quando houver dado
+  // (ou depois de um upgrade de plano). A grade mostra um aviso se ficar vazia.
+  if (rows.length === 0) return null;
   const shown = expanded ? rows.slice(0, 25) : rows.slice(0, 5);
   const max = Math.max(1, ...rows.map((r) => r.requests));
   return (
@@ -2206,6 +2211,11 @@ export function AnalyticsTab({ zoneId: sharedZoneId, days: sharedDays }: { zoneI
                     Suspicious activity
                   </span>
                   <span
+                    title={
+                      ov && ov.suspiciousActivityCount === null
+                        ? "Indisponível no plano atual da zona na Cloudflare (requer plano pago)."
+                        : undefined
+                    }
                     style={{
                       fontSize: 11,
                       fontWeight: 700,
@@ -2216,7 +2226,7 @@ export function AnalyticsTab({ zoneId: sharedZoneId, days: sharedDays }: { zoneI
                       fontFamily: "'IBM Plex Mono',monospace",
                     }}
                   >
-                    {ov?.suspiciousActivityCount ?? 0}
+                    {ov && ov.suspiciousActivityCount === null ? "—" : (ov?.suspiciousActivityCount ?? 0)}
                   </span>
                 </div>
 

@@ -17,6 +17,7 @@ import {
   type AnalyticsFilterCondition,
 } from "@/lib/cloudflare.analytics-filters";
 import { readSecret } from "@/lib/crypto.server";
+import { cfGraphql } from "@/lib/cloudflare-plan";
 
 function makeSupabase() {
   const url = process.env.SUPABASE_URL!;
@@ -27,20 +28,18 @@ function makeSupabase() {
   });
 }
 
-const GQL_URL = "https://api.cloudflare.com/client/v4/graphql";
 
 async function gqlZonePartial(
   apiToken: string,
   query: string,
   variables: Record<string, any>,
 ): Promise<{ zone: Record<string, any>; errors: string[] }> {
-  const res = await fetch(GQL_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` },
-    body: JSON.stringify({ query, variables }),
-  });
-  const json: any = await res.json().catch(() => ({}));
-  const errors: string[] = (json.errors ?? []).map((e: any) => String(e.message ?? "erro desconhecido"));
+  const res = await cfGraphql(apiToken, query, variables);
+  const json = res.json;
+  const errors: string[] = [
+    // Limite de plano não entra como aviso: os cards sem dado já somem da tela.
+    ...new Set<string>((json.errors ?? []).map((e: any) => String(e.message ?? "erro desconhecido"))),
+  ];
   const zone = json.data?.viewer?.zones?.[0] ?? {};
   if (!res.ok && Object.keys(zone).length === 0) {
     throw new Error(errors[0] ?? `HTTP ${res.status}`);
@@ -95,7 +94,8 @@ export type SecurityKpiPoint = { ts: string; mitigatedByWaf: number; servedByClo
 export type SecurityOverviewResult =
   | {
       ok: true;
-      suspiciousActivityCount: number;
+      /** null = indisponível no plano da zona (ex.: Free). */
+      suspiciousActivityCount: number | null;
       totals: { total: number; mitigatedByWaf: number; servedByCloudflare: number; servedByOrigin: number };
       series: SecurityKpiPoint[];
     }
@@ -131,6 +131,11 @@ export const getSecurityOverview = createServerFn({ method: "POST" })
         mitigatedSeries: httpRequestsAdaptiveGroups(limit:5000, orderBy:[datetimeFifteenMinutes_DESC], filter:{datetime_geq:$since, datetime_leq:$until, ${mitigatedFilter}}) { count dimensions { ts: datetimeFifteenMinutes } }
         servedCfSeries: httpRequestsAdaptiveGroups(limit:5000, orderBy:[datetimeFifteenMinutes_DESC], filter:{datetime_geq:$since, datetime_leq:$until, ${servedCfFilter}}) { count dimensions { ts: datetimeFifteenMinutes } }
         servedOriginSeries: httpRequestsAdaptiveGroups(limit:5000, orderBy:[datetimeFifteenMinutes_DESC], filter:{datetime_geq:$since, datetime_leq:$until, ${servedOriginFilter}}) { count dimensions { ts: datetimeFifteenMinutes } }
+      } } }`;
+    // Separada da consulta principal: firewallEventsAdaptiveGroups não existe no
+    // plano Free, e um campo recusado derrubava a aba Security inteira.
+    const ddosQuery = `query($zone:String!,$since:Time!,$until:Time!){
+      viewer { zones(filter:{zoneTag:$zone}) {
         ddos: firewallEventsAdaptiveGroups(limit:10000, orderBy:[datetimeFifteenMinutes_DESC], filter:{action_neq:"log", datetimeMinute_geq:$since, datetimeMinute_leq:$until, source:"l7ddos"}) { dimensions { source timestamp: datetimeFifteenMinutes } }
       } } }`;
 
@@ -143,6 +148,18 @@ export const getSecurityOverview = createServerFn({ method: "POST" })
       });
       if (Object.keys(zone).length === 0 && errors.length) {
         return { ok: false, error: errors.join(" | ") };
+      }
+
+      let suspiciousActivityCount: number | null = null;
+      try {
+        const ddos = await gqlZonePartial(ctx.apiToken, ddosQuery, {
+          zone: ctx.zoneId,
+          since: since.toISOString(),
+          until: until.toISOString(),
+        });
+        if (Array.isArray(ddos.zone.ddos)) suspiciousActivityCount = ddos.zone.ddos.length;
+      } catch {
+        // indisponível no plano (ou falha pontual): o card mostra "—"
       }
 
       const byTs = new Map<string, SecurityKpiPoint>();
@@ -162,7 +179,7 @@ export const getSecurityOverview = createServerFn({ method: "POST" })
 
       return {
         ok: true,
-        suspiciousActivityCount: (zone.ddos ?? []).length,
+        suspiciousActivityCount,
         totals: {
           total: Number(zone.total?.[0]?.count ?? 0),
           mitigatedByWaf: Number(zone.mitigatedTotal?.[0]?.count ?? 0),

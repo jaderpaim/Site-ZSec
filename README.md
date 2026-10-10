@@ -171,6 +171,21 @@ Funcionam para qualquer cliente. As credenciais ficam na tabela `integrations` d
 | ssl-checker / RDAP | Domínios e certificados | Serviços públicos | `domains.functions.ts`, `ssl*.ts` |
 | Microsoft Entra ID | SSO e portal de Treinamentos | `login.microsoftonline.com` | `sso.functions.ts`, `treinamentos*.ts` |
 
+#### Token da Cloudflare (permissões)
+
+Crie um **Custom token** em My Profile → API Tokens, com duas políticas, **só leitura** (menor privilégio). As permissões de edição (criar/alterar regras e DNS pelo módulo) entram quando forem usadas.
+
+| Política | Escopo | Permissões (Read) |
+| --- | --- | --- |
+| Zona | **Domínios especificados** (só os domínios do cliente) | Zone, DNS, Analytics, Firewall Services, Zone WAF, Zone Transform Rules, Config Settings, Page Rules, Custom Pages, Load Balancers, Cache Rules, Single Redirect, Origin Rules |
+| Conta | Conta inteira | Account Settings, Account Analytics, Account WAF, Load Balancers Account, Load Balancing: Monitors and Pools |
+
+- **Web Analytics (RUM)** não tem permissão própria: depende de **Account Settings + Account Analytics**. Sem a política de conta, as abas Web Analytics e Load Balancing falham com "Authentication error".
+- Cache Rules, Single Redirect e Origin Rules cobrem as fases `http_request/response_cache_settings`, `http_request_dynamic_redirect` e `http_request_origin` lidas na aba Operações → Regras.
+- O código não usa: Zone Settings, Zone DNS Settings, Logs, Zone Observability, Security Center Insights, Domain API Gateway, Registrar Domains, DNS View, Account DNS Settings, DNS Firewall, Account Firewall Access Rules.
+- Ao salvar o token em Integrações, o app já lista as zonas (`syncCloudflareZones`).
+- **Plano da zona limita dados.** No plano **Free** a Cloudflare não libera eventos de firewall agregados (`firewallEventsAdaptiveGroups`), score de ataque do WAF nem score de bot. O módulo mostra "indisponível no plano atual" nesses pontos e o resto funciona; a sincronização usa a versão bruta dos eventos, que existe no Free.
+
 ### 2. Sistemas on-prem via Cloudflare Access
 
 Hoje o servidor chama o sistema do cliente através de um túnel Cloudflare, usando o service token `CF_ACCESS_CLIENT_ID/SECRET`.

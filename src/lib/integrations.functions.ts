@@ -185,5 +185,16 @@ export const upsertIntegration = createServerFn({ method: "POST" })
     });
 
     if (error) throw new Error(error.message);
+
+    // Cloudflare: já traz a lista de zonas ao salvar, para o módulo não abrir
+    // vazio até o primeiro sync. Falha aqui não desfaz o salvamento -- volta
+    // como aviso e o sync normal tenta de novo.
+    if (data.provider === "cloudflare" && data.enabled) {
+      const { syncCloudflareZones } = await import("./cloudflare.server");
+      const sync = await syncCloudflareZones();
+      return sync.ok
+        ? { ok: true, info: `${sync.zones} zona(s) encontrada(s) na Cloudflare.` }
+        : { ok: true, warning: `Integração salva, mas não foi possível listar as zonas: ${sync.error}` };
+    }
     return { ok: true };
   });

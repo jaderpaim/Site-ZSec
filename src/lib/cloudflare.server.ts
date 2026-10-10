@@ -233,6 +233,42 @@ export type CloudflareSyncResult =
     }
   | { ok: false; error: string };
 
+// Grava/atualiza a lista de zonas (tabela cloudflare_zones, que o seletor de
+// zona lê). Separada da sincronização completa para rodar também ao salvar o
+// token em Integrações: assim o módulo já abre com as zonas, sem esperar o
+// primeiro sync de DNS/eventos.
+async function upsertZones(apiToken: string) {
+  const zones = await listAllZones(apiToken);
+  if (zones.length > 0) {
+    const rows = zones.map((z) => ({
+      id: z.id,
+      name: z.name,
+      status: z.status,
+      account_id: z.account?.id ?? null,
+      account_name: z.account?.name ?? null,
+      paused: z.paused ?? null,
+      type: z.type ?? null,
+      raw: z,
+      synced_at: new Date().toISOString(),
+    }));
+    const { error } = await supabaseAdmin.from("cloudflare_zones").upsert(rows, { onConflict: "id" });
+    if (error) throw new Error(`upsert zones: ${error.message}`);
+  }
+  return zones;
+}
+
+/** Sincroniza só a lista de zonas (uma chamada à API). Usado ao salvar a integração. */
+export async function syncCloudflareZones(): Promise<{ ok: true; zones: number } | { ok: false; error: string }> {
+  const creds = await getCredentials();
+  if ("ok" in creds && creds.ok === false) return creds;
+  try {
+    const zones = await upsertZones((creds as Credentials).apiToken);
+    return { ok: true, zones: zones.length };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function runCloudflareSync(opts?: { fullResync?: boolean }): Promise<CloudflareSyncResult> {
   const t0 = Date.now();
   const creds = await getCredentials();
@@ -255,22 +291,7 @@ export async function runCloudflareSync(opts?: { fullResync?: boolean }): Promis
     const lastDnsAt = fullResync ? null : (stateRow?.last_dns_synced_at ?? null);
 
     // 1) ZONES
-    const zones = await listAllZones(apiToken);
-    if (zones.length > 0) {
-      const rows = zones.map((z) => ({
-        id: z.id,
-        name: z.name,
-        status: z.status,
-        account_id: z.account?.id ?? null,
-        account_name: z.account?.name ?? null,
-        paused: z.paused ?? null,
-        type: z.type ?? null,
-        raw: z,
-        synced_at: new Date().toISOString(),
-      }));
-      const { error } = await supabaseAdmin.from("cloudflare_zones").upsert(rows, { onConflict: "id" });
-      if (error) throw new Error(`upsert zones: ${error.message}`);
-    }
+    const zones = await upsertZones(apiToken);
 
     // 2) DNS RECORDS (per zone)
     let dnsCount = 0;
