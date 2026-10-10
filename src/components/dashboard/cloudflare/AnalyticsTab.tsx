@@ -1134,7 +1134,9 @@ export function AnalyticsTab({ zoneId: sharedZoneId, days: sharedDays }: { zoneI
   // Cloudflare) — mesmo auto-select que a aba Dashboard já faz, pra abrir
   // direto na janela precisa por padrão.
   React.useEffect(() => {
-    if (zones.length === 0 || zoneId) return;
+    if (zones.length === 0) return;
+    // Zona salva no navegador só vale se o token atual enxergá-la.
+    if (zoneId && zones.some((z) => z.id === zoneId)) return;
     const zona = pickDefaultZone(zones, org.dominio_corporativo);
     if (zona) persistZone(zona.id);
   }, [zones, zoneId, org.dominio_corporativo]);

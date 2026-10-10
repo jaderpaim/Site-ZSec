@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
-import { applyEmailTemplate, getEmailTemplateOverride, escapeHtml } from "./email-templates.functions";
-import { buildDomainExpiryAlertHtml } from "./email-templates.defaults";
+import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.functions";
+import { buildDomainExpiryAlertHtml, expiryRowsTable } from "./email-templates.defaults";
+import { appUrlOrNull } from "@/lib/app-url";
 import { fetchWithRetry } from "./http-retry";
 import { APP_NAME } from "@/lib/brand";
 import { sendMail } from "@/lib/mailer.server";
@@ -476,14 +477,22 @@ export async function checkExpiringAndNotify(): Promise<{ notified: number; doma
   if (!password) return { notified: 0, domains: expiring.length };
 
   const subject = `${APP_NAME} · ${expiring.length} domínio(s) próximo(s) do vencimento`;
-  const rowsHtml = expiring
-    .map((r: any) => {
-      const days = Math.ceil((new Date(r.expiry_date).getTime() - today) / 86400000);
-      return `<tr><td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(String(r.domain_name ?? ""))}</td><td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(String(r.registrar ?? "—"))}</td><td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(String(r.expiry_date ?? ""))}</td><td style="padding:6px 12px;border:1px solid #ddd;color:${days <= 7 ? "#c1121f" : "#d4a017"}"><b>${days} dia(s)</b></td></tr>`;
-    })
-    .join("");
-  const tabela = `<table style="border-collapse:collapse"><thead><tr><th style="padding:6px 12px;border:1px solid #ddd">Domínio</th><th style="padding:6px 12px;border:1px solid #ddd">Registrador</th><th style="padding:6px 12px;border:1px solid #ddd">Vencimento</th><th style="padding:6px 12px;border:1px solid #ddd">Dias restantes</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
-  const defaultHtml = buildDomainExpiryAlertHtml(tabela);
+  // Mais urgente primeiro
+  const expiryRows = expiring
+    .map((r: any) => ({
+      nome: String(r.domain_name ?? ""),
+      segundo: String(r.registrar ?? "—"),
+      vencimento: String(r.expiry_date ?? ""),
+      dias: Math.ceil((new Date(r.expiry_date).getTime() - today) / 86400000),
+    }))
+    .sort((x, y) => x.dias - y.dias);
+  const tabela = expiryRowsTable("Domínio", "Registrador", expiryRows);
+  const base = appUrlOrNull();
+  const defaultHtml = buildDomainExpiryAlertHtml(tabela, {
+    quantidade: expiryRows.length,
+    maisUrgente: expiryRows[0] ? { nome: expiryRows[0].nome, dias: expiryRows[0].dias } : undefined,
+    link: base ? `${base}/app/dominios-ssl` : undefined,
+  });
   const override = await getEmailTemplateOverride(sb, "domain_expiry_alert");
   const html = applyEmailTemplate(
     "domain_expiry_alert",

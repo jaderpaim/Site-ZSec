@@ -4,8 +4,9 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { requirePermission } from "@/lib/authz";
-import { applyEmailTemplate, getEmailTemplateOverride, escapeHtml } from "./email-templates.functions";
-import { buildSslExpiryAlertHtml } from "./email-templates.defaults";
+import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.functions";
+import { buildSslExpiryAlertHtml, expiryRowsTable } from "./email-templates.defaults";
+import { appUrlOrNull } from "@/lib/app-url";
 import { fetchWithTimeout, fetchWithRetry } from "./http-retry";
 import { APP_NAME } from "@/lib/brand";
 import { sendMail } from "@/lib/mailer.server";
@@ -1126,14 +1127,22 @@ export async function checkExpiringSslAndNotify(): Promise<{ notified: number; c
   if (!password) return { notified: 0, certs: expiring.length };
 
   const subject = `${APP_NAME} · ${expiring.length} certificado(s) SSL próximo(s) do vencimento`;
-  const rowsHtml = expiring
-    .map((r: any) => {
-      const days = daysUntilExpiry(r.valid_to);
-      return `<tr><td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(String(r.domain_name ?? ""))}</td><td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(String(r.issuer ?? "—"))}</td><td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(String(r.valid_to ?? ""))}</td><td style="padding:6px 12px;border:1px solid #ddd;color:${days <= 7 ? "#c1121f" : "#d4a017"}"><b>${days} dia(s)</b></td></tr>`;
-    })
-    .join("");
-  const tabela = `<table style="border-collapse:collapse"><thead><tr><th style="padding:6px 12px;border:1px solid #ddd">Domínio</th><th style="padding:6px 12px;border:1px solid #ddd">Emissor</th><th style="padding:6px 12px;border:1px solid #ddd">Validade</th><th style="padding:6px 12px;border:1px solid #ddd">Dias restantes</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
-  const defaultHtml = buildSslExpiryAlertHtml(tabela);
+  // Mais urgente primeiro
+  const expiryRows = expiring
+    .map((r: any) => ({
+      nome: String(r.domain_name ?? ""),
+      segundo: String(r.issuer ?? "—"),
+      vencimento: String(r.valid_to ?? ""),
+      dias: daysUntilExpiry(r.valid_to),
+    }))
+    .sort((x, y) => x.dias - y.dias);
+  const tabela = expiryRowsTable("Certificado", "Emissor", expiryRows);
+  const base = appUrlOrNull();
+  const defaultHtml = buildSslExpiryAlertHtml(tabela, {
+    quantidade: expiryRows.length,
+    maisUrgente: expiryRows[0] ? { nome: expiryRows[0].nome, dias: expiryRows[0].dias } : undefined,
+    link: base ? `${base}/app/dominios-ssl` : undefined,
+  });
   const override = await getEmailTemplateOverride(sb, "ssl_expiry_alert");
   const html = applyEmailTemplate(
     "ssl_expiry_alert",

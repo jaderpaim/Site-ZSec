@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.functions";
 import { buildFornecedorExpiryAlertHtml } from "./email-templates.defaults";
+import { appUrlOrNull } from "@/lib/app-url";
 import { APP_NAME } from "@/lib/brand";
 import { sendMail } from "@/lib/mailer.server";
 
@@ -302,6 +303,7 @@ export async function checkExpiringFornecedoresAndNotify(): Promise<{ notified: 
       servico: r.servico_prestado ?? "—",
       vencimento: r.data_expiracao,
       dias: days,
+      link: appUrlOrNull() ? `${appUrlOrNull()}/app/fornecedores` : undefined,
     });
     const html = applyEmailTemplate(
       "fornecedor_expiry_alert",

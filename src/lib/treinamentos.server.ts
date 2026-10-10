@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { appUrl } from "@/lib/app-url";
 import { APP_NAME } from "@/lib/brand";
 import { sendMail as deliverMail } from "@/lib/mailer.server";
+import { renderEmail } from "@/lib/email-layout";
 
 export const LEARNER_COOKIE = "zsec_trn";
 const LEARNER_TTL_SEC = 8 * 60 * 60; // 8 horas
@@ -139,16 +140,26 @@ export function buildConviteHtml(a: {
   link: string;
 }) {
   const prazo = a.prazo ? a.prazo.split("-").reverse().join("/") : null;
-  return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px">
-<tr><td style="padding:24px 28px 8px;font-size:13px;color:#2563eb;font-weight:bold;letter-spacing:.04em">${APP_NAME.toUpperCase()} · SEGURANÇA DA INFORMAÇÃO</td></tr>
-<tr><td style="padding:4px 28px 0;font-size:20px;font-weight:bold;color:#111827">Olá, ${esc(a.nome.split(" ")[0] ?? a.nome)}</td></tr>
-<tr><td style="padding:12px 28px 0;font-size:15px;line-height:1.6">Você tem um treinamento de segurança para fazer: <b>${esc(a.titulo)}</b>.${prazo ? ` O prazo é <b>${prazo}</b>.` : ""}</td></tr>
-<tr><td style="padding:20px 28px 4px"><a href="${esc(a.link)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px">Abrir Meus treinamentos</a></td></tr>
-<tr><td style="padding:12px 28px 0;font-size:13px;line-height:1.6;color:#4b5563">Você vai entrar com a sua conta Microsoft da empresa. Prefere não clicar em links de e-mail? Ótimo hábito: acesse a intranet e abra <b>Meus treinamentos</b>.</td></tr>
-<tr><td style="padding:20px 28px 24px;font-size:12px;color:#9ca3af">Enviado automaticamente pelo ${APP_NAME} · Segurança da Informação. Dúvidas: responda este e-mail.</td></tr>
-</table></td></tr></table></body></html>`;
+  const primeiro = a.nome.split(" ")[0] || a.nome;
+  return renderEmail({
+    module: "Segurança da Informação",
+    tone: "info",
+    status: "Treinamento atribuído",
+    title: `${primeiro}, você tem um treinamento de segurança`,
+    intro: `Faça o treinamento <strong class="fg" style="color:#111827;">${esc(a.titulo)}</strong>${prazo ? ` até <strong class="fg" style="color:#111827;">${prazo}</strong>` : ""}. Você entra com a sua conta Microsoft da empresa.`,
+    preheader: prazo ? `${a.titulo} · prazo ${prazo}` : a.titulo,
+    blocks: [
+      {
+        kind: "note",
+        tone: "info",
+        title: "Prefere não clicar em links de e-mail?",
+        text: "Ótimo hábito. Acesse a intranet e abra Meus treinamentos.",
+      },
+    ],
+    cta: { label: "Abrir Meus treinamentos", url: a.link },
+    reason: "Você recebeu porque um treinamento foi atribuído a você pela equipe de Segurança da Informação.",
+    replyable: true,
+  });
 }
 
 export function clientIp(req: Request | null): string | null {

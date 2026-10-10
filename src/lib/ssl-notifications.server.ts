@@ -6,15 +6,9 @@ import { isAlertModuleEnabled } from "@/lib/alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/app-url";
 import { sendMail } from "@/lib/mailer.server";
+import { emailStrong, renderEmail } from "@/lib/email-layout";
 
 const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-  );
-}
 
 async function getGlobalAdminEmails(): Promise<string[]> {
   const { data: roles } = await adminDb
@@ -108,23 +102,40 @@ export async function notifySslCertRenewed(args: {
     if (!password) return;
 
     const subject = `${APP_NAME} · ${title}: ${args.domain}`;
-    const rowsHtml = facts
-      .map(
-        (x) =>
-          `<tr><td style="padding:10px 16px;border-bottom:1px solid #1e2a3a;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#6b7280;width:160px;vertical-align:top;">${escapeHtml(x.name)}</td><td style="padding:10px 16px;border-bottom:1px solid #1e2a3a;font-size:14px;color:#ffffff;word-break:break-word;">${escapeHtml(x.value).replace(/\n/g, "<br/>")}</td></tr>`,
-      )
-      .join("");
-    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>${escapeHtml(title)}</title></head>
-<body style="margin:0;padding:0;background:#0b0f1a;font-family:Arial,Helvetica,sans-serif;">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#0b0f1a"><tr><td align="center" style="padding:40px 16px;">
-<table role="presentation" cellspacing="0" cellpadding="0" style="max-width:580px;width:100%;background:#111827;border:1px solid #1e2a3a;border-radius:10px;">
-<tr><td style="padding:28px 32px 8px;"><div style="font-size:22px;font-weight:700;color:#ffffff;">${APP_NAME}</div>
-<div style="font-size:10px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;margin-top:6px;">Domínios / SSL</div></td></tr>
-<tr><td style="padding:12px 32px 20px;"><h1 style="margin:0;font-size:20px;color:#ffffff;">${escapeHtml(title)}</h1>
-<p style="margin:10px 0 0;font-size:13px;color:#9ca3af;line-height:1.6;">Confirme que o novo certificado foi instalado em todas as URLs vinculadas abaixo.</p></td></tr>
-<tr><td style="padding:0 16px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rowsHtml}</table></td></tr>
-<tr><td align="center" style="padding:24px 32px 32px;"><a href="${link}" style="display:inline-block;background:#10b981;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:6px;">Abrir Domínios / SSL</a></td></tr>
-</table></td></tr></table></body></html>`;
+    const html = renderEmail({
+      module: "Domínios e SSL",
+      tone: "ok",
+      status: "Certificado renovado",
+      title: `Certificado de ${args.domain} renovado`,
+      intro: `O novo certificado vale até <strong class="fg" style="color:#111827;">${fmtBr(args.current.valid_to)}</strong>. Confira se ele já está instalado em todas as URLs vinculadas.`,
+      preheader: `Novo certificado válido até ${fmtBr(args.current.valid_to)}`,
+      blocks: [
+        {
+          kind: "diff",
+          items: [
+            { label: "Validade", before: fmtBr(args.previous.valid_to), after: fmtBr(args.current.valid_to) },
+            ...(args.previous.issuer !== args.current.issuer
+              ? [{ label: "Emissor", before: args.previous.issuer ?? "—", after: args.current.issuer }]
+              : []),
+          ],
+        },
+        {
+          kind: "facts",
+          items: [
+            {
+              label: "URLs vinculadas",
+              value: args.bindings.length > 0 ? args.bindings.join("\n") : "Nenhuma URL cadastrada",
+              mono: args.bindings.length > 0,
+            },
+            { label: "Emissor", value: args.current.issuer },
+            { label: "Fingerprint (SHA-256)", value: args.current.fingerprint_sha256, mono: true },
+          ],
+        },
+      ],
+      cta: { label: "Conferir instalação", url: link },
+      meta: `Renovado por ${emailStrong(actorName)}`,
+      reason: `Você recebeu porque é administrador global do ${APP_NAME}.`,
+    });
 
     for (const to of recipients) {
       try {

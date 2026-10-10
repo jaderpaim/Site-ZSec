@@ -696,10 +696,12 @@ export function CloudflareDashboardReal() {
 
   React.useEffect(() => {
     if (zones.length === 0) return;
-    if (selectedZoneId) return;
+    // A zona salva no navegador pode ser de outra conta/instância (ou ter sido
+    // removida): só vale se estiver entre as zonas que o token enxerga.
+    if (selectedZoneId && zones.some((z) => z.id === selectedZoneId)) return;
     const zona = pickDefaultZone(zones, org.dominio_corporativo);
-    if (zona) persistZone(zona.id);
-  }, [zones, org.dominio_corporativo]);
+    persistZone(zona?.id ?? null);
+  }, [zones, selectedZoneId, org.dominio_corporativo]);
 
   const selectedZone = zones.find((z) => z.id === selectedZoneId) || null;
   const syncZoneFn = useServerFn(syncCloudflareZone);

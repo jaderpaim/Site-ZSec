@@ -16,6 +16,7 @@ import type { SastDetectionRow, SastScanRunRow } from "@/lib/sast-normalize";
 import { APP_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/app-url";
 import { sendMail } from "@/lib/mailer.server";
+import { emailStrong, renderEmail } from "@/lib/email-layout";
 import { readSecret } from "@/lib/crypto.server";
 
 const adminDb = supabaseAdmin as unknown as {
@@ -295,13 +296,6 @@ const STATUS_LABEL: Record<string, string> = {
   risco_aceito: "Risco aceito",
 };
 
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-  );
-}
-
 async function getGlobalAdminEmails(): Promise<string[]> {
   const { data: roles } = await adminDb
     .from("user_roles")
@@ -404,22 +398,34 @@ export async function notifySastTriage(args: {
     if (!password) return;
 
     const subject = `${APP_NAME} · ${title} em ${f.repository}`;
-    const rowsHtml = facts
-      .map(
-        (x) =>
-          `<tr><td style="padding:10px 16px;border-bottom:1px solid #1e2a3a;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#6b7280;width:160px;">${escapeHtml(x.name)}</td><td style="padding:10px 16px;border-bottom:1px solid #1e2a3a;font-size:14px;color:#ffffff;word-break:break-word;">${escapeHtml(x.value)}</td></tr>`,
-      )
-      .join("");
-    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>${escapeHtml(title)}</title></head>
-<body style="margin:0;padding:0;background:#0b0f1a;font-family:Arial,Helvetica,sans-serif;">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#0b0f1a"><tr><td align="center" style="padding:40px 16px;">
-<table role="presentation" cellspacing="0" cellpadding="0" style="max-width:580px;width:100%;background:#111827;border:1px solid #1e2a3a;border-radius:10px;">
-<tr><td style="padding:28px 32px 8px;"><div style="font-size:22px;font-weight:700;color:#ffffff;">${APP_NAME}</div>
-<div style="font-size:10px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;margin-top:6px;">SAST · Esteiras CI/CD</div></td></tr>
-<tr><td style="padding:12px 32px 20px;"><h1 style="margin:0;font-size:20px;color:#ffffff;">${escapeHtml(title)}</h1></td></tr>
-<tr><td style="padding:0 16px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rowsHtml}</table></td></tr>
-<tr><td align="center" style="padding:24px 32px 32px;"><a href="${link}" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:6px;">Abrir módulo SAST</a></td></tr>
-</table></td></tr></table></body></html>`;
+    const prevLabel = STATUS_LABEL[args.previousStatus] ?? args.previousStatus;
+    const html = renderEmail({
+      module: "SAST",
+      tone: args.newStatus === "risco_aceito" || args.newStatus === "falso_positivo" ? "warn" : args.newStatus === "resolvido" ? "ok" : "info",
+      status: statusLabel,
+      title: `Achado em ${f.repository} marcado como ${statusLabel.toLowerCase()}`,
+      intro: `${emailStrong(actorName)} mudou o status de um achado de ${f.tool}.${
+        args.newStatus === "risco_aceito" || args.newStatus === "falso_positivo"
+          ? " Achados com esse status saem da contagem de pendências."
+          : ""
+      }`,
+      preheader: `${f.tool} ${f.rule_id} · ${location}`,
+      blocks: [
+        { kind: "diff", items: [{ label: "Status", before: prevLabel, after: statusLabel }] },
+        {
+          kind: "facts",
+          items: [
+            { label: "Repositório", value: `${f.project} / ${f.repository} (${f.branch})` },
+            { label: "Regra", value: `${f.tool} · ${f.rule_id}`, mono: true },
+            { label: "Arquivo", value: location, mono: true },
+            { label: "Justificativa", value: args.note || "—" },
+          ],
+        },
+      ],
+      cta: { label: `Ver achado no ${APP_NAME}`, url: link },
+      meta: `Alterado por ${emailStrong(actorName)}`,
+      reason: `Você recebeu porque é administrador global do ${APP_NAME}.`,
+    });
 
     for (const to of recipients) {
       try {

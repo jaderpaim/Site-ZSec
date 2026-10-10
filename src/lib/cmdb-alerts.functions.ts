@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.functions";
-import { buildCmdbDeviceAlertHtml, buildCmdbDeviceStoppedHtml } from "./email-templates.defaults";
+import { buildCmdbDeviceAlertHtml, buildCmdbDeviceStoppedHtml, emailTableHtml } from "./email-templates.defaults";
+import { appUrlOrNull } from "@/lib/app-url";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
 import { sendMail } from "@/lib/mailer.server";
@@ -98,35 +99,16 @@ function isInZabbix(a: Ativo, zbxHosts: Set<string>, zbxIps: Set<string>): boole
   });
 }
 
-function htmlTable(rows: Classified[]): string {
-  const tr = rows
-    .map(
-      (r) => `
-      <tr>
-        <td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(r.ativo.nome)}</td>
-        <td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(r.ativo.tipo ?? "—")}</td>
-        <td style="padding:6px 12px;border:1px solid #ddd">${escapeHtml(r.ativo.ip_hostname ?? "—")}</td>
-        <td style="padding:6px 12px;border:1px solid #ddd"><b>${r.bucket}</b></td>
-        <td style="padding:6px 12px;border:1px solid #ddd">${r.failIn}</td>
-      </tr>`,
-    )
-    .join("");
-  return `<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px">
-    <thead>
-      <tr style="background:#f3f4f6">
-        <th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Nome do ativo</th>
-        <th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Tipo</th>
-        <th style="padding:6px 12px;border:1px solid #ddd;text-align:left">IP / Hostname</th>
-        <th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Status</th>
-        <th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Falha em</th>
-      </tr>
-    </thead>
-    <tbody>${tr}</tbody>
-  </table>`;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+function htmlTable(rows: Classified[], tone: "warn" | "crit"): string {
+  return emailTableHtml(
+    [{ label: "Ativo" }, { label: "Tipo" }, { label: "IP / Host" }, { label: "Falta em" }],
+    rows.map((r) => [
+      { text: r.ativo.nome },
+      { text: r.ativo.tipo ?? "—" },
+      { text: r.ativo.ip_hostname ?? "—", mono: true },
+      { text: r.failIn === "Ambos" ? "SIEM e Zabbix" : r.failIn, chip: tone },
+    ]),
+  );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -323,8 +305,12 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
   type Email = { subject: string; html: string; template: string };
   const emails: Email[] = [];
   if (alertBucket.length > 0) {
-    const tabela = htmlTable(alertBucket);
-    const defaultHtml = buildCmdbDeviceAlertHtml(tabela);
+    const tabela = htmlTable(alertBucket, "warn");
+    const base = appUrlOrNull();
+    const defaultHtml = buildCmdbDeviceAlertHtml(tabela, {
+      quantidade: alertBucket.length,
+      link: base ? `${base}/app/cmdb` : undefined,
+    });
     const override = await getEmailTemplateOverride(sb, "cmdb_device_alert");
     emails.push({
       subject: `${APP_NAME} · Device Alert — ${alertBucket.length} ativo(s) com monitoramento parcial`,
@@ -338,8 +324,12 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
     });
   }
   if (stoppedBucket.length > 0) {
-    const tabela = htmlTable(stoppedBucket);
-    const defaultHtml = buildCmdbDeviceStoppedHtml(tabela);
+    const tabela = htmlTable(stoppedBucket, "crit");
+    const base = appUrlOrNull();
+    const defaultHtml = buildCmdbDeviceStoppedHtml(tabela, {
+      quantidade: stoppedBucket.length,
+      link: base ? `${base}/app/cmdb` : undefined,
+    });
     const override = await getEmailTemplateOverride(sb, "cmdb_device_stopped");
     emails.push({
       subject: `${APP_NAME} · Device Stopped — ${stoppedBucket.length} ativo(s) sem monitoramento`,
