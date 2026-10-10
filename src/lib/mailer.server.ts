@@ -27,6 +27,33 @@ export type MailPayload = {
 /** Mesmo formato que a Edge Function devolvia, para os chamadores não mudarem. */
 export type MailResult = { ok: boolean; error?: string };
 
+// Versão em texto gerada a partir do HTML. E-mail só com HTML é penalizado
+// pelos filtros de spam (Outlook/Hotmail principalmente); com as duas partes
+// (multipart/alternative) o cliente escolhe qual mostrar.
+const ENTITIES: Record<string, string> = {
+  "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'",
+  "&ccedil;": "ç", "&atilde;": "ã", "&otilde;": "õ", "&aacute;": "á", "&eacute;": "é",
+  "&iacute;": "í", "&oacute;": "ó", "&uacute;": "ú", "&acirc;": "â", "&ecirc;": "ê",
+  "&ocirc;": "ô", "&agrave;": "à", "&mdash;": "—", "&ndash;": "–", "&copy;": "©",
+};
+
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<(style|script|head|title)[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, "$2 ($1)")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<(table|tr)\b[^>]*>/gi, "\n")
+    .replace(/<\/(p|div|tr|h[1-6]|li|table)>/gi, "\n")
+    .replace(/<\/(td|th)>/gi, "  ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&[a-z]+;/gi, (e) => ENTITIES[e.toLowerCase()] ?? " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function sendMail(p: MailPayload): Promise<MailResult> {
   if (!p?.host || !p.from?.email || !p.to || !p.subject || (p.username && !p.password)) {
     return { ok: false, error: "Campos obrigatórios faltando" };
@@ -53,6 +80,7 @@ export async function sendMail(p: MailPayload): Promise<MailResult> {
       to,
       subject: p.subject,
       html: p.html,
+      text: htmlToText(p.html),
     });
     transport.close();
     return { ok: true };
