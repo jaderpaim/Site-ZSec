@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { logAudit } from "@/lib/audit-log.functions";
+import { APP_NAME } from "@/lib/brand";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -100,7 +101,7 @@ export const sendTestSmtpEmail = createServerFn({ method: "POST" })
     if (!password) {
       return { ok: false, error: "Senha SMTP não configurada" };
     }
-    const subject = "B-Security · Teste de SMTP";
+    const subject = `${APP_NAME} · Teste de SMTP`;
     const html = `<div style="font-family:Arial,sans-serif"><h3>Teste de SMTP</h3><p>Se você recebeu este e-mail, sua configuração SMTP está funcionando corretamente.</p></div>`;
     try {
       const url = `${process.env.SUPABASE_URL}/functions/v1/send-smtp`;
@@ -116,7 +117,7 @@ export const sendTestSmtpEmail = createServerFn({ method: "POST" })
           secure: !!cfg.secure,
           username: cfg.username || null,
           password,
-          from: { name: cfg.from_name || "B-Security", email: cfg.from_email },
+          from: { name: cfg.from_name || APP_NAME, email: cfg.from_email },
           to: data.to,
           subject,
           html,

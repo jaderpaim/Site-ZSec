@@ -5,6 +5,7 @@ import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { applyEmailTemplate, getEmailTemplateOverride, escapeHtml } from "./email-templates.functions";
 import { buildDomainExpiryAlertHtml } from "./email-templates.defaults";
 import { fetchWithRetry } from "./http-retry";
+import { APP_NAME } from "@/lib/brand";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -473,7 +474,7 @@ export async function checkExpiringAndNotify(): Promise<{ notified: number; doma
   const password = (cfg as any).password || process.env.SMTP_PASSWORD;
   if (!password) return { notified: 0, domains: expiring.length };
 
-  const subject = `B-Security · ${expiring.length} domínio(s) próximo(s) do vencimento`;
+  const subject = `${APP_NAME} · ${expiring.length} domínio(s) próximo(s) do vencimento`;
   const rowsHtml = expiring
     .map((r: any) => {
       const days = Math.ceil((new Date(r.expiry_date).getTime() - today) / 86400000);
@@ -506,7 +507,7 @@ export async function checkExpiringAndNotify(): Promise<{ notified: number; doma
           secure: !!cfg.secure,
           username: cfg.username || null,
           password,
-          from: { name: cfg.from_name || "B-Security", email: cfg.from_email },
+          from: { name: cfg.from_name || APP_NAME, email: cfg.from_email },
           to,
           subject,
           html,

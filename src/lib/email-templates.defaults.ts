@@ -4,6 +4,7 @@
  * Import these in functions files instead of writing HTML inline.
  */
 import { escapeHtml } from "./email-templates.functions";
+import { APP_NAME } from "@/lib/brand";
 
 function tipoStyle(tipo: string): { bg: string; color: string } {
   if (tipo === "Emergencial") return { bg: "#450a0a", color: "#fca5a5" };
@@ -42,7 +43,7 @@ export function buildDnsRecordCreatedHtml(args: {
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta name="x-apple-disable-message-reformatting"/>
-<title>Novo registro DNS — B-Security</title>
+<title>Novo registro DNS — ${APP_NAME}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>body,table,td,p,a{margin:0;padding:0;border:0;border-collapse:collapse;}img{border:0;display:block;outline:none;text-decoration:none;}table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}</style>
 </head>
@@ -57,7 +58,7 @@ export function buildDnsRecordCreatedHtml(args: {
 
 <!-- HEADER -->
 <tr><td bgcolor="#111827" align="center" style="padding:32px 48px 28px;">
-  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">B&#8209;Security</div>
+  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">${APP_NAME}</div>
   <div style="font-size:9px;color:#d1d5db;letter-spacing:4px;text-transform:uppercase;margin-top:5px;font-family:Arial,sans-serif;">Security Suite</div>
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-top:18px;">
     <tr>
@@ -77,7 +78,7 @@ export function buildDnsRecordCreatedHtml(args: {
   </table>
   <h1 style="margin:0 0 14px;font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;font-family:Arial,sans-serif;text-align:center;">Um novo registro DNS<br/>foi criado na Cloudflare</h1>
   <p style="margin:0;font-size:15px;color:#9ca3af;line-height:1.7;font-family:Arial,sans-serif;text-align:center;">
-    A altera&ccedil;&atilde;o foi aplicada via painel B&#8209;Security<br/>na aba Opera&ccedil;&otilde;es do m&oacute;dulo Cloudflare WAF.
+    A altera&ccedil;&atilde;o foi aplicada via painel ${APP_NAME}<br/>na aba Opera&ccedil;&otilde;es do m&oacute;dulo Cloudflare WAF.
   </p>
 </td></tr>
 
@@ -158,7 +159,7 @@ export function buildDnsRecordCreatedHtml(args: {
       <td bgcolor="#059669" width="4" style="font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
       <td style="padding:14px 18px;">
         <div style="font-size:12px;color:#d1d5db;line-height:1.75;font-family:Arial,sans-serif;">
-          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">B-Security Suite</strong> para administradores globais.
+          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">${APP_NAME} Suite</strong> para administradores globais.
           Acesse o sistema para revisar a altera&ccedil;&atilde;o.
         </div>
       </td>
@@ -168,8 +169,8 @@ export function buildDnsRecordCreatedHtml(args: {
 
 <!-- FOOTER -->
 <tr><td bgcolor="#0b0f1a" align="center" style="padding:24px 40px 32px;border-top:1px solid #111827;">
-  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">B&#8209;Security &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
-  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; 2025 Bernoulli Educa&ccedil;&atilde;o &mdash; B-Security Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do m&oacute;dulo Cloudflare WAF.</div>
+  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">${APP_NAME} &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
+  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; ${new Date().getFullYear()} ${APP_NAME} Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do m&oacute;dulo Cloudflare WAF.</div>
 </td></tr>
 
 <!-- ACCENT BOTTOM verde -->
@@ -230,7 +231,7 @@ export function buildDnsRecordUpdatedHtml(args: {
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta name="x-apple-disable-message-reformatting"/>
-<title>Registro DNS editado — B-Security</title>
+<title>Registro DNS editado — ${APP_NAME}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>body,table,td,p,a{margin:0;padding:0;border:0;border-collapse:collapse;}img{border:0;display:block;outline:none;text-decoration:none;}table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}</style>
 </head>
@@ -245,7 +246,7 @@ export function buildDnsRecordUpdatedHtml(args: {
 
 <!-- HEADER -->
 <tr><td bgcolor="#111827" align="center" style="padding:32px 48px 28px;">
-  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">B&#8209;Security</div>
+  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">${APP_NAME}</div>
   <div style="font-size:9px;color:#d1d5db;letter-spacing:4px;text-transform:uppercase;margin-top:5px;font-family:Arial,sans-serif;">Security Suite</div>
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-top:18px;">
     <tr>
@@ -265,7 +266,7 @@ export function buildDnsRecordUpdatedHtml(args: {
   </table>
   <h1 style="margin:0 0 14px;font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;font-family:Arial,sans-serif;text-align:center;">Um registro DNS existente<br/>foi editado na Cloudflare</h1>
   <p style="margin:0;font-size:15px;color:#9ca3af;line-height:1.7;font-family:Arial,sans-serif;text-align:center;">
-    A altera&ccedil;&atilde;o foi aplicada via painel B&#8209;Security<br/>na aba Opera&ccedil;&otilde;es do m&oacute;dulo Cloudflare WAF.
+    A altera&ccedil;&atilde;o foi aplicada via painel ${APP_NAME}<br/>na aba Opera&ccedil;&otilde;es do m&oacute;dulo Cloudflare WAF.
   </p>
 </td></tr>
 
@@ -347,7 +348,7 @@ export function buildDnsRecordUpdatedHtml(args: {
       <td bgcolor="#d97706" width="4" style="font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
       <td style="padding:14px 18px;">
         <div style="font-size:12px;color:#d1d5db;line-height:1.75;font-family:Arial,sans-serif;">
-          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">B-Security Suite</strong> para administradores globais.
+          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">${APP_NAME} Suite</strong> para administradores globais.
           Acesse o sistema para revisar a altera&ccedil;&atilde;o.
         </div>
       </td>
@@ -357,8 +358,8 @@ export function buildDnsRecordUpdatedHtml(args: {
 
 <!-- FOOTER -->
 <tr><td bgcolor="#0b0f1a" align="center" style="padding:24px 40px 32px;border-top:1px solid #111827;">
-  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">B&#8209;Security &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
-  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; 2025 Bernoulli Educa&ccedil;&atilde;o &mdash; B-Security Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do m&oacute;dulo Cloudflare WAF.</div>
+  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">${APP_NAME} &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
+  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; ${new Date().getFullYear()} ${APP_NAME} Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do m&oacute;dulo Cloudflare WAF.</div>
 </td></tr>
 
 <!-- ACCENT BOTTOM âmbar -->
@@ -418,7 +419,7 @@ export function buildRuleAlertHtml(args: {
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta name="x-apple-disable-message-reformatting"/>
-<title>${escapeHtml(heroTitle)} — B-Security</title>
+<title>${escapeHtml(heroTitle)} — ${APP_NAME}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>body,table,td,p,a{margin:0;padding:0;border:0;border-collapse:collapse;}img{border:0;display:block;outline:none;text-decoration:none;}table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}</style>
 </head>
@@ -431,7 +432,7 @@ export function buildRuleAlertHtml(args: {
 <tr><td bgcolor="${accentColor}" height="4" style="border-radius:8px 8px 0 0;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td></tr>
 
 <tr><td bgcolor="#111827" align="center" style="padding:32px 48px 28px;">
-  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">B&#8209;Security</div>
+  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">${APP_NAME}</div>
   <div style="font-size:9px;color:#d1d5db;letter-spacing:4px;text-transform:uppercase;margin-top:5px;font-family:Arial,sans-serif;">Security Suite</div>
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-top:18px;">
     <tr>
@@ -450,7 +451,7 @@ export function buildRuleAlertHtml(args: {
   </table>
   <h1 style="margin:0 0 14px;font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;font-family:Arial,sans-serif;text-align:center;">${escapeHtml(heroTitle)}</h1>
   <p style="margin:0;font-size:15px;color:#9ca3af;line-height:1.7;font-family:Arial,sans-serif;text-align:center;">
-    A altera&ccedil;&atilde;o foi aplicada via painel B&#8209;Security<br/>na aba Opera&ccedil;&otilde;es do m&oacute;dulo Cloudflare WAF.
+    A altera&ccedil;&atilde;o foi aplicada via painel ${APP_NAME}<br/>na aba Opera&ccedil;&otilde;es do m&oacute;dulo Cloudflare WAF.
   </p>
 </td></tr>
 
@@ -491,7 +492,7 @@ export function buildRuleAlertHtml(args: {
       <td bgcolor="${accentColor}" width="4" style="font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
       <td style="padding:14px 18px;">
         <div style="font-size:12px;color:#d1d5db;line-height:1.75;font-family:Arial,sans-serif;">
-          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">B-Security Suite</strong> para administradores globais.
+          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">${APP_NAME} Suite</strong> para administradores globais.
           Acesse o sistema para revisar a altera&ccedil;&atilde;o.
         </div>
       </td>
@@ -500,8 +501,8 @@ export function buildRuleAlertHtml(args: {
 </td></tr>
 
 <tr><td bgcolor="#0b0f1a" align="center" style="padding:24px 40px 32px;border-top:1px solid #111827;">
-  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">B&#8209;Security &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
-  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; 2025 Bernoulli Educa&ccedil;&atilde;o &mdash; B-Security Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do m&oacute;dulo Cloudflare WAF.</div>
+  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">${APP_NAME} &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
+  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; ${new Date().getFullYear()} ${APP_NAME} Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do m&oacute;dulo Cloudflare WAF.</div>
 </td></tr>
 
 <tr><td bgcolor="${accentColor}" height="4" style="border-radius:0 0 8px 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td></tr>
@@ -586,12 +587,12 @@ export function buildUserInviteHtml(args: {
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta name="x-apple-disable-message-reformatting"/>
-<title>Bem-vindo ao B-Security</title>
+<title>Bem-vindo ao ${APP_NAME}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>body,table,td,p,a{margin:0;padding:0;border:0;border-collapse:collapse;}img{border:0;display:block;outline:none;text-decoration:none;}table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}</style>
 </head>
 <body style="margin:0;padding:0;background-color:#0b0f1a;font-family:Arial,Helvetica,sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#0b0f1a;">Sua conta no B-Security foi criada &#8212; ative seu acesso. &#8203;&zwnj;&nbsp;</div>
+<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#0b0f1a;">Sua conta no ${APP_NAME} foi criada &#8212; ative seu acesso. &#8203;&zwnj;&nbsp;</div>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0b0f1a">
 <tr><td align="center" style="padding:48px 16px;">
 <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="max-width:580px;width:100%;">
@@ -606,7 +607,7 @@ export function buildUserInviteHtml(args: {
       <span style="font-size:30px;color:#93c5fd;font-weight:700;line-height:56px;font-family:Arial,sans-serif;">&#8734;</span>
     </td></tr>
   </table>
-  <div style="font-size:26px;font-weight:700;color:#f8fafc;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">B&#8209;Security</div>
+  <div style="font-size:26px;font-weight:700;color:#f8fafc;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">${APP_NAME}</div>
   <div style="font-size:9px;color:#d1d5db;letter-spacing:4px;text-transform:uppercase;margin-top:5px;font-family:Arial,sans-serif;">Security Suite</div>
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-top:18px;">
     <tr>
@@ -624,7 +625,7 @@ export function buildUserInviteHtml(args: {
       <span style="font-size:11px;color:#93c5fd;letter-spacing:2px;text-transform:uppercase;font-weight:700;font-family:Arial,sans-serif;">&#9679;&nbsp; CONTA CRIADA</span>
     </td></tr>
   </table>
-  <h1 style="margin:0 0 14px;font-size:24px;font-weight:700;color:#f8fafc;line-height:1.3;font-family:Arial,sans-serif;text-align:center;">Bem-vindo(a) ao B-Security!</h1>
+  <h1 style="margin:0 0 14px;font-size:24px;font-weight:700;color:#f8fafc;line-height:1.3;font-family:Arial,sans-serif;text-align:center;">Bem-vindo(a) ao ${APP_NAME}!</h1>
   <p style="margin:0;font-size:15px;color:#9ca3af;line-height:1.7;font-family:Arial,sans-serif;text-align:center;">
     Ol&aacute;, <strong style="color:#ffffff;">${nome}</strong>!<br/>Sua conta foi criada com sucesso. Clique no bot&atilde;o abaixo para ativ&aacute;-la e, em seguida, acesse o sistema pelo SSO da sua organiza&ccedil;&atilde;o.
   </p>
@@ -678,7 +679,7 @@ export function buildUserInviteHtml(args: {
       <td bgcolor="#1d4ed8" width="4" style="font-size:0;line-height:0;">&nbsp;</td>
       <td style="padding:14px 18px;">
         <div style="font-size:12px;color:#d1d5db;line-height:1.75;font-family:Arial,sans-serif;">
-          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">B-Security Suite</strong>.
+          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">${APP_NAME} Suite</strong>.
           Se voc&ecirc; n&atilde;o esperava este convite, ignore esta mensagem. N&atilde;o compartilhe este link.
         </div>
       </td>
@@ -688,8 +689,8 @@ export function buildUserInviteHtml(args: {
 
 <!-- FOOTER -->
 <tr><td bgcolor="#0b0f1a" align="center" style="padding:24px 40px 32px;border-top:1px solid #111827;">
-  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">B&#8209;Security &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
-  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">Suite de Seguran&ccedil;a exclusiva do <strong style="color:#d1d5db;">Bernoulli Educa&ccedil;&atilde;o</strong><br/>&copy; 2025 Bernoulli Educa&ccedil;&atilde;o &mdash; B-Security Suite.</div>
+  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">${APP_NAME} &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
+  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">Suite de Seguran&ccedil;a da Informa&ccedil;&atilde;o<br/>&copy; ${new Date().getFullYear()} ${APP_NAME} Suite.</div>
 </td></tr>
 
 <!-- ACCENT BOTTOM -->
@@ -710,7 +711,7 @@ export function buildGmudApprovedHtml(g: any, approveUrl: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta name="x-apple-disable-message-reformatting"/>
-<title>GMUD Aprovada — B-Security</title>
+<title>GMUD Aprovada — ${APP_NAME}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>body,table,td,p,a{margin:0;padding:0;border:0;border-collapse:collapse;}img{border:0;display:block;outline:none;text-decoration:none;}table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}</style>
 </head>
@@ -725,7 +726,7 @@ export function buildGmudApprovedHtml(g: any, approveUrl: string): string {
 
 <!-- HEADER -->
 <tr><td bgcolor="#111827" align="center" style="padding:32px 48px 28px;">
-  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">B&#8209;Security</div>
+  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">${APP_NAME}</div>
   <div style="font-size:9px;color:#d1d5db;letter-spacing:4px;text-transform:uppercase;margin-top:5px;font-family:Arial,sans-serif;">Security Suite</div>
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-top:18px;">
     <tr>
@@ -825,7 +826,7 @@ export function buildGmudApprovedHtml(g: any, approveUrl: string): string {
       <td bgcolor="#059669" width="4" style="font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
       <td style="padding:14px 18px;">
         <div style="font-size:12px;color:#d1d5db;line-height:1.75;font-family:Arial,sans-serif;">
-          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">B-Security Suite</strong>.
+          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">${APP_NAME} Suite</strong>.
           Acesse o sistema para acompanhar a execu&ccedil;&atilde;o da mudan&ccedil;a.
         </div>
       </td>
@@ -835,8 +836,8 @@ export function buildGmudApprovedHtml(g: any, approveUrl: string): string {
 
 <!-- FOOTER -->
 <tr><td bgcolor="#0b0f1a" align="center" style="padding:24px 40px 32px;border-top:1px solid #111827;">
-  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">B&#8209;Security &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
-  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; 2025 Bernoulli Educa&ccedil;&atilde;o &mdash; B-Security Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do sistema de gest&atilde;o de mudan&ccedil;as.</div>
+  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">${APP_NAME} &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
+  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; ${new Date().getFullYear()} ${APP_NAME} Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do sistema de gest&atilde;o de mudan&ccedil;as.</div>
 </td></tr>
 
 <!-- ACCENT BOTTOM verde -->
@@ -863,7 +864,7 @@ export function buildGmudRejectedHtml(
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta name="x-apple-disable-message-reformatting"/>
-<title>GMUD Rejeitada — B-Security</title>
+<title>GMUD Rejeitada — ${APP_NAME}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>body,table,td,p,a{margin:0;padding:0;border:0;border-collapse:collapse;}img{border:0;display:block;outline:none;text-decoration:none;}table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}</style>
 </head>
@@ -878,7 +879,7 @@ export function buildGmudRejectedHtml(
 
 <!-- HEADER -->
 <tr><td bgcolor="#111827" align="center" style="padding:32px 48px 28px;">
-  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">B&#8209;Security</div>
+  <div style="font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">${APP_NAME}</div>
   <div style="font-size:9px;color:#d1d5db;letter-spacing:4px;text-transform:uppercase;margin-top:5px;font-family:Arial,sans-serif;">Security Suite</div>
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-top:18px;">
     <tr>
@@ -980,7 +981,7 @@ export function buildGmudRejectedHtml(
       <td bgcolor="#dc2626" width="4" style="font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
       <td style="padding:14px 18px;">
         <div style="font-size:12px;color:#d1d5db;line-height:1.75;font-family:Arial,sans-serif;">
-          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">B-Security Suite</strong>.
+          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">${APP_NAME} Suite</strong>.
           Acesse o sistema para revisar os detalhes da rejei&ccedil;&atilde;o.
         </div>
       </td>
@@ -990,8 +991,8 @@ export function buildGmudRejectedHtml(
 
 <!-- FOOTER -->
 <tr><td bgcolor="#0b0f1a" align="center" style="padding:24px 40px 32px;border-top:1px solid #111827;">
-  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">B&#8209;Security &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
-  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; 2025 Bernoulli Educa&ccedil;&atilde;o &mdash; B-Security Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do sistema de gest&atilde;o de mudan&ccedil;as.</div>
+  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">${APP_NAME} &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
+  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; ${new Date().getFullYear()} ${APP_NAME} Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do sistema de gest&atilde;o de mudan&ccedil;as.</div>
 </td></tr>
 
 <!-- ACCENT BOTTOM vermelho -->
@@ -1034,7 +1035,7 @@ export function buildGmudApprovalRequestHtml(
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <meta name="x-apple-disable-message-reformatting"/>
-<title>Aprovação de GMUD — B-Security</title>
+<title>Aprovação de GMUD — ${APP_NAME}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>body,table,td,p,a{margin:0;padding:0;border:0;border-collapse:collapse;}img{border:0;display:block;outline:none;text-decoration:none;}table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}</style>
 </head>
@@ -1049,7 +1050,7 @@ export function buildGmudApprovalRequestHtml(
 
 <!-- HEADER -->
 <tr><td bgcolor="#111827" align="center" style="padding:32px 48px 28px;">
-  <div style="font-size:26px;font-weight:700;color:#f8fafc;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">B&#8209;Security</div>
+  <div style="font-size:26px;font-weight:700;color:#f8fafc;letter-spacing:-0.5px;line-height:1;font-family:Arial,sans-serif;">${APP_NAME}</div>
   <div style="font-size:9px;color:#d1d5db;letter-spacing:4px;text-transform:uppercase;margin-top:5px;font-family:Arial,sans-serif;">Security Suite</div>
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin-top:18px;">
     <tr>
@@ -1167,7 +1168,7 @@ export function buildGmudApprovalRequestHtml(
       <td bgcolor="#1d4ed8" width="4" style="font-size:0;line-height:0;">&nbsp;</td>
       <td style="padding:14px 18px;">
         <div style="font-size:12px;color:#d1d5db;line-height:1.75;font-family:Arial,sans-serif;">
-          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">B-Security Suite</strong>.
+          E-mail enviado automaticamente pelo <strong style="color:#ffffff;">${APP_NAME} Suite</strong>.
           Fa&ccedil;a login com <strong style="color:#ffffff;">${escapeHtml(a.email_aprovador)}</strong> para aprovar ou rejeitar.
           N&atilde;o compartilhe este link.
         </div>
@@ -1178,8 +1179,8 @@ export function buildGmudApprovalRequestHtml(
 
 <!-- FOOTER -->
 <tr><td bgcolor="#0b0f1a" align="center" style="padding:24px 40px 32px;border-top:1px solid #111827;">
-  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">B&#8209;Security &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
-  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; 2025 Bernoulli Educa&ccedil;&atilde;o &mdash; B-Security Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do sistema de gest&atilde;o de mudan&ccedil;as.</div>
+  <div style="font-size:13px;font-weight:700;color:#d1d5db;font-family:Arial,sans-serif;margin-bottom:6px;">${APP_NAME} &nbsp;<span style="font-size:8px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;font-weight:400;">Security Suite</span></div>
+  <div style="font-size:11px;color:#9ca3af;line-height:1.8;font-family:Arial,sans-serif;">&copy; ${new Date().getFullYear()} ${APP_NAME} Suite<br/>Notifica&ccedil;&atilde;o autom&aacute;tica do sistema de gest&atilde;o de mudan&ccedil;as.</div>
 </td></tr>
 
 <!-- ACCENT BOTTOM -->

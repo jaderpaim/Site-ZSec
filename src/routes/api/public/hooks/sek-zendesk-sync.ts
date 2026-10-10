@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { checkHookSecret } from "@/lib/hook-auth.server";
 import { recordCronRun } from "@/lib/cron-tracking.server";
+import { sekWorkerUrl } from "@/lib/sek-worker";
 
 // Disparado pelo cron (via tela de Cron Jobs -- schedule_hook_cron, sem
 // segredo em texto claro numa migration). Só aciona o worker (VM
@@ -9,7 +10,6 @@ import { recordCronRun } from "@/lib/cron-tracking.server";
 // mandando os lotes pro sek-zendesk-tickets-sync conforme pagina o Zendesk.
 // Igual ao motivo do ACK imediato no /scan do DAST: sync pode levar mais
 // que os ~30s de timeout do proxy do FastAPI se não for assíncrono.
-const WORKER_SYNC_URL = "https://sek-api.bernoulli.com.br/sek-worker/sync";
 
 export const Route = createFileRoute("/api/public/hooks/sek-zendesk-sync")({
   server: {
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/public/hooks/sek-zendesk-sync")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          const resp = await fetch(WORKER_SYNC_URL, {
+          const resp = await fetch(sekWorkerUrl("sync"), {
             method: "POST",
             headers: {
               "CF-Access-Client-Id": clientId,

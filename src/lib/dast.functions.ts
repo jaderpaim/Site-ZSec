@@ -19,6 +19,7 @@ import {
 import { logAudit } from "@/lib/audit-log.functions";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildDastPdfCoverHtml, buildDastPdfBodyHtml } from "@/lib/dast-report";
+import { APP_NAME } from "@/lib/brand";
 
 // types.ts é gerado — tabelas novas do DAST acessadas por cast.
 type AnyDb = {
@@ -238,32 +239,7 @@ const StartSchema = z.object({
   // credencial virava white box. Default "blackbox": autenticação passa a
   // ser opt-in explícito por scan.
   authMode: z.enum(["blackbox", "whitebox"]).default("blackbox"),
-  // Bypassa o Worker Cloudflare da frente de *.bernoulli.com.br (cota diária
-  // baixa no plano Free, já derrubou produção rodando scan pesado contra
-  // ele direto) -- troca só o HOST dos alvos que de fato vão pro scanner
-  // por *.lovable.app. domain/target_url continuam ancorados no host REAL
-  // digitado (aplicado só em targetsToScan, depois da busca de credencial
-  // -- nunca antes, senão a busca por domínio quebra: já aconteceu de
-  // procurar credencial de "x.lovable.app" e não achar nada, porque só
-  // existe cadastro pra "x.bernoulli.com.br").
-  lovableProject: z.boolean().default(false),
 });
-
-// Troca só o host que termina em bernoulli.com.br por lovable.app, mantendo
-// subdomínio/path/query intactos -- ver StartSchema.lovableProject acima.
-// Alvo que não bate com esse sufixo passa direto, sem alteração.
-function toLovableTarget(raw: string): string {
-  try {
-    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
-    if (/\.bernoulli\.com\.br$/i.test(u.hostname)) {
-      u.hostname = u.hostname.replace(/\.bernoulli\.com\.br$/i, ".lovable.app");
-      return u.toString();
-    }
-    return raw;
-  } catch {
-    return raw;
-  }
-}
 
 export const startDastScan = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
@@ -329,13 +305,6 @@ export const startDastScan = createServerFn({ method: "POST" })
       }
     }
 
-    // Aplicado por ÚLTIMO, só no que vai pro scanner de verdade -- domain/
-    // target_url gravados abaixo continuam com o host real (é onde a
-    // credencial de autenticação está cadastrada, ver validação acima).
-    if (data.lovableProject) {
-      targetsToScan = targetsToScan.map(toLovableTarget);
-    }
-
     const { data: inserted, error } = await sb
       .from("dast_scans")
       .insert({
@@ -387,15 +356,8 @@ export const startDastScan = createServerFn({ method: "POST" })
           ? {
               auth_username: auth.username,
               auth_password: auth.password,
-              // login_url passa pela mesma troca de host que os alvos (senão
-              // o ZAP tentaria logar no domínio real enquanto escaneia o
-              // .lovable.app, ou pior, bateria de novo no Worker que motivou
-              // essa opção); resolveAuthLoginUrl cobre o caso login_url vazio
-              // (raiz do alvo JÁ trocado, ver targetsToScan acima).
-              auth_login_url: resolveAuthLoginUrl(
-                data.lovableProject && auth.loginUrl ? toLovableTarget(auth.loginUrl) : auth.loginUrl,
-                targetsToScan[0],
-              ),
+              // resolveAuthLoginUrl cobre o caso login_url vazio (raiz do alvo).
+              auth_login_url: resolveAuthLoginUrl(auth.loginUrl, targetsToScan[0]),
               auth_logged_in_indicator: auth.loggedInIndicator,
             }
           : {}),
@@ -1283,6 +1245,6 @@ export const exportDastReport = createServerFn({ method: "POST" })
 <div class="meta">Alvo: ${esc(scan.target_url ?? scan.domain)} · Ambiente: ${esc(scan.environment)} · Nível: ${esc(scan.level)} · Engines: ${esc((scan.engines ?? []).join(", "))} · Gerado em ${new Date().toLocaleString("pt-BR")}</div>
 <div class="sum"><div class="card"><b>${vulns.length}</b> achados</div><div class="card" style="color:#dc2626"><b>${counts.critical}</b> críticos</div><div class="card" style="color:#d97706"><b>${counts.high}</b> altos</div><div class="card" style="color:#2563eb"><b>${counts.medium}</b> médios</div><div class="card" style="color:#7c3aed"><b>${counts.low}</b> baixos</div></div>
 <table><thead><tr><th>Severidade</th><th>Nome</th><th>OWASP</th><th>CVSS</th><th>Engine</th><th>Status</th><th>URL afetada</th><th>Encontrado em</th></tr></thead><tbody>${rows || '<tr><td colspan="8">Sem achados.</td></tr>'}</tbody></table>
-<p style="color:#94a3b8;font-size:11px;margin-top:24px;">B-Security · DAST Security Scanner · uso interno autorizado.</p></body></html>`;
+<p style="color:#94a3b8;font-size:11px;margin-top:24px;">${APP_NAME} · DAST Security Scanner · uso interno autorizado.</p></body></html>`;
     return { filename: `${base}.html`, mime: "text/html", content };
   });

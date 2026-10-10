@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { APP_NAME } from "@/lib/brand";
 
 // Ingestão direta do módulo SAST: a pipeline do Azure DevOps envia o
 // relatório do scanner aqui. NÃO usa HOOK_SECRET (checkHookSecret) de
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/api/public/hooks/sast-ingest")({
           return await handleSastIngest(request);
         } catch (e) {
           console.error("[sast-ingest] erro inesperado:", (e as Error).message);
-          return new Response(JSON.stringify({ ok: false, error: "Erro interno no b-security." }), {
+          return new Response(JSON.stringify({ ok: false, error: `Erro interno no ${APP_NAME}.` }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
           });

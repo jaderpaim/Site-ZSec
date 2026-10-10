@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldHalf, ArrowLeft, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { APP_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/reset-password")({
   component: ResetPasswordPage,
@@ -77,7 +78,7 @@ function ResetPasswordPage() {
             <ShieldHalf className="size-5 text-primary-foreground" />
           </div>
           <div>
-            <div className="font-semibold text-lg text-foreground tracking-tight">B-Security</div>
+            <div className="font-semibold text-lg text-foreground tracking-tight">{APP_NAME}</div>
             <div className="text-mono-xs text-muted-foreground">
               {step === "request" ? "Recuperar senha" : "Redefinir senha"}
             </div>

@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.functions";
 import { buildDnsRecordCreatedHtml, buildDnsRecordUpdatedHtml, buildRuleAlertHtml } from "./email-templates.defaults";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
+import { APP_NAME } from "@/lib/brand";
 
 const CF_API = "https://api.cloudflare.com/client/v4";
 const GQL_URL = `${CF_API}/graphql`;
@@ -602,7 +603,7 @@ export async function notifyDnsRecordCreated(record: {
           summary: `Novo registro DNS criado: ${record.name}`,
           sections: [
             {
-              activityTitle: "🌐 B-Security · Novo registro DNS criado",
+              activityTitle: `🌐 ${APP_NAME} · Novo registro DNS criado`,
               activitySubtitle: now,
               facts: [
                 { name: "Zona", value: zoneName },
@@ -628,7 +629,7 @@ export async function notifyDnsRecordCreated(record: {
     const password = (smtpCfg as any).password || process.env.SMTP_PASSWORD;
     if (!password) return;
 
-    const subject = `B-Security · Novo registro DNS criado em ${zoneName}`;
+    const subject = `${APP_NAME} · Novo registro DNS criado em ${zoneName}`;
     const vars = {
       zona: zoneName,
       tipo: record.type,
@@ -657,7 +658,7 @@ export async function notifyDnsRecordCreated(record: {
             secure: !!smtpCfg.secure,
             username: smtpCfg.username || null,
             password,
-            from: { name: smtpCfg.from_name || "B-Security", email: smtpCfg.from_email },
+            from: { name: smtpCfg.from_name || APP_NAME, email: smtpCfg.from_email },
             to,
             subject,
             html,
@@ -739,7 +740,7 @@ export async function notifyDnsRecordUpdated(record: {
           summary: `Registro DNS editado: ${record.name}`,
           sections: [
             {
-              activityTitle: "✏️ B-Security · Registro DNS editado",
+              activityTitle: `✏️ ${APP_NAME} · Registro DNS editado`,
               activitySubtitle: now,
               facts: [
                 { name: "Zona", value: zoneName },
@@ -774,7 +775,7 @@ export async function notifyDnsRecordUpdated(record: {
     const password = (smtpCfg as any).password || process.env.SMTP_PASSWORD;
     if (!password) return;
 
-    const subject = `B-Security · Registro DNS editado em ${zoneName}`;
+    const subject = `${APP_NAME} · Registro DNS editado em ${zoneName}`;
     const vars = {
       zona: zoneName,
       tipo: record.type,
@@ -805,7 +806,7 @@ export async function notifyDnsRecordUpdated(record: {
             secure: !!smtpCfg.secure,
             username: smtpCfg.username || null,
             password,
-            from: { name: smtpCfg.from_name || "B-Security", email: smtpCfg.from_email },
+            from: { name: smtpCfg.from_name || APP_NAME, email: smtpCfg.from_email },
             to,
             subject,
             html,
@@ -923,7 +924,7 @@ export async function notifyRuleChanged(args: {
           summary: `${presentation.title}: ${args.description}`,
           sections: [
             {
-              activityTitle: `${presentation.emoji} B-Security · ${presentation.title}`,
+              activityTitle: `${presentation.emoji} ${APP_NAME} · ${presentation.title}`,
               activitySubtitle: now,
               facts: [
                 { name: "Zona", value: zoneName },
@@ -955,7 +956,7 @@ export async function notifyRuleChanged(args: {
     if (!password) return;
 
     const link = `${getAppBaseUrl()}/app/cloudflare-waf`;
-    const subject = `B-Security · ${presentation.title} em ${zoneName}`;
+    const subject = `${APP_NAME} · ${presentation.title} em ${zoneName}`;
     const changesSummary = args.kind === "update" && args.changes && args.changes.length > 0 ? summarizeChanges(args.changes) : "";
     const vars: Record<string, string> =
       args.kind === "update"
@@ -1008,7 +1009,7 @@ export async function notifyRuleChanged(args: {
             secure: !!smtpCfg.secure,
             username: smtpCfg.username || null,
             password,
-            from: { name: smtpCfg.from_name || "B-Security", email: smtpCfg.from_email },
+            from: { name: smtpCfg.from_name || APP_NAME, email: smtpCfg.from_email },
             to,
             subject,
             html,

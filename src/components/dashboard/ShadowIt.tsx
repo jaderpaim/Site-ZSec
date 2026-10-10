@@ -411,7 +411,7 @@ function CredentialDialog({
             <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="BERNOULLI\svc-shadowit"
+              placeholder="DOMINIO\svc-shadowit"
               autoComplete="off"
             />
           </div>

@@ -73,6 +73,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { usePermissions } from "@/lib/use-permissions";
+import { useOrganizacao } from "@/lib/use-organizacao";
+import { pickDefaultZone } from "@/lib/cloudflare-zones";
 
 // ── Design tokens (mesmos de CloudflareReal.tsx / OperationsTab.tsx) ───────────
 const T = {
@@ -992,6 +994,7 @@ const HTTP_GROUP_TABS = [
 // zoneId/days vêm da barra do módulo (compartilhados com o Dashboard). Sem eles,
 // a aba mantém os próprios seletores, como antes.
 export function AnalyticsTab({ zoneId: sharedZoneId, days: sharedDays }: { zoneId?: string | null; days?: number } = {}) {
+  const org = useOrganizacao();
   const { can, isModuleAdmin, isAdmin } = usePermissions();
   const canHttp = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view_analytics_http");
   const canSecurity = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view_analytics_security");
@@ -1132,9 +1135,9 @@ export function AnalyticsTab({ zoneId: sharedZoneId, days: sharedDays }: { zoneI
   // direto na janela precisa por padrão.
   React.useEffect(() => {
     if (zones.length === 0 || zoneId) return;
-    const bernoulli = zones.find((z) => z.name.includes("bernoulli.com.br"));
-    if (bernoulli) persistZone(bernoulli.id);
-  }, [zones, zoneId]);
+    const zona = pickDefaultZone(zones, org.dominio_corporativo);
+    if (zona) persistZone(zona.id);
+  }, [zones, zoneId, org.dominio_corporativo]);
 
   // ── HTTP Traffic ──────────────────────────────────────────────────────────
   // KPIs, gráfico central e Top Statistics reagem juntos ao "+ Add filter" —

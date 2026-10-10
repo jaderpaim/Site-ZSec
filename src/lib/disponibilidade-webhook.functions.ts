@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { logAudit } from "@/lib/audit-log.functions";
+import { APP_NAME } from "@/lib/brand";
 
 function admin() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -161,7 +162,7 @@ export const testTeamsWebhook = createServerFn({ method: "POST" })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           buildTeamsPayload(
-            "✅ Teste de alerta — B-Security",
+            `✅ Teste de alerta — ${APP_NAME}`,
             "Este é um teste de integração de alertas de indisponibilidade. Tudo certo!",
           ),
         ),
@@ -197,7 +198,7 @@ export const testTelegramWebhook = createServerFn({ method: "POST" })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: "✅ <b>Teste de alerta — B-Security</b>\n\nEste é um teste de integração de alertas de indisponibilidade. Tudo certo!",
+          text: `✅ <b>Teste de alerta — ${APP_NAME}</b>\n\nEste é um teste de integração de alertas de indisponibilidade. Tudo certo!`,
           parse_mode: "HTML",
         }),
       });

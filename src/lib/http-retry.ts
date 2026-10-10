@@ -1,3 +1,5 @@
+import { APP_NAME } from "@/lib/brand";
+
 export async function fetchWithTimeout(
   url: string,
   ms = 20000,
@@ -8,7 +10,7 @@ export async function fetchWithTimeout(
   try {
     return await fetch(url, {
       signal: ctrl.signal,
-      headers: { "User-Agent": "B-Security/1.0", ...extraHeaders },
+      headers: { "User-Agent": `${APP_NAME.replace(/\s+/g, "-")}/1.0`, ...extraHeaders },
     });
   } finally {
     clearTimeout(t);

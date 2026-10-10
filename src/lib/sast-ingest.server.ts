@@ -27,6 +27,7 @@ import {
   normalizeGitleaksReportFinding,
 } from "@/lib/sast-normalize";
 import type { SastDetectionRow, VerifiedBuildScope } from "@/lib/sast-normalize";
+import { APP_NAME } from "@/lib/brand";
 
 const adminDb = supabaseAdmin as unknown as {
   from: (t: string) => any;
@@ -37,7 +38,6 @@ const adminDb = supabaseAdmin as unknown as {
 };
 
 export const SAST_INGEST_PROVIDER = "azure_devops_sast";
-const DEFAULT_ORGANIZATION = "bernoullidevops";
 // Nome de organização do Azure DevOps: vai direto na URL da API -- validado
 // pra não virar vetor de SSRF (só dev.azure.com/<org>, nada de host/caminho).
 const ORG_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,49}$/;
@@ -80,7 +80,7 @@ type ReaderCreds = { tenantId: string; clientId: string; clientSecret: string };
 // ajudava. Pra usar um App Registration só, basta colar o mesmo nas duas abas.
 async function getIngestConfig(): Promise<{
   enabled: boolean;
-  organization: string;
+  organization: string | null;
   creds: ReaderCreds | null;
 }> {
   const { data } = await adminDb
@@ -100,7 +100,7 @@ async function getIngestConfig(): Promise<{
       : null;
   return {
     enabled: !!data?.enabled,
-    organization: ORG_RE.test(org) ? org : DEFAULT_ORGANIZATION,
+    organization: ORG_RE.test(org) ? org : null,
     creds,
   };
 }
@@ -137,7 +137,7 @@ async function getAdoToken(creds: ReaderCreds): Promise<string> {
     };
     if (!data.access_token) {
       throw new Error(
-        `Entra ID recusou a credencial do b-security: ${(data.error_description ?? String(res.status)).slice(0, 200)}`,
+        `Entra ID recusou a credencial do ${APP_NAME}: ${(data.error_description ?? String(res.status)).slice(0, 200)}`,
       );
     }
     tokenCache = {
@@ -200,7 +200,7 @@ export async function handleSastIngest(request: Request): Promise<Response> {
   if (!cfg.enabled) {
     return fail(
       503,
-      "Ingestão SAST desligada no b-security (Integração API → card SAST → aba Azure DevOps).",
+      `Ingestão SAST desligada no ${APP_NAME} (Integração API → card SAST → aba Azure DevOps).`,
     );
   }
 
@@ -213,7 +213,7 @@ export async function handleSastIngest(request: Request): Promise<Response> {
   if (!keys.length)
     return fail(
       503,
-      "Nenhuma chave de ingestão gerada no b-security (card SAST → aba Azure DevOps).",
+      `Nenhuma chave de ingestão gerada no ${APP_NAME} (card SAST → aba Azure DevOps).`,
     );
   if (!matchesIngestKey(presented, keys))
     return fail(401, "Chave de ingestão SAST inválida ou revogada.");
@@ -221,7 +221,13 @@ export async function handleSastIngest(request: Request): Promise<Response> {
   if (!cfg.creds) {
     return fail(
       503,
-      "Credencial de leitura do Azure DevOps não configurada no b-security (card SAST → aba Azure DevOps).",
+      `Credencial de leitura do Azure DevOps não configurada no ${APP_NAME} (card SAST → aba Azure DevOps).`,
+    );
+  }
+  if (!cfg.organization) {
+    return fail(
+      503,
+      `Organização do Azure DevOps não configurada no ${APP_NAME} (card SAST → aba Azure DevOps).`,
     );
   }
 
@@ -256,7 +262,7 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     // Problema do lado do b-security, não da pipeline -- detalhe só no log.
     return fail(
       503,
-      "O b-security não conseguiu autenticar no Azure DevOps.",
+      `O ${APP_NAME} não conseguiu autenticar no Azure DevOps.`,
       (e as Error).message,
     );
   }
@@ -276,13 +282,13 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     ) {
       return fail(
         503,
-        `O App Registration do b-security não tem acesso à organização ${org} (adicionar em Organization settings → Users).`,
+        `O App Registration do ${APP_NAME} não tem acesso à organização ${org} (adicionar em Organization settings → Users).`,
       );
     }
     if (res.status === 403 || res.status === 404) {
       return fail(
         403,
-        `Build ${body.buildId} não encontrada, ou o App Registration do b-security não está no grupo Readers do projeto "${body.project}".`,
+        `Build ${body.buildId} não encontrada, ou o App Registration do ${APP_NAME} não está no grupo Readers do projeto "${body.project}".`,
       );
     }
     if (!res.ok) return fail(503, `Azure DevOps respondeu ${res.status} ao conferir a build.`);
@@ -405,6 +411,6 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     return json(202, result);
   } catch (e) {
     console.error("[sast-ingest]", (e as Error).message);
-    return fail(500, "Erro ao gravar os achados no b-security.", (e as Error).message);
+    return fail(500, `Erro ao gravar os achados no ${APP_NAME}.`, (e as Error).message);
   }
 }

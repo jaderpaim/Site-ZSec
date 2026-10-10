@@ -4,6 +4,7 @@ import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.functions";
 import { buildCmdbDeviceAlertHtml, buildCmdbDeviceStoppedHtml } from "./email-templates.defaults";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
+import { APP_NAME } from "@/lib/brand";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -157,7 +158,7 @@ async function notifyCmdbChannels(sb: any, alertBucket: Classified[], stoppedBuc
     // Teams: seção de resumo + uma seção por categoria (facts = tabela de duas colunas)
     const teamsSections: object[] = [
       {
-        activityTitle: "🖥️ B-Security · CMDB Device Alert",
+        activityTitle: `🖥️ ${APP_NAME} · CMDB Device Alert`,
         activitySubtitle: now,
         facts: [
           { name: "⚠️ Em Alerta", value: `${alertBucket.length} ativo(s) — cobertura parcial` },
@@ -191,7 +192,7 @@ async function notifyCmdbChannels(sb: any, alertBucket: Classified[], stoppedBuc
         .join("\n");
 
     const telegramText = [
-      `🖥️ <b>B-Security · CMDB Device Alert</b>\n📅 ${now}\n\n` +
+      `🖥️ <b>${APP_NAME} · CMDB Device Alert</b>\n📅 ${now}\n\n` +
         `⚠️ Em Alerta: <b>${alertBucket.length}</b>   🔴 Inativos: <b>${stoppedBucket.length}</b>`,
       stoppedBucket.length > 0 &&
         `🔴 <b>Inativos — sem monitoramento (${stoppedBucket.length}):</b>\n${telegramLines(stoppedBucket)}`,
@@ -326,7 +327,7 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
     const defaultHtml = buildCmdbDeviceAlertHtml(tabela);
     const override = await getEmailTemplateOverride(sb, "cmdb_device_alert");
     emails.push({
-      subject: `B-Security · Device Alert — ${alertBucket.length} ativo(s) com monitoramento parcial`,
+      subject: `${APP_NAME} · Device Alert — ${alertBucket.length} ativo(s) com monitoramento parcial`,
       html: applyEmailTemplate(
         "cmdb_device_alert",
         override,
@@ -341,7 +342,7 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
     const defaultHtml = buildCmdbDeviceStoppedHtml(tabela);
     const override = await getEmailTemplateOverride(sb, "cmdb_device_stopped");
     emails.push({
-      subject: `B-Security · Device Stopped — ${stoppedBucket.length} ativo(s) sem monitoramento`,
+      subject: `${APP_NAME} · Device Stopped — ${stoppedBucket.length} ativo(s) sem monitoramento`,
       html: applyEmailTemplate(
         "cmdb_device_stopped",
         override,
@@ -368,7 +369,7 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
             secure: !!cfg.secure,
             username: cfg.username || null,
             password,
-            from: { name: cfg.from_name || "B-Security", email: cfg.from_email },
+            from: { name: cfg.from_name || APP_NAME, email: cfg.from_email },
             to,
             subject: email.subject,
             html: email.html,

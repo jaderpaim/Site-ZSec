@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildUserInviteHtml } from "./email-templates.defaults";
 import { logAudit } from "@/lib/audit-log.functions";
 import { isExclusiveModule } from "@/lib/exclusive-modules";
+import { APP_NAME } from "@/lib/brand";
 
 async function targetProfileLabel(userId: string): Promise<string> {
   const { data } = await supabaseAdmin.from("profiles").select("email, full_name").eq("id", userId).maybeSingle();
@@ -810,7 +811,7 @@ async function inviteUserCore(
   const inviteUrl = `${origin}/ativar?t=${redirect.id}`;
   const userId = linkData.user?.id;
 
-  const subject = "Bem-vindo ao B-Security — ative seu acesso";
+  const subject = `Bem-vindo ao ${APP_NAME} — ative seu acesso`;
   const html = buildUserInviteHtml({
     fullName: data.fullName,
     email: data.email,
@@ -834,7 +835,7 @@ async function inviteUserCore(
         username: cfg.username || null,
         password,
         from: {
-          name: cfg.from_name || "B-Security",
+          name: cfg.from_name || APP_NAME,
           email: cfg.from_email || cfg.username || "noreply@example.com",
         },
         to: { name: data.fullName, email: data.email },

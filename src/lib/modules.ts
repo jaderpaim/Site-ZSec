@@ -295,6 +295,14 @@ export const MODULES: ModuleDef[] = [
     headerConfig: { hidePeriod: true, hideDepartment: true },
   },
   {
+    slug: "dados-organizacao",
+    title: "Dados da Organização",
+    short: "Dados da Organização",
+    group: "Configurações",
+    icon: Building2,
+    headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
+  },
+  {
     slug: "smtp",
     title: "Configuração SMTP",
     short: "SMTP",

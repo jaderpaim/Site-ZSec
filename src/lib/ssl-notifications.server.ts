@@ -3,6 +3,7 @@
 // Falha de notificação nunca derruba a renovação.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isAlertModuleEnabled } from "@/lib/alert-modules.functions";
+import { APP_NAME } from "@/lib/brand";
 
 const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
 
@@ -93,7 +94,7 @@ export async function notifySslCertRenewed(args: {
           summary: `${title}: ${args.domain}`,
           sections: [
             {
-              activityTitle: `🔒 B-Security · ${title}`,
+              activityTitle: `🔒 ${APP_NAME} · ${title}`,
               activitySubtitle: new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
               facts: facts.map((f) => ({ ...f, value: f.value.replace(/\n/g, "  \n") })),
               markdown: true,
@@ -110,7 +111,7 @@ export async function notifySslCertRenewed(args: {
     const password = smtpCfg.password || process.env.SMTP_PASSWORD;
     if (!password) return;
 
-    const subject = `B-Security · ${title}: ${args.domain}`;
+    const subject = `${APP_NAME} · ${title}: ${args.domain}`;
     const rowsHtml = facts
       .map(
         (x) =>
@@ -121,7 +122,7 @@ export async function notifySslCertRenewed(args: {
 <body style="margin:0;padding:0;background:#0b0f1a;font-family:Arial,Helvetica,sans-serif;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#0b0f1a"><tr><td align="center" style="padding:40px 16px;">
 <table role="presentation" cellspacing="0" cellpadding="0" style="max-width:580px;width:100%;background:#111827;border:1px solid #1e2a3a;border-radius:10px;">
-<tr><td style="padding:28px 32px 8px;"><div style="font-size:22px;font-weight:700;color:#ffffff;">B&#8209;Security</div>
+<tr><td style="padding:28px 32px 8px;"><div style="font-size:22px;font-weight:700;color:#ffffff;">${APP_NAME}</div>
 <div style="font-size:10px;color:#9ca3af;letter-spacing:3px;text-transform:uppercase;margin-top:6px;">Domínios / SSL</div></td></tr>
 <tr><td style="padding:12px 32px 20px;"><h1 style="margin:0;font-size:20px;color:#ffffff;">${escapeHtml(title)}</h1>
 <p style="margin:10px 0 0;font-size:13px;color:#9ca3af;line-height:1.6;">Confirme que o novo certificado foi instalado em todas as URLs vinculadas abaixo.</p></td></tr>
@@ -144,7 +145,7 @@ export async function notifySslCertRenewed(args: {
             secure: !!smtpCfg.secure,
             username: smtpCfg.username || null,
             password,
-            from: { name: smtpCfg.from_name || "B-Security", email: smtpCfg.from_email },
+            from: { name: smtpCfg.from_name || APP_NAME, email: smtpCfg.from_email },
             to,
             subject,
             html,

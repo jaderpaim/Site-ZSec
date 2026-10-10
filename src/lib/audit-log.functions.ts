@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 export type AuditModule =
   | "excecao-sophos"
   | "smtp"
+  | "dados-organizacao"
   | "sso-ldap"
   | "usuarios"
   | "integracoes"

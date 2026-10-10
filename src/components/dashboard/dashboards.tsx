@@ -35,6 +35,7 @@ import { IntegracoesDashboard } from "./Integracoes";
 import { LogsDashboard } from "./Logs";
 import { GmudDashboard } from "./GmudReal";
 import { SmtpConfigDashboard } from "./SmtpConfig";
+import { DadosOrganizacaoDashboard } from "./DadosOrganizacao";
 import { UsersManagementDashboard } from "./UsersManagement";
 import { DominiosSslDashboard } from "./DominiosSsl";
 import { AprovadoresDashboard } from "./Aprovadores";
@@ -475,6 +476,7 @@ export const DASHBOARDS: Record<string, () => React.ReactElement> = {
   upload: UploadDashboard,
   logs: LogsDashboard,
   smtp: SmtpConfigDashboard,
+  "dados-organizacao": DadosOrganizacaoDashboard,
   usuarios: UsersManagementDashboard,
   "dominios-ssl": DominiosSslDashboard,
   aprovadores: AprovadoresDashboard,

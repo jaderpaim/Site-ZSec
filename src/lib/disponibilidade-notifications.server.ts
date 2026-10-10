@@ -1,3 +1,5 @@
+import { APP_NAME } from "@/lib/brand";
+
 type AtivoNotif = { nome: string; tipo: string | null; ip_hostname: string | null };
 
 type NotifConfig = {
@@ -32,7 +34,7 @@ function buildTeamsCard(ativos: AtivoNotif[]) {
     "@type": "MessageCard",
     "@context": "http://schema.org/extensions",
     themeColor: "F97316",
-    summary: `${ativos.length} ativo(s) indisponível(is) — B-Security`,
+    summary: `${ativos.length} ativo(s) indisponível(is) — ${APP_NAME}`,
     sections: [
       {
         activityTitle: `🔴 Indisponibilidade detectada — ${ativos.length} ativo(s)`,
@@ -51,7 +53,7 @@ function buildTelegramText(ativos: AtivoNotif[]): string {
     )
     .join("\n");
   const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-  return `🔴 <b>Indisponibilidade detectada — B-Security</b>\n📅 ${now}\n\n<b>${ativos.length} ativo(s) indisponível(is):</b>\n${lines}`;
+  return `🔴 <b>Indisponibilidade detectada — ${APP_NAME}</b>\n📅 ${now}\n\n<b>${ativos.length} ativo(s) indisponível(is):</b>\n${lines}`;
 }
 
 type ChangeNotif = {
@@ -67,7 +69,7 @@ function buildTeamsChangeCard(change: ChangeNotif) {
     "@type": "MessageCard",
     "@context": "http://schema.org/extensions",
     themeColor: "F97316",
-    summary: `Registro de indisponibilidade ${acao} — B-Security`,
+    summary: `Registro de indisponibilidade ${acao} — ${APP_NAME}`,
     sections: [
       {
         activityTitle: `✏️ Indisponibilidade ${acao} — ${change.ativoNome}`,
@@ -81,7 +83,7 @@ function buildTeamsChangeCard(change: ChangeNotif) {
 function buildTelegramChangeText(change: ChangeNotif): string {
   const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const acao = change.kind === "update" ? "editado" : "excluído";
-  return `✏️ <b>Indisponibilidade ${acao} — B-Security</b>\n📅 ${now}\n\n<b>Ativo:</b> ${change.ativoNome}\n<b>Por:</b> ${change.actorEmail ?? "desconhecido"}`;
+  return `✏️ <b>Indisponibilidade ${acao} — ${APP_NAME}</b>\n📅 ${now}\n\n<b>Ativo:</b> ${change.ativoNome}\n<b>Por:</b> ${change.actorEmail ?? "desconhecido"}`;
 }
 
 /**

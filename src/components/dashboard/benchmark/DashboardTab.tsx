@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { TrendingUp, AlertTriangle, Target, Wallet, Gauge, ArrowUpRight } from "lucide-react";
 import { getBenchmarkOverview, type MaturidadeRefRow, type InvestimentoRefRow } from "@/lib/benchmark.functions";
+import { useOrganizacao } from "@/lib/use-organizacao";
 
 // ── Tokens — mesma paleta do Painel Executivo (consistência entre painéis) ────
 const T = {
@@ -142,7 +143,6 @@ const pctFmt = (v: number | null | undefined) => {
 // Encurta o rótulo da faixa para caber no eixo. O nome completo vai no tooltip.
 function shortFaixa(s: string) {
   let v = (s ?? "").trim();
-  if (/^bernoulli/i.test(v)) return "BERNOULLI";
   v = v
     .replace(/^De\s+/i, "")
     .replace(/^Entre\s+/i, "")
@@ -157,7 +157,7 @@ function Dot({ state }: { state: "ok" | "warn" | "crit" | "off" }) {
   return <span className="bmk-dot" style={{ background: c, opacity: state === "off" ? 0.5 : 1 }} />;
 }
 
-// ── Régua de maturidade — barras horizontais + linha da Bernoulli ─────────────
+// ── Régua de maturidade — barras horizontais + linha da organização ───────────
 function MaturidadeRuler({
   rows,
   nota,
@@ -169,9 +169,10 @@ function MaturidadeRuler({
   titulo: string;
   fonte: string;
 }) {
+  const org = useOrganizacao();
   const data = rows.map((r) => ({
     full: r.faixa,
-    name: shortFaixa(r.faixa),
+    name: r.is_bernoulli ? org.rotulo.toUpperCase() : shortFaixa(r.faixa),
     valor: r.is_bernoulli && nota != null ? nota : Number(r.valor),
     destaque: r.is_bernoulli,
   }));
@@ -304,9 +305,9 @@ function MaturidadeRuler({
           flexWrap: "wrap",
         }}
       >
-        <span style={{ color: T.success }}>■ Bernoulli</span>
+        <span style={{ color: T.success }}>■ {org.rotulo}</span>
         <span style={{ color: T.purple }}>■ faixas de mercado</span>
-        <span style={{ color: T.warning }}>■ acima da Bernoulli</span>
+        <span style={{ color: T.warning }}>■ acima de {org.rotulo}</span>
         {media != null && <span style={{ color: T.textPrimary }}>┄ média do mercado {nf2.format(media)}</span>}
       </div>
     </div>
@@ -315,6 +316,7 @@ function MaturidadeRuler({
 
 // ── Régua de investimento — banda de mercado + nossa posição ──────────────────
 function InvestimentoRuler({ pct, min, max }: { pct: number | null; min: number | null; max: number | null }) {
+  const org = useOrganizacao();
   const topo = Math.max(max ?? 1.2, (pct ?? 0) * 1.15, 0.2);
   const p = (v: number) => `${Math.min(100, Math.max(0, (v / topo) * 100))}%`;
   const abaixo = pct != null && min != null && pct < min;
@@ -341,7 +343,7 @@ function InvestimentoRuler({ pct, min, max }: { pct: number | null; min: number 
           <div
             className="bmk-ruler-mark"
             style={{ left: p(pct), background: T.textPrimary }}
-            title={`Bernoulli ${pctFmt(pct)}`}
+            title={`${org.rotulo} ${pctFmt(pct)}`}
           />
         )}
       </div>
@@ -355,6 +357,7 @@ function InvestimentoRuler({ pct, min, max }: { pct: number | null; min: number 
 }
 
 export function BenchmarkDashboardTab() {
+  const org = useOrganizacao();
   const fetchOverview = useServerFn(getBenchmarkOverview);
   const { data, isLoading, error } = useQuery({
     queryKey: ["benchmark", "overview"],
@@ -377,7 +380,7 @@ export function BenchmarkDashboardTab() {
   const empresa = (data?.empresa ?? [])[0];
   const nist = data?.nist ?? null;
 
-  // Nota de referência: módulo Maturidade; se ausente, a faixa marcada como Bernoulli.
+  // Nota de referência: módulo Maturidade; se ausente, a faixa marcada como da organização.
   const linhaBern = maturidade.find((m) => m.is_bernoulli);
   const nota = nist?.nota ?? (linhaBern ? Number(linhaBern.valor) : null);
 
@@ -479,7 +482,7 @@ export function BenchmarkDashboardTab() {
             style={{ flexShrink: 0, marginTop: 2 }}
           />
           <div>
-            Com nota NIST <strong>{nf2.format(nota)}</strong>, a Bernoulli supera{" "}
+            Com nota NIST <strong>{nf2.format(nota)}</strong>, {org.rotulo} supera{" "}
             <strong>
               {superadas} das {totalFaixas}
             </strong>{" "}

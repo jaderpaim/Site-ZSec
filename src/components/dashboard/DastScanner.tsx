@@ -21,7 +21,6 @@ import {
   Play,
   Pause,
   KeyRound,
-  Info,
   AlertTriangle,
   Triangle,
   Diamond,
@@ -534,12 +533,6 @@ function NewScanDialog({
   // nenhuma por scan. Default "blackbox": autenticação passa a ser opt-in
   // explícito (ver StartSchema.authMode em dast.functions.ts).
   const [authMode, setAuthMode] = React.useState<"blackbox" | "whitebox">("blackbox");
-  // Escaneia *.lovable.app em vez de *.bernoulli.com.br -- bypassa o Worker
-  // Cloudflare da frente do domínio próprio (que tem cota diária baixa no
-  // plano Free e já derrubou produção rodando scan pesado contra ele
-  // direto). Só afeta alvos que terminam em bernoulli.com.br; outros
-  // domínios passam intactos.
-  const [lovableProject, setLovableProject] = React.useState(false);
   const [assetScope, setAssetScope] = React.useState<"all" | "external" | "internal">("all");
   const [assetSearch, setAssetSearch] = React.useState("");
 
@@ -607,16 +600,9 @@ function NewScanDialog({
       setAssetScope("all");
       setAssetSearch("");
       setAuthMode("blackbox");
-      setLovableProject(false);
     }
   }, [open]);
 
-  // Troca de host (bernoulli.com.br -> lovable.app) acontece no servidor
-  // (startDastScan), não aqui -- precisa acontecer DEPOIS da busca de
-  // credencial de autenticação (por domínio), senão a busca quebra (já
-  // aconteceu: procurava credencial de "x.lovable.app" e não achava nada,
-  // já que só existe cadastro pra "x.bernoulli.com.br"). Aqui só manda a
-  // flag lovableProject junto com o alvo real digitado.
   const targetList = mode === "url" ? (urlValue.trim() ? [urlValue.trim()] : []) : targetLines;
 
   const save = useMutation({
@@ -630,7 +616,6 @@ function NewScanDialog({
           engines: engines as ("zap" | "nuclei" | "amass" | "nmap" | "nikto")[],
           targets: targetList,
           authMode,
-          lovableProject,
         },
       }),
     onSuccess: () => {
@@ -728,7 +713,7 @@ function NewScanDialog({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+              gridTemplateColumns: "minmax(0, 1fr)",
               gap: 10,
             }}
           >
@@ -749,33 +734,6 @@ function NewScanDialog({
                   habilitada.
                 </span>
               )}
-            </div>
-            <div className="dast-field">
-              <span className="dast-field-lbl">Hospedagem</span>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: 12,
-                  color: T.textPrimary,
-                  cursor: "pointer",
-                  height: 32,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={lovableProject}
-                  onChange={(e) => setLovableProject(e.target.checked)}
-                />
-                Projeto Lovable
-                <span
-                  title="Escaneia *.lovable.app em vez de *.bernoulli.com.br"
-                  style={{ display: "inline-flex", cursor: "help", flexShrink: 0 }}
-                >
-                  <Info size={13} style={{ color: T.textSubtle }} />
-                </span>
-              </label>
             </div>
           </div>
           <div className="dast-field">
@@ -876,7 +834,7 @@ function NewScanDialog({
                     style={{ flex: 1, minWidth: 0 }}
                     value={assetSearch}
                     onChange={(e) => setAssetSearch(e.target.value)}
-                    placeholder="Filtrar por domínio (ex.: bernoulli.com.br)"
+                    placeholder="Filtrar por domínio (ex.: empresa.com.br)"
                   />
                   <button
                     type="button"
@@ -2420,7 +2378,7 @@ function DiscoveryDialog({
                 className="dast-input"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
-                placeholder="bernoulli.com.br"
+                placeholder="empresa.com.br"
               />
               <span className="dast-field-helper" style={{ fontSize: 10, color: T.textSubtle }}>
                 Roda só o Amass (OSINT público) contra esse domínio e cataloga os subdomínios
@@ -2755,7 +2713,7 @@ function AdLdapCredentialDialog({
               className="dast-input"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="BERNOULLI\svc-dast"
+              placeholder="DOMINIO\svc-dast"
               autoComplete="off"
             />
           </div>
@@ -2954,7 +2912,7 @@ function AuthCredentialsDialog({
                 className="dast-input"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
-                placeholder="gestaox.bernoulli.com.br"
+                placeholder="app.empresa.com.br"
               />
             </div>
             <div className="dast-field">
@@ -2965,7 +2923,7 @@ function AuthCredentialsDialog({
                 className="dast-input"
                 value={loginUrl}
                 onChange={(e) => setLoginUrl(e.target.value)}
-                placeholder="https://gestaox.bernoulli.com.br/login"
+                placeholder="https://app.empresa.com.br/login"
               />
               <span className="dast-field-helper" style={{ fontSize: 10.5, color: T.textMuted }}>
                 Deixe em branco se o login está na própria raiz do site (o scan usa a raiz do alvo e

@@ -3,6 +3,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { ingestWebEventsFromSophos } from "./ia.server";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
+import { APP_NAME } from "@/lib/brand";
 
 const TOKEN_URL = "https://id.sophos.com/api/v2/oauth2/token";
 const WHOAMI_URL = "https://api.central.sophos.com/whoami/v1";
@@ -724,7 +725,7 @@ async function notifySophosAuditTeams(
         summary: `Sophos Auditoria: ${matched.length} evento(s) sensível(eis)`,
         sections: [
           {
-            activityTitle: "🛡️ B-Security · Sophos Auditoria",
+            activityTitle: `🛡️ ${APP_NAME} · Sophos Auditoria`,
             activitySubtitle: now,
             facts,
             markdown: true,

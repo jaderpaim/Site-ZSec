@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/authz";
 import { applyEmailTemplate, getEmailTemplateOverride, escapeHtml } from "./email-templates.functions";
 import { buildSslExpiryAlertHtml } from "./email-templates.defaults";
 import { fetchWithTimeout, fetchWithRetry } from "./http-retry";
+import { APP_NAME } from "@/lib/brand";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -1122,7 +1123,7 @@ export async function checkExpiringSslAndNotify(): Promise<{ notified: number; c
   const password = (cfg as any).password || process.env.SMTP_PASSWORD;
   if (!password) return { notified: 0, certs: expiring.length };
 
-  const subject = `B-Security · ${expiring.length} certificado(s) SSL próximo(s) do vencimento`;
+  const subject = `${APP_NAME} · ${expiring.length} certificado(s) SSL próximo(s) do vencimento`;
   const rowsHtml = expiring
     .map((r: any) => {
       const days = daysUntilExpiry(r.valid_to);
@@ -1155,7 +1156,7 @@ export async function checkExpiringSslAndNotify(): Promise<{ notified: number; c
           secure: !!cfg.secure,
           username: cfg.username || null,
           password,
-          from: { name: cfg.from_name || "B-Security", email: cfg.from_email },
+          from: { name: cfg.from_name || APP_NAME, email: cfg.from_email },
           to,
           subject,
           html,

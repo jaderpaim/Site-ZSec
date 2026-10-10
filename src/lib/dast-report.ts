@@ -14,6 +14,7 @@
 // display_header_footer do Playwright é tudo-ou-nada pra um render só --
 // sem separar os dois documentos, o cabeçalho ou duplicava por cima da
 // marca da capa ou sumia de todas as páginas.
+import { APP_NAME } from "@/lib/brand";
 
 export type DastReportScan = {
   name: string | null;
@@ -318,7 +319,7 @@ td.cvss{font-family:'IBM Plex Mono',monospace;text-align:right;font-variant-nume
 `;
 
 function coverMark(): string {
-  return `<div class="mark"><div class="mark-icon" style="background:rgba(59,130,246,.18)"><svg class="ic"><use href="#ic-radar"/></svg></div><div class="mark-text"><b>B-SECURITY</b><span>DAST Security Scanner</span></div></div>`;
+  return `<div class="mark"><div class="mark-icon" style="background:rgba(59,130,246,.18)"><svg class="ic"><use href="#ic-radar"/></svg></div><div class="mark-text"><b>${APP_NAME.toUpperCase()}</b><span>DAST Security Scanner</span></div></div>`;
 }
 function secHd(num: string, icon: string, title: string): string {
   return `<div class="sec-hd"><span class="sec-num">${num}</span><svg class="ic" style="width:18px;height:18px"><use href="#${icon}"/></svg><h2 class="sec-title">${esc(title)}</h2></div>`;

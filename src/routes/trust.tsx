@@ -1,26 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ShieldCheck, Lock, Users, Database, Mail, FileText } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 export const Route = createFileRoute("/trust")({
   head: () => ({
     meta: [
-      { title: "Confiança e Segurança — B-Security" },
+      { title: `Confiança e Segurança — ${APP_NAME}` },
       {
         name: "description",
         content:
-          "Página de confiança do B-Security: práticas de segurança, privacidade e controles disponíveis na plataforma.",
+          `Página de confiança do ${APP_NAME}: práticas de segurança, privacidade e controles disponíveis na plataforma.`,
       },
-      { property: "og:title", content: "Confiança e Segurança — B-Security" },
+      { property: "og:title", content: `Confiança e Segurança — ${APP_NAME}` },
       {
         property: "og:description",
         content:
-          "Página de confiança do B-Security: práticas de segurança, privacidade e controles disponíveis na plataforma.",
+          `Página de confiança do ${APP_NAME}: práticas de segurança, privacidade e controles disponíveis na plataforma.`,
       },
-      { name: "twitter:title", content: "Confiança e Segurança — B-Security" },
+      { name: "twitter:title", content: `Confiança e Segurança — ${APP_NAME}` },
       {
         name: "twitter:description",
         content:
-          "Página de confiança do B-Security: práticas de segurança, privacidade e controles disponíveis na plataforma.",
+          `Página de confiança do ${APP_NAME}: práticas de segurança, privacidade e controles disponíveis na plataforma.`,
       },
     ],
   }),
@@ -53,7 +54,7 @@ function TrustPage() {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <Link to="/" className="text-sm font-semibold text-foreground">
-            B-Security
+            {APP_NAME}
           </Link>
           <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
             ← Voltar
@@ -65,7 +66,7 @@ function TrustPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">Confiança e Segurança</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            Esta página é mantida pelos responsáveis pelo B-Security para responder dúvidas comuns
+            Esta página é mantida pelos responsáveis pelo {APP_NAME} para responder dúvidas comuns
             sobre segurança e privacidade da plataforma. O conteúdo é informativo e editável pelos
             mantenedores; não constitui certificação independente nem auditoria externa.
           </p>
@@ -74,7 +75,7 @@ function TrustPage() {
         <div className="grid gap-4">
           <Section icon={Lock} title="Acesso e Autenticação">
             <p>
-              O B-Security é uma plataforma interna de uso restrito. O acesso requer autenticação
+              O {APP_NAME} é uma plataforma interna de uso restrito. O acesso requer autenticação
               por e-mail/senha ou provedores SSO habilitados (Google, Microsoft/Azure AD), com
               suporte opcional a SAML.
             </p>
@@ -98,7 +99,7 @@ function TrustPage() {
 
           <Section icon={Database} title="Dados e Retenção">
             <p>
-              Os dados tratados pelo B-Security são definidos pelo cliente que opera a instância e
+              Os dados tratados pelo {APP_NAME} são definidos pelo cliente que opera a instância e
               utilizados exclusivamente para as finalidades de monitoramento e operação de
               segurança configuradas no produto.
             </p>
@@ -118,7 +119,7 @@ function TrustPage() {
 
           <Section icon={FileText} title="Subprocessadores e Integrações">
             <p>
-              O B-Security integra-se com serviços de terceiros (por exemplo, provedores de
+              O {APP_NAME} integra-se com serviços de terceiros (por exemplo, provedores de
               identidade, gateways de e-mail e ferramentas de segurança configuradas pelo cliente).
               A lista exata de integrações ativas depende da configuração de cada instância.
             </p>
@@ -128,13 +129,13 @@ function TrustPage() {
             <p>
               Para reportar uma possível vulnerabilidade ou solicitar informações adicionais sobre
               segurança e privacidade, entre em contato com os administradores da instância em que
-              você utiliza o B-Security.
+              você utiliza o {APP_NAME}.
             </p>
           </Section>
         </div>
 
         <p className="mt-10 text-xs text-muted-foreground">
-          Este conteúdo é mantido pelos responsáveis pelo B-Security. Declarações sobre conformidade
+          Este conteúdo é mantido pelos responsáveis pelo {APP_NAME}. Declarações sobre conformidade
           (LGPD, GDPR, ISO, SOC 2, etc.), criptografia específica ou compromissos contratuais devem
           ser confirmadas diretamente com o time responsável pela instância.
         </p>

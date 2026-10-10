@@ -10,6 +10,7 @@ import {
   fmtDate,
 } from "./email-templates.defaults";
 import { requirePermission, requireAdminOrAnalista, hasPermission } from "@/lib/authz";
+import { APP_NAME } from "@/lib/brand";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -648,7 +649,7 @@ async function sendApprovedEmail(gmudId: string) {
         username: cfg.username || null,
         password,
         from: {
-          name: cfg.from_name || "B-Security",
+          name: cfg.from_name || APP_NAME,
           email: cfg.from_email || cfg.username || "noreply@example.com",
         },
         to: { name: toEmail, email: toEmail },
@@ -737,7 +738,7 @@ async function sendRejectedEmail(gmudId: string, rejectedByName: string, motivo:
         username: cfg.username || null,
         password,
         from: {
-          name: cfg.from_name || "B-Security",
+          name: cfg.from_name || APP_NAME,
           email: cfg.from_email || cfg.username || "noreply@example.com",
         },
         to: { name: toEmail, email: toEmail },
@@ -828,7 +829,7 @@ async function sendApprovalEmailToOne(
         username: cfg.username || null,
         password,
         from: {
-          name: cfg.from_name || "B-Security",
+          name: cfg.from_name || APP_NAME,
           email: cfg.from_email || cfg.username || "noreply@example.com",
         },
         to: { name: a.nome_aprovador, email: a.email_aprovador },

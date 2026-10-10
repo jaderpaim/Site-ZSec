@@ -321,6 +321,8 @@ export const listMaturidade = createServerFn({ method: "POST" })
 
     const ranking_nist: RankRow[] = [];
     const ranking_iso: RankRow[] = [];
+    const org = await (await import("./organizacao.server")).loadOrganizacao();
+    const ownLabel = (org.nome_curto || org.nome).toUpperCase();
     for (const [segId, vals] of latestBySeg.entries()) {
       const meta = segMap.get(segId);
       if (!meta) continue;
@@ -330,9 +332,9 @@ export const listMaturidade = createServerFn({ method: "POST" })
           ? "edu"
           : "default";
       if (vals.nista !== null)
-        ranking_nist.push({ name: meta.is_bernoulli ? "BERNOULLI" : meta.nome, v: vals.nista, kind });
+        ranking_nist.push({ name: meta.is_bernoulli ? ownLabel : meta.nome, v: vals.nista, kind });
       if (vals.iso !== null)
-        ranking_iso.push({ name: meta.is_bernoulli ? "BERNOULLI" : meta.nome, v: vals.iso, kind });
+        ranking_iso.push({ name: meta.is_bernoulli ? ownLabel : meta.nome, v: vals.iso, kind });
     }
     ranking_nist.sort((a, b) => a.v - b.v);
     ranking_iso.sort((a, b) => a.v - b.v);

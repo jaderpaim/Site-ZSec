@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { SignJWT } from "jose";
 import { randomUUID } from "node:crypto";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
+import { sekWorkerUrl } from "@/lib/sek-worker";
 
 function admin() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -55,7 +56,6 @@ export const generateSekRenewalToken = createServerFn({ method: "POST" })
 // usando a mesma verificação/uso-único (usedNonces) que já tinha pro
 // session/upload, sem duplicar lógica de autorização lá.
 const REPLY_TTL_SECONDS = 60;
-const WORKER_REPLY_URL = "https://sek-api.bernoulli.com.br/sek-worker/session/reply";
 
 export const replySekTicket = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
@@ -80,7 +80,7 @@ export const replySekTicket = createServerFn({ method: "POST" })
     const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error("CF_ACCESS_CLIENT_ID/CF_ACCESS_CLIENT_SECRET não configurados no servidor");
 
-    const resp = await fetch(WORKER_REPLY_URL, {
+    const resp = await fetch(sekWorkerUrl("session/reply"), {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -98,7 +98,6 @@ export const replySekTicket = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-const WORKER_STATUS_URL = "https://sek-api.bernoulli.com.br/sek-worker/session/status";
 
 // Sessões vigentes por usuário (uma por analista que já rodou o SEK Session
 // Capture) -- o worker só devolve userId (sub do JWT), resolve pro nome de
@@ -113,7 +112,7 @@ export const getSekSessionStatus = createServerFn({ method: "GET" })
     const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error("CF_ACCESS_CLIENT_ID/CF_ACCESS_CLIENT_SECRET não configurados no servidor");
 
-    const resp = await fetch(WORKER_STATUS_URL, {
+    const resp = await fetch(sekWorkerUrl("session/status"), {
       headers: {
         "CF-Access-Client-Id": clientId,
         "CF-Access-Client-Secret": clientSecret,

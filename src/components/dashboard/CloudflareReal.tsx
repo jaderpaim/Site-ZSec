@@ -52,6 +52,8 @@ import { DetailList, DetailSection, DetailSheet } from "@/components/layout/Deta
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/use-permissions";
+import { useOrganizacao } from "@/lib/use-organizacao";
+import { pickDefaultZone } from "@/lib/cloudflare-zones";
 
 const STORAGE_KEY = "cloudflare_dashboard_layout_densegrid_final_v7";
 const DAYS_STORAGE_KEY = "cloudflare_dashboard_days";
@@ -629,6 +631,7 @@ function Donut({ parts, center, sub }: { parts: Array<{ value: number; color: st
 // MAIN DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
 export function CloudflareDashboardReal() {
+  const org = useOrganizacao();
   const { can, isModuleAdmin, isAdmin, loading: permLoading } = usePermissions();
   const canManageCf = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "manage");
   const canViewCf = isAdmin || isModuleAdmin("cloudflare-waf") || can("cloudflare-waf", "view");
@@ -694,9 +697,9 @@ export function CloudflareDashboardReal() {
   React.useEffect(() => {
     if (zones.length === 0) return;
     if (selectedZoneId) return;
-    const bernoulli = zones.find((z) => z.name.includes("bernoulli.com.br"));
-    if (bernoulli) persistZone(bernoulli.id);
-  }, [zones]);
+    const zona = pickDefaultZone(zones, org.dominio_corporativo);
+    if (zona) persistZone(zona.id);
+  }, [zones, org.dominio_corporativo]);
 
   const selectedZone = zones.find((z) => z.id === selectedZoneId) || null;
   const syncZoneFn = useServerFn(syncCloudflareZone);
@@ -882,7 +885,7 @@ export function CloudflareDashboardReal() {
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                       <Globe size={14} color={V.fg3} />
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {selectedZone ? selectedZone.name : "bernoulli.com.br"}
+                        {selectedZone ? selectedZone.name : "Selecione uma zona"}
                       </span>
                     </span>
                     <ChevronsUpDown size={13} color={V.fg3} />

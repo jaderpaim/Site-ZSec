@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { applyEmailTemplate, getEmailTemplateOverride } from "./email-templates.functions";
 import { buildFornecedorExpiryAlertHtml } from "./email-templates.defaults";
+import { APP_NAME } from "@/lib/brand";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -295,7 +296,7 @@ export async function checkExpiringFornecedoresAndNotify(): Promise<{ notified: 
     if (recipients.length === 0) continue;
 
     const days = daysUntilExpiry(r.data_expiracao)!;
-    const subject = `B-Security · Fornecedor "${r.nome}" próximo do vencimento (${days} dia(s))`;
+    const subject = `${APP_NAME} · Fornecedor "${r.nome}" próximo do vencimento (${days} dia(s))`;
     const defaultHtml = buildFornecedorExpiryAlertHtml({
       nome: r.nome,
       servico: r.servico_prestado ?? "—",
@@ -329,7 +330,7 @@ export async function checkExpiringFornecedoresAndNotify(): Promise<{ notified: 
             secure: !!cfg.secure,
             username: cfg.username || null,
             password,
-            from: { name: cfg.from_name || "B-Security", email: cfg.from_email },
+            from: { name: cfg.from_name || APP_NAME, email: cfg.from_email },
             to,
             subject,
             html,

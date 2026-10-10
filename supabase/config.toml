@@ -1,4 +1,4 @@
-project_id = "tcacmepuiyoqkypatkqa"
+project_id = "zsec-local"
 
 [functions.send-smtp]
 verify_jwt = true

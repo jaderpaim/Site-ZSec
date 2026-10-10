@@ -40,6 +40,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { getExecutiveOverview } from "@/lib/executive.functions";
+import { useOrganizacao } from "@/lib/use-organizacao";
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
@@ -405,6 +406,7 @@ function MatTooltip({ active, payload, label }: any) {
 // MAIN
 // ══════════════════════════════════════════════════════════════════════════════
 export function PainelExecutivoDashboard() {
+  const org = useOrganizacao();
   // ── back-end UNCHANGED ─────────────────────────────────────────────────────
   const fetchOverview = useServerFn(getExecutiveOverview);
   const { data, isLoading, isError, refetch, dataUpdatedAt } = useQuery({
@@ -631,7 +633,7 @@ export function PainelExecutivoDashboard() {
         {/* ═══ HEADER ═══ */}
         <div className="pe-hdr pe-fadeup">
           <div>
-            <div className="pe-hdr-eyebrow">Bernoulli · Segurança da Informação</div>
+            <div className="pe-hdr-eyebrow">{org.nome} · Segurança da Informação</div>
             <h1 className="pe-hdr-title">Painel Executivo</h1>
             <div className="pe-hdr-sub">
               Visão consolidada · últimos 30 dias · {healthyCount}/{activeCount} domínios saudáveis
@@ -806,7 +808,7 @@ export function PainelExecutivoDashboard() {
                         anterior
                       </span>
                       <InfoTip>
-                        Notas NIST CSF e ISO 27001 do Bernoulli na avaliação mais recente ({maturidade.periodo}).
+                        Notas NIST CSF e ISO 27001 de {org.nome} na avaliação mais recente ({maturidade.periodo}).
                         Comparativo com a média do segmento Educação. Meta institucional: 3.0.
                       </InfoTip>
                     </div>

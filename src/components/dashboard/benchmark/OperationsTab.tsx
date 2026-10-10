@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { useOrganizacao } from "@/lib/use-organizacao";
 import {
   getBenchmarkOverview,
   upsertMaturidadeRef,
@@ -51,6 +52,7 @@ const th: React.CSSProperties = {
 const td: React.CSSProperties = { padding: "9px 10px", borderBottom: `1px solid ${T.border}`, color: T.textSecondary };
 
 export function BenchmarkOperationsTab() {
+  const org = useOrganizacao();
   const qc = useQueryClient();
   const fetchOverview = useServerFn(getBenchmarkOverview);
   const saveMat = useServerFn(upsertMaturidadeRef);
@@ -99,7 +101,7 @@ export function BenchmarkOperationsTab() {
   const empMut = useMutation({
     mutationFn: (v: Record<string, unknown>) => saveEmp({ data: v as never }),
     onSuccess: () => {
-      toast.success("Dados da Bernoulli atualizados");
+      toast.success(`Dados de ${org.rotulo} atualizados`);
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -125,7 +127,7 @@ export function BenchmarkOperationsTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, fontFamily: "'DM Sans',sans-serif" }}>
-      <Card title="Dados da Bernoulli (ano corrente)">
+      <Card title={`Dados de ${org.rotulo} (ano corrente)`}>
         <div
           style={{
             display: "grid",
@@ -202,7 +204,7 @@ export function BenchmarkOperationsTab() {
                 <th style={th}>Faixa</th>
                 <th style={th}>Valor</th>
                 <th style={th}>Ordem</th>
-                <th style={th}>Bernoulli</th>
+                <th style={th}>{org.rotulo}</th>
                 <th style={th}></th>
               </tr>
             </thead>
@@ -308,7 +310,7 @@ export function BenchmarkOperationsTab() {
                   />
                   {matDialog.is_bernoulli && (
                     <div style={{ fontSize: 10, color: T.textMuted, marginTop: 4 }}>
-                      A barra da Bernoulli usa a nota NIST do módulo Maturidade
+                      A barra de {org.rotulo} usa a nota NIST do módulo Maturidade
                     </div>
                   )}
                 </div>
@@ -342,7 +344,7 @@ export function BenchmarkOperationsTab() {
                   checked={!!matDialog.is_bernoulli}
                   onChange={(e) => setMatDialog({ ...matDialog, is_bernoulli: e.target.checked })}
                 />
-                É a barra da Bernoulli (destacada)
+                É a barra de {org.rotulo} (destacada)
               </label>
             </div>
           )}

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { jwtVerify } from "jose";
+import { sekWorkerUrl } from "@/lib/sek-worker";
 
 // Repassa a captura de sessão (sek-session-capture, rodando no notebook do
 // usuário) pro worker na VM, anexando o CF-Access Service Token AQUI, do
@@ -16,7 +17,6 @@ import { jwtVerify } from "jose";
 // worker continua sendo quem valida de novo e marca o jti como usado (uso
 // único) -- essa checagem aqui é só uma camada extra e mais barata na
 // frente, não substitui a dele.
-const WORKER_UPLOAD_URL = "https://sek-api.bernoulli.com.br/sek-worker/session/upload";
 
 export const Route = createFileRoute("/api/public/hooks/sek-zendesk-session-upload")({
   server: {
@@ -76,7 +76,7 @@ export const Route = createFileRoute("/api/public/hooks/sek-zendesk-session-uplo
         }
 
         try {
-          const resp = await fetch(WORKER_UPLOAD_URL, {
+          const resp = await fetch(sekWorkerUrl("session/upload"), {
             method: "POST",
             headers: {
               "content-type": "application/json",

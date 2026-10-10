@@ -1,5 +1,5 @@
 {
   "server_url": "https://SEU-ZSEC/api/public/hooks/agent-ingest",
   "ingest_key": "zagent_COLE_A_CHAVE_AQUI",
-  "corporate_domain": "bernoulli.com.br"
+  "corporate_domain": "exemplo.com.br"
 }

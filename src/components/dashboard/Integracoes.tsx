@@ -1359,7 +1359,7 @@ function SastSheet({
   const [saveCount, setSaveCount] = React.useState(0);
   const [adoEnabled, setAdoEnabled] = React.useState(devops?.enabled ?? false);
   const [adoOrg, setAdoOrg] = React.useState(
-    cfgStr(devops?.config, "organization", "bernoullidevops"),
+    cfgStr(devops?.config, "organization"),
   );
   // Credencial de leitura que o Z-Sec usa pra conferir a build no Azure
   // DevOps -- sempre própria desta aba (pra um App Registration só, colar o
@@ -1379,7 +1379,7 @@ function SastSheet({
 
   React.useEffect(() => {
     setAdoEnabled(devops?.enabled ?? false);
-    setAdoOrg(cfgStr(devops?.config, "organization", "bernoullidevops"));
+    setAdoOrg(cfgStr(devops?.config, "organization"));
     setAdoTenantId(cfgStr(devops?.config, "tenant_id"));
     setAdoClientId(cfgStr(devops?.config, "client_id"));
     setAdoSecret("");
@@ -1436,8 +1436,8 @@ function SastSheet({
   const save = useMutation({
     mutationFn: async () => {
       const org = adoOrg.trim();
-      if (!ADO_ORG_RE.test(org)) {
-        throw new Error("Organização inválida: use só o nome (ex.: bernoullidevops), sem URL.");
+      if (org && !ADO_ORG_RE.test(org)) {
+        throw new Error("Organização inválida: use só o nome (ex.: minha-organizacao), sem URL.");
       }
       const aiFields = [aiTenantId, aiClientId, aiWorkspaceId, aiSecret].map((v) => v.trim());
       // Secret vazio vale se já houver um gravado (só de escrita: vazio = manter)
@@ -1449,13 +1449,13 @@ function SastSheet({
       }
       const adoOwn = [adoTenantId, adoClientId, adoSecret].map((v) => v.trim());
       const adoHasSecret = !!adoOwn[2] || !!devops?.secrets.api_key;
-      if (adoEnabled && (!adoOwn[0] || !adoOwn[1] || !adoHasSecret)) {
+      if (adoEnabled && (!org || !adoOwn[0] || !adoOwn[1] || !adoHasSecret)) {
         throw new Error(
-          "Azure DevOps: preencha Tenant ID, Client ID e Client Secret da credencial de leitura antes de ativar.",
+          "Azure DevOps: preencha Organização, Tenant ID, Client ID e Client Secret da credencial de leitura antes de ativar.",
         );
       }
       // Não cria linha vazia pra aba que nunca foi usada.
-      if (devops || adoEnabled || org !== "bernoullidevops" || adoOwn.some(Boolean)) {
+      if (devops || adoEnabled || org || adoOwn.some(Boolean)) {
         await upsertIntegrationFn({
           data: {
             provider: SAST_DEVOPS,
@@ -1546,7 +1546,7 @@ function SastSheet({
                   className="int-input"
                   value={adoOrg}
                   onChange={(e) => setAdoOrg(e.target.value)}
-                  placeholder="bernoullidevops"
+                  placeholder="minha-organizacao"
                 />
               </Field>
               <Field label="Endpoint para a pipeline">
