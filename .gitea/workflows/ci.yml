@@ -61,7 +61,7 @@ jobs:
   dependencias:
     runs-on: lab
     env:
-      TRIVY_VERSION: 0.57.0
+      TRIVY_VERSION: 0.75.0
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
