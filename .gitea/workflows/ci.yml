@@ -38,5 +38,25 @@ jobs:
           install gitleaks /usr/local/bin/
       - name: Procurar segredos no histórico
         run: gitleaks git --redact -v .
+  codigo:
+    runs-on: lab
+    env:
+      SEMGREP_VERSION: 1.97.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar Semgrep
+        run: |
+          apt-get update -qq && apt-get install -y -qq python3-venv > /dev/null
+          python3 -m venv /tmp/semgrep
+          /tmp/semgrep/bin/pip install -q "semgrep==${SEMGREP_VERSION}"
+      - name: Analisar código
+        run: |
+          /tmp/semgrep/bin/semgrep scan \
+            --config p/typescript \
+            --config p/react \
+            --config p/owasp-top-ten \
+            --metrics=off \
+            --error
+
 
 
