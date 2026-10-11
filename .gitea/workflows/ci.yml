@@ -80,7 +80,26 @@ jobs:
         run: |
           trivy fs --scanners vuln --severity HIGH,CRITICAL \
             --ignore-unfixed --exit-code 1 .
-
-
-
-
+  rls:
+    runs-on: lab
+    env:
+      # Commit revisado do vibe-scanner (sem releases publicadas); trocar só após revisar o novo código.
+      VIBE_SCANNER_COMMIT: d1f43205d2ede860d505cdb215842a88ac529ce2
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Instalar vibe-scanner
+        run: |
+          apt-get update -qq && apt-get install -y -qq python3-venv > /dev/null
+          git clone -q https://github.com/SymbioticSec/vibe-scanner /tmp/vibe-scanner
+          git -C /tmp/vibe-scanner checkout -q "$VIBE_SCANNER_COMMIT"
+          python3 -m venv /tmp/vs
+          /tmp/vs/bin/pip install -q -r scripts/ci/rls-scanner-requirements.txt
+      - name: Analisar RLS das migrations
+        run: |
+          # O scanner sai com erro sempre que há achado alto/crítico; quem decide
+          # se o job falha é a comparação com a linha de base, no passo seguinte.
+          (cd /tmp/vibe-scanner && PYTHONPATH=. /tmp/vs/bin/python -m src.main \
+            "$GITHUB_WORKSPACE/supabase/" -o json -f /tmp/rls.json) || true
+          test -s /tmp/rls.json
+      - name: Comparar com a linha de base
+        run: python3 scripts/ci/rls_baseline.py /tmp/rls.json .rls-baseline supabase/migrations
