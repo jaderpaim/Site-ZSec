@@ -15,14 +15,14 @@ const GQL_URL = `${CF_API}/graphql`;
 
 type Credentials = { apiToken: string };
 
-async function getCredentials(): Promise<Credentials | { ok: false; error: string }> {
+async function getCredentials(): Promise<Credentials | { ok: false; error: string; inactive?: boolean }> {
   const { data, error } = await supabaseAdmin
     .from("integrations")
     .select("api_key, enabled, config")
     .eq("provider", "cloudflare")
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
-  if (!data || !data.enabled) return { ok: false, error: "Integração Cloudflare não está ativa." };
+  if (!data || !data.enabled) return { ok: false, error: "Integração Cloudflare não está ativa.", inactive: true };
   if (!data.api_key) return { ok: false, error: "API Token da Cloudflare não configurado." };
   return { apiToken: readSecret(data.api_key) };
 }
@@ -273,7 +273,8 @@ export async function runCloudflareSync(opts?: { fullResync?: boolean }): Promis
   const t0 = Date.now();
   const creds = await getCredentials();
   if ("ok" in creds && creds.ok === false) {
-    await logApi("error", null, creds.error, Date.now() - t0);
+    // Integração ausente/desligada é escolha do cliente, não falha de API: não vai pro log.
+    if (!("inactive" in creds && creds.inactive)) await logApi("error", null, creds.error, Date.now() - t0);
     return creds;
   }
   const { apiToken } = creds as Credentials;
@@ -1037,7 +1038,8 @@ export async function runCloudflareZoneSync(
   const t0 = Date.now();
   const creds = await getCredentials();
   if ("ok" in creds && creds.ok === false) {
-    await logApi("error", null, creds.error, Date.now() - t0);
+    // Integração ausente/desligada é escolha do cliente, não falha de API: não vai pro log.
+    if (!("inactive" in creds && creds.inactive)) await logApi("error", null, creds.error, Date.now() - t0);
     return creds;
   }
   const { apiToken } = creds as Credentials;

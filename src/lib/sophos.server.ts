@@ -61,14 +61,14 @@ export type SyncResult = {
   };
 };
 
-async function getCredentials(): Promise<SophosCredentials | { ok: false; error: string }> {
+async function getCredentials(): Promise<SophosCredentials | { ok: false; error: string; inactive?: boolean }> {
   const { data, error } = await supabaseAdmin
     .from("integrations")
     .select("api_key, enabled, config")
     .eq("provider", "sophos")
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
-  if (!data || !data.enabled) return { ok: false, error: "Integração Sophos não está ativa." };
+  if (!data || !data.enabled) return { ok: false, error: "Integração Sophos não está ativa.", inactive: true };
   if (!data.api_key) return { ok: false, error: "Client Secret da Sophos não configurado." };
   const cfg = (data.config ?? {}) as Record<string, unknown>;
   const clientId = typeof cfg.client_id === "string" ? cfg.client_id.trim() : "";
@@ -107,7 +107,8 @@ export async function runSophosSync(opts?: {
   const t0 = Date.now();
   const creds = await getCredentials();
   if ("ok" in creds && creds.ok === false) {
-    await logApi("error", null, creds.error, Date.now() - t0);
+    // Integração ausente/desligada é escolha do cliente, não falha de API: não vai pro log.
+    if (!("inactive" in creds && creds.inactive)) await logApi("error", null, creds.error, Date.now() - t0);
     return creds;
   }
   const c = creds as SophosCredentials;
@@ -745,7 +746,7 @@ async function notifySophosAuditTeams(
 // pelo sync principal — por isso fica isolado em sua própria função/hook/cron.
 export type AuditSyncResult = { ok: true; tenantId: string; count: number };
 
-async function getAuditCredentials(): Promise<SophosCredentials | { ok: false; error: string }> {
+async function getAuditCredentials(): Promise<SophosCredentials | { ok: false; error: string; inactive?: boolean }> {
   const { data, error } = await supabaseAdmin
     .from("integrations")
     .select("config")
@@ -754,9 +755,9 @@ async function getAuditCredentials(): Promise<SophosCredentials | { ok: false; e
   if (error) return { ok: false, error: error.message };
   // Sincronização de Auditoria é independente da aba SIEM — usa seu próprio
   // toggle (config.audit_enabled), não o "enabled" geral da integração.
-  if (!data) return { ok: false, error: "Integração Sophos não configurada." };
+  if (!data) return { ok: false, error: "Integração Sophos não configurada.", inactive: true };
   const cfg = (data.config ?? {}) as Record<string, unknown>;
-  if (cfg.audit_enabled !== true) return { ok: false, error: "Sincronização de Auditoria da Sophos não está ativa." };
+  if (cfg.audit_enabled !== true) return { ok: false, error: "Sincronização de Auditoria da Sophos não está ativa.", inactive: true };
   const clientId = typeof cfg.audit_client_id === "string" ? cfg.audit_client_id.trim() : "";
   const clientSecret = typeof cfg.audit_client_secret === "string" ? readSecret(cfg.audit_client_secret).trim() : "";
   if (!clientId || !clientSecret) return { ok: false, error: "Credencial de Audit Log da Sophos não configurada." };
@@ -767,7 +768,8 @@ export async function runSophosAuditSync(): Promise<AuditSyncResult | { ok: fals
   const t0 = Date.now();
   const creds = await getAuditCredentials();
   if ("ok" in creds && creds.ok === false) {
-    await logApi("error", null, creds.error, Date.now() - t0);
+    // Integração ausente/desligada é escolha do cliente, não falha de API: não vai pro log.
+    if (!("inactive" in creds && creds.inactive)) await logApi("error", null, creds.error, Date.now() - t0);
     return creds;
   }
   const c = creds as SophosCredentials;

@@ -37,7 +37,7 @@ export const listZabbixMonitoredHosts = createServerFn({ method: "GET" })
     try {
       const creds = await getZabbixCreds();
       if (!creds) {
-        await logZabbixApi("error", null, "Zabbix não configurado ou desabilitado", Date.now() - t0);
+        // Integração ausente/desligada não é falha de API: não vai pro log.
         return { hosts: [], ips: [], unknownHosts: [], unknownIps: [], ipToHost: {}, error: "Zabbix não configurado" };
       }
       const { available, unknown } = await listMonitoredHosts(creds);
@@ -71,7 +71,7 @@ export const getZabbixLiveHosts = createServerFn({ method: "GET" })
     try {
       const creds = await getZabbixCreds();
       if (!creds) {
-        await logZabbixApi("error", null, "Zabbix não configurado ou desabilitado", Date.now() - t0);
+        // Integração ausente/desligada não é falha de API: não vai pro log.
         return { hosts: [], ips: [], unknownHosts: [], unknownIps: [], ipToHost: {}, error: "Zabbix não configurado" };
       }
       const { available, unknown } = await listMonitoredHosts(creds);

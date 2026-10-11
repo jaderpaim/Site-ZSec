@@ -256,7 +256,7 @@ export async function runGophishSync(): Promise<GophishSyncResult> {
   const { getGophishCreds, gophishFetch } = await import("@/lib/gophish.server");
   const creds = await getGophishCreds();
   if (!creds) {
-    await logApi("error", null, "Integração Gophish não configurada ou desativada.", Date.now() - t0);
+    // Integração ausente/desligada não é falha de API: não vai pro log.
     return { ok: false, error: "Integração Gophish não configurada ou desativada." };
   }
 
