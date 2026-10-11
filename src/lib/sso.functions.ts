@@ -73,6 +73,7 @@ export async function verifyState(state: string): Promise<{ e: string; r: string
 }
 
 /** Configuração pública lida pela tela de login. Não expõe segredos. */
+// nosemgrep: zsec-server-fn-sem-sessao -- pública: tela de login, sem segredos
 export const getSsoPublicConfig = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.rpc("get_sso_public_config" as any).maybeSingle();
@@ -173,6 +174,7 @@ export const upsertSsoConfig = createServerFn({ method: "POST" })
 
 /** Lê e limpa, no servidor, o cookie de destino pós-SSO gravado em azure/callback.ts.
  * Mantém o cookie HttpOnly (o client nunca precisa de document.cookie para isso). */
+// nosemgrep: zsec-server-fn-sem-sessao -- pública: lê e limpa o cookie HttpOnly de destino pós-SSO
 export const consumePendingRedirect = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ dest: string | null }> => {
     const { getCookie, setCookie } = await import("@tanstack/react-start/server");
@@ -189,6 +191,7 @@ export const consumePendingRedirect = createServerFn({ method: "POST" }).handler
 
 /** Inicia o fluxo OAuth Microsoft. Se um e-mail for informado, valida domínio + pré-cadastro e
  * usa como login_hint. Sem e-mail, deixa a Microsoft selecionar a conta — a validação acontece no callback. */
+// nosemgrep: zsec-server-fn-sem-sessao -- pública: inicia o login (domínio e pré-cadastro validados aqui e no callback)
 export const startAzureLogin = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z

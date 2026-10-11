@@ -1,0 +1,93 @@
+# Regras próprias do Z-Sec para o Semgrep (job "codigo" do CI).
+# Cada regra nasce de um erro que este projeto já teve ou de uma convenção
+# que, se quebrada, abre falha de segurança.
+#
+# Exceção legítima: comentário na linha de cima do achado, SEMPRE com motivo:
+#   // nosemgrep: <id-da-regra> -- <por que é seguro>
+rules:
+  - id: zsec-modulo-server-no-navegador
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      Código que roda no navegador importando módulo de servidor ($MOD).
+      Arquivos *.server.ts (ex.: client.server, com a service role) não podem
+      ir para o bundle do navegador. Chame uma server function (*.functions.ts).
+    paths:
+      include:
+        - "src/components/**"
+        - "src/hooks/**"
+        - "src/lib/use-*.ts"
+        - "src/routes/**"
+      exclude:
+        - "src/routes/api/**"
+    patterns:
+      - pattern-either:
+          - pattern: import $X from "$MOD"
+          - pattern: import { ... } from "$MOD"
+          - pattern: import * as $X from "$MOD"
+          - pattern: import("$MOD")
+      - metavariable-regex:
+          metavariable: $MOD
+          regex: \.server$
+
+  - id: zsec-server-fn-sem-sessao
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      Server function sem middleware de sessão: qualquer pessoa na internet pode
+      chamá-la. Adicione .middleware([requireActiveSession]). Se for pública de
+      propósito (login, convite, página pública), marque na linha de cima com
+      "// nosemgrep: zsec-server-fn-sem-sessao -- <motivo>".
+    pattern-either:
+      - pattern: createServerFn(...).handler(...)
+      - pattern: createServerFn(...).inputValidator(...).handler(...)
+      - pattern: createServerFn(...).validator(...).handler(...)
+
+  - id: zsec-process-env-no-topo
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      process.env.$VAR lido no topo do módulo. O valor é capturado quando o
+      arquivo carrega e, em *.functions.ts, o módulo também vai para o
+      navegador. Leia process.env dentro da função que usa o valor.
+    paths:
+      include:
+        - "src/**"
+    patterns:
+      - pattern: process.env.$VAR
+      - pattern-not-inside: |
+          function $F(...) { ... }
+      - pattern-not-inside: |
+          async function $F(...) { ... }
+      - pattern-not-inside: |
+          (...) => { ... }
+      - pattern-not-inside: |
+          async (...) => { ... }
+      - pattern-not-inside: |
+          (...) => $E
+      - pattern-not-inside: |
+          async (...) => $E
+      - pattern-not-inside: |
+          class $C { ... }
+      - pattern-not-inside: |
+          { ..., $M(...) { ... }, ... }
+
+  - id: zsec-papel-de-user-metadata
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      Papel/permissão lido de raw_user_meta_data. Esse campo é preenchido pelo
+      próprio usuário no cadastro: qualquer um poderia virar admin. Use
+      raw_app_meta_data (só o servidor grava).
+    paths:
+      include:
+        - "supabase/migrations/*.sql"
+        - "src/**"
+      exclude:
+        # Versões antigas de handle_new_user, já substituídas pela
+        # 20261011160000_handle_new_user_sem_role_do_cliente.sql. Somem na
+        # baseline nova das migrations (Fase 3.2).
+        - "supabase/migrations/20260526001516_56dc7291-843d-495a-8834-15c9d6214db2.sql"
+        - "supabase/migrations/20260812120100_personalizado_role_defaults_and_rls.sql"
+        - "supabase/migrations/20260825130100_super_admin_rbac_helpers.sql"
+    pattern-regex: raw_user_meta_data\s*->>?\s*'(role|papel|is_admin)'

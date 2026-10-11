@@ -55,6 +55,7 @@ jobs:
             --config p/typescript \
             --config p/react \
             --config p/owasp-top-ten \
+            --config .semgrep/zsec.yml \
             --metrics=off \
             --error
 

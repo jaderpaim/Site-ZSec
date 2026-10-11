@@ -407,6 +407,7 @@ export const getAdesaoPoliticas = createServerFn({ method: "POST" })
 // COLABORADOR (página pública /treinamentos)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// nosemgrep: zsec-server-fn-sem-sessao -- página pública de treinamentos: sessão própria do colaborador, conferida no handler
 export const getLearnerSession = createServerFn({ method: "GET" }).handler(async () => {
   const S = await import("./treinamentos.server");
   const s = await S.currentLearner();
@@ -414,6 +415,7 @@ export const getLearnerSession = createServerFn({ method: "GET" }).handler(async
 });
 
 /** Inicia o login Microsoft só para treinamentos (validação no tenant, sem conta no Z-Sec). */
+// nosemgrep: zsec-server-fn-sem-sessao -- página pública de treinamentos: sessão própria do colaborador, conferida no handler
 export const startLearnerSso = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ t: z.string().uuid().optional().nullable() }).parse(i ?? {}))
   .handler(async ({ data }) => {
@@ -445,6 +447,7 @@ export const startLearnerSso = createServerFn({ method: "POST" })
     return { authorizeUrl: url.toString() };
   });
 
+// nosemgrep: zsec-server-fn-sem-sessao -- página pública de treinamentos: sessão própria do colaborador, conferida no handler
 export const learnerLogout = createServerFn({ method: "POST" }).handler(async () => {
   const S = await import("./treinamentos.server");
   const { setCookie } = await import("@tanstack/react-start/server");
@@ -465,6 +468,7 @@ export type MeuTreinamento = {
   concluido_em: string | null;
 };
 
+// nosemgrep: zsec-server-fn-sem-sessao -- página pública de treinamentos: sessão própria do colaborador, conferida no handler
 export const listMyTrainings = createServerFn({ method: "POST" }).handler(async () => {
   const S = await import("./treinamentos.server");
   const s = await S.currentLearner();
@@ -547,6 +551,7 @@ async function logAcesso(
     });
 }
 
+// nosemgrep: zsec-server-fn-sem-sessao -- página pública de treinamentos: loadOwnAssignment confere a sessão do colaborador e a posse da atribuição
 export const openTraining = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ atribuicao_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }) => {
@@ -585,6 +590,7 @@ export const openTraining = createServerFn({ method: "POST" })
     };
   });
 
+// nosemgrep: zsec-server-fn-sem-sessao -- página pública de treinamentos: loadOwnAssignment confere a sessão do colaborador e a posse da atribuição
 export const reportProgress = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z.object({ atribuicao_id: z.string().uuid(), pct: z.number().int().min(0).max(100) }).parse(i),
@@ -596,6 +602,7 @@ export const reportProgress = createServerFn({ method: "POST" })
     return { pct: data.pct };
   });
 
+// nosemgrep: zsec-server-fn-sem-sessao -- página pública de treinamentos: loadOwnAssignment confere a sessão do colaborador e a posse da atribuição
 export const completeTraining = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z.object({ atribuicao_id: z.string().uuid(), ciencia: z.boolean() }).parse(i),

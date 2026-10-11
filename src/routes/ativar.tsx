@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as React from "react";
 
+// nosemgrep: zsec-server-fn-sem-sessao -- pública: ativação de convite por token de uso único com validade
 const resolveInviteToken = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<{ url: string }> => {
