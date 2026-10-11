@@ -7,6 +7,7 @@ import { appUrlOrNull } from "@/lib/app-url";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
 import { sendMail } from "@/lib/mailer.server";
+import { coverageStatus, missingSources } from "@/lib/monitoring";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -23,7 +24,8 @@ type Ativo = {
 };
 
 type Bucket = "Alerta" | "Inativo";
-type FailIn = "SIEM" | "Zabbix" | "Ambos";
+// Fontes ligadas em que o ativo não aparece, ex.: "Zabbix" ou "SIEM e Zabbix".
+type FailIn = string;
 
 type Classified = {
   ativo: Ativo;
@@ -106,7 +108,7 @@ function htmlTable(rows: Classified[], tone: "warn" | "crit"): string {
       { text: r.ativo.nome },
       { text: r.ativo.tipo ?? "—" },
       { text: r.ativo.ip_hostname ?? "—", mono: true },
-      { text: r.failIn === "Ambos" ? "SIEM e Zabbix" : r.failIn, chip: tone },
+      { text: r.failIn, chip: tone },
     ]),
   );
 }
@@ -152,7 +154,7 @@ async function notifyCmdbChannels(sb: any, alertBucket: Classified[], stoppedBuc
     ];
     if (stoppedBucket.length > 0) {
       teamsSections.push({
-        title: `🔴 Inativos — sem cobertura SIEM nem Zabbix (${stoppedBucket.length})`,
+        title: `🔴 Inativos — sem monitoramento (${stoppedBucket.length})`,
         facts: toFacts(stoppedBucket),
         markdown: true,
       });
@@ -239,6 +241,11 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
   const ativos = (ativosRaw ?? []) as Ativo[];
   if (ativos.length === 0) return { alertCount: 0, stoppedCount: 0, notifiedRecipients: 0 };
 
+  // Só as fontes ligadas contam; sem nenhuma, não há o que alertar.
+  const { loadMonitoringSources } = await import("./monitoring.server");
+  const sources = await loadMonitoringSources(sb);
+  if (!sources.siem && !sources.zabbix) return { alertCount: 0, stoppedCount: 0, notifiedRecipients: 0 };
+
   // 2. SIEM coverage
   const { data: ls } = await sb
     .from("qradar_log_sources")
@@ -264,21 +271,20 @@ export async function checkCmdbDevicesAndNotify(): Promise<{
       }
     }
   } catch {
-    /* Zabbix down não derruba o e-mail */
+    // Zabbix fora do ar: fica de fora desta rodada em vez de acusar todo ativo
+    sources.zabbix = false;
+    if (!sources.siem) return { alertCount: 0, stoppedCount: 0, notifiedRecipients: 0 };
   }
 
   // 4. Classifica
   const alertBucket: Classified[] = [];
   const stoppedBucket: Classified[] = [];
   for (const a of ativos) {
-    const s = isInSiem(a, siemHosts, siemIps);
-    const z = isInZabbix(a, zbxHosts, zbxIps);
-    if (s && z) continue; // Ativo: ok
-    if (s || z) {
-      alertBucket.push({ ativo: a, bucket: "Alerta", failIn: s ? "Zabbix" : "SIEM" });
-    } else {
-      stoppedBucket.push({ ativo: a, bucket: "Inativo", failIn: "Ambos" });
-    }
+    const covered = { siem: isInSiem(a, siemHosts, siemIps), zabbix: isInZabbix(a, zbxHosts, zbxIps) };
+    const status = coverageStatus(sources, covered);
+    if (status === "Ativo" || status === null) continue;
+    const failIn = missingSources(sources, covered).join(" e ");
+    (status === "Alerta" ? alertBucket : stoppedBucket).push({ ativo: a, bucket: status, failIn });
   }
 
   if (alertBucket.length === 0 && stoppedBucket.length === 0) {

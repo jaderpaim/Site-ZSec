@@ -261,8 +261,11 @@ type OpenRecord = { id: string; ativo_id: string; inicio: string };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function syncIndisponibilidadesCore(sb: any): Promise<{ created: number; closed: number }> {
   const { getZabbixCreds, listMonitoredHosts } = await import("./zabbix.server");
+  const { loadMonitoringSources } = await import("./monitoring.server");
+  const { coverageStatus } = await import("./monitoring");
 
-  const [ativosRes, siemRes, openRes] = await Promise.all([
+  const [sources, ativosRes, siemRes, openRes] = await Promise.all([
+    loadMonitoringSources(sb),
     sb.from("cmdb_ativos").select("id, nome, tipo, ip_hostname"),
     sb.from("qradar_log_sources").select("name, status, synced_at").or("name.ilike.%FGT%,name.ilike.%WinCollect%"),
     sb.from("indisponibilidades").select("id, ativo_id, inicio").is("fim", null),
@@ -272,11 +275,11 @@ export async function syncIndisponibilidadesCore(sb: any): Promise<{ created: nu
   const siemSources: SiemSource[] = siemRes.data ?? [];
   const openRecords: OpenRecord[] = openRes.data ?? [];
 
-  // Sync do QRadar desatualizado → não confia no "success" congelado; trata
-  // como sem cobertura SIEM confirmada (o Zabbix, que cobre todos os ativos
-  // aqui, evita que isso vire falso "Inativo"/indisponibilidade).
+  // Sync do QRadar desatualizado → não confia no "success" congelado: o SIEM
+  // fica de fora desta rodada (decide só o Zabbix, se ligado).
   const siemStale = isSiemDataStale(siemSources);
   const { hosts: siemHosts, ips: siemIps } = buildSiemSetsServer(siemStale ? [] : siemSources);
+  let zbxFailed = false;
 
   const zbxHosts = new Set<string>();
   const zbxIps = new Set<string>();
@@ -295,12 +298,27 @@ export async function syncIndisponibilidadesCore(sb: any): Promise<{ created: nu
       }
     }
   } catch {
-    // Zabbix indisponível — considera apenas a cobertura SIEM
+    // Zabbix fora do ar — fica de fora desta rodada (decide só o SIEM, se ligado)
+    zbxFailed = true;
   }
 
+  // Só as fontes ligadas e respondendo contam. Se a fonte ligada não pôde ser
+  // lida, a rodada não mexe em nada: encerrar ou abrir registros aqui seria
+  // palpite. Sem nenhuma fonte ligada, nada fica indisponível (registros
+  // abertos antes são encerrados abaixo).
+  const usable = { siem: sources.siem && !siemStale, zabbix: sources.zabbix && !zbxFailed };
+  if ((sources.siem || sources.zabbix) && !usable.siem && !usable.zabbix) {
+    return { created: 0, closed: 0 };
+  }
   const unavailableIds = new Set<string>(
     ativos
-      .filter((a) => !isInSiemServer(a, siemHosts, siemIps) && !isInZabbixServer(a, zbxHosts, zbxIps))
+      .filter(
+        (a) =>
+          coverageStatus(usable, {
+            siem: isInSiemServer(a, siemHosts, siemIps),
+            zabbix: isInZabbixServer(a, zbxHosts, zbxIps),
+          }) === "Inativo",
+      )
       .map((a) => a.id),
   );
 

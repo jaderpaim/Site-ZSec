@@ -24,6 +24,8 @@ import {
   type SiemSource,
 } from "@/lib/disponibilidade.functions";
 import { listZabbixMonitoredHosts } from "@/lib/zabbix.functions";
+import { getMonitoringSources } from "@/lib/monitoring.functions";
+import { coverageStatus, MONITORING_SOURCE_LABEL, type MonitoringSources } from "@/lib/monitoring";
 import { getCronHealth } from "./CronHealthBadge";
 import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 
@@ -265,15 +267,19 @@ function CritTag({ value }: { value: string | null }) {
     </span>
   );
 }
-function Coverage({ a }: { a: AtivoComStatus }) {
+function Coverage({ a, sources }: { a: AtivoComStatus; sources: MonitoringSources }) {
   return (
     <span className="dp-cov">
-      <span className={a.siem ? "" : "off"}>
-        {a.siem ? <Check size={11} /> : <X size={11} />} SIEM
-      </span>
-      <span className={a.zbx ? "" : "off"}>
-        {a.zbx ? <Check size={11} /> : <X size={11} />} Zabbix
-      </span>
+      {sources.siem && (
+        <span className={a.siem ? "" : "off"}>
+          {a.siem ? <Check size={11} /> : <X size={11} />} SIEM
+        </span>
+      )}
+      {sources.zabbix && (
+        <span className={a.zbx ? "" : "off"}>
+          {a.zbx ? <Check size={11} /> : <X size={11} />} Zabbix
+        </span>
+      )}
     </span>
   );
 }
@@ -316,6 +322,24 @@ export function DisponibilidadeDashboard() {
   const fetchSiem = useServerFn(listSiemSources);
   const fetchZabbix = useServerFn(listZabbixMonitoredHosts);
   const syncFn = useServerFn(syncIndisponibilidades);
+  const fetchMonitoring = useServerFn(getMonitoringSources);
+
+  // Fontes de cobertura ligadas — só elas contam para o status (mesma regra do
+  // sync no servidor, ver syncIndisponibilidadesCore).
+  const { data: monitoring } = useQuery({
+    queryKey: ["monitoring-sources"],
+    queryFn: () => fetchMonitoring(),
+    enabled: canView,
+    staleTime: 5 * 60 * 1000,
+  });
+  const sources = React.useMemo<MonitoringSources>(
+    () => ({ siem: monitoring?.siem ?? false, zabbix: monitoring?.zabbix ?? false }),
+    [monitoring],
+  );
+  const anySource = sources.siem || sources.zabbix;
+  const sourceNames = (Object.keys(sources) as (keyof MonitoringSources)[])
+    .filter((k) => sources[k])
+    .map((k) => MONITORING_SOURCE_LABEL[k]);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["disponibilidade", "list"],
@@ -337,7 +361,7 @@ export function DisponibilidadeDashboard() {
   const { data: zabbixData } = useQuery({
     queryKey: ["disponibilidade", "zabbix-monitored-hosts"],
     queryFn: () => fetchZabbix(),
-    enabled: canView,
+    enabled: canView && sources.zabbix,
     staleTime: 5 * 60 * 1000,
   });
   // Saúde do cron qradar-sync — se ele estiver falhando, siemSources acima
@@ -382,14 +406,12 @@ export function DisponibilidadeDashboard() {
       ativos.map((a) => {
         const siem = isInSiem(a, siemSets.hosts, siemSets.ips);
         const zbx = isInZabbix(a, zbxSets.hosts, zbxSets.ips);
-        return {
-          ...a,
-          siem,
-          zbx,
-          status: siem && zbx ? "Ativo" : siem || zbx ? "Alerta" : "Inativo",
-        };
+        // SIEM atrasado e sem Zabbix: nada a avaliar (o sync também não mexe).
+        const evaluable = sources.zabbix || (sources.siem && !siemCoverageStale);
+        const status = evaluable ? coverageStatus(sources, { siem, zabbix: zbx }) : null;
+        return { ...a, siem, zbx, status: status ?? "Ativo" };
       }),
-    [ativos, siemSets, zbxSets],
+    [ativos, siemSets, zbxSets, sources, siemCoverageStale],
   );
   const ativosIndisponiveis = React.useMemo(
     () => ativosComStatus.filter((a) => a.status === "Inativo"),
@@ -612,20 +634,31 @@ export function DisponibilidadeDashboard() {
         <div>
           <h1 className="dp-ph-title">Disponibilidade de ativos</h1>
           <p className="dp-ph-sub">
-            Cobertura SIEM (QRadar) e Zabbix dos ativos do CMDB, com indisponibilidades em tempo
-            real
+            Cobertura de monitoramento dos ativos do CMDB, com indisponibilidades em tempo real
           </p>
         </div>
         <SyncActions moduleSlug="disponibilidade" jobs={["zabbix-cache-refresh", "qradar-sync"]} />
       </div>
 
-      {siemCoverageStale && (
+      {monitoring && !anySource && (
+        <div className="dp-warn">
+          <AlertTriangle size={15} />
+          <span>
+            Nenhuma ferramenta de monitoramento está ligada (SIEM ou Zabbix), então não há como
+            detectar indisponibilidade. Ligue uma em Integrações para acompanhar os ativos aqui.
+          </span>
+        </div>
+      )}
+
+      {sources.siem && siemCoverageStale && (
         <div className="dp-warn">
           <AlertTriangle size={15} />
           <span>
             O sync do QRadar está atrasado ou com erro, então a cobertura SIEM foi desconsiderada
-            até ele voltar. Ativos que dependem do SIEM aparecem como “Em alerta”, não como
-            indisponíveis.
+            até ele voltar.{" "}
+            {sources.zabbix
+              ? "Ativos que dependem do SIEM aparecem como “Em alerta”, não como indisponíveis."
+              : "Nenhum ativo é marcado como indisponível nesse período."}
           </span>
         </div>
       )}
@@ -667,23 +700,27 @@ export function DisponibilidadeDashboard() {
             Indisponíveis agora
           </span>
           <span className="dp-kpi-value">{ativosIndisponiveis.length}</span>
-          <span className="dp-kpi-foot">sem SIEM e sem Zabbix</span>
-        </button>
-        <button
-          type="button"
-          className="dp-kpi"
-          aria-pressed={view === "alert"}
-          onClick={() => setView("alert")}
-        >
-          <span className="dp-kpi-label">
-            {ativosAlerta.length > 0 && (
-              <span className="dp-sw" style={{ background: "var(--v2-med)" }} />
-            )}
-            Em alerta
+          <span className="dp-kpi-foot">
+            {anySource ? `sem ${sourceNames.join(" e sem ")}` : "sem monitoramento ligado"}
           </span>
-          <span className="dp-kpi-value">{ativosAlerta.length}</span>
-          <span className="dp-kpi-foot">cobertos só por um dos dois</span>
         </button>
+        {sources.siem && sources.zabbix && (
+          <button
+            type="button"
+            className="dp-kpi"
+            aria-pressed={view === "alert"}
+            onClick={() => setView("alert")}
+          >
+            <span className="dp-kpi-label">
+              {ativosAlerta.length > 0 && (
+                <span className="dp-sw" style={{ background: "var(--v2-med)" }} />
+              )}
+              Em alerta
+            </span>
+            <span className="dp-kpi-value">{ativosAlerta.length}</span>
+            <span className="dp-kpi-foot">cobertos só por um dos dois</span>
+          </button>
+        )}
         <button
           type="button"
           className="dp-kpi"
@@ -873,7 +910,9 @@ export function DisponibilidadeDashboard() {
                   ? "Nenhum ativo indisponível com esses filtros"
                   : "Nenhum ativo indisponível"}
               </b>
-              Todos os ativos do CMDB aparecem no SIEM, no Zabbix ou nos dois.
+              {anySource
+                ? `Todos os ativos do CMDB aparecem ${sources.siem && sources.zabbix ? "no SIEM, no Zabbix ou nos dois" : `no ${sourceNames[0]}`}.`
+                : "Nenhuma ferramenta de monitoramento ligada."}
             </div>
           ) : (
             <div className="dp-scroll">
@@ -902,7 +941,7 @@ export function DisponibilidadeDashboard() {
                           <CritTag value={a.criticidade} />
                         </td>
                         <td>
-                          <Coverage a={a} />
+                          <Coverage a={a} sources={sources} />
                         </td>
                         <td className="mono dim">{fmtDateTime(inicio)}</td>
                         <td>
@@ -948,7 +987,7 @@ export function DisponibilidadeDashboard() {
                         <CritTag value={a.criticidade} />
                       </td>
                       <td>
-                        <Coverage a={a} />
+                        <Coverage a={a} sources={sources} />
                       </td>
                       <td style={{ color: "var(--v2-fg-2)" }}>
                         {a.siem ? "Não aparece no Zabbix" : "Não envia log ao QRadar"}
@@ -1036,23 +1075,31 @@ export function DisponibilidadeDashboard() {
             )}
             <DetailSection title="Cobertura">
               <div className="dp-cov-box">
-                <div className={`dp-cov-tile ${open.siem ? "on" : "off"}`}>
-                  <b>{open.siem ? <Check size={14} /> : <X size={14} />} SIEM (QRadar)</b>
-                  <small>
-                    {open.siem
-                      ? "Envia log ao QRadar"
-                      : siemCoverageStale
-                        ? "Desconsiderado: sync do QRadar atrasado"
-                        : "Nenhuma fonte de log ativa"}
-                  </small>
-                </div>
-                <div className={`dp-cov-tile ${open.zbx ? "on" : "off"}`}>
-                  <b>{open.zbx ? <Check size={14} /> : <X size={14} />} Zabbix</b>
-                  <small>{open.zbx ? "Host monitorado" : "Não aparece no Zabbix"}</small>
-                </div>
+                {sources.siem && (
+                  <div className={`dp-cov-tile ${open.siem ? "on" : "off"}`}>
+                    <b>{open.siem ? <Check size={14} /> : <X size={14} />} SIEM (QRadar)</b>
+                    <small>
+                      {open.siem
+                        ? "Envia log ao QRadar"
+                        : siemCoverageStale
+                          ? "Desconsiderado: sync do QRadar atrasado"
+                          : "Nenhuma fonte de log ativa"}
+                    </small>
+                  </div>
+                )}
+                {sources.zabbix && (
+                  <div className={`dp-cov-tile ${open.zbx ? "on" : "off"}`}>
+                    <b>{open.zbx ? <Check size={14} /> : <X size={14} />} Zabbix</b>
+                    <small>{open.zbx ? "Host monitorado" : "Não aparece no Zabbix"}</small>
+                  </div>
+                )}
               </div>
               <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "var(--v2-fg-3)" }}>
-                Disponível quando aparece nos dois; em alerta com só um; indisponível sem nenhum.
+                {sources.siem && sources.zabbix
+                  ? "Disponível quando aparece nos dois; em alerta com só um; indisponível sem nenhum."
+                  : anySource
+                    ? `Disponível quando aparece no ${sourceNames[0]}; indisponível quando não aparece.`
+                    : "Nenhuma ferramenta de monitoramento ligada."}
               </p>
             </DetailSection>
             <DetailSection title="Ativo">

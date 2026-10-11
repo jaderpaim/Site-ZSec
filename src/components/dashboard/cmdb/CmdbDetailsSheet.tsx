@@ -131,8 +131,9 @@ export function CmdbDetailsSheet({
   onOpenChange: (v: boolean) => void;
   ativo: CmdbAtivo | null;
   status: CmdbDisplayStatus;
-  siem: boolean;
-  zabbix: "ok" | "unknown" | "off";
+  /** null = fonte não ligada: a linha some do detalhe. */
+  siem: boolean | null;
+  zabbix: "ok" | "unknown" | "off" | null;
   siemStale: boolean;
   zabbixDivergence?: Divergence | null;
   onEdit: (a: CmdbAtivo) => void;
@@ -215,28 +216,38 @@ export function CmdbDetailsSheet({
           ]}
         />
       </DetailSection>
-      <DetailSection title="Monitoramento">
-        <DetailList
-          items={[
-            [
-              "SIEM (QRadar)",
-              siem
-                ? "Recebendo eventos"
-                : siemStale
-                  ? "Sem confirmação (sincronização do QRadar atrasada)"
-                  : "Sem eventos",
-            ],
-            [
-              "Zabbix",
-              zabbix === "ok"
-                ? "Disponível"
-                : zabbix === "unknown"
-                  ? "Cadastrado, disponibilidade não confirmada"
-                  : "Não encontrado",
-            ],
-          ]}
-        />
-      </DetailSection>
+      {(siem !== null || zabbix !== null) && (
+        <DetailSection title="Monitoramento">
+          <DetailList
+            items={[
+              ...(siem !== null
+                ? [
+                    [
+                      "SIEM (QRadar)",
+                      siem
+                        ? "Recebendo eventos"
+                        : siemStale
+                          ? "Sem confirmação (sincronização do QRadar atrasada)"
+                          : "Sem eventos",
+                    ] as [string, string],
+                  ]
+                : []),
+              ...(zabbix !== null
+                ? [
+                    [
+                      "Zabbix",
+                      zabbix === "ok"
+                        ? "Disponível"
+                        : zabbix === "unknown"
+                          ? "Cadastrado, disponibilidade não confirmada"
+                          : "Não encontrado",
+                    ] as [string, string],
+                  ]
+                : []),
+            ]}
+          />
+        </DetailSection>
+      )}
       {ativo.observacoes && (
         <DetailSection title="Observações">
           <p className="m-0 whitespace-pre-wrap text-[13px] leading-relaxed text-v2-fg-2">

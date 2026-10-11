@@ -345,8 +345,8 @@ export function buildCmdbDeviceStoppedHtml(
       ? `${n} ${n === 1 ? "ativo não está" : "ativos não estão"} em nenhum monitoramento`
       : "Ativos sem monitoramento",
     intro:
-      "Estes ativos estão no CMDB, mas <strong>não foram encontrados no SIEM nem no Zabbix</strong>. Hoje ninguém seria avisado se eles parassem.",
-    preheader: n ? `${n} ativo(s) sem SIEM e sem Zabbix` : "Ativos sem SIEM e sem Zabbix",
+      "Estes ativos estão no CMDB, mas <strong>não foram encontrados em nenhuma ferramenta de monitoramento</strong> (a coluna “Falta em” mostra quais). Hoje ninguém seria avisado se eles parassem.",
+    preheader: n ? `${n} ativo(s) sem monitoramento` : "Ativos sem monitoramento",
     blocks: [{ kind: "html", html: tabela }],
     ...(opts?.link ? { cta: { label: "Revisar ativos no CMDB", url: opts.link } } : {}),
     meta: `Verificação automática · ${nowBr()}`,

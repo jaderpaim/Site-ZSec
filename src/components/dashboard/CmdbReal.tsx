@@ -31,6 +31,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { listCmdbAtivos, deleteCmdbAtivo, type CmdbAtivo } from "@/lib/cmdb.functions";
 import { runCmdbDeviceAlertsNow } from "@/lib/cmdb-alerts.functions";
 import { getZabbixCachedHosts, getZabbixLiveHosts } from "@/lib/zabbix.functions";
+import { getMonitoringSources } from "@/lib/monitoring.functions";
+import { coverageStatus } from "@/lib/monitoring";
 import { getCmdbDnsCache, refreshCmdbDnsCacheNow } from "@/lib/cmdb-dns.functions";
 import { getCronHealth } from "./CronHealthBadge";
 import { ModuleLoading } from "@/components/layout/ModuleLoading";
@@ -407,6 +409,18 @@ export function CmdbDashboard() {
   const fetchList = useServerFn(listCmdbAtivos);
   const deleteFn = useServerFn(deleteCmdbAtivo);
 
+  // Fontes de cobertura ligadas: indicador de ferramenta que o cliente não
+  // usa não aparece nem conta no status do ativo.
+  const fetchMonitoring = useServerFn(getMonitoringSources);
+  const { data: monitoring, isLoading: monitoringLoading } = useQuery({
+    queryKey: ["monitoring-sources"],
+    queryFn: () => fetchMonitoring(),
+    enabled: canView,
+    staleTime: 5 * 60 * 1000,
+  });
+  const siemOn = monitoring?.siem ?? false;
+  const zabbixOn = monitoring?.zabbix ?? false;
+
   // ── Log sources do QRadar para marcar ativos monitorados pelo SIEM ──────────
   const { data: logSources } = useQuery({
     queryKey: ["qradar-log-sources-siem-status"],
@@ -500,7 +514,7 @@ export function CmdbDashboard() {
   const { data: zabbixData } = useQuery({
     queryKey: ["zabbix-monitored-hosts", canEdit],
     queryFn: () => (canEdit ? fetchZabbixLive() : fetchZabbixCached()),
-    enabled: canView,
+    enabled: canView && zabbixOn,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -634,14 +648,15 @@ export function CmdbDashboard() {
 
   const displayStatus = React.useCallback(
     (ativo: CmdbAtivo): CmdbDisplayStatus => {
-      const s = isInSiem(ativo);
       // Unknown conta como "no Zabbix" para o status geral — o ícone amarelo já indica a incerteza
-      const z = isInZabbix(ativo) || isZabbixUnknown(ativo);
-      if (s && z) return "Ativo";
-      if (s || z) return "Alerta";
-      return "Inativo";
+      const status = coverageStatus(
+        { siem: siemOn, zabbix: zabbixOn },
+        { siem: isInSiem(ativo), zabbix: isInZabbix(ativo) || isZabbixUnknown(ativo) },
+      );
+      // Sem nenhuma fonte ligada não há cobertura a avaliar: vale a situação cadastral.
+      return status ?? ((ativo.status as CmdbDisplayStatus) || "Ativo");
     },
-    [isInSiem, isInZabbix, isZabbixUnknown],
+    [isInSiem, isInZabbix, isZabbixUnknown, siemOn, zabbixOn],
   );
 
   const { data, isLoading } = useQuery({
@@ -775,8 +790,13 @@ export function CmdbDashboard() {
       Localização: r.localizacao ?? "",
       Status: displayStatus(r),
       Criticidade: r.criticidade,
-      SIEM: isInSiem(r) ? "Sim" : "Não",
-      Zabbix: zabbixState(r) === "ok" ? "Sim" : zabbixState(r) === "unknown" ? "Incerto" : "Não",
+      ...(siemOn ? { SIEM: isInSiem(r) ? "Sim" : "Não" } : {}),
+      ...(zabbixOn
+        ? {
+            Zabbix:
+              zabbixState(r) === "ok" ? "Sim" : zabbixState(r) === "unknown" ? "Incerto" : "Não",
+          }
+        : {}),
     }));
     const fname = `cmdb_ativos_${new Date().toISOString().slice(0, 10)}`;
 
@@ -922,7 +942,7 @@ export function CmdbDashboard() {
     );
   }
 
-  if (isLoading) return <ModuleLoading />;
+  if (isLoading || monitoringLoading) return <ModuleLoading />;
 
   const pctOf = (n: number) => (counts.total > 0 ? Math.round((n / counts.total) * 100) : 0);
   const tone = (v: number) =>
@@ -1033,36 +1053,40 @@ export function CmdbDashboard() {
             ))}
           </div>
         </div>
-        <div className="cm-kpi">
-          <span className="cm-kpi-label">
-            Cobertura SIEM
-            {siemCoverageStale && <AlertTriangle size={13} color="var(--v2-med)" />}
-          </span>
-          <span className="cm-kpi-value">{siemPct}%</span>
-          <div className="cm-meter">
-            <i
-              style={{
-                width: `${siemPct}%`,
-                background: siemCoverageStale ? "var(--v2-med)" : tone(siemPct),
-              }}
-            />
+        {siemOn && (
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">
+              Cobertura SIEM
+              {siemCoverageStale && <AlertTriangle size={13} color="var(--v2-med)" />}
+            </span>
+            <span className="cm-kpi-value">{siemPct}%</span>
+            <div className="cm-meter">
+              <i
+                style={{
+                  width: `${siemPct}%`,
+                  background: siemCoverageStale ? "var(--v2-med)" : tone(siemPct),
+                }}
+              />
+            </div>
+            <span className="cm-kpi-foot">
+              {siemCoverageStale
+                ? "Sincronização do QRadar atrasada"
+                : `${counts.siem} de ${counts.total} ativos no QRadar`}
+            </span>
           </div>
-          <span className="cm-kpi-foot">
-            {siemCoverageStale
-              ? "Sincronização do QRadar atrasada"
-              : `${counts.siem} de ${counts.total} ativos no QRadar`}
-          </span>
-        </div>
-        <div className="cm-kpi">
-          <span className="cm-kpi-label">Cobertura Zabbix</span>
-          <span className="cm-kpi-value">{zbxPct}%</span>
-          <div className="cm-meter">
-            <i style={{ width: `${zbxPct}%`, background: tone(zbxPct) }} />
+        )}
+        {zabbixOn && (
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Cobertura Zabbix</span>
+            <span className="cm-kpi-value">{zbxPct}%</span>
+            <div className="cm-meter">
+              <i style={{ width: `${zbxPct}%`, background: tone(zbxPct) }} />
+            </div>
+            <span className="cm-kpi-foot">
+              {counts.zabbix} de {counts.total} disponíveis no Zabbix
+            </span>
           </div>
-          <span className="cm-kpi-foot">
-            {counts.zabbix} de {counts.total} disponíveis no Zabbix
-          </span>
-        </div>
+        )}
       </div>
 
       {/* ── Ativos ───────────────────────────────────────────────────────── */}
@@ -1218,7 +1242,7 @@ export function CmdbDashboard() {
                   <th>Fabricante / modelo</th>
                   <th>Departamento</th>
                   <th>Localização</th>
-                  <th>Monitoramento</th>
+                  {(siemOn || zabbixOn) && <th>Monitoramento</th>}
                   {(canEdit || canDelete) && (
                     <th>
                       <span style={{ fontSize: 0 }}>Ações</span>
@@ -1245,12 +1269,14 @@ export function CmdbDashboard() {
                     <td className="dim">{r.fabricante_modelo ?? "—"}</td>
                     <td>{r.departamento_nome ?? "—"}</td>
                     <td className="dim">{r.localizacao ?? "—"}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: 12 }}>
-                        <SiemFlag ok={isInSiem(r)} stale={siemCoverageStale} />
-                        <ZabbixFlag state={zabbixState(r)} />
-                      </div>
-                    </td>
+                    {(siemOn || zabbixOn) && (
+                      <td>
+                        <div style={{ display: "flex", gap: 12 }}>
+                          {siemOn && <SiemFlag ok={isInSiem(r)} stale={siemCoverageStale} />}
+                          {zabbixOn && <ZabbixFlag state={zabbixState(r)} />}
+                        </div>
+                      </td>
+                    )}
                     {(canEdit || canDelete) && (
                       <td onClick={(e) => e.stopPropagation()}>
                         <div className="cm-row-act">
@@ -1353,8 +1379,8 @@ export function CmdbDashboard() {
                               )}
                             </div>
                             <div className="cm-as-foot">
-                              <SiemFlag ok={isInSiem(a)} stale={siemCoverageStale} />
-                              <ZabbixFlag state={zabbixState(a)} />
+                              {siemOn && <SiemFlag ok={isInSiem(a)} stale={siemCoverageStale} />}
+                              {zabbixOn && <ZabbixFlag state={zabbixState(a)} />}
                               {div && (
                                 <span
                                   className="cm-as-warn"
@@ -1387,8 +1413,8 @@ export function CmdbDashboard() {
         onOpenChange={(v) => !v && setDetail(null)}
         ativo={detail}
         status={detail ? displayStatus(detail) : "Inativo"}
-        siem={detail ? isInSiem(detail) : false}
-        zabbix={detail ? zabbixState(detail) : "off"}
+        siem={siemOn ? (detail ? isInSiem(detail) : false) : null}
+        zabbix={zabbixOn ? (detail ? zabbixState(detail) : "off") : null}
         siemStale={siemCoverageStale}
         zabbixDivergence={detail ? zabbixHostnameDivergence(detail) : null}
         onEdit={openEdit}
