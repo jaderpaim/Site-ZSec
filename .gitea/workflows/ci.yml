@@ -58,6 +58,29 @@ jobs:
             --config .semgrep/zsec.yml \
             --metrics=off \
             --error
+  dependencias:
+    runs-on: lab
+    env:
+      TRIVY_VERSION: 0.57.0
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Bibliotecas do app (bun audit)
+        run: bun audit --audit-level=high
+      - name: Instalar Trivy
+        run: |
+          cd /tmp
+          base=https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}
+          curl -sSfLO $base/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
+          curl -sSfLO $base/trivy_${TRIVY_VERSION}_checksums.txt
+          grep Linux-64bit.tar.gz trivy_${TRIVY_VERSION}_checksums.txt | sha256sum -c -
+          tar -xzf trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz trivy
+          install trivy /usr/local/bin/
+      - name: Demais dependências (Trivy)
+        run: |
+          trivy fs --scanners vuln --severity HIGH,CRITICAL \
+            --ignore-unfixed --exit-code 1 .
+
 
 
 
