@@ -17,4 +17,6 @@ jobs:
         run: bunx tsc --noEmit -p .
       - name: Build
         run: bun run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
