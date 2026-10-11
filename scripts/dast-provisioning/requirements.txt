@@ -60,3 +60,4 @@ uvicorn==0.52.3
 websockets==15.0.1
 Werkzeug==3.1.8
 yarl==1.24.5
+defusedxml

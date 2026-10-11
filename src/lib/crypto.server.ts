@@ -34,7 +34,9 @@ export function encryptSecret(plaintext: string): string {
 export function decryptSecret(encoded: string): string {
   const [ivB64, tagB64, ctB64] = encoded.split(":");
   if (!ivB64 || !tagB64 || !ctB64) throw new Error("Formato de segredo cifrado inválido.");
-  const decipher = crypto.createDecipheriv(ALGO, getKey(), Buffer.from(ivB64, "base64"));
+  const decipher = crypto.createDecipheriv(ALGO, getKey(), Buffer.from(ivB64, "base64"), {
+    authTagLength: 16,
+  });
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   const plaintext = Buffer.concat([
     decipher.update(Buffer.from(ctB64, "base64")),
@@ -91,7 +93,9 @@ function getCallbackKey(): Buffer {
 export function decryptCallbackPayload(encoded: string): string {
   const [ivB64, tagB64, ctB64] = encoded.split(":");
   if (!ivB64 || !tagB64 || !ctB64) throw new Error("Formato de payload cifrado do callback inválido.");
-  const decipher = crypto.createDecipheriv(ALGO, getCallbackKey(), Buffer.from(ivB64, "base64"));
+  const decipher = crypto.createDecipheriv(ALGO, getCallbackKey(), Buffer.from(ivB64, "base64"), {
+    authTagLength: 16,
+  });
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   const plaintext = Buffer.concat([
     decipher.update(Buffer.from(ctB64, "base64")),
