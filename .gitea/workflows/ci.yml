@@ -9,8 +9,8 @@ jobs:
   build:
     runs-on: lab
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - name: Instalar dependências
         run: bun install --frozen-lockfile
       - name: Checagem de tipos
@@ -24,7 +24,7 @@ jobs:
     env:
       GITLEAKS_VERSION: 8.21.2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0 # histórico completo: segredo apagado num commit antigo continua no git
       - name: Instalar Gitleaks
@@ -38,5 +38,25 @@ jobs:
           install gitleaks /usr/local/bin/
       - name: Procurar segredos no histórico
         run: gitleaks git --redact -v .
+  codigo:
+    runs-on: lab
+    env:
+      SEMGREP_VERSION: 1.97.0
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Instalar Semgrep
+        run: |
+          apt-get update -qq && apt-get install -y -qq python3-venv > /dev/null
+          python3 -m venv /tmp/semgrep
+          /tmp/semgrep/bin/pip install -q "semgrep==${SEMGREP_VERSION}"
+      - name: Analisar código
+        run: |
+          /tmp/semgrep/bin/semgrep scan \
+            --config p/typescript \
+            --config p/react \
+            --config p/owasp-top-ten \
+            --metrics=off \
+            --error
+
 
 

@@ -9,7 +9,7 @@ import re
 import socket
 import time
 import uuid
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse, urlencode
 
