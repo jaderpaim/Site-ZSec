@@ -18,6 +18,7 @@ const failureInput = z.object({
  * na tabela (que permitia qualquer cliente com a anon key forjar/inundar o log
  * chamando a REST API do Supabase diretamente, sem passar por esta função).
  */
+// nosemgrep: zsec-server-fn-sem-sessao -- pública: registra login que falhou (usuário ainda sem sessão)
 export const logAccessFailure = createServerFn({ method: "POST" })
   .inputValidator((input) => failureInput.parse(input))
   .handler(async ({ data }) => {
