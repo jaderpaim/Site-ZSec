@@ -88,6 +88,7 @@ jobs:
       - name: Bibliotecas do app (bun audit)
         run: bun audit --audit-level=high
       - name: Instalar Trivy
+        if: ${{ always() }} # instala mesmo se o bun audit falhar: o relatório da main depende dele
         run: |
           cd /tmp
           base=https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}
@@ -100,6 +101,18 @@ jobs:
         run: |
           trivy fs --scanners vuln --severity HIGH,CRITICAL \
             --ignore-unfixed --exit-code 1 .
+      # Bloqueio acima: só alta/crítica com correção. Para o módulo SAST vai o
+      # quadro completo (todas as severidades, inclusive sem correção disponível).
+      - name: Relatório completo para o módulo SAST
+        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: trivy fs --quiet --scanners vuln --format json --output /tmp/trivy.json .
+      - name: Enviar resultado ao módulo SAST
+        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        continue-on-error: true # falha no envio não pode travar o deploy-hmg
+        env:
+          ZSEC_URL: ${{ vars.ZSEC_URL }}
+          SAST_INGEST_KEY: ${{ secrets.SAST_INGEST_KEY }}
+        run: node scripts/ci/sast-enviar.mjs trivy /tmp/trivy.json
   rls:
     runs-on: lab
     env:

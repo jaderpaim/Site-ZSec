@@ -28,6 +28,7 @@ import {
   giteaFileUrl,
   normalizeGitleaksReportFinding,
   normalizeSemgrepResult,
+  normalizeTrivyVulnerability,
 } from "@/lib/sast-normalize";
 import type { SastDetectionRow, VerifiedBuildScope } from "@/lib/sast-normalize";
 import { APP_NAME } from "@/lib/brand";
@@ -196,6 +197,7 @@ type Normalizer = (
 const NORMALIZERS: Record<string, Normalizer> = {
   Gitleaks: normalizeGitleaksReportFinding,
   Semgrep: normalizeSemgrepResult,
+  Trivy: normalizeTrivyVulnerability,
 };
 
 type Verified =
