@@ -760,7 +760,7 @@ export function SastDashboard() {
           <div className="sa-src">
             <span
               style={{ "--c": ingestState.c } as React.CSSProperties}
-              title="Origem: envio direto das pipelines do Azure DevOps (/api/public/hooks/sast-ingest)"
+              title="Origem: envio direto das pipelines (Azure DevOps ou Gitea) para /api/public/hooks/sast-ingest"
             >
               <i />
               {ingestState.t}

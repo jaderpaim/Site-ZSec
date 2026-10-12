@@ -18,6 +18,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   purview_dlp: "Microsoft Purview DLP",
   azure_app_insights: "Azure App Insights (SAST)",
   azure_devops_sast: "Azure DevOps (SAST)",
+  gitea_sast: "Gitea (SAST)",
 };
 
 const PROVIDERS = [
@@ -31,6 +32,7 @@ const PROVIDERS = [
   "purview_dlp",
   "azure_app_insights",
   "azure_devops_sast",
+  "gitea_sast",
 ] as const;
 
 // Campos de `config` que guardam segredo. São só de escrita: nunca voltam para

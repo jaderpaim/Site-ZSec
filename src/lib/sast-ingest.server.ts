@@ -1,6 +1,6 @@
-// Server-only: ingestão direta do módulo SAST -- a pipeline do Azure DevOps
-// manda o relatório do scanner pra /api/public/hooks/sast-ingest. NUNCA
-// importar em código de cliente.
+// Server-only: ingestão direta do módulo SAST -- a pipeline (Azure DevOps ou
+// Gitea Actions) manda o relatório do scanner pra /api/public/hooks/sast-ingest.
+// NUNCA importar em código de cliente.
 //
 // Caminho 2 (decidido com o usuário em 2026-09-29, menor privilégio):
 //   - a pipeline envia SÓ uma chave de ingestão (sast-ingest-key.server.ts),
@@ -22,8 +22,10 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getStoredIngestKeys, matchesIngestKey } from "@/lib/sast-ingest-key.server";
 import {
+  adoFileUrl,
   branchToEnvironment,
   canonicalTool,
+  giteaFileUrl,
   normalizeGitleaksReportFinding,
 } from "@/lib/sast-normalize";
 import type { SastDetectionRow, VerifiedBuildScope } from "@/lib/sast-normalize";
@@ -39,6 +41,7 @@ const adminDb = supabaseAdmin as unknown as {
 };
 
 export const SAST_INGEST_PROVIDER = "azure_devops_sast";
+export const SAST_GITEA_PROVIDER = "gitea_sast";
 // Nome de organização do Azure DevOps: vai direto na URL da API -- validado
 // pra não virar vetor de SSRF (só dev.azure.com/<org>, nada de host/caminho).
 const ORG_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,49}$/;
@@ -55,6 +58,7 @@ function json(status: number, body: Record<string, unknown>): Response {
 }
 
 async function logIngest(
+  provider: string,
   status: "success" | "error",
   httpStatus: number,
   message: string,
@@ -62,7 +66,7 @@ async function logIngest(
 ) {
   try {
     await adminDb.from("api_logs").insert({
-      provider: SAST_INGEST_PROVIDER,
+      provider,
       status,
       http_status: httpStatus,
       message: message.slice(0, 500),
@@ -152,18 +156,41 @@ async function getAdoToken(creds: ReaderCreds): Promise<string> {
   }
 }
 
-const IngestSchema = z.object({
+const BaseFields = {
   schema: z.literal(1),
   tool: z.string().min(1).max(40),
+  branch: z.string().min(1).max(300),
+  commit: z.string().regex(/^[0-9a-f]{40}$/i),
+  status: z.enum(["completed", "failed"]),
+  findings: z.array(z.record(z.string(), z.unknown())).max(50_000),
+};
+
+const AdoIngestSchema = z.object({
+  ...BaseFields,
+  provider: z.literal("azure_devops").optional(), // ausente = Azure DevOps (templates antigos)
   projectId: z.string().uuid(),
   project: z.string().min(1).max(200),
   repository: z.string().min(1).max(200),
-  branch: z.string().min(1).max(300),
-  commit: z.string().regex(/^[0-9a-f]{40}$/i),
   buildId: z.number().int().positive(),
-  status: z.enum(["completed", "failed"]),
-  findings: z.array(z.record(z.string(), z.unknown())).max(50_000),
 });
+
+// "dono/repo" vai no caminho da API do Gitea: só caracteres de nome válidos.
+const GITEA_REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
+
+const GiteaIngestSchema = z.object({
+  ...BaseFields,
+  provider: z.literal("gitea"),
+  repository: z.string().regex(GITEA_REPO_RE, "use dono/repositório"),
+  runId: z.number().int().positive(),
+});
+
+type Verified =
+  | {
+      ok: true;
+      scope: VerifiedBuildScope;
+      commitAuthor: { name: string | null; email: string | null };
+    }
+  | { ok: false; status: number; message: string; log?: string };
 
 async function adoGet(url: string, token: string): Promise<Response> {
   const ctrl = new AbortController();
@@ -190,12 +217,13 @@ type AdoBuild = {
   _links?: { web?: { href?: string } };
 };
 
-export async function handleSastIngest(request: Request): Promise<Response> {
-  const started = Date.now();
-  const fail = async (status: number, message: string, logMessage?: string) => {
-    await logIngest("error", status, logMessage ?? message, Date.now() - started);
-    return json(status, { ok: false, error: message });
-  };
+async function verifyAdoBuild(body: z.infer<typeof AdoIngestSchema>): Promise<Verified> {
+  const fail = (status: number, message: string, log?: string): Verified => ({
+    ok: false,
+    status,
+    message,
+    log,
+  });
 
   const cfg = await getIngestConfig();
   if (!cfg.enabled) {
@@ -204,21 +232,6 @@ export async function handleSastIngest(request: Request): Promise<Response> {
       `Ingestão SAST desligada no ${APP_NAME} (Integração API → card SAST → aba Azure DevOps).`,
     );
   }
-
-  // ── Chave de ingestão (antes de ler o corpo) ──
-  const auth = request.headers.get("authorization") ?? "";
-  const presented = auth.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  if (!presented)
-    return fail(401, "Header Authorization: Bearer <chave de ingestão SAST> ausente.");
-  const keys = await getStoredIngestKeys();
-  if (!keys.length)
-    return fail(
-      503,
-      `Nenhuma chave de ingestão gerada no ${APP_NAME} (card SAST → aba Azure DevOps).`,
-    );
-  if (!matchesIngestKey(presented, keys))
-    return fail(401, "Chave de ingestão SAST inválida ou revogada.");
-
   if (!cfg.creds) {
     return fail(
       503,
@@ -232,35 +245,13 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     );
   }
 
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > MAX_BODY_BYTES)
-    return fail(413, `Relatório acima de ${MAX_BODY_BYTES / 1024 / 1024} MB.`);
-  const raw = await request.text();
-  if (new TextEncoder().encode(raw).length > MAX_BODY_BYTES) {
-    return fail(413, `Relatório acima de ${MAX_BODY_BYTES / 1024 / 1024} MB.`);
-  }
-
-  let body: z.infer<typeof IngestSchema>;
-  try {
-    body = IngestSchema.parse(JSON.parse(raw));
-  } catch (e) {
-    const detail =
-      e instanceof z.ZodError
-        ? e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
-        : "JSON inválido";
-    return fail(400, `Corpo fora do formato: ${detail}`.slice(0, 400));
-  }
-  const tool = canonicalTool(body.tool);
-  if (tool !== "Gitleaks")
-    return fail(400, `Ferramenta "${body.tool}" ainda não suportada pela ingestão direta.`);
-
-  // ── Confere a build na API do Azure DevOps com a credencial do b-security ──
+  // ── Confere a build na API do Azure DevOps com a credencial do próprio app ──
   const org = cfg.organization;
   let adoToken: string;
   try {
     adoToken = await getAdoToken(cfg.creds);
   } catch (e) {
-    // Problema do lado do b-security, não da pipeline -- detalhe só no log.
+    // Problema do nosso lado, não da pipeline -- detalhe só no log.
     return fail(
       503,
       `O ${APP_NAME} não conseguiu autenticar no Azure DevOps.`,
@@ -315,29 +306,22 @@ export async function handleSastIngest(request: Request): Promise<Response> {
 
   const project = build.project!.name ?? body.project;
   const repository = build.repository!.name!;
+  const commit = body.commit.toLowerCase();
   const scope: VerifiedBuildScope = {
+    origin: "ado",
     project,
     repository,
     branch: body.branch,
-    commit: body.commit.toLowerCase(),
+    commit,
     buildId: String(body.buildId),
     buildUrl:
       build._links?.web?.href ??
       `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_build/results?buildId=${body.buildId}`,
-    fileUrlBase: `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}`,
+    fileUrlFor: adoFileUrl(
+      `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repository)}`,
+      commit,
+    ),
   };
-
-  // Scan que não rodou: nada é gravado nem fechado (registrar a execução
-  // fecharia todos os achados abertos do escopo como se o repo estivesse limpo).
-  if (body.status === "failed") {
-    await logIngest(
-      "success",
-      202,
-      `${repository}/${body.branch} build ${body.buildId}: scan failed, ignorado`,
-      Date.now() - started,
-    );
-    return json(202, { ok: true, accepted: 0, closed: 0, skipped: "scan_failed" });
-  }
 
   // Autor do commit da build -- usado quando o Gitleaks roda em --no-git e não
   // traz autor por achado. Falha aqui não impede a ingestão.
@@ -345,7 +329,7 @@ export async function handleSastIngest(request: Request): Promise<Response> {
   if (build.repository?.id) {
     try {
       const res = await adoGet(
-        `https://dev.azure.com/${org}/${body.projectId}/_apis/git/repositories/${build.repository.id}/commits/${scope.commit}?api-version=7.1`,
+        `https://dev.azure.com/${org}/${body.projectId}/_apis/git/repositories/${build.repository.id}/commits/${commit}?api-version=7.1`,
         adoToken,
       );
       if (res.ok && (res.headers.get("content-type") ?? "").includes("application/json")) {
@@ -355,6 +339,234 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     } catch {
       /* segue sem autor */
     }
+  }
+  return { ok: true, scope, commitAuthor };
+}
+
+// ─── Gitea ───────────────────────────────────────────────────────────────────
+// Mesmo modelo de confiança do Azure DevOps: a esteira manda só a chave de
+// ingestão; o app confere a execução (/actions/runs/{run}) com um token SÓ DE
+// LEITURA guardado na aba Gitea do card SAST. O endereço do Gitea vem da
+// configuração (admin), nunca do corpo do envio -- sem SSRF pelo payload.
+
+/** Endereço base do Gitea (http/https, sem credencial embutida), sem barra no fim. */
+export function normalizeGiteaBaseUrl(raw: string | null | undefined): string | null {
+  try {
+    const u = new URL(String(raw ?? "").trim());
+    if (!["http:", "https:"].includes(u.protocol) || u.username || u.password || u.search || u.hash)
+      return null;
+    return `${u.origin}${u.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return null;
+  }
+}
+
+async function getGiteaConfig(): Promise<{
+  enabled: boolean;
+  baseUrl: string | null;
+  token: string | null;
+}> {
+  const { data } = await adminDb
+    .from("integrations")
+    .select("enabled, base_url, api_key")
+    .eq("provider", SAST_GITEA_PROVIDER)
+    .maybeSingle();
+  return {
+    enabled: !!data?.enabled,
+    baseUrl: normalizeGiteaBaseUrl(data?.base_url),
+    token: readSecret(data?.api_key) || null,
+  };
+}
+
+async function giteaGet(url: string, token: string): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ADO_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      headers: { Authorization: `token ${token}`, Accept: "application/json" },
+      redirect: "manual",
+      signal: ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+type GiteaRun = {
+  id?: number;
+  status?: string;
+  event?: string;
+  head_branch?: string;
+  head_sha?: string;
+  html_url?: string;
+  repository?: { name?: string; full_name?: string; owner?: { login?: string } };
+};
+
+async function verifyGiteaRun(body: z.infer<typeof GiteaIngestSchema>): Promise<Verified> {
+  const fail = (status: number, message: string, log?: string): Verified => ({
+    ok: false,
+    status,
+    message,
+    log,
+  });
+
+  const cfg = await getGiteaConfig();
+  if (!cfg.enabled) {
+    return fail(
+      503,
+      `Ingestão SAST do Gitea desligada no ${APP_NAME} (Integração API → card SAST → aba Gitea).`,
+    );
+  }
+  if (!cfg.baseUrl || !cfg.token) {
+    return fail(
+      503,
+      `Endereço ou token de leitura do Gitea não configurado no ${APP_NAME} (card SAST → aba Gitea).`,
+    );
+  }
+
+  const [owner, repo] = body.repository.split("/");
+  const repoApi = `${cfg.baseUrl}/api/v1/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+
+  let run: GiteaRun;
+  try {
+    const res = await giteaGet(`${repoApi}/actions/runs/${body.runId}`, cfg.token);
+    if (res.status === 401 || (res.status >= 300 && res.status < 400)) {
+      return fail(
+        503,
+        `O token de leitura do Gitea configurado no ${APP_NAME} foi recusado (expirado ou revogado?).`,
+      );
+    }
+    if (res.status === 403 || res.status === 404) {
+      return fail(
+        403,
+        `Execução ${body.runId} não encontrada em ${body.repository}, ou o token do ${APP_NAME} não tem leitura nesse repositório.`,
+      );
+    }
+    if (!res.ok || !(res.headers.get("content-type") ?? "").includes("application/json")) {
+      return fail(503, `Gitea respondeu ${res.status} ao conferir a execução.`);
+    }
+    run = (await res.json()) as GiteaRun;
+  } catch {
+    return fail(503, "Não foi possível falar com o Gitea pra conferir a execução.");
+  }
+
+  const branch = (run.head_branch ?? "").replace(/^refs\/heads\//, "");
+  const mismatch: string[] = [];
+  if ((run.repository?.full_name ?? "").toLowerCase() !== body.repository.toLowerCase())
+    mismatch.push("repository");
+  if (run.status !== "in_progress")
+    mismatch.push(`status=${run.status ?? "?"} (esperado in_progress)`);
+  // Achado é por branch: execução de PR fecharia os achados da branch de destino.
+  if (run.event !== "push") mismatch.push(`event=${run.event ?? "?"} (só push é aceito)`);
+  if ((run.head_sha ?? "").toLowerCase() !== body.commit.toLowerCase()) mismatch.push("commit");
+  if (branch !== body.branch) mismatch.push("branch");
+  if (mismatch.length) {
+    return fail(403, `Envio não confere com a execução ${body.runId}: ${mismatch.join(", ")}.`);
+  }
+
+  const project = run.repository?.owner?.login ?? owner;
+  const repository = run.repository?.name ?? repo;
+  const commit = body.commit.toLowerCase();
+  const scope: VerifiedBuildScope = {
+    origin: "gitea",
+    project,
+    repository,
+    branch,
+    commit,
+    buildId: String(body.runId),
+    buildUrl: run.html_url ?? `${cfg.baseUrl}/${body.repository}/actions/runs/${body.runId}`,
+    fileUrlFor: giteaFileUrl(
+      `${cfg.baseUrl}/${encodeURIComponent(project)}/${encodeURIComponent(repository)}`,
+      commit,
+    ),
+  };
+
+  let commitAuthor: { name: string | null; email: string | null } = { name: null, email: null };
+  try {
+    const res = await giteaGet(`${repoApi}/git/commits/${commit}`, cfg.token);
+    if (res.ok && (res.headers.get("content-type") ?? "").includes("application/json")) {
+      const c = (await res.json()) as { commit?: { author?: { name?: string; email?: string } } };
+      commitAuthor = {
+        name: c.commit?.author?.name ?? null,
+        email: c.commit?.author?.email ?? null,
+      };
+    }
+  } catch {
+    /* segue sem autor */
+  }
+  return { ok: true, scope, commitAuthor };
+}
+
+// ─── Entrada ─────────────────────────────────────────────────────────────────
+
+export async function handleSastIngest(request: Request): Promise<Response> {
+  const started = Date.now();
+  let logProvider = SAST_INGEST_PROVIDER;
+  const fail = async (status: number, message: string, logMessage?: string) => {
+    await logIngest(logProvider, "error", status, logMessage ?? message, Date.now() - started);
+    return json(status, { ok: false, error: message });
+  };
+
+  // ── Chave de ingestão (antes de ler o corpo) ──
+  const auth = request.headers.get("authorization") ?? "";
+  const presented = auth.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  if (!presented)
+    return fail(401, "Header Authorization: Bearer <chave de ingestão SAST> ausente.");
+  const keys = await getStoredIngestKeys();
+  if (!keys.length)
+    return fail(503, `Nenhuma chave de ingestão gerada no ${APP_NAME} (card SAST).`);
+  if (!matchesIngestKey(presented, keys))
+    return fail(401, "Chave de ingestão SAST inválida ou revogada.");
+
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (declared > MAX_BODY_BYTES)
+    return fail(413, `Relatório acima de ${MAX_BODY_BYTES / 1024 / 1024} MB.`);
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).length > MAX_BODY_BYTES) {
+    return fail(413, `Relatório acima de ${MAX_BODY_BYTES / 1024 / 1024} MB.`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return fail(400, "Corpo fora do formato: JSON inválido");
+  }
+  const isGitea = (parsed as { provider?: unknown } | null)?.provider === "gitea";
+  if (isGitea) logProvider = SAST_GITEA_PROVIDER;
+
+  let body: z.infer<typeof AdoIngestSchema> | z.infer<typeof GiteaIngestSchema>;
+  try {
+    body = isGitea ? GiteaIngestSchema.parse(parsed) : AdoIngestSchema.parse(parsed);
+  } catch (e) {
+    const detail =
+      e instanceof z.ZodError
+        ? e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+        : "inválido";
+    return fail(400, `Corpo fora do formato: ${detail}`.slice(0, 400));
+  }
+  const tool = canonicalTool(body.tool);
+  if (tool !== "Gitleaks")
+    return fail(400, `Ferramenta "${body.tool}" ainda não suportada pela ingestão direta.`);
+
+  const verified = isGitea
+    ? await verifyGiteaRun(body as z.infer<typeof GiteaIngestSchema>)
+    : await verifyAdoBuild(body as z.infer<typeof AdoIngestSchema>);
+  if (!verified.ok) return fail(verified.status, verified.message, verified.log);
+  const { scope, commitAuthor } = verified;
+  const label = `${scope.project}/${scope.repository}/${scope.branch} ${isGitea ? "execução" : "build"} ${scope.buildId}`;
+
+  // Scan que não rodou: nada é gravado nem fechado (registrar a execução
+  // fecharia todos os achados abertos do escopo como se o repo estivesse limpo).
+  if (body.status === "failed") {
+    await logIngest(
+      logProvider,
+      "success",
+      202,
+      `${label}: scan failed, ignorado`,
+      Date.now() - started,
+    );
+    return json(202, { ok: true, accepted: 0, closed: 0, skipped: "scan_failed" });
   }
 
   const detectedAt = new Date(started).toISOString();
@@ -380,11 +592,11 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     // aberto nesse repo/branch e não veio neste relatório fecha sozinho.
     const { data: closed, error: runError } = await adminDb.rpc("register_sast_scan_run", {
       p_run: {
-        source_event_id: `ado:${scope.buildId}:${tool}`,
+        source_event_id: `${scope.origin}:${scope.buildId}:${tool}`,
         ingest_source: "webhook",
         tool,
-        project,
-        repository,
+        project: scope.project,
+        repository: scope.repository,
         branch: scope.branch,
         environment: branchToEnvironment(scope.branch),
         commit_sha: scope.commit,
@@ -404,9 +616,10 @@ export async function handleSastIngest(request: Request): Promise<Response> {
       skipped,
     };
     await logIngest(
+      logProvider,
       "success",
       202,
-      `${project}/${repository}/${scope.branch} build ${scope.buildId}: ${list.length} achados, ${result.closed} fechados`,
+      `${label}: ${list.length} achados, ${result.closed} fechados`,
       Date.now() - started,
     );
     return json(202, result);

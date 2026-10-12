@@ -117,9 +117,8 @@ export const getSastSyncStatus = createServerFn({ method: "POST" })
         .maybeSingle(),
       adminDb
         .from("integrations")
-        .select("enabled")
-        .eq("provider", "azure_devops_sast")
-        .maybeSingle(),
+        .select("provider, enabled")
+        .in("provider", ["azure_devops_sast", "gitea_sast"]),
       adminDb
         .from("sast_scan_runs")
         .select("created_at")
@@ -144,9 +143,9 @@ export const getSastSyncStatus = createServerFn({ method: "POST" })
             lastError: cron.last_error as string | null,
           }
         : null,
-      // Ingestão direta da pipeline (sast-ingest) -- convive com o App Insights.
+      // Ingestão direta das pipelines (sast-ingest: Azure DevOps ou Gitea) -- convive com o App Insights.
       ingest: {
-        enabled: !!ingestInteg?.enabled,
+        enabled: ((ingestInteg ?? []) as { enabled: boolean }[]).some((r) => r.enabled),
         lastReceivedAt: (lastWebhookRun?.created_at as string | null) ?? null,
       },
     };
