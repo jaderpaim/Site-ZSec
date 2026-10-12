@@ -339,3 +339,103 @@ export function normalizeGitleaksReportFinding(
     raw_event: props,
   };
 }
+
+// ─── Semgrep (JSON de `semgrep scan --json-output`) ──────────────────────────
+// extra.lines traz o trecho do código (pode conter segredo) e extra.fix a
+// correção sugerida: nenhum dos dois vai pro banco -- só regra, arquivo,
+// linha, mensagem e metadados da regra.
+
+export type SemgrepResult = {
+  check_id?: unknown;
+  path?: unknown;
+  start?: { line?: unknown };
+  extra?: {
+    message?: unknown;
+    severity?: unknown;
+    fingerprint?: unknown;
+    metadata?: Record<string, unknown>;
+  };
+  [key: string]: unknown;
+};
+
+// Semgrep < 1.100 usa ERROR/WARNING/INFO; versões novas, CRITICAL..LOW.
+const SEMGREP_SEVERITY: Record<string, string> = {
+  CRITICAL: "critica",
+  ERROR: "alta",
+  HIGH: "alta",
+  WARNING: "media",
+  MEDIUM: "media",
+  INFO: "baixa",
+  LOW: "baixa",
+};
+
+const firstN = (v: unknown, n: number): unknown[] | undefined =>
+  Array.isArray(v) && v.length ? v.slice(0, n) : typeof v === "string" ? [v] : undefined;
+
+export function normalizeSemgrepResult(
+  result: SemgrepResult,
+  scope: VerifiedBuildScope,
+  detectedAt: string,
+  commitAuthor: { name: string | null; email: string | null },
+): SastDetectionRow | null {
+  const ruleId = str(result.check_id);
+  const file = str(result.path)?.replace(/^\.?\//, "") ?? null;
+  if (!ruleId || !file) return null;
+  const startLine = Number(result.start?.line);
+  const line = Number.isInteger(startLine) && startLine > 0 ? startLine : null;
+  const extra = result.extra ?? {};
+  const meta = (extra.metadata ?? {}) as Record<string, unknown>;
+  // Impressão digital do trecho (não muda se o arquivo ganhar linhas acima);
+  // no Semgrep sem login às vezes vem "requires login" -- aí cai na linha.
+  const fp = str(extra.fingerprint);
+  const fingerprint =
+    fp && /^[0-9a-f]{16,}/i.test(fp)
+      ? `${file}:${ruleId}:${fp.slice(0, 32)}`
+      : `${file}:${ruleId}:${line ?? 0}`;
+  const tool = canonicalTool("semgrep");
+  const message = str(extra.message);
+  const details: Record<string, unknown> = {};
+  if (message) details.message = message.slice(0, 1000);
+  for (const k of ["cwe", "owasp"] as const) {
+    const v = firstN(meta[k], 3);
+    if (v) details[k] = v;
+  }
+  for (const k of ["confidence", "likelihood", "impact"] as const) {
+    if (str(meta[k])) details[k] = str(meta[k]);
+  }
+  const refs = firstN(meta.references, 3);
+  if (refs) details.references = refs;
+
+  return {
+    source_event_id: `${scope.origin}:${scope.buildId}:${tool}:${fingerprint}`,
+    ingest_source: "webhook",
+    tool,
+    category: toolProfile(tool).category,
+    project: scope.project,
+    repository: scope.repository,
+    branch: scope.branch,
+    environment: branchToEnvironment(scope.branch),
+    rule_id: ruleId,
+    severity: SEMGREP_SEVERITY[String(extra.severity ?? "").toUpperCase()] ?? null,
+    fingerprint,
+    file_path: file,
+    line,
+    // Título: a primeira frase da mensagem; sem ela, o último trecho do id da regra.
+    title: (message?.split(/(?<=\.)\s/)[0] ?? ruleId.split(".").pop() ?? ruleId).slice(0, 200),
+    details,
+    detected_at: detectedAt,
+    commit_sha: scope.commit,
+    build_id: scope.buildId,
+    build_url: scope.buildUrl,
+    file_url: scope.fileUrlFor(file, line),
+    // O Semgrep não sabe quem escreveu a linha: fica o autor do commit analisado.
+    author: commitAuthor.name,
+    author_email: commitAuthor.email,
+    raw_event: {
+      check_id: ruleId,
+      path: file,
+      start: result.start ?? null,
+      severity: extra.severity ?? null,
+    },
+  };
+}

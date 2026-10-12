@@ -27,6 +27,7 @@ import {
   canonicalTool,
   giteaFileUrl,
   normalizeGitleaksReportFinding,
+  normalizeSemgrepResult,
 } from "@/lib/sast-normalize";
 import type { SastDetectionRow, VerifiedBuildScope } from "@/lib/sast-normalize";
 import { APP_NAME } from "@/lib/brand";
@@ -183,6 +184,19 @@ const GiteaIngestSchema = z.object({
   repository: z.string().regex(GITEA_REPO_RE, "use dono/repositório"),
   runId: z.number().int().positive(),
 });
+
+// Ferramenta (nome canônico) -> normalizador do relatório nativo dela.
+type Normalizer = (
+  finding: Record<string, unknown>,
+  scope: VerifiedBuildScope,
+  detectedAt: string,
+  commitAuthor: { name: string | null; email: string | null },
+) => SastDetectionRow | null;
+
+const NORMALIZERS: Record<string, Normalizer> = {
+  Gitleaks: normalizeGitleaksReportFinding,
+  Semgrep: normalizeSemgrepResult,
+};
 
 type Verified =
   | {
@@ -546,7 +560,8 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     return fail(400, `Corpo fora do formato: ${detail}`.slice(0, 400));
   }
   const tool = canonicalTool(body.tool);
-  if (tool !== "Gitleaks")
+  const normalize = NORMALIZERS[tool];
+  if (!normalize)
     return fail(400, `Ferramenta "${body.tool}" ainda não suportada pela ingestão direta.`);
 
   const verified = isGitea
@@ -573,7 +588,7 @@ export async function handleSastIngest(request: Request): Promise<Response> {
   const rows = new Map<string, SastDetectionRow>();
   let skipped = 0;
   for (const f of body.findings) {
-    const row = normalizeGitleaksReportFinding(f, scope, detectedAt, commitAuthor);
+    const row = normalize(f, scope, detectedAt, commitAuthor);
     if (!row) skipped++;
     else if (!rows.has(row.source_event_id)) rows.set(row.source_event_id, row);
   }
