@@ -439,3 +439,95 @@ export function normalizeSemgrepResult(
     },
   };
 }
+
+// ─── Trivy (JSON de `trivy fs --format json`) ────────────────────────────────
+// O script de envio da esteira achata Results[].Vulnerabilities[] numa lista,
+// com Target (arquivo de dependências) e Type (bun, pip...) em cada item.
+
+export type TrivyVulnerability = {
+  VulnerabilityID?: unknown;
+  PkgName?: unknown;
+  InstalledVersion?: unknown;
+  FixedVersion?: unknown;
+  Status?: unknown;
+  Severity?: unknown;
+  Title?: unknown;
+  PrimaryURL?: unknown;
+  CweIDs?: unknown;
+  CVSS?: Record<string, { V3Score?: unknown; V3Vector?: unknown }>;
+  Target?: unknown;
+  Type?: unknown;
+  [key: string]: unknown;
+};
+
+const TRIVY_SEVERITY: Record<string, string> = {
+  CRITICAL: "critica",
+  HIGH: "alta",
+  MEDIUM: "media",
+  LOW: "baixa",
+  UNKNOWN: "info",
+};
+
+export function normalizeTrivyVulnerability(
+  v: TrivyVulnerability,
+  scope: VerifiedBuildScope,
+  detectedAt: string,
+  commitAuthor: { name: string | null; email: string | null },
+): SastDetectionRow | null {
+  const vulnId = str(v.VulnerabilityID);
+  const pkg = str(v.PkgName);
+  const target = str(v.Target)?.replace(/^\.?\//, "") ?? null;
+  if (!vulnId || !pkg || !target) return null;
+  // Sem a versão: subir de versão e continuar vulnerável é o MESMO achado;
+  // quando a versão corrigida entra, ele some do relatório e fecha sozinho.
+  const fingerprint = `${target}:${pkg}:${vulnId}`;
+  const tool = canonicalTool("trivy");
+  const installed = str(v.InstalledVersion);
+  const fixed = str(v.FixedVersion);
+  // Maior nota CVSS v3 entre as fontes (nvd, ghsa, redhat...).
+  const scores = Object.values(v.CVSS ?? {})
+    .map((c) => Number(c?.V3Score))
+    .filter((n) => Number.isFinite(n));
+  const details: Record<string, unknown> = {
+    package: pkg,
+    ecosystem: str(v.Type),
+    installed_version: installed,
+    fixed_version: fixed,
+    fix_status: str(v.Status),
+  };
+  if (scores.length) details.cvss_v3 = Math.max(...scores);
+  if (Array.isArray(v.CweIDs) && v.CweIDs.length) details.cwe = v.CweIDs.slice(0, 3);
+  if (str(v.PrimaryURL)) details.url = str(v.PrimaryURL);
+
+  return {
+    source_event_id: `${scope.origin}:${scope.buildId}:${tool}:${fingerprint}`,
+    ingest_source: "webhook",
+    tool,
+    category: toolProfile(tool).category,
+    project: scope.project,
+    repository: scope.repository,
+    branch: scope.branch,
+    environment: branchToEnvironment(scope.branch),
+    rule_id: vulnId,
+    severity: TRIVY_SEVERITY[String(v.Severity ?? "").toUpperCase()] ?? null,
+    fingerprint,
+    file_path: target,
+    line: null,
+    title: `${pkg}${installed ? ` ${installed}` : ""}: ${str(v.Title) ?? vulnId}`.slice(0, 200),
+    details,
+    detected_at: detectedAt,
+    commit_sha: scope.commit,
+    build_id: scope.buildId,
+    build_url: scope.buildUrl,
+    file_url: scope.fileUrlFor(target, null),
+    author: commitAuthor.name,
+    author_email: commitAuthor.email,
+    raw_event: {
+      VulnerabilityID: vulnId,
+      PkgName: pkg,
+      InstalledVersion: installed,
+      FixedVersion: fixed,
+      Target: target,
+    },
+  };
+}

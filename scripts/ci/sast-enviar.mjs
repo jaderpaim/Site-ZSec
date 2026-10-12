@@ -4,7 +4,8 @@
 //
 // Uso: node scripts/ci/sast-enviar.mjs <ferramenta> <relatorio.json> [campo]
 //   campo: onde está a lista de achados no JSON (ex.: "results" no Semgrep);
-//          sem campo, o JSON inteiro já é a lista (Gitleaks).
+//          sem campo, o JSON inteiro já é a lista (Gitleaks). O Trivy é
+//          achatado aqui (Results[].Vulnerabilities[]).
 //
 // Precisa de ZSEC_URL (variável do repositório) e SAST_INGEST_KEY (segredo).
 // O Z-Sec confere repositório/execução/commit/branch na API do Gitea -- o
@@ -33,7 +34,16 @@ let findings = [];
 if (existsSync(reportPath)) {
   const raw = readFileSync(reportPath, "utf8").trim();
   const parsed = raw ? JSON.parse(raw) : [];
-  const list = field ? parsed?.[field] : parsed;
+  // Trivy: Results[].Vulnerabilities[] vira uma lista só, cada item com o
+  // arquivo de dependências (Target) e o ecossistema (Type) de origem.
+  const list =
+    tool === "trivy"
+      ? (parsed?.Results ?? []).flatMap((r) =>
+          (r.Vulnerabilities ?? []).map((v) => ({ ...v, Target: r.Target, Type: r.Type })),
+        )
+      : field
+        ? parsed?.[field]
+        : parsed;
   if (Array.isArray(list)) {
     status = "completed";
     findings = list;
