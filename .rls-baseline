@@ -1,0 +1,243 @@
+# Achados CRITICAL/HIGH do vibe-scanner já analisados (job "rls" do CI).
+# Formato: regra | tabela | política. Achado novo fora desta lista falha o CI.
+# Ao aceitar um achado novo, acrescente a linha com um comentário do motivo.
+# Atenção: --gerar reescreve o arquivo e apaga os comentários manuais.
+
+# RLS-002: CRITICAL -- No RLS policies defined
+RLS-002 | dast_recon_subdomains | -
+RLS-002 | dast_retest_history | -
+RLS-002 | dast_scan_schedules | -
+RLS-002 | dast_scans | -
+RLS-002 | dast_vulnerabilities | -
+RLS-002 | invite_redirects | -
+RLS-002 | nao_conformidade_chamados | -
+RLS-002 | organizacao_config | -
+RLS-002 | smtp_config | -
+RLS-002 | sophos_excecoes | -
+RLS-002 | treinamento_atribuicoes | -
+RLS-002 | treinamentos | -
+
+# RLS-003: HIGH -- SELECT policy missing
+RLS-003 | dast_recon_subdomains | -
+RLS-003 | dast_retest_history | -
+RLS-003 | dast_scan_schedules | -
+RLS-003 | dast_scans | -
+RLS-003 | dast_vulnerabilities | -
+RLS-003 | invite_redirects | -
+RLS-003 | nao_conformidade_chamados | -
+RLS-003 | organizacao_config | -
+RLS-003 | smtp_config | -
+RLS-003 | sophos_excecoes | -
+RLS-003 | treinamento_atribuicoes | -
+RLS-003 | treinamentos | -
+
+# RLS-004: HIGH -- INSERT policy missing
+RLS-004 | agent_devices | -
+RLS-004 | cron_http_dispatch_log | -
+RLS-004 | cron_job_runs | -
+RLS-004 | dast_recon_subdomains | -
+RLS-004 | dast_retest_history | -
+RLS-004 | dast_scan_schedules | -
+RLS-004 | dast_scans | -
+RLS-004 | dast_vulnerabilities | -
+RLS-004 | gophish_cache | -
+RLS-004 | invite_redirects | -
+RLS-004 | maturidade | -
+RLS-004 | module_permissions | -
+RLS-004 | nao_conformidade_chamados | -
+RLS-004 | organizacao_config | -
+RLS-004 | privacy_consentimentos_daily | -
+RLS-004 | privacy_cookies_daily | -
+RLS-004 | privacy_uso_mensal | -
+RLS-004 | smtp_config | -
+RLS-004 | sophos_excecoes | -
+RLS-004 | ssl_certificate_bindings | -
+RLS-004 | ssl_certificate_history | -
+RLS-004 | system_audit_log | -
+RLS-004 | treinamento_acessos | -
+RLS-004 | treinamento_atribuicoes | -
+RLS-004 | treinamentos | -
+
+# RLS-008: HIGH -- Missing auth check in policy
+RLS-008 | cmdb_dns_cache | service role write dns cache
+RLS-008 | colaboradores | deny anon access colaboradores
+RLS-008 | dast_auth_credentials | service role write auth credentials
+RLS-008 | dast_scan_out_of_scope_hosts | service role write out of scope hosts
+RLS-008 | departments | auth users view departments
+RLS-008 | dlp_events | service role write dlp events
+RLS-008 | dlp_sync_state | service role write dlp sync state
+RLS-008 | integrations | deny anon access integrations
+RLS-008 | module_permissions | auth view module permissions
+RLS-008 | sast_finding_events | service role writes sast finding events
+RLS-008 | sast_findings | service role writes sast findings
+RLS-008 | sast_ingest_cursor | service role writes sast ingest cursor
+RLS-008 | sast_scan_runs | service role writes sast scan runs
+RLS-008 | sek_tickets | service role writes sek tickets
+RLS-008 | sek_zendesk_auth_log | service role writes sek zendesk auth log
+RLS-008 | shadowit_findings | service role write shadowit findings
+RLS-008 | shadowit_hosts | service role write shadowit hosts
+RLS-008 | shadowit_scans | service role write shadowit scans
+RLS-008 | vuln_snapshots | Service role writes vuln snapshots
+RLS-008 | zabbix_hosts_cache | service role write zabbix cache
+
+# RLS-011: HIGH -- UPDATE policy missing WITH CHECK clause
+RLS-011 | applications | update applications by permission
+RLS-011 | aprovadores | update aprovadores by permission
+RLS-011 | cmdb_ativos | update cmdb by permission
+RLS-011 | colaboradores | analyst+admin update colaboradores
+RLS-011 | comites | update comites by permission
+RLS-011 | departments | analyst+admin update departments
+RLS-011 | domains | update domains by permission
+RLS-011 | fornecedores | update fornecedores by permission
+RLS-011 | gmuds | analyst+admin update gmuds
+RLS-011 | nps_clientes | update nps_clientes by permission
+RLS-011 | nps_registros | update nps_registros by permission
+RLS-011 | pilulas_si | update pilulas by permission
+RLS-011 | profiles | users update own profile
+RLS-011 | segmentos | update segmentos by permission
+RLS-011 | segmentos_notas | update segmentos_notas by permission
+RLS-011 | ssl_certificates | update ssl by permission
+RLS-011 | wsus_servers | update wsus by permission
+
+# RLS-025: CRITICAL -- Tautology or always-true expression detected
+RLS-025 | cmdb_dns_cache | service role write dns cache
+RLS-025 | dast_auth_credentials | service role write auth credentials
+RLS-025 | dast_scan_out_of_scope_hosts | service role write out of scope hosts
+RLS-025 | departments | auth users view departments
+RLS-025 | dlp_events | service role write dlp events
+RLS-025 | dlp_sync_state | service role write dlp sync state
+RLS-025 | module_permissions | auth view module permissions
+RLS-025 | sast_finding_events | service role writes sast finding events
+RLS-025 | sast_findings | service role writes sast findings
+RLS-025 | sast_ingest_cursor | service role writes sast ingest cursor
+RLS-025 | sast_scan_runs | service role writes sast scan runs
+RLS-025 | sek_tickets | service role writes sek tickets
+RLS-025 | sek_zendesk_auth_log | service role writes sek zendesk auth log
+RLS-025 | shadowit_findings | service role write shadowit findings
+RLS-025 | shadowit_hosts | service role write shadowit hosts
+RLS-025 | shadowit_scans | service role write shadowit scans
+RLS-025 | vuln_snapshots | Service role writes vuln snapshots
+RLS-025 | zabbix_hosts_cache | service role write zabbix cache
+
+# RLS-054: HIGH -- Missing FORCE ROW LEVEL SECURITY
+RLS-054 | agent_devices | -
+RLS-054 | api_logs | -
+RLS-054 | app_settings | -
+RLS-054 | applications | -
+RLS-054 | aprovadores | -
+RLS-054 | audit_logs | -
+RLS-054 | auth_access_logs | -
+RLS-054 | benchmark_empresa | -
+RLS-054 | benchmark_investimento_ref | -
+RLS-054 | benchmark_maturidade_ref | -
+RLS-054 | cloudflare_dns_records | -
+RLS-054 | cloudflare_firewall_events | -
+RLS-054 | cloudflare_snapshots | -
+RLS-054 | cloudflare_sync_state | -
+RLS-054 | cloudflare_zones | -
+RLS-054 | cmdb_ativos | -
+RLS-054 | cmdb_dns_cache | -
+RLS-054 | colaboradores | -
+RLS-054 | comites | -
+RLS-054 | cron_http_dispatch_log | -
+RLS-054 | cron_job_runs | -
+RLS-054 | dast_auth_credentials | -
+RLS-054 | dast_recon_subdomains | -
+RLS-054 | dast_retest_history | -
+RLS-054 | dast_scan_out_of_scope_hosts | -
+RLS-054 | dast_scan_schedules | -
+RLS-054 | dast_scans | -
+RLS-054 | dast_vulnerabilities | -
+RLS-054 | departments | -
+RLS-054 | dlp_events | -
+RLS-054 | dlp_sync_state | -
+RLS-054 | domains | -
+RLS-054 | email_logs | -
+RLS-054 | email_templates | -
+RLS-054 | fornecedores | -
+RLS-054 | gmud_aprovadores | -
+RLS-054 | gmud_logs | -
+RLS-054 | gmuds | -
+RLS-054 | gophish_cache | -
+RLS-054 | ia_web_events | -
+RLS-054 | import_logs | -
+RLS-054 | indisponibilidades | -
+RLS-054 | integrations | -
+RLS-054 | invite_redirects | -
+RLS-054 | maturidade | -
+RLS-054 | module_admins | -
+RLS-054 | module_permissions | -
+RLS-054 | nao_conformidade_chamados | -
+RLS-054 | nao_conformidades_manuais | -
+RLS-054 | nps_clientes | -
+RLS-054 | nps_registros | -
+RLS-054 | organizacao_config | -
+RLS-054 | permission_profile_items | -
+RLS-054 | permission_profiles | -
+RLS-054 | pilulas_si | -
+RLS-054 | policies | -
+RLS-054 | privacy_consentimentos_daily | -
+RLS-054 | privacy_cookies_daily | -
+RLS-054 | privacy_uso_mensal | -
+RLS-054 | profiles | -
+RLS-054 | qradar_drop_alerts | -
+RLS-054 | qradar_eps_samples | -
+RLS-054 | qradar_external_offenders | -
+RLS-054 | qradar_fortigate_policy_changes | -
+RLS-054 | qradar_internal_offenders | -
+RLS-054 | qradar_log_sources | -
+RLS-054 | qradar_o365_deletions | -
+RLS-054 | qradar_o365_downloads | -
+RLS-054 | qradar_offenses | -
+RLS-054 | qradar_rdp_events | -
+RLS-054 | qradar_sync_state | -
+RLS-054 | sast_finding_events | -
+RLS-054 | sast_findings | -
+RLS-054 | sast_ingest_cursor | -
+RLS-054 | sast_scan_runs | -
+RLS-054 | segmentos | -
+RLS-054 | segmentos_notas | -
+RLS-054 | sek_tickets | -
+RLS-054 | sek_zendesk_auth_log | -
+RLS-054 | shadowit_findings | -
+RLS-054 | shadowit_hosts | -
+RLS-054 | shadowit_scans | -
+RLS-054 | smtp_config | -
+RLS-054 | sophos_alerts | -
+RLS-054 | sophos_audit_events | -
+RLS-054 | sophos_endpoints | -
+RLS-054 | sophos_events | -
+RLS-054 | sophos_excecoes | -
+RLS-054 | sophos_licenses | -
+RLS-054 | sophos_policies | -
+RLS-054 | sophos_sync_state | -
+RLS-054 | ssl_certificate_bindings | -
+RLS-054 | ssl_certificate_history | -
+RLS-054 | ssl_certificates | -
+RLS-054 | sso_config | -
+RLS-054 | system_audit_log | -
+RLS-054 | treinamento_acessos | -
+RLS-054 | treinamento_atribuicoes | -
+RLS-054 | treinamentos | -
+RLS-054 | user_dashboard_layouts | -
+RLS-054 | user_module_filter_defaults | -
+RLS-054 | user_module_permissions | -
+RLS-054 | user_roles | -
+RLS-054 | vuln_infra_monthly_snapshot | -
+RLS-054 | vuln_logs | -
+RLS-054 | vuln_snapshots | -
+RLS-054 | vulnerabilities | -
+RLS-054 | vulnerabilities_aplicacao | -
+RLS-054 | vulnerabilities_infra | -
+RLS-054 | wsus_servers | -
+RLS-054 | zabbix_hosts_cache | -
+
+# ZSEC-RLS-001: CRITICAL -- Tabela sem ENABLE ROW LEVEL SECURITY
+# Analisado em 2026-10-11: falso positivo. O RLS e as políticas das tabelas org_*
+# são criados por SQL dinâmico (EXECUTE format(...) num loop) em
+# 20261002120000_organizacao_si.sql, que a análise estática não lê.
+ZSEC-RLS-001 | org_areas | -
+ZSEC-RLS-001 | org_funcoes_criticas | -
+ZSEC-RLS-001 | org_membros | -
+ZSEC-RLS-001 | org_treinamento_participantes | -
+ZSEC-RLS-001 | org_treinamentos | -
