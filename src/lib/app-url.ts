@@ -15,3 +15,14 @@ export function appUrl(): string {
   if (!url) throw new Error("APP_URL não configurado no servidor (ex.: https://zsec.empresa.com.br)");
   return url;
 }
+
+/**
+ * Endereço para o servidor chamar a SI MESMO (ex.: "Sincronizar agora" → hook).
+ * Sair pela internet para voltar pelo túnel depende de DNS, Cloudflare e do
+ * limite de 100 s da borda; em produção o container define INTERNAL_APP_URL
+ * (Dockerfile). Sem ela -- como no `npm run dev` -- usa o APP_URL.
+ */
+export function internalAppUrl(): string {
+  const raw = process.env.INTERNAL_APP_URL?.trim();
+  return raw ? raw.replace(/\/+$/, "") : appUrl();
+}

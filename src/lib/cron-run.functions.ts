@@ -10,7 +10,7 @@ import { hasPermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit-log.functions";
 import { recordCronAttemptStart } from "@/lib/cron-tracking.server";
 import { CRON_JOB_MODULE, MODULE_CRON_JOBS } from "@/lib/cron-modules";
-import { appUrl } from "@/lib/app-url";
+import { internalAppUrl } from "@/lib/app-url";
 
 export type ModuleSyncJob = {
   job_name: string;
@@ -26,8 +26,9 @@ export type ModuleSyncJob = {
   canRun: boolean;
 };
 
+// O próprio servidor chama o hook: endereço interno, não o público (ver internalAppUrl).
 function hookUrlFor(hookPath: string): string {
-  return `${appUrl()}${hookPath}`;
+  return `${internalAppUrl()}${hookPath}`;
 }
 
 async function hasRole(sb: SupabaseClient, userId: string, role: string): Promise<boolean> {

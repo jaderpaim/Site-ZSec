@@ -135,7 +135,7 @@ jobs:
           docker network create zsec 2>/dev/null || true
           docker rm -f "$IMAGEM" 2>/dev/null || true
           docker run -d --name "$IMAGEM" --restart unless-stopped --network zsec \
-            -v /home/zsec/zsec-hmg/.env:/run/zsec/.env:ro \
+            -v /home/zsec/zsec-hmg:/run/zsec:ro \
             -p 127.0.0.1:3000:3000 \
             "$IMAGEM:${{ github.sha }}"
       - name: Conferir se subiu
