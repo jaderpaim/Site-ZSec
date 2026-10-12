@@ -103,3 +103,47 @@ jobs:
           test -s /tmp/rls.json
       - name: Comparar com a linha de base
         run: python3 scripts/ci/rls_baseline.py /tmp/rls.json .rls-baseline supabase/migrations
+  deploy-hmg:
+    # Só depois do merge na main e com as 5 checagens verdes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, segredos, codigo, dependencias, rls]
+    runs-on: lab
+    container:
+      image: node:22-bookworm
+      # Único job com acesso ao Docker da VM (liberado em valid_volumes do runner).
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+    env:
+      DOCKER_VERSION: 27.5.1
+      IMAGEM: zsec-hmg
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Instalar Docker CLI
+        run: |
+          curl -sSfL https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz \
+            | tar -xz -C /tmp
+          install /tmp/docker/docker /usr/local/bin/
+          docker version --format 'cliente {{.Client.Version}} / servidor {{.Server.Version}}'
+      - name: Montar imagem
+        run: |
+          docker build \
+            --build-arg VITE_SUPABASE_URL="${{ vars.VITE_SUPABASE_URL }}" \
+            --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}" \
+            -t "$IMAGEM:${{ github.sha }}" -t "$IMAGEM:latest" .
+      - name: Trocar container
+        run: |
+          docker network create zsec 2>/dev/null || true
+          docker rm -f "$IMAGEM" 2>/dev/null || true
+          docker run -d --name "$IMAGEM" --restart unless-stopped --network zsec \
+            -v /home/zsec/zsec-hmg/.env:/run/zsec/.env:ro \
+            -p 127.0.0.1:3000:3000 \
+            "$IMAGEM:${{ github.sha }}"
+      - name: Conferir se subiu
+        run: |
+          sleep 8
+          docker logs --tail 20 "$IMAGEM"
+          test "$(docker inspect -f '{{.State.Running}}' "$IMAGEM")" = true
+      - name: Limpar imagens antigas (mantém as 3 últimas)
+        run: |
+          docker images "$IMAGEM" --format '{{.Tag}}' | grep -v '^latest$' | tail -n +4 \
+            | xargs -r -I{} docker rmi "$IMAGEM:{}"

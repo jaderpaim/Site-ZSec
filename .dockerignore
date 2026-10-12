@@ -1,0 +1,14 @@
+# Fora do contexto do docker build: dependências e saídas locais (são
+# refeitas dentro da imagem) e, principalmente, qualquer arquivo de segredo.
+node_modules
+.output
+.git
+.gitea
+.env
+.env.*
+!.env.example
+*.local
+.claude
+supabase/.temp
+scripts/dast-provisioning
+Documentações
