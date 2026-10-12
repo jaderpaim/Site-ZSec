@@ -54,7 +54,8 @@ type Provider =
   | "dast_scanner"
   | "purview_dlp"
   | "azure_app_insights"
-  | "azure_devops_sast";
+  | "azure_devops_sast"
+  | "gitea_sast";
 
 // Vem de listIntegrations: SEM segredos -- `secrets` só diz quais estão salvos
 // (com dica mascarada). Credenciais são só de escrita nesta tela.
@@ -175,6 +176,7 @@ const PROVIDERS: Array<{
 // separado -- sast.server.ts / sast-ingest.server.ts).
 const SAST_APP_INSIGHTS = "azure_app_insights" as const;
 const SAST_DEVOPS = "azure_devops_sast" as const;
+const SAST_GITEA = "gitea_sast" as const;
 
 // Cor de marca de cada ferramenta (só no ícone do card)
 const BRAND: Record<string, string> = {
@@ -464,8 +466,10 @@ export function IntegracoesDashboard() {
   // pronta (App Insights com credencial, ou Azure DevOps ligado -- não tem credencial).
   const sastAi = byProvider.get(SAST_APP_INSIGHTS);
   const sastAdo = byProvider.get(SAST_DEVOPS);
-  const sastConfigured = !!sastAi?.secrets.api_key || !!sastAdo?.enabled;
-  const sastActive = !!sastAi?.enabled || !!sastAdo?.enabled;
+  const sastGitea = byProvider.get(SAST_GITEA);
+  const sastConfigured =
+    !!sastAi?.secrets.api_key || !!sastAdo?.enabled || !!sastGitea?.secrets.api_key;
+  const sastActive = !!sastAi?.enabled || !!sastAdo?.enabled || !!sastGitea?.enabled;
   const sekSessions = sekStatus?.sessions.length ?? 0;
 
   const items: CardItem[] = [
@@ -499,7 +503,7 @@ export function IntegracoesDashboard() {
     }),
     {
       key: "sast",
-      name: "SAST · Azure",
+      name: "SAST · Esteiras",
       module: "SAST · Esteiras CI/CD",
       icon: GitBranch,
       configured: sastConfigured,
@@ -507,6 +511,7 @@ export function IntegracoesDashboard() {
       host: "ingestão: /api/public/hooks/sast-ingest",
       subs: [
         ["Azure DevOps", !!sastAdo?.enabled],
+        ["Gitea", !!sastGitea?.enabled],
         ["App Insights", !!sastAi?.enabled],
       ],
       syncs: syncsOf("sast"),
@@ -676,6 +681,7 @@ export function IntegracoesDashboard() {
           {...sheetCommon}
           appInsights={sastAi}
           devops={sastAdo}
+          gitea={sastGitea}
           onSaved={onSaved}
         />
       )}
@@ -1081,7 +1087,8 @@ function ProviderSheet({
     onSuccess: (r) => {
       // Cloudflare: o servidor já lista as zonas ao salvar (info ou aviso).
       if (r && "warning" in r && r.warning) toast.warning(r.warning);
-      else toast.success(`${provider.name} salvo${r && "info" in r && r.info ? ` · ${r.info}` : ""}`);
+      else
+        toast.success(`${provider.name} salvo${r && "info" in r && r.info ? ` · ${r.info}` : ""}`);
       setSaveCount((c) => c + 1);
       onSaved();
     },
@@ -1337,9 +1344,10 @@ function ProviderSheet({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SAST — duas origens com ativação independente (padrão Sophos SIEM/Auditoria).
+// SAST — origens com ativação independente (padrão Sophos SIEM/Auditoria).
 // Cada aba = uma linha própria em `integrations`:
-//   azure_devops_sast  -> ingestão direta da pipeline (sast-ingest), sem credencial
+//   azure_devops_sast  -> ingestão direta da pipeline (sast-ingest), confere a build no Azure DevOps
+//   gitea_sast         -> ingestão direta do Gitea Actions (sast-ingest), confere a execução no Gitea
 //   azure_app_insights -> sync do App Insights (sast-sync), Service Principal
 // As duas convivem: caem nos mesmos achados sem duplicar (migration 20260929100000).
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1352,18 +1360,18 @@ function SastSheet({
   item,
   appInsights,
   devops,
+  gitea,
   onSaved,
 }: SheetBase & {
   appInsights?: Integration;
   devops?: Integration;
+  gitea?: Integration;
   onSaved: () => void;
 }) {
-  const [tab, setTab] = React.useState<"devops" | "appinsights">("devops");
+  const [tab, setTab] = React.useState<"devops" | "gitea" | "appinsights">("devops");
   const [saveCount, setSaveCount] = React.useState(0);
   const [adoEnabled, setAdoEnabled] = React.useState(devops?.enabled ?? false);
-  const [adoOrg, setAdoOrg] = React.useState(
-    cfgStr(devops?.config, "organization"),
-  );
+  const [adoOrg, setAdoOrg] = React.useState(cfgStr(devops?.config, "organization"));
   // Credencial de leitura que o Z-Sec usa pra conferir a build no Azure
   // DevOps -- sempre própria desta aba (pra um App Registration só, colar o
   // mesmo aqui e na aba App Insights).
@@ -1371,6 +1379,11 @@ function SastSheet({
   const [adoClientId, setAdoClientId] = React.useState(cfgStr(devops?.config, "client_id"));
   const [adoSecret, setAdoSecret] = React.useState("");
   const [newKey, setNewKey] = React.useState<string | null>(null);
+
+  // Gitea: endereço + token SÓ DE LEITURA com que o app confere a execução da esteira.
+  const [giteaEnabled, setGiteaEnabled] = React.useState(gitea?.enabled ?? false);
+  const [giteaUrl, setGiteaUrl] = React.useState(gitea?.base_url ?? "");
+  const [giteaToken, setGiteaToken] = React.useState("");
 
   const [aiEnabled, setAiEnabled] = React.useState(appInsights?.enabled ?? false);
   const [aiTenantId, setAiTenantId] = React.useState(cfgStr(appInsights?.config, "tenant_id"));
@@ -1387,6 +1400,12 @@ function SastSheet({
     setAdoClientId(cfgStr(devops?.config, "client_id"));
     setAdoSecret("");
   }, [devops]);
+
+  React.useEffect(() => {
+    setGiteaEnabled(gitea?.enabled ?? false);
+    setGiteaUrl(gitea?.base_url ?? "");
+    setGiteaToken("");
+  }, [gitea]);
 
   React.useEffect(() => {
     setAiEnabled(appInsights?.enabled ?? false);
@@ -1475,6 +1494,26 @@ function SastSheet({
           },
         });
       }
+      const gUrl = giteaUrl.trim().replace(/\/+$/, "");
+      if (gUrl && !/^https?:\/\/[^/?#@\s]+(\/[^?#@\s]*)?$/i.test(gUrl)) {
+        throw new Error("Gitea: endereço inválido. Use só a raiz, ex.: https://git.empresa.com.br");
+      }
+      const giteaHasToken = !!giteaToken.trim() || !!gitea?.secrets.api_key;
+      if (giteaEnabled && (!gUrl || !giteaHasToken)) {
+        throw new Error("Gitea: preencha o endereço e o token de leitura antes de ativar.");
+      }
+      if (gitea || giteaEnabled || gUrl || giteaToken.trim()) {
+        await upsertIntegrationFn({
+          data: {
+            provider: SAST_GITEA,
+            name: "Gitea (SAST)",
+            enabled: giteaEnabled,
+            base_url: gUrl || null,
+            api_key: giteaToken.trim() || null,
+            config: { ...(gitea?.config ?? {}) },
+          },
+        });
+      }
       if (appInsights || aiEnabled || aiFields.some(Boolean)) {
         await upsertIntegrationFn({
           data: {
@@ -1501,12 +1540,84 @@ function SastSheet({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Chave única de ingestão: usada pelas pipelines do Azure DevOps e do Gitea.
+  const ingestKeyBlock = (
+    <>
+      <div className="int-sublabel">Chave de ingestão (usada pela pipeline)</div>
+      {ingestKeys.length ? (
+        <div style={{ display: "grid", gap: 6 }}>
+          {ingestKeys.map((k, i) => (
+            <div key={k.hint + k.createdAt} className="int-keyrow">
+              <span>
+                {i === 0 ? "Atual" : "Anterior (ainda válida)"} · {k.hint}…
+              </span>
+              <span>{new Date(k.createdAt).toLocaleString("pt-BR")}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="int-help">
+          Nenhuma chave gerada ainda — sem ela, os envios das pipelines recebem 503.
+        </div>
+      )}
+      <div className="int-actions">
+        <button
+          className="int-btn"
+          onClick={() => rotateKey.mutate()}
+          disabled={rotateKey.isPending}
+        >
+          <RefreshCw size={14} />
+          {ingestKeys.length ? "Gerar nova chave" : "Gerar chave"}
+        </button>
+        {ingestKeys.length > 1 && (
+          <button
+            className="int-btn"
+            onClick={() => revokeKey.mutate()}
+            disabled={revokeKey.isPending}
+          >
+            Revogar anterior
+          </button>
+        )}
+      </div>
+      {newKey && (
+        <div style={{ display: "grid", gap: 6 }}>
+          <div className="int-pw">
+            <input
+              className="int-input"
+              readOnly
+              value={newKey}
+              onFocus={(e) => e.target.select()}
+            />
+            <button
+              className="int-btn icon"
+              onClick={copyNewKey}
+              aria-label="Copiar chave"
+              title="Copiar"
+            >
+              <Copy size={14} />
+            </button>
+          </div>
+          <div className="int-help">
+            Copie agora: esta chave não aparece de novo (o {APP_NAME} guarda só o hash). Coloque no
+            template de pipeline e, depois que todas as builds estiverem usando a nova, revogue a
+            anterior.
+          </div>
+        </div>
+      )}
+      <div className="int-help">
+        A chave é a mesma para Azure DevOps e Gitea e só serve para enviar relatório ao {APP_NAME},
+        sem acesso a nada nas plataformas. Sozinha não basta para forjar dado: todo envio é
+        conferido contra uma build/execução real em andamento.
+      </div>
+    </>
+  );
+
   return (
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
       width={560}
-      eyebrow="integrations · azure_devops_sast + azure_app_insights"
+      eyebrow="integrations · azure_devops_sast + gitea_sast + azure_app_insights"
       title={<SheetTitle item={item} />}
       badges={<SheetBadges item={item} />}
       footer={
@@ -1524,6 +1635,7 @@ function SastSheet({
             onChange={setTab}
             options={[
               ["devops", "Azure DevOps"],
+              ["gitea", "Gitea"],
               ["appinsights", "App Insights"],
             ]}
           />
@@ -1561,72 +1673,7 @@ function SastSheet({
                 />
               </Field>
 
-              <div className="int-sublabel">Chave de ingestão (usada pela pipeline)</div>
-              {ingestKeys.length ? (
-                <div style={{ display: "grid", gap: 6 }}>
-                  {ingestKeys.map((k, i) => (
-                    <div key={k.hint + k.createdAt} className="int-keyrow">
-                      <span>
-                        {i === 0 ? "Atual" : "Anterior (ainda válida)"} · {k.hint}…
-                      </span>
-                      <span>{new Date(k.createdAt).toLocaleString("pt-BR")}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="int-help">
-                  Nenhuma chave gerada ainda — sem ela, os envios das pipelines recebem 503.
-                </div>
-              )}
-              <div className="int-actions">
-                <button
-                  className="int-btn"
-                  onClick={() => rotateKey.mutate()}
-                  disabled={rotateKey.isPending}
-                >
-                  <RefreshCw size={14} />
-                  {ingestKeys.length ? "Gerar nova chave" : "Gerar chave"}
-                </button>
-                {ingestKeys.length > 1 && (
-                  <button
-                    className="int-btn"
-                    onClick={() => revokeKey.mutate()}
-                    disabled={revokeKey.isPending}
-                  >
-                    Revogar anterior
-                  </button>
-                )}
-              </div>
-              {newKey && (
-                <div style={{ display: "grid", gap: 6 }}>
-                  <div className="int-pw">
-                    <input
-                      className="int-input"
-                      readOnly
-                      value={newKey}
-                      onFocus={(e) => e.target.select()}
-                    />
-                    <button
-                      className="int-btn icon"
-                      onClick={copyNewKey}
-                      aria-label="Copiar chave"
-                      title="Copiar"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  </div>
-                  <div className="int-help">
-                    Copie agora: esta chave não aparece de novo (o {APP_NAME} guarda só o hash). Coloque
-                    no template de pipeline e, depois que todas as builds estiverem usando a nova,
-                    revogue a anterior.
-                  </div>
-                </div>
-              )}
-              <div className="int-help">
-                A chave só serve para enviar relatório ao {APP_NAME}, sem acesso a nada no Azure DevOps.
-                Sozinha não basta para forjar dado: todo envio é conferido contra uma build real em
-                execução.
-              </div>
+              {ingestKeyBlock}
 
               <div className="int-sublabel">Credencial de leitura (conferência da build)</div>
               <Field label="Tenant ID" help="Directory (tenant) ID do Microsoft Entra ID.">
@@ -1653,6 +1700,52 @@ function SastSheet({
                   value={adoSecret}
                   onChange={setAdoSecret}
                   saved={devops?.secrets.api_key}
+                />
+              </Field>
+            </div>
+          ) : tab === "gitea" ? (
+            <div className="int-form">
+              {/* ── Gitea: a esteira (Gitea Actions) envia direto com a chave de ingestão;
+                o app confere a execução com um token só de leitura ── */}
+              <ToggleRow
+                title="Ingestão do Gitea ativa"
+                hint={
+                  giteaEnabled
+                    ? `Esteiras do Gitea enviam o relatório direto para o ${APP_NAME}`
+                    : "Desligada — envios do Gitea recebem 503"
+                }
+                checked={giteaEnabled}
+                onChange={setGiteaEnabled}
+              />
+              <Field
+                label="Endereço do Gitea"
+                help="Raiz do servidor, sem /api (ex.: https://git.empresa.com.br). Só execuções deste servidor são aceitas."
+              >
+                <input
+                  className="int-input"
+                  value={giteaUrl}
+                  onChange={(e) => setGiteaUrl(e.target.value)}
+                  placeholder="https://git.empresa.com.br"
+                />
+              </Field>
+              <Field label="Endpoint para a esteira">
+                <input
+                  className="int-input mono"
+                  readOnly
+                  value="/api/public/hooks/sast-ingest"
+                  onFocus={(e) => e.target.select()}
+                />
+              </Field>
+              {ingestKeyBlock}
+              <div className="int-sublabel">Token de leitura (conferência da execução)</div>
+              <Field
+                label="Token de acesso"
+                help="Gitea → Configurações → Aplicações → Gerar token, só com permissão repository: Leitura. Usado só para ler a execução da esteira e o commit."
+              >
+                <SecretInput
+                  value={giteaToken}
+                  onChange={setGiteaToken}
+                  saved={gitea?.secrets.api_key}
                 />
               </Field>
             </div>

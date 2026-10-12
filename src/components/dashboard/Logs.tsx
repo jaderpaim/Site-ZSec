@@ -239,6 +239,8 @@ const API_PROVIDER_LABEL: Record<string, string> = {
   purview_dlp: "Purview DLP",
   disponibilidade_alerts: "Alertas de disponibilidade",
   alerts_recipients: "Destinatários de alertas",
+  azure_devops_sast: "SAST · Azure DevOps",
+  gitea_sast: "SAST · Gitea",
 };
 
 const LOGIN_METHOD_LABEL = (m: string | null) =>

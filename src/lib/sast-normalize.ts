@@ -244,18 +244,35 @@ export function normalizeScanCompleted(
 
 // ─── Ingestão direta (relatório nativo do Gitleaks enviado pela pipeline) ────
 // Escopo (projeto/repo/branch/commit/build) NÃO vem do corpo do envio: vem da
-// build conferida na API do Azure DevOps (ver sast-ingest.server.ts), que é a
-// fonte confiável. Daqui só sai o que é do achado em si.
+// build conferida na API do Azure DevOps ou do Gitea (ver sast-ingest.server.ts),
+// que é a fonte confiável. Daqui só sai o que é do achado em si.
 
 export type VerifiedBuildScope = {
+  // Prefixo do source_event_id: separa a build 12 do Azure DevOps da execução 12 do Gitea.
+  origin: "ado" | "gitea";
   project: string;
   repository: string;
   branch: string;
   commit: string;
   buildId: string;
   buildUrl: string | null;
-  fileUrlBase: string; // https://dev.azure.com/<org>/<projeto>/_git/<repo>
+  // Link do arquivo na versão do commit, no formato de cada plataforma.
+  fileUrlFor: (file: string, line: number | null) => string;
 };
+
+/** Link de arquivo no Azure Repos (base = https://dev.azure.com/<org>/<projeto>/_git/<repo>). */
+export function adoFileUrl(base: string, commit: string) {
+  return (file: string, line: number | null) =>
+    `${base}?path=${encodeURIComponent("/" + file)}&version=GC${commit}` +
+    (line ? `&line=${line}&lineEnd=${line}&lineStartColumn=1&lineEndColumn=1` : "");
+}
+
+/** Link de arquivo no Gitea (base = https://<gitea>/<dono>/<repo>). */
+export function giteaFileUrl(base: string, commit: string) {
+  return (file: string, line: number | null) =>
+    `${base}/src/commit/${commit}/${file.split("/").map(encodeURIComponent).join("/")}` +
+    (line ? `#L${line}` : "");
+}
 
 export type GitleaksReportFinding = {
   RuleID?: unknown;
@@ -290,14 +307,11 @@ export function normalizeGitleaksReportFinding(
   // autor do commit da build.
   const author = str(props.Author) ?? commitAuthor.name;
   const authorEmail = str(props.Email) ?? commitAuthor.email;
-  const fileUrl = file
-    ? `${scope.fileUrlBase}?path=${encodeURIComponent("/" + file)}&version=GC${scope.commit}` +
-      (line ? `&line=${line}&lineEnd=${line}&lineStartColumn=1&lineEndColumn=1` : "")
-    : null;
+  const fileUrl = file ? scope.fileUrlFor(file, line) : null;
 
   return {
     // 1 detecção por build+fingerprint: reenvio/retry da mesma build não duplica.
-    source_event_id: `ado:${scope.buildId}:${tool}:${fingerprint}`,
+    source_event_id: `${scope.origin}:${scope.buildId}:${tool}:${fingerprint}`,
     ingest_source: "webhook",
     tool,
     category: profile.category,
