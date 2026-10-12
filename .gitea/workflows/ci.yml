@@ -37,7 +37,40 @@ jobs:
           tar -xzf gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz gitleaks
           install gitleaks /usr/local/bin/
       - name: Procurar segredos no histórico
-        run: gitleaks git --redact -v .
+        run: |
+          gitleaks git --redact -v \
+            --report-format json --report-path /tmp/gitleaks.json .
+      # Só depois do merge (push na main): achados da branch main no módulo SAST.
+      # Em PR não envia -- o Z-Sec recusa execução de PR (fecharia os achados da main).
+      - name: Enviar resultado ao módulo SAST
+        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        # Falha no envio não pode travar o deploy (deploy-hmg depende deste job).
+        continue-on-error: true
+        env:
+          ZSEC_URL: ${{ vars.ZSEC_URL }}
+          SAST_INGEST_KEY: ${{ secrets.SAST_INGEST_KEY }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const rel = "/tmp/gitleaks.json";
+            const ok = fs.existsSync(rel); // sem relatório = scan não rodou: não fecha achados
+            fs.writeFileSync("/tmp/sast-payload.json", JSON.stringify({
+              schema: 1,
+              provider: "gitea",
+              tool: "gitleaks",
+              repository: process.env.GITHUB_REPOSITORY,
+              runId: Number(process.env.GITHUB_RUN_ID),
+              branch: process.env.GITHUB_REF_NAME,
+              commit: process.env.GITHUB_SHA,
+              status: ok ? "completed" : "failed",
+              findings: ok ? JSON.parse(fs.readFileSync(rel, "utf8") || "[]") : [],
+            }));
+          '
+          curl -sS --fail-with-body -X POST "$ZSEC_URL/api/public/hooks/sast-ingest" \
+            -H "Authorization: Bearer $SAST_INGEST_KEY" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/sast-payload.json
+          echo
   codigo:
     runs-on: lab
     env:
