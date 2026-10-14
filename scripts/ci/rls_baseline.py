@@ -13,6 +13,7 @@ tabela totalmente sem RLS -- o caso mais grave -- passaria por ele.
 Uso:
   rls_baseline.py <relatorio.json> <.rls-baseline> <pasta-migrations>           # verifica (CI)
   rls_baseline.py <relatorio.json> <.rls-baseline> <pasta-migrations> --gerar   # reescreve a linha de base
+  ... --exportar <saida.json>   # grava os achados NOVOS (fora da linha de base) para o módulo SAST
 """
 import json
 import re
@@ -48,6 +49,7 @@ def tabelas_sem_rls(pasta: str) -> dict[str, dict]:
             "rule_id": "ZSEC-RLS-001",
             "rule_name": "Tabela sem ENABLE ROW LEVEL SECURITY",
             "severity": "CRITICAL",
+            "file": f"supabase/migrations/{arq}",
             "description": f"A tabela public.{t} (criada em {arq}) não tem RLS ligado em nenhuma migration: "
             "com a chave pública do app, qualquer visitante lê e grava nela.",
             "remediation": f"ALTER TABLE public.{t} ENABLE ROW LEVEL SECURITY; e crie as políticas.",
@@ -94,6 +96,18 @@ def gerar(achados: dict[str, dict], caminho: str) -> None:
     print(f"Linha de base gravada: {len(achados)} achado(s) em {caminho}")
 
 
+def exportar(achados: dict[str, dict], base: set[str], caminho: str) -> None:
+    """Só os achados fora da linha de base: os da linha de base já foram analisados."""
+    campos = ("rule_id", "rule_name", "severity", "table_name", "policy_name", "description", "remediation", "file")
+    novos = [
+        {c: achados[k].get(c) for c in campos} | {"table_name": achados[k].get("table_name") or k.split(" | ")[1]}
+        for k in sorted(achados)
+        if k not in base
+    ]
+    with open(caminho, "w", encoding="utf-8") as fh:
+        json.dump(novos, fh, ensure_ascii=False)
+
+
 def verificar(achados: dict[str, dict], base: set[str]) -> int:
     novos = sorted(k for k in achados if k not in base)
     resolvidos = sorted(k for k in base if k not in achados)
@@ -117,10 +131,14 @@ def main() -> int:
         print(__doc__)
         return 2
     achados = carregar_achados(sys.argv[1]) | tabelas_sem_rls(sys.argv[3])
-    if "--gerar" in sys.argv[4:]:
+    extras = sys.argv[4:]
+    if "--gerar" in extras:
         gerar(achados, sys.argv[2])
         return 0
-    return verificar(achados, carregar_base(sys.argv[2]))
+    base = carregar_base(sys.argv[2])
+    if "--exportar" in extras:
+        exportar(achados, base, extras[extras.index("--exportar") + 1])
+    return verificar(achados, base)
 
 
 if __name__ == "__main__":
