@@ -97,6 +97,7 @@ const TOOL_PROFILE: Record<string, { category: string; defaultSeverity: string |
   semgrep: { category: "code", defaultSeverity: null },
   "dependency-check": { category: "dependency", defaultSeverity: null },
   trivy: { category: "dependency", defaultSeverity: null },
+  rls: { category: "database", defaultSeverity: null },
 };
 
 function toolProfile(tool: string) {
@@ -112,6 +113,7 @@ const TOOL_CANONICAL: Record<string, string> = {
   semgrep: "Semgrep",
   "dependency-check": "Dependency-Check",
   trivy: "Trivy",
+  rls: "RLS",
 };
 
 export function canonicalTool(tool: string): string {
@@ -528,6 +530,73 @@ export function normalizeTrivyVulnerability(
       InstalledVersion: installed,
       FixedVersion: fixed,
       Target: target,
+    },
+  };
+}
+
+// ─── RLS (job "rls": vibe-scanner + checagem própria ZSEC-RLS-001) ───────────
+// A esteira manda só os achados FORA da .rls-baseline (os de dentro já foram
+// analisados e aceitos -- ver scripts/ci/rls_baseline.py --exportar).
+
+export type RlsFinding = {
+  rule_id?: unknown;
+  rule_name?: unknown;
+  severity?: unknown;
+  table_name?: unknown;
+  policy_name?: unknown;
+  description?: unknown;
+  remediation?: unknown;
+  file?: unknown;
+  [key: string]: unknown;
+};
+
+export function normalizeRlsFinding(
+  f: RlsFinding,
+  scope: VerifiedBuildScope,
+  detectedAt: string,
+  commitAuthor: { name: string | null; email: string | null },
+): SastDetectionRow | null {
+  const ruleId = str(f.rule_id);
+  const table = str(f.table_name);
+  if (!ruleId || !table) return null;
+  const policy = str(f.policy_name);
+  // Mesma chave da .rls-baseline (regra | tabela | política).
+  const fingerprint = `${ruleId}|${table}|${policy ?? "-"}`;
+  const tool = canonicalTool("rls");
+  const file = str(f.file);
+  const details: Record<string, unknown> = { table };
+  if (policy) details.policy = policy;
+  if (str(f.description)) details.message = str(f.description)!.slice(0, 1000);
+  if (str(f.remediation)) details.remediation = str(f.remediation)!.slice(0, 1000);
+
+  return {
+    source_event_id: `${scope.origin}:${scope.buildId}:${tool}:${fingerprint}`,
+    ingest_source: "webhook",
+    tool,
+    category: toolProfile(tool).category,
+    project: scope.project,
+    repository: scope.repository,
+    branch: scope.branch,
+    environment: branchToEnvironment(scope.branch),
+    rule_id: ruleId,
+    severity: TRIVY_SEVERITY[String(f.severity ?? "").toUpperCase()] ?? null,
+    fingerprint,
+    file_path: file ?? "supabase/migrations",
+    line: null,
+    title: `${table}${policy ? ` · ${policy}` : ""}: ${str(f.rule_name) ?? ruleId}`.slice(0, 200),
+    details,
+    detected_at: detectedAt,
+    commit_sha: scope.commit,
+    build_id: scope.buildId,
+    build_url: scope.buildUrl,
+    file_url: file ? scope.fileUrlFor(file, null) : null,
+    author: commitAuthor.name,
+    author_email: commitAuthor.email,
+    raw_event: {
+      rule_id: ruleId,
+      table_name: table,
+      policy_name: policy,
+      severity: f.severity ?? null,
     },
   };
 }

@@ -135,7 +135,17 @@ jobs:
             "$GITHUB_WORKSPACE/supabase/" -o json -f /tmp/rls.json) || true
           test -s /tmp/rls.json
       - name: Comparar com a linha de base
-        run: python3 scripts/ci/rls_baseline.py /tmp/rls.json .rls-baseline supabase/migrations
+        run: |
+          python3 scripts/ci/rls_baseline.py /tmp/rls.json .rls-baseline supabase/migrations \
+            --exportar /tmp/rls-novos.json
+      # Só o que está FORA da linha de base vai ao módulo SAST (decisão de 2026-10-12).
+      - name: Enviar resultado ao módulo SAST
+        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        continue-on-error: true # falha no envio não pode travar o deploy-hmg
+        env:
+          ZSEC_URL: ${{ vars.ZSEC_URL }}
+          SAST_INGEST_KEY: ${{ secrets.SAST_INGEST_KEY }}
+        run: node scripts/ci/sast-enviar.mjs rls /tmp/rls-novos.json
   deploy-hmg:
     # Só depois do merge na main e com as 5 checagens verdes.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
