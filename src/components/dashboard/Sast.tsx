@@ -64,6 +64,7 @@ type SastFinding = {
   fingerprint: string;
   file_path: string | null;
   line: number | null;
+  title: string | null;
   details: Record<string, unknown> | null;
   status: Status;
   resolution_source: "auto" | "manual" | null;
@@ -151,10 +152,69 @@ function SevBadge({ severity }: { severity: string | null }) {
     </span>
   );
 }
+// Campos de `details` gravados pelos normalizadores (sast-normalize.ts), na
+// ordem em que aparecem no painel. O que vem da esteira é dado de terceiro:
+// só texto -- link só se for http(s).
+const DETAIL_FIELDS: [string, string][] = [
+  ["message", "Descrição"],
+  ["remediation", "Como corrigir"],
+  ["package", "Pacote"],
+  ["ecosystem", "Ecossistema"],
+  ["installed_version", "Versão instalada"],
+  ["fixed_version", "Versão corrigida"],
+  ["cvss_v3", "CVSS v3"],
+  ["table", "Tabela"],
+  ["policy", "Política"],
+  ["cwe", "CWE"],
+  ["owasp", "OWASP"],
+  ["confidence", "Confiança"],
+  ["impact", "Impacto"],
+  ["likelihood", "Probabilidade"],
+  ["tags", "Tags"],
+];
+const isHttpUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//i.test(v);
+
+function FindingDetails({ details }: { details: Record<string, unknown> | null }) {
+  if (!details) return null;
+  const links = [
+    details.url,
+    ...(Array.isArray(details.references) ? details.references : []),
+  ].filter(isHttpUrl);
+  return (
+    <>
+      {DETAIL_FIELDS.filter(
+        ([k]) => details[k] !== undefined && details[k] !== null && details[k] !== "",
+      ).map(([k, label]) => (
+        <React.Fragment key={k}>
+          <dt className="text-v2-fg-3">{label}</dt>
+          <dd className={k === "message" || k === "remediation" ? "" : "font-data text-[12px]"}>
+            {Array.isArray(details[k])
+              ? (details[k] as unknown[]).map(String).join(", ")
+              : String(details[k])}
+          </dd>
+        </React.Fragment>
+      ))}
+      {links.length > 0 && (
+        <>
+          <dt className="text-v2-fg-3">Referências</dt>
+          <dd className="flex flex-col gap-0.5 text-[12px] break-all">
+            {[...new Set(links)].map((u) => (
+              <a key={u} href={u} target="_blank" rel="noopener noreferrer">
+                {u}
+              </a>
+            ))}
+          </dd>
+        </>
+      )}
+    </>
+  );
+}
+
 const CATEGORY_LABEL: Record<string, string> = {
   secret: "Segredo",
   code: "Código",
   dependency: "Dependência",
+  database: "Banco de dados (RLS)",
   iac: "IaC",
   other: "Outro",
 };
@@ -754,7 +814,7 @@ export function SastDashboard() {
         <div>
           <h1 className="sa-ph-title">SAST</h1>
           <p className="sa-ph-sub">
-            Segredos, código e dependências vindos das pipelines do Azure DevOps
+            Segredos, código, dependências e RLS vindos das esteiras de CI/CD (Azure DevOps e Gitea)
           </p>
           {/* Duas origens convivem: envio direto da pipeline + sync do App Insights */}
           <div className="sa-src">
@@ -813,9 +873,9 @@ export function SastDashboard() {
             <Link to="/app/$module" params={{ module: "integracoes" }}>
               Integração API
             </Link>
-            , card <b>SAST</b>: ligue a aba <b>Azure DevOps</b> pra receber os relatórios direto das
-            pipelines (recomendado, sem credencial) e/ou configure a aba <b>App Insights</b> com o
-            cron job <span className="sa-mono">sast-sync</span> pra ler o que já está no App
+            , card <b>SAST</b>: ligue a aba <b>Azure DevOps</b> ou <b>Gitea</b> pra receber os
+            relatórios direto das esteiras (recomendado) e/ou configure a aba <b>App Insights</b>{" "}
+            com o cron job <span className="sa-mono">sast-sync</span> pra ler o que já está no App
             Insights.
           </div>
         </div>
@@ -1241,7 +1301,24 @@ function FindingsTable({
                   <td>
                     <Badge tone={ENV[f.environment].tone}>{ENV[f.environment].label}</Badge>
                   </td>
-                  <td className="sa-mono">{f.rule_id}</td>
+                  <td>
+                    <div className="sa-mono">{f.rule_id}</div>
+                    {f.title && f.title !== f.rule_id && (
+                      <div
+                        className="sa-dim"
+                        style={{
+                          fontSize: 11.5,
+                          maxWidth: 320,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={f.title}
+                      >
+                        {f.title}
+                      </div>
+                    )}
+                  </td>
                   <td
                     className="sa-mono sa-dim"
                     style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis" }}
@@ -1531,6 +1608,9 @@ function FindingSheet({
           <SheetTitle className="font-data text-[15px] font-semibold text-v2-fg break-all">
             {f.rule_id}
           </SheetTitle>
+          {f.title && f.title !== f.rule_id && (
+            <div className="text-[13px] text-v2-fg-2">{f.title}</div>
+          )}
           <div className="text-[12.5px] text-v2-fg-3">
             {f.project} · {f.repository} · {f.branch}
           </div>
@@ -1543,6 +1623,16 @@ function FindingSheet({
               Git: rotacione a credencial na origem e depois marque como resolvido.
             </div>
           )}
+          {f.category === "dependency" &&
+            f.status === "aberto" &&
+            typeof f.details?.fixed_version === "string" && (
+              <div className="sa-callout" style={{ "--c": "var(--v2-med)" } as React.CSSProperties}>
+                <b>Correção disponível:</b> atualize{" "}
+                <span className="font-data">{String(f.details?.package ?? "o pacote")}</span> para a
+                versão <span className="font-data">{f.details.fixed_version}</span> ou superior. O
+                achado fecha sozinho no próximo scan da esteira.
+              </div>
+            )}
           {a?.inferred && (
             <div className="sa-callout" style={{ "--c": "var(--v2-med)" } as React.CSSProperties}>
               O último evento veio do <span className="font-data">Build Service</span> (commit
@@ -1575,6 +1665,7 @@ function FindingSheet({
                 </>
               )}
             </dd>
+            <FindingDetails details={f.details} />
             <dt className="text-v2-fg-3">Fingerprint</dt>
             <dd className="font-data text-[11px] text-v2-fg-3 break-all">{f.fingerprint}</dd>
             <dt className="text-v2-fg-3">Introduzido por</dt>
@@ -1693,7 +1784,7 @@ function FindingSheet({
                     <div className="font-data text-[11px] text-v2-fg-3">
                       {fmtDateTime(f.resolved_at)}
                     </div>
-                    Não apareceu no ScanCompleted da build · fechado automaticamente
+                    Não apareceu no scan seguinte da esteira · fechado automaticamente
                   </div>
                 )}
                 {((events.data?.events ?? []) as any[]).map((ev) => (
@@ -1723,8 +1814,8 @@ function FindingSheet({
           </div>
 
           <div className="text-[11.5px] text-v2-fg-3">
-            O valor do segredo nunca é armazenado no {APP_NAME}. Só metadados: regra, arquivo, linha,
-            commit e autor.
+            O valor do segredo nunca é armazenado no {APP_NAME}. Só metadados: regra, arquivo,
+            linha, commit e autor.
           </div>
         </div>
       </SheetContent>
