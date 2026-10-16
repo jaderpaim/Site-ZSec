@@ -35,6 +35,7 @@ import { Route as ApiPublicHooksQradarSyncWatchdogRouteImport } from './routes/a
 import { Route as ApiPublicHooksQradarSyncManualRouteImport } from './routes/api/public/hooks/qradar-sync-manual'
 import { Route as ApiPublicHooksQradarSyncRouteImport } from './routes/api/public/hooks/qradar-sync'
 import { Route as ApiPublicHooksPrivacyToolsSyncRouteImport } from './routes/api/public/hooks/privacy-tools-sync'
+import { Route as ApiPublicHooksLeakradarSyncRouteImport } from './routes/api/public/hooks/leakradar-sync'
 import { Route as ApiPublicHooksGophishSyncRouteImport } from './routes/api/public/hooks/gophish-sync'
 import { Route as ApiPublicHooksGmudEscalateRouteImport } from './routes/api/public/hooks/gmud-escalate'
 import { Route as ApiPublicHooksFornecedoresCheckRouteImport } from './routes/api/public/hooks/fornecedores-check'
@@ -43,10 +44,12 @@ import { Route as ApiPublicHooksDlpSyncRouteImport } from './routes/api/public/h
 import { Route as ApiPublicHooksDastStaleScanSweepRouteImport } from './routes/api/public/hooks/dast-stale-scan-sweep'
 import { Route as ApiPublicHooksDastSchedulesRunRouteImport } from './routes/api/public/hooks/dast-schedules-run'
 import { Route as ApiPublicHooksDastCallbackRouteImport } from './routes/api/public/hooks/dast-callback'
+import { Route as ApiPublicHooksCtiMonitorRunRouteImport } from './routes/api/public/hooks/cti-monitor-run'
 import { Route as ApiPublicHooksCmdbDnsCacheRefreshRouteImport } from './routes/api/public/hooks/cmdb-dns-cache-refresh'
 import { Route as ApiPublicHooksCmdbDeviceAlertsRouteImport } from './routes/api/public/hooks/cmdb-device-alerts'
 import { Route as ApiPublicHooksCloudflareSyncRouteImport } from './routes/api/public/hooks/cloudflare-sync'
 import { Route as ApiPublicHooksAgentIngestRouteImport } from './routes/api/public/hooks/agent-ingest'
+import { Route as ApiPublicHooksAdStatusSyncRouteImport } from './routes/api/public/hooks/ad-status-sync'
 import { Route as ApiPublicTreinamentosSsoCallbackRouteImport } from './routes/api/public/treinamentos/sso/callback'
 import { Route as ApiPublicAuthAzureCallbackRouteImport } from './routes/api/public/auth/azure/callback'
 
@@ -196,6 +199,12 @@ const ApiPublicHooksPrivacyToolsSyncRoute =
     path: '/api/public/hooks/privacy-tools-sync',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksLeakradarSyncRoute =
+  ApiPublicHooksLeakradarSyncRouteImport.update({
+    id: '/api/public/hooks/leakradar-sync',
+    path: '/api/public/hooks/leakradar-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksGophishSyncRoute =
   ApiPublicHooksGophishSyncRouteImport.update({
     id: '/api/public/hooks/gophish-sync',
@@ -243,6 +252,12 @@ const ApiPublicHooksDastCallbackRoute =
     path: '/api/public/hooks/dast-callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksCtiMonitorRunRoute =
+  ApiPublicHooksCtiMonitorRunRouteImport.update({
+    id: '/api/public/hooks/cti-monitor-run',
+    path: '/api/public/hooks/cti-monitor-run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksCmdbDnsCacheRefreshRoute =
   ApiPublicHooksCmdbDnsCacheRefreshRouteImport.update({
     id: '/api/public/hooks/cmdb-dns-cache-refresh',
@@ -267,6 +282,12 @@ const ApiPublicHooksAgentIngestRoute =
     path: '/api/public/hooks/agent-ingest',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksAdStatusSyncRoute =
+  ApiPublicHooksAdStatusSyncRouteImport.update({
+    id: '/api/public/hooks/ad-status-sync',
+    path: '/api/public/hooks/ad-status-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicTreinamentosSsoCallbackRoute =
   ApiPublicTreinamentosSsoCallbackRouteImport.update({
     id: '/api/public/treinamentos/sso/callback',
@@ -289,10 +310,12 @@ export interface FileRoutesByFullPath {
   '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
+  '/api/public/hooks/cti-monitor-run': typeof ApiPublicHooksCtiMonitorRunRoute
   '/api/public/hooks/dast-callback': typeof ApiPublicHooksDastCallbackRoute
   '/api/public/hooks/dast-schedules-run': typeof ApiPublicHooksDastSchedulesRunRoute
   '/api/public/hooks/dast-stale-scan-sweep': typeof ApiPublicHooksDastStaleScanSweepRoute
@@ -301,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/fornecedores-check': typeof ApiPublicHooksFornecedoresCheckRoute
   '/api/public/hooks/gmud-escalate': typeof ApiPublicHooksGmudEscalateRoute
   '/api/public/hooks/gophish-sync': typeof ApiPublicHooksGophishSyncRoute
+  '/api/public/hooks/leakradar-sync': typeof ApiPublicHooksLeakradarSyncRoute
   '/api/public/hooks/privacy-tools-sync': typeof ApiPublicHooksPrivacyToolsSyncRoute
   '/api/public/hooks/qradar-sync': typeof ApiPublicHooksQradarSyncRoute
   '/api/public/hooks/qradar-sync-manual': typeof ApiPublicHooksQradarSyncManualRoute
@@ -331,10 +355,12 @@ export interface FileRoutesByTo {
   '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
+  '/api/public/hooks/cti-monitor-run': typeof ApiPublicHooksCtiMonitorRunRoute
   '/api/public/hooks/dast-callback': typeof ApiPublicHooksDastCallbackRoute
   '/api/public/hooks/dast-schedules-run': typeof ApiPublicHooksDastSchedulesRunRoute
   '/api/public/hooks/dast-stale-scan-sweep': typeof ApiPublicHooksDastStaleScanSweepRoute
@@ -343,6 +369,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/fornecedores-check': typeof ApiPublicHooksFornecedoresCheckRoute
   '/api/public/hooks/gmud-escalate': typeof ApiPublicHooksGmudEscalateRoute
   '/api/public/hooks/gophish-sync': typeof ApiPublicHooksGophishSyncRoute
+  '/api/public/hooks/leakradar-sync': typeof ApiPublicHooksLeakradarSyncRoute
   '/api/public/hooks/privacy-tools-sync': typeof ApiPublicHooksPrivacyToolsSyncRoute
   '/api/public/hooks/qradar-sync': typeof ApiPublicHooksQradarSyncRoute
   '/api/public/hooks/qradar-sync-manual': typeof ApiPublicHooksQradarSyncManualRoute
@@ -374,10 +401,12 @@ export interface FileRoutesById {
   '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
+  '/api/public/hooks/cti-monitor-run': typeof ApiPublicHooksCtiMonitorRunRoute
   '/api/public/hooks/dast-callback': typeof ApiPublicHooksDastCallbackRoute
   '/api/public/hooks/dast-schedules-run': typeof ApiPublicHooksDastSchedulesRunRoute
   '/api/public/hooks/dast-stale-scan-sweep': typeof ApiPublicHooksDastStaleScanSweepRoute
@@ -386,6 +415,7 @@ export interface FileRoutesById {
   '/api/public/hooks/fornecedores-check': typeof ApiPublicHooksFornecedoresCheckRoute
   '/api/public/hooks/gmud-escalate': typeof ApiPublicHooksGmudEscalateRoute
   '/api/public/hooks/gophish-sync': typeof ApiPublicHooksGophishSyncRoute
+  '/api/public/hooks/leakradar-sync': typeof ApiPublicHooksLeakradarSyncRoute
   '/api/public/hooks/privacy-tools-sync': typeof ApiPublicHooksPrivacyToolsSyncRoute
   '/api/public/hooks/qradar-sync': typeof ApiPublicHooksQradarSyncRoute
   '/api/public/hooks/qradar-sync-manual': typeof ApiPublicHooksQradarSyncManualRoute
@@ -418,10 +448,12 @@ export interface FileRouteTypes {
     | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
+    | '/api/public/hooks/cti-monitor-run'
     | '/api/public/hooks/dast-callback'
     | '/api/public/hooks/dast-schedules-run'
     | '/api/public/hooks/dast-stale-scan-sweep'
@@ -430,6 +462,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/fornecedores-check'
     | '/api/public/hooks/gmud-escalate'
     | '/api/public/hooks/gophish-sync'
+    | '/api/public/hooks/leakradar-sync'
     | '/api/public/hooks/privacy-tools-sync'
     | '/api/public/hooks/qradar-sync'
     | '/api/public/hooks/qradar-sync-manual'
@@ -460,10 +493,12 @@ export interface FileRouteTypes {
     | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
+    | '/api/public/hooks/cti-monitor-run'
     | '/api/public/hooks/dast-callback'
     | '/api/public/hooks/dast-schedules-run'
     | '/api/public/hooks/dast-stale-scan-sweep'
@@ -472,6 +507,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/fornecedores-check'
     | '/api/public/hooks/gmud-escalate'
     | '/api/public/hooks/gophish-sync'
+    | '/api/public/hooks/leakradar-sync'
     | '/api/public/hooks/privacy-tools-sync'
     | '/api/public/hooks/qradar-sync'
     | '/api/public/hooks/qradar-sync-manual'
@@ -502,10 +538,12 @@ export interface FileRouteTypes {
     | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
+    | '/api/public/hooks/cti-monitor-run'
     | '/api/public/hooks/dast-callback'
     | '/api/public/hooks/dast-schedules-run'
     | '/api/public/hooks/dast-stale-scan-sweep'
@@ -514,6 +552,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/fornecedores-check'
     | '/api/public/hooks/gmud-escalate'
     | '/api/public/hooks/gophish-sync'
+    | '/api/public/hooks/leakradar-sync'
     | '/api/public/hooks/privacy-tools-sync'
     | '/api/public/hooks/qradar-sync'
     | '/api/public/hooks/qradar-sync-manual'
@@ -544,10 +583,12 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   TreinamentosRoute: typeof TreinamentosRoute
   TrustRoute: typeof TrustRoute
+  ApiPublicHooksAdStatusSyncRoute: typeof ApiPublicHooksAdStatusSyncRoute
   ApiPublicHooksAgentIngestRoute: typeof ApiPublicHooksAgentIngestRoute
   ApiPublicHooksCloudflareSyncRoute: typeof ApiPublicHooksCloudflareSyncRoute
   ApiPublicHooksCmdbDeviceAlertsRoute: typeof ApiPublicHooksCmdbDeviceAlertsRoute
   ApiPublicHooksCmdbDnsCacheRefreshRoute: typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
+  ApiPublicHooksCtiMonitorRunRoute: typeof ApiPublicHooksCtiMonitorRunRoute
   ApiPublicHooksDastCallbackRoute: typeof ApiPublicHooksDastCallbackRoute
   ApiPublicHooksDastSchedulesRunRoute: typeof ApiPublicHooksDastSchedulesRunRoute
   ApiPublicHooksDastStaleScanSweepRoute: typeof ApiPublicHooksDastStaleScanSweepRoute
@@ -556,6 +597,7 @@ export interface RootRouteChildren {
   ApiPublicHooksFornecedoresCheckRoute: typeof ApiPublicHooksFornecedoresCheckRoute
   ApiPublicHooksGmudEscalateRoute: typeof ApiPublicHooksGmudEscalateRoute
   ApiPublicHooksGophishSyncRoute: typeof ApiPublicHooksGophishSyncRoute
+  ApiPublicHooksLeakradarSyncRoute: typeof ApiPublicHooksLeakradarSyncRoute
   ApiPublicHooksPrivacyToolsSyncRoute: typeof ApiPublicHooksPrivacyToolsSyncRoute
   ApiPublicHooksQradarSyncRoute: typeof ApiPublicHooksQradarSyncRoute
   ApiPublicHooksQradarSyncManualRoute: typeof ApiPublicHooksQradarSyncManualRoute
@@ -762,6 +804,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksPrivacyToolsSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/leakradar-sync': {
+      id: '/api/public/hooks/leakradar-sync'
+      path: '/api/public/hooks/leakradar-sync'
+      fullPath: '/api/public/hooks/leakradar-sync'
+      preLoaderRoute: typeof ApiPublicHooksLeakradarSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/gophish-sync': {
       id: '/api/public/hooks/gophish-sync'
       path: '/api/public/hooks/gophish-sync'
@@ -818,6 +867,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksDastCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/cti-monitor-run': {
+      id: '/api/public/hooks/cti-monitor-run'
+      path: '/api/public/hooks/cti-monitor-run'
+      fullPath: '/api/public/hooks/cti-monitor-run'
+      preLoaderRoute: typeof ApiPublicHooksCtiMonitorRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/cmdb-dns-cache-refresh': {
       id: '/api/public/hooks/cmdb-dns-cache-refresh'
       path: '/api/public/hooks/cmdb-dns-cache-refresh'
@@ -844,6 +900,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/agent-ingest'
       fullPath: '/api/public/hooks/agent-ingest'
       preLoaderRoute: typeof ApiPublicHooksAgentIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/ad-status-sync': {
+      id: '/api/public/hooks/ad-status-sync'
+      path: '/api/public/hooks/ad-status-sync'
+      fullPath: '/api/public/hooks/ad-status-sync'
+      preLoaderRoute: typeof ApiPublicHooksAdStatusSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/treinamentos/sso/callback': {
@@ -881,11 +944,13 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   TreinamentosRoute: TreinamentosRoute,
   TrustRoute: TrustRoute,
+  ApiPublicHooksAdStatusSyncRoute: ApiPublicHooksAdStatusSyncRoute,
   ApiPublicHooksAgentIngestRoute: ApiPublicHooksAgentIngestRoute,
   ApiPublicHooksCloudflareSyncRoute: ApiPublicHooksCloudflareSyncRoute,
   ApiPublicHooksCmdbDeviceAlertsRoute: ApiPublicHooksCmdbDeviceAlertsRoute,
   ApiPublicHooksCmdbDnsCacheRefreshRoute:
     ApiPublicHooksCmdbDnsCacheRefreshRoute,
+  ApiPublicHooksCtiMonitorRunRoute: ApiPublicHooksCtiMonitorRunRoute,
   ApiPublicHooksDastCallbackRoute: ApiPublicHooksDastCallbackRoute,
   ApiPublicHooksDastSchedulesRunRoute: ApiPublicHooksDastSchedulesRunRoute,
   ApiPublicHooksDastStaleScanSweepRoute: ApiPublicHooksDastStaleScanSweepRoute,
@@ -894,6 +959,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksFornecedoresCheckRoute: ApiPublicHooksFornecedoresCheckRoute,
   ApiPublicHooksGmudEscalateRoute: ApiPublicHooksGmudEscalateRoute,
   ApiPublicHooksGophishSyncRoute: ApiPublicHooksGophishSyncRoute,
+  ApiPublicHooksLeakradarSyncRoute: ApiPublicHooksLeakradarSyncRoute,
   ApiPublicHooksPrivacyToolsSyncRoute: ApiPublicHooksPrivacyToolsSyncRoute,
   ApiPublicHooksQradarSyncRoute: ApiPublicHooksQradarSyncRoute,
   ApiPublicHooksQradarSyncManualRoute: ApiPublicHooksQradarSyncManualRoute,

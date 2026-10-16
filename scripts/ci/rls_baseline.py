@@ -23,6 +23,21 @@ from pathlib import Path
 
 SEVERIDADES = {"CRITICAL", "HIGH"}
 
+# Regras do vibe-scanner que nunca apontam brecha, só acesso NEGADO (o RLS
+# falha fechado) ou algo que não se aplica ao Supabase. Desligadas aqui em vez
+# de entrar na linha de base -- senão toda tabela nova só do servidor (RLS
+# ligado, nenhuma política = ninguém de fora acessa, o estado mais seguro)
+# geraria uma leva de "achados". Decisão de 2026-10-15.
+REGRAS_IGNORADAS = {
+    "RLS-002": "nenhuma política: ninguém de fora acessa (fecha por padrão)",
+    "RLS-003": "sem política de SELECT: leitura bloqueada para usuários",
+    "RLS-004": "sem política de INSERT: gravação bloqueada para usuários",
+    "RLS-005": "sem política de UPDATE: alteração bloqueada para usuários",
+    "RLS-006": "sem política de DELETE: exclusão bloqueada para usuários",
+    "RLS-011": "UPDATE sem WITH CHECK: o Postgres aplica o USING também na linha nova",
+    "RLS-054": "sem FORCE RLS: só afeta o dono da tabela; o app nunca acessa como dono",
+}
+
 _NOME = r'"?([a-z_][a-z0-9_]*)"?'
 _CREATE = re.compile(r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?(\w+)"?\.)?' + _NOME + r"\s*\(", re.I)
 _ENABLE = re.compile(
@@ -66,7 +81,11 @@ def chave(f: dict) -> str:
 def carregar_achados(caminho: str) -> dict[str, dict]:
     with open(caminho, encoding="utf-8") as fh:
         achados = json.load(fh).get("findings", [])
-    return {chave(f): f for f in achados if str(f.get("severity", "")).upper() in SEVERIDADES}
+    return {
+        chave(f): f
+        for f in achados
+        if str(f.get("severity", "")).upper() in SEVERIDADES and f.get("rule_id") not in REGRAS_IGNORADAS
+    }
 
 
 def carregar_base(caminho: str) -> set[str]:

@@ -39,6 +39,7 @@ import {
   GitBranch,
   Check,
   ChevronRight,
+  KeyRound,
 } from "lucide-react";
 import { APP_NAME } from "@/lib/brand";
 
@@ -53,6 +54,7 @@ type Provider =
   | "sendgrid"
   | "dast_scanner"
   | "purview_dlp"
+  | "leakradar"
   | "azure_app_insights"
   | "azure_devops_sast"
   | "gitea_sast";
@@ -168,6 +170,17 @@ const PROVIDERS: Array<{
     helper:
       "Microsoft Purview DLP usa OAuth2 (client_credentials) via Office 365 Management Activity API. Crie em Microsoft Entra ID → App registrations → New registration, e em Certificates & secrets copie o Client Secret.",
   },
+  {
+    key: "leakradar",
+    name: "CTI",
+    module: "Threat Intelligence",
+    moduleSlug: "threat-intel",
+    icon: KeyRound,
+    defaultBaseUrl: "https://api.leakradar.io",
+    apiKeyLabel: "API Key",
+    helper:
+      "Fonte de Cyber Threat Intelligence (credenciais vazadas). Gere a API key em members.leakradar.io → Settings → API key (plano pago com domain_search). Ao salvar, a conexão é testada sem consumir pontos.",
+  },
 ];
 
 // SAST não entra em PROVIDERS: é um card próprio (SastIntegrationCard) com duas
@@ -189,6 +202,7 @@ const BRAND: Record<string, string> = {
   sendgrid: "#1A82E2",
   dast_scanner: "#EF4444",
   purview_dlp: "#14B8A6",
+  leakradar: "#E11D48",
   sast: "#0EA5E9",
   sek: "#22D3EE",
 };
@@ -202,6 +216,7 @@ const SYNC_JOBS: Record<string, Array<[jobName: string, label?: string]>> = {
   ],
   qradar: [["qradar-sync"]],
   purview_dlp: [["dlp-sync"]],
+  leakradar: [["leakradar-sync"]],
   dast_scanner: [["dast-schedules-run", "Agendamentos"]],
   sast: [["sast-sync", "Sync App Insights"]],
   zabbix: [["zabbix-cache-refresh"]],
@@ -216,6 +231,7 @@ const GROUP_OF: Record<string, GroupKey> = {
   sophos: "seg",
   qradar: "seg",
   purview_dlp: "seg",
+  leakradar: "seg",
   dast_scanner: "seg",
   sast: "seg",
   zabbix: "ops",
@@ -296,6 +312,12 @@ function cfgStr(
 ): string {
   const v = cfg?.[key];
   return typeof v === "string" ? v : fallback;
+}
+
+// Domínios do LeakRadar: gravados como array, editados um por linha
+function cfgDomains(cfg: Record<string, unknown> | null | undefined): string {
+  const v = cfg?.domains;
+  return Array.isArray(v) ? v.filter((d) => typeof d === "string").join("\n") : "";
 }
 
 type StateKey = "on" | "off" | "pend";
@@ -1029,6 +1051,8 @@ function ProviderSheet({
   // Purview DLP OAuth2 client_credentials fields
   const [dlpTenantId, setDlpTenantId] = React.useState(cfgStr(cfg, "tenant_id"));
   const [dlpClientId, setDlpClientId] = React.useState(cfgStr(cfg, "client_id"));
+  // LeakRadar: domínios monitorados (um por linha ou separados por vírgula)
+  const [lrDomains, setLrDomains] = React.useState(cfgDomains(cfg));
 
   React.useEffect(() => {
     const c = integration?.config;
@@ -1047,6 +1071,7 @@ function ProviderSheet({
     setPtPassword("");
     setDlpTenantId(cfgStr(c, "tenant_id"));
     setDlpClientId(cfgStr(c, "client_id"));
+    setLrDomains(cfgDomains(c));
   }, [integration, provider.defaultBaseUrl]);
 
   const upsertIntegrationFn = useServerFn(upsertIntegration);
@@ -1072,6 +1097,16 @@ function ProviderSheet({
       if (provider.key === "purview_dlp") {
         config.tenant_id = dlpTenantId.trim();
         config.client_id = dlpClientId.trim();
+      }
+      if (provider.key === "leakradar") {
+        config.domains = [
+          ...new Set(
+            lrDomains
+              .split(/[\s,;]+/)
+              .map((d) => d.trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        ];
       }
       return upsertIntegrationFn({
         data: {
@@ -1235,7 +1270,7 @@ function ProviderSheet({
                 checked={enabled}
                 onChange={setEnabled}
               />
-              {/* Base URL — oculto p/ Purview DLP: endpoints da Microsoft são fixos, não configuráveis */}
+              {/* Base URL — oculto p/ Microsoft (Purview/Entra): endpoints fixos */}
               {provider.key !== "purview_dlp" && (
                 <Field label="Base URL">
                   <input
@@ -1299,6 +1334,28 @@ function ProviderSheet({
                     />
                   </Field>
                   {apiKeyField()}
+                </>
+              ) : provider.key === "leakradar" ? (
+                <>
+                  {apiKeyField()}
+                  <Field
+                    label="Domínios monitorados"
+                    help="Um por linha. A coleta busca colaboradores, clientes e terceiros de cada domínio."
+                  >
+                    <textarea
+                      className="int-input mono"
+                      rows={3}
+                      value={lrDomains}
+                      onChange={(e) => setLrDomains(e.target.value)}
+                      placeholder={"empresa.com.br\nempresa.com"}
+                      style={{
+                        height: "auto",
+                        paddingTop: 8,
+                        paddingBottom: 8,
+                        resize: "vertical",
+                      }}
+                    />
+                  </Field>
                 </>
               ) : (
                 <>

@@ -34,6 +34,21 @@ export const CRON_JOB_MODULE: Record<
     rule: "module_admin",
   },
   "dlp-sync": { module: "dlp", moduleLabel: "DLP", rule: "module_admin" },
+  "leakradar-sync": {
+    module: "threat-intel",
+    moduleLabel: "Threat Intelligence",
+    rule: "module_admin",
+  },
+  "ad-status-sync": {
+    module: "threat-intel",
+    moduleLabel: "Threat Intelligence",
+    rule: "module_admin",
+  },
+  "cti-monitor-run": {
+    module: "threat-intel",
+    moduleLabel: "Threat Intelligence",
+    rule: "module_admin",
+  },
   "vuln-snapshot": {
     module: "vulnerabilidades",
     moduleLabel: "Vulnerabilidades",
@@ -84,6 +99,7 @@ export const MODULE_CRON_JOBS: Record<string, string[]> = {
   sast: ["sast-sync"],
   "privacy-tools": ["privacy-tools-sync"],
   dlp: ["dlp-sync"],
+  "threat-intel": ["leakradar-sync", "ad-status-sync", "cti-monitor-run"],
   vulnerabilidades: ["vuln-snapshot"],
   cmdb: ["cmdb-device-alerts", "cmdb-dns-cache-refresh"],
   "dominios-ssl": ["ssl-expiry-check", "domains-expiry-check"],

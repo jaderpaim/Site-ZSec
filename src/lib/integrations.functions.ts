@@ -16,6 +16,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   zabbix: "Zabbix",
   sendgrid: "SendGrid",
   purview_dlp: "Microsoft Purview DLP",
+  leakradar: "CTI",
   azure_app_insights: "Azure App Insights (SAST)",
   azure_devops_sast: "Azure DevOps (SAST)",
   gitea_sast: "Gitea (SAST)",
@@ -30,6 +31,7 @@ const PROVIDERS = [
   "zabbix",
   "sendgrid",
   "purview_dlp",
+  "leakradar",
   "azure_app_insights",
   "azure_devops_sast",
   "gitea_sast",
@@ -196,7 +198,34 @@ export const upsertIntegration = createServerFn({ method: "POST" })
       const sync = await syncCloudflareZones();
       return sync.ok
         ? { ok: true, info: `${sync.zones} zona(s) encontrada(s) na Cloudflare.` }
-        : { ok: true, warning: `Integração salva, mas não foi possível listar as zonas: ${sync.error}` };
+        : {
+            ok: true,
+            warning: `Integração salva, mas não foi possível listar as zonas: ${sync.error}`,
+          };
     }
+
+    // LeakRadar: testa a chave e confirma o domain_search (sem ele a coleta
+    // não tem IDs para deduplicar). Não consome pontos.
+    if (data.provider === "leakradar" && data.enabled) {
+      const { getLeakRadarAccount } = await import("./leakradar.server");
+      try {
+        const acc = await getLeakRadarAccount();
+        if (acc.hasDomainSearch === false) {
+          return {
+            ok: true,
+            warning:
+              "Integração salva, mas o plano não devolve IDs na busca por domínio (domain_search). A coleta vai falhar.",
+          };
+        }
+        const pts = acc.points == null ? "" : ` · ${acc.points.toLocaleString("pt-BR")} pontos`;
+        return { ok: true, info: `Conectado${acc.plan ? ` ao plano ${acc.plan}` : ""}${pts}.` };
+      } catch (e) {
+        return {
+          ok: true,
+          warning: `Integração salva, mas o teste de conexão falhou: ${(e as Error).message}`,
+        };
+      }
+    }
+
     return { ok: true };
   });
