@@ -5,46 +5,20 @@
 # Regras que só acusam acesso negado ficam fora: ver REGRAS_IGNORADAS em scripts/ci/rls_baseline.py.
 
 # RLS-008: HIGH -- Missing auth check in policy
-RLS-008 | cmdb_dns_cache | service role write dns cache
+# Analisado em 2026-10-15:
+#   deny anon access *: política RESTRICTIVE TO anon USING (false) -- BLOQUEIA o visitante.
+#   departments / module_permissions: leitura para quem está logado; ver RLS-025.
 RLS-008 | colaboradores | deny anon access colaboradores
-RLS-008 | dast_auth_credentials | service role write auth credentials
-RLS-008 | dast_scan_out_of_scope_hosts | service role write out of scope hosts
 RLS-008 | departments | auth users view departments
-RLS-008 | dlp_events | service role write dlp events
-RLS-008 | dlp_sync_state | service role write dlp sync state
 RLS-008 | integrations | deny anon access integrations
 RLS-008 | module_permissions | auth view module permissions
-RLS-008 | sast_finding_events | service role writes sast finding events
-RLS-008 | sast_findings | service role writes sast findings
-RLS-008 | sast_ingest_cursor | service role writes sast ingest cursor
-RLS-008 | sast_scan_runs | service role writes sast scan runs
-RLS-008 | sek_tickets | service role writes sek tickets
-RLS-008 | sek_zendesk_auth_log | service role writes sek zendesk auth log
-RLS-008 | shadowit_findings | service role write shadowit findings
-RLS-008 | shadowit_hosts | service role write shadowit hosts
-RLS-008 | shadowit_scans | service role write shadowit scans
-RLS-008 | vuln_snapshots | Service role writes vuln snapshots
-RLS-008 | zabbix_hosts_cache | service role write zabbix cache
 
 # RLS-025: CRITICAL -- Tautology or always-true expression detected
-RLS-025 | cmdb_dns_cache | service role write dns cache
-RLS-025 | dast_auth_credentials | service role write auth credentials
-RLS-025 | dast_scan_out_of_scope_hosts | service role write out of scope hosts
+# Analisado em 2026-10-15: SELECT TO authenticated USING (true) de propósito.
+#   departments: lista de departamentos (filtros e formulários de todos os módulos).
+#   module_permissions: catálogo de módulos/ações (slug, ação, rótulo) -- sem dado de usuário.
 RLS-025 | departments | auth users view departments
-RLS-025 | dlp_events | service role write dlp events
-RLS-025 | dlp_sync_state | service role write dlp sync state
 RLS-025 | module_permissions | auth view module permissions
-RLS-025 | sast_finding_events | service role writes sast finding events
-RLS-025 | sast_findings | service role writes sast findings
-RLS-025 | sast_ingest_cursor | service role writes sast ingest cursor
-RLS-025 | sast_scan_runs | service role writes sast scan runs
-RLS-025 | sek_tickets | service role writes sek tickets
-RLS-025 | sek_zendesk_auth_log | service role writes sek zendesk auth log
-RLS-025 | shadowit_findings | service role write shadowit findings
-RLS-025 | shadowit_hosts | service role write shadowit hosts
-RLS-025 | shadowit_scans | service role write shadowit scans
-RLS-025 | vuln_snapshots | Service role writes vuln snapshots
-RLS-025 | zabbix_hosts_cache | service role write zabbix cache
 
 # ZSEC-RLS-001: CRITICAL -- Tabela sem ENABLE ROW LEVEL SECURITY
 # Analisado em 2026-10-11: falso positivo. O RLS e as políticas das tabelas org_*

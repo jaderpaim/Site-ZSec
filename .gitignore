@@ -49,3 +49,6 @@ agent/dist/
 
 # Supabase CLI (estado local)
 supabase/.temp/
+
+# Correções para o time da empresa (vulnerabilidades do ambiente deles): nunca versionar
+fix_empresa/
