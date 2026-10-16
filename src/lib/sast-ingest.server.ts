@@ -185,6 +185,8 @@ const GiteaIngestSchema = z.object({
   provider: z.literal("gitea"),
   repository: z.string().regex(GITEA_REPO_RE, "use dono/repositório"),
   runId: z.number().int().positive(),
+  // Execução de pull_request: número do PR (a esteira lê do evento).
+  pullRequest: z.number().int().positive().optional(),
 });
 
 // Ferramenta (nome canônico) -> normalizador do relatório nativo dela.
@@ -205,6 +207,8 @@ const NORMALIZERS: Record<string, Normalizer> = {
 type Verified =
   | {
       ok: true;
+      // Preenchido quando o envio veio de um PR: os achados ficam na branch do PR.
+      pullRequest?: { number: number; base: string };
       scope: VerifiedBuildScope;
       commitAuthor: { name: string | null; email: string | null };
     }
@@ -418,6 +422,11 @@ type GiteaRun = {
   head_sha?: string;
   html_url?: string;
   repository?: { name?: string; full_name?: string; owner?: { login?: string } };
+  pull_requests?: {
+    number?: number;
+    head?: { ref?: string; sha?: string; repo?: { id?: number } };
+    base?: { ref?: string; repo?: { id?: number } };
+  }[];
 };
 
 async function verifyGiteaRun(body: z.infer<typeof GiteaIngestSchema>): Promise<Verified> {
@@ -468,18 +477,53 @@ async function verifyGiteaRun(body: z.infer<typeof GiteaIngestSchema>): Promise<
     return fail(503, "Não foi possível falar com o Gitea pra conferir a execução.");
   }
 
-  const branch = (run.head_branch ?? "").replace(/^refs\/heads\//, "");
   const mismatch: string[] = [];
   if ((run.repository?.full_name ?? "").toLowerCase() !== body.repository.toLowerCase())
     mismatch.push("repository");
   if (run.status !== "in_progress")
     mismatch.push(`status=${run.status ?? "?"} (esperado in_progress)`);
-  // Achado é por branch: execução de PR fecharia os achados da branch de destino.
-  if (run.event !== "push") mismatch.push(`event=${run.event ?? "?"} (só push é aceito)`);
   if ((run.head_sha ?? "").toLowerCase() !== body.commit.toLowerCase()) mismatch.push("commit");
-  if (branch !== body.branch) mismatch.push("branch");
+
+  // Achado é por branch. Push: a própria branch. PR: a branch de ORIGEM do PR
+  // (head.ref) -- nunca a de destino, senão o scan do PR fecharia os achados da main.
+  let branch: string;
+  let pullRequest: { number: number; base: string } | undefined;
+  if (run.event === "push") {
+    branch = (run.head_branch ?? "").replace(/^refs\/heads\//, "");
+    if (body.pullRequest) mismatch.push("pullRequest informado numa execução de push");
+  } else if (run.event === "pull_request") {
+    const pr = (run.pull_requests ?? []).find((p) => p.number === body.pullRequest);
+    branch = pr?.head?.ref ?? "";
+    if (!body.pullRequest || !pr) mismatch.push("pullRequest (não corresponde à execução)");
+    else {
+      // PR de fork: código de terceiros não alimenta o módulo.
+      if (!pr.head?.repo?.id || pr.head.repo.id !== pr.base?.repo?.id)
+        mismatch.push("PR de fork não é aceito");
+      if ((pr.head?.sha ?? "").toLowerCase() !== body.commit.toLowerCase())
+        mismatch.push("commit (não é o último do PR)");
+      pullRequest = { number: pr.number!, base: pr.base?.ref ?? "?" };
+    }
+  } else {
+    branch = "";
+    mismatch.push(`event=${run.event ?? "?"} (só push e pull_request são aceitos)`);
+  }
+  if (!branch || branch !== body.branch) mismatch.push("branch");
   if (mismatch.length) {
     return fail(403, `Envio não confere com a execução ${body.runId}: ${mismatch.join(", ")}.`);
+  }
+
+  // PR fechado ou mergeado não recebe achados novos (a execução pode estar
+  // terminando depois do merge).
+  if (pullRequest) {
+    try {
+      const res = await giteaGet(`${repoApi}/pulls/${pullRequest.number}`, cfg.token);
+      const pr = res.ok ? ((await res.json()) as { state?: string; merged?: boolean }) : null;
+      if (!pr || pr.state !== "open" || pr.merged) {
+        return fail(403, `PR #${pullRequest.number} não está aberto.`);
+      }
+    } catch {
+      return fail(503, "Não foi possível falar com o Gitea pra conferir o PR.");
+    }
   }
 
   const project = run.repository?.owner?.login ?? owner;
@@ -512,7 +556,7 @@ async function verifyGiteaRun(body: z.infer<typeof GiteaIngestSchema>): Promise<
   } catch {
     /* segue sem autor */
   }
-  return { ok: true, scope, commitAuthor };
+  return { ok: true, scope, commitAuthor, pullRequest };
 }
 
 // ─── Entrada ─────────────────────────────────────────────────────────────────
@@ -573,7 +617,11 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     : await verifyAdoBuild(body as z.infer<typeof AdoIngestSchema>);
   if (!verified.ok) return fail(verified.status, verified.message, verified.log);
   const { scope, commitAuthor } = verified;
-  const label = `${scope.project}/${scope.repository}/${scope.branch} ${isGitea ? "execução" : "build"} ${scope.buildId}`;
+  const label =
+    `${scope.project}/${scope.repository}/${scope.branch} ${isGitea ? "execução" : "build"} ${scope.buildId}` +
+    (verified.pullRequest
+      ? ` (PR #${verified.pullRequest.number} → ${verified.pullRequest.base})`
+      : "");
 
   // Scan que não rodou: nada é gravado nem fechado (registrar a execução
   // fecharia todos os achados abertos do escopo como se o repo estivesse limpo).
@@ -593,6 +641,9 @@ export async function handleSastIngest(request: Request): Promise<Response> {
   let skipped = 0;
   for (const f of body.findings) {
     const row = normalize(f, scope, detectedAt, commitAuthor);
+    if (row && verified.pullRequest) {
+      row.details = { ...row.details, pull_request: verified.pullRequest };
+    }
     if (!row) skipped++;
     else if (!rows.has(row.source_event_id)) rows.set(row.source_event_id, row);
   }
