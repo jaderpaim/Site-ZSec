@@ -40,10 +40,10 @@ jobs:
         run: |
           gitleaks git --redact -v \
             --report-format json --report-path /tmp/gitleaks.json .
-      # Só depois do merge (push na main): achados da branch main no módulo SAST.
-      # Em PR não envia -- o Z-Sec recusa execução de PR (fecharia os achados da main).
+      # Push na main: achados da main. PR: achados ficam na branch do PR
+      # ("bloqueados antes do merge") -- nunca fecham os da main.
       - name: Enviar resultado ao módulo SAST
-        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
         # Falha no envio não pode travar o deploy (deploy-hmg depende deste job).
         continue-on-error: true
         env:
@@ -72,7 +72,7 @@ jobs:
             --json-output=/tmp/semgrep.json \
             --error
       - name: Enviar resultado ao módulo SAST
-        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
         continue-on-error: true # falha no envio não pode travar o deploy-hmg
         env:
           ZSEC_URL: ${{ vars.ZSEC_URL }}
@@ -104,10 +104,10 @@ jobs:
       # Bloqueio acima: só alta/crítica com correção. Para o módulo SAST vai o
       # quadro completo (todas as severidades, inclusive sem correção disponível).
       - name: Relatório completo para o módulo SAST
-        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
         run: trivy fs --quiet --scanners vuln --format json --output /tmp/trivy.json .
       - name: Enviar resultado ao módulo SAST
-        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
         continue-on-error: true # falha no envio não pode travar o deploy-hmg
         env:
           ZSEC_URL: ${{ vars.ZSEC_URL }}
@@ -140,7 +140,7 @@ jobs:
             --exportar /tmp/rls-novos.json
       # Só o que está FORA da linha de base vai ao módulo SAST (decisão de 2026-10-12).
       - name: Enviar resultado ao módulo SAST
-        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
         continue-on-error: true # falha no envio não pode travar o deploy-hmg
         env:
           ZSEC_URL: ${{ vars.ZSEC_URL }}

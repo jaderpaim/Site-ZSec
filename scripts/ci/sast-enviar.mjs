@@ -13,8 +13,16 @@
 import { existsSync, readFileSync } from "node:fs";
 
 const [tool, reportPath, field] = process.argv.slice(2);
-const { ZSEC_URL, SAST_INGEST_KEY, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_REF_NAME, GITHUB_SHA } =
-  process.env;
+const {
+  ZSEC_URL,
+  SAST_INGEST_KEY,
+  GITHUB_REPOSITORY,
+  GITHUB_RUN_ID,
+  GITHUB_REF_NAME,
+  GITHUB_SHA,
+  GITHUB_EVENT_NAME,
+  GITHUB_EVENT_PATH,
+} = process.env;
 
 const faltando = [
   !tool && "argumento <ferramenta>",
@@ -52,6 +60,18 @@ if (existsSync(reportPath)) {
   }
 }
 
+// PR: os achados ficam na branch de ORIGEM do PR (o Z-Sec confere na API do
+// Gitea que o PR existe, está aberto e que o commit é o último dele).
+let branch = GITHUB_REF_NAME;
+let commit = GITHUB_SHA;
+let pullRequest;
+if (GITHUB_EVENT_NAME === "pull_request" && GITHUB_EVENT_PATH && existsSync(GITHUB_EVENT_PATH)) {
+  const ev = JSON.parse(readFileSync(GITHUB_EVENT_PATH, "utf8"));
+  pullRequest = ev.pull_request?.number ?? ev.number;
+  branch = ev.pull_request?.head?.ref ?? process.env.GITHUB_HEAD_REF ?? branch;
+  commit = ev.pull_request?.head?.sha ?? commit;
+}
+
 const res = await fetch(`${ZSEC_URL.replace(/\/+$/, "")}/api/public/hooks/sast-ingest`, {
   method: "POST",
   headers: { Authorization: `Bearer ${SAST_INGEST_KEY}`, "Content-Type": "application/json" },
@@ -61,12 +81,15 @@ const res = await fetch(`${ZSEC_URL.replace(/\/+$/, "")}/api/public/hooks/sast-i
     tool,
     repository: GITHUB_REPOSITORY,
     runId: Number(GITHUB_RUN_ID),
-    branch: GITHUB_REF_NAME,
-    commit: GITHUB_SHA,
+    branch,
+    commit,
+    ...(pullRequest ? { pullRequest: Number(pullRequest) } : {}),
     status,
     findings,
   }),
 });
 const text = await res.text();
-console.log(`${tool}: ${findings.length} achado(s) enviados, HTTP ${res.status} ${text}`);
+console.log(
+  `${tool}${pullRequest ? ` (PR #${pullRequest})` : ""}: ${findings.length} achado(s) enviados, HTTP ${res.status} ${text}`,
+);
 if (!res.ok) process.exit(1);

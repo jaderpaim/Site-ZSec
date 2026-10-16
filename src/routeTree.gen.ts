@@ -9,73 +9,53 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TrustRouteImport } from './routes/trust'
-import { Route as TreinamentosRouteImport } from './routes/treinamentos'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AtivarRouteImport } from './routes/ativar'
-import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/app'
+import { Route as AtivarRouteImport } from './routes/ativar'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as TreinamentosRouteImport } from './routes/treinamentos'
+import { Route as TrustRouteImport } from './routes/trust'
 import { Route as AppModuleRouteImport } from './routes/app.$module'
-import { Route as ApiPublicHooksZabbixCacheRefreshRouteImport } from './routes/api/public/hooks/zabbix-cache-refresh'
-import { Route as ApiPublicHooksVulnSnapshotRouteImport } from './routes/api/public/hooks/vuln-snapshot'
-import { Route as ApiPublicHooksSslCheckRouteImport } from './routes/api/public/hooks/ssl-check'
-import { Route as ApiPublicHooksSophosSyncRouteImport } from './routes/api/public/hooks/sophos-sync'
-import { Route as ApiPublicHooksSophosIaSyncRouteImport } from './routes/api/public/hooks/sophos-ia-sync'
-import { Route as ApiPublicHooksSophosAuditSyncRouteImport } from './routes/api/public/hooks/sophos-audit-sync'
-import { Route as ApiPublicHooksShadowitCallbackRouteImport } from './routes/api/public/hooks/shadowit-callback'
-import { Route as ApiPublicHooksSekZendeskTicketsSyncRouteImport } from './routes/api/public/hooks/sek-zendesk-tickets-sync'
-import { Route as ApiPublicHooksSekZendeskSyncRouteImport } from './routes/api/public/hooks/sek-zendesk-sync'
-import { Route as ApiPublicHooksSekZendeskSessionUploadRouteImport } from './routes/api/public/hooks/sek-zendesk-session-upload'
-import { Route as ApiPublicHooksSekZendeskAuthLogRouteImport } from './routes/api/public/hooks/sek-zendesk-auth-log'
-import { Route as ApiPublicHooksSastSyncRouteImport } from './routes/api/public/hooks/sast-sync'
-import { Route as ApiPublicHooksSastIngestRouteImport } from './routes/api/public/hooks/sast-ingest'
-import { Route as ApiPublicHooksRankingIaSyncRouteImport } from './routes/api/public/hooks/ranking-ia-sync'
-import { Route as ApiPublicHooksQradarSyncWatchdogRouteImport } from './routes/api/public/hooks/qradar-sync-watchdog'
-import { Route as ApiPublicHooksQradarSyncManualRouteImport } from './routes/api/public/hooks/qradar-sync-manual'
-import { Route as ApiPublicHooksQradarSyncRouteImport } from './routes/api/public/hooks/qradar-sync'
-import { Route as ApiPublicHooksPrivacyToolsSyncRouteImport } from './routes/api/public/hooks/privacy-tools-sync'
-import { Route as ApiPublicHooksLeakradarSyncRouteImport } from './routes/api/public/hooks/leakradar-sync'
-import { Route as ApiPublicHooksGophishSyncRouteImport } from './routes/api/public/hooks/gophish-sync'
-import { Route as ApiPublicHooksGmudEscalateRouteImport } from './routes/api/public/hooks/gmud-escalate'
-import { Route as ApiPublicHooksFornecedoresCheckRouteImport } from './routes/api/public/hooks/fornecedores-check'
-import { Route as ApiPublicHooksDomainsCheckRouteImport } from './routes/api/public/hooks/domains-check'
-import { Route as ApiPublicHooksDlpSyncRouteImport } from './routes/api/public/hooks/dlp-sync'
-import { Route as ApiPublicHooksDastStaleScanSweepRouteImport } from './routes/api/public/hooks/dast-stale-scan-sweep'
-import { Route as ApiPublicHooksDastSchedulesRunRouteImport } from './routes/api/public/hooks/dast-schedules-run'
-import { Route as ApiPublicHooksDastCallbackRouteImport } from './routes/api/public/hooks/dast-callback'
-import { Route as ApiPublicHooksCtiMonitorRunRouteImport } from './routes/api/public/hooks/cti-monitor-run'
-import { Route as ApiPublicHooksCmdbDnsCacheRefreshRouteImport } from './routes/api/public/hooks/cmdb-dns-cache-refresh'
-import { Route as ApiPublicHooksCmdbDeviceAlertsRouteImport } from './routes/api/public/hooks/cmdb-device-alerts'
-import { Route as ApiPublicHooksCloudflareSyncRouteImport } from './routes/api/public/hooks/cloudflare-sync'
-import { Route as ApiPublicHooksAgentIngestRouteImport } from './routes/api/public/hooks/agent-ingest'
 import { Route as ApiPublicHooksAdStatusSyncRouteImport } from './routes/api/public/hooks/ad-status-sync'
-import { Route as ApiPublicTreinamentosSsoCallbackRouteImport } from './routes/api/public/treinamentos/sso/callback'
+import { Route as ApiPublicHooksAgentIngestRouteImport } from './routes/api/public/hooks/agent-ingest'
+import { Route as ApiPublicHooksCloudflareSyncRouteImport } from './routes/api/public/hooks/cloudflare-sync'
+import { Route as ApiPublicHooksCmdbDeviceAlertsRouteImport } from './routes/api/public/hooks/cmdb-device-alerts'
+import { Route as ApiPublicHooksCmdbDnsCacheRefreshRouteImport } from './routes/api/public/hooks/cmdb-dns-cache-refresh'
+import { Route as ApiPublicHooksCtiMonitorRunRouteImport } from './routes/api/public/hooks/cti-monitor-run'
+import { Route as ApiPublicHooksDastCallbackRouteImport } from './routes/api/public/hooks/dast-callback'
+import { Route as ApiPublicHooksDastSchedulesRunRouteImport } from './routes/api/public/hooks/dast-schedules-run'
+import { Route as ApiPublicHooksDastStaleScanSweepRouteImport } from './routes/api/public/hooks/dast-stale-scan-sweep'
+import { Route as ApiPublicHooksDlpSyncRouteImport } from './routes/api/public/hooks/dlp-sync'
+import { Route as ApiPublicHooksDomainsCheckRouteImport } from './routes/api/public/hooks/domains-check'
+import { Route as ApiPublicHooksFornecedoresCheckRouteImport } from './routes/api/public/hooks/fornecedores-check'
+import { Route as ApiPublicHooksGmudEscalateRouteImport } from './routes/api/public/hooks/gmud-escalate'
+import { Route as ApiPublicHooksGophishSyncRouteImport } from './routes/api/public/hooks/gophish-sync'
+import { Route as ApiPublicHooksLeakradarSyncRouteImport } from './routes/api/public/hooks/leakradar-sync'
+import { Route as ApiPublicHooksPrivacyToolsSyncRouteImport } from './routes/api/public/hooks/privacy-tools-sync'
+import { Route as ApiPublicHooksQradarSyncRouteImport } from './routes/api/public/hooks/qradar-sync'
+import { Route as ApiPublicHooksQradarSyncManualRouteImport } from './routes/api/public/hooks/qradar-sync-manual'
+import { Route as ApiPublicHooksQradarSyncWatchdogRouteImport } from './routes/api/public/hooks/qradar-sync-watchdog'
+import { Route as ApiPublicHooksRankingIaSyncRouteImport } from './routes/api/public/hooks/ranking-ia-sync'
+import { Route as ApiPublicHooksSastIngestRouteImport } from './routes/api/public/hooks/sast-ingest'
+import { Route as ApiPublicHooksSastSyncRouteImport } from './routes/api/public/hooks/sast-sync'
+import { Route as ApiPublicHooksSekZendeskAuthLogRouteImport } from './routes/api/public/hooks/sek-zendesk-auth-log'
+import { Route as ApiPublicHooksSekZendeskSessionUploadRouteImport } from './routes/api/public/hooks/sek-zendesk-session-upload'
+import { Route as ApiPublicHooksSekZendeskSyncRouteImport } from './routes/api/public/hooks/sek-zendesk-sync'
+import { Route as ApiPublicHooksSekZendeskTicketsSyncRouteImport } from './routes/api/public/hooks/sek-zendesk-tickets-sync'
+import { Route as ApiPublicHooksShadowitCallbackRouteImport } from './routes/api/public/hooks/shadowit-callback'
+import { Route as ApiPublicHooksSophosAuditSyncRouteImport } from './routes/api/public/hooks/sophos-audit-sync'
+import { Route as ApiPublicHooksSophosIaSyncRouteImport } from './routes/api/public/hooks/sophos-ia-sync'
+import { Route as ApiPublicHooksSophosSyncRouteImport } from './routes/api/public/hooks/sophos-sync'
+import { Route as ApiPublicHooksSslCheckRouteImport } from './routes/api/public/hooks/ssl-check'
+import { Route as ApiPublicHooksVulnSnapshotRouteImport } from './routes/api/public/hooks/vuln-snapshot'
+import { Route as ApiPublicHooksZabbixCacheRefreshRouteImport } from './routes/api/public/hooks/zabbix-cache-refresh'
 import { Route as ApiPublicAuthAzureCallbackRouteImport } from './routes/api/public/auth/azure/callback'
+import { Route as ApiPublicTreinamentosSsoCallbackRouteImport } from './routes/api/public/treinamentos/sso/callback'
 
-const TrustRoute = TrustRouteImport.update({
-  id: '/trust',
-  path: '/trust',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TreinamentosRoute = TreinamentosRouteImport.update({
-  id: '/treinamentos',
-  path: '/treinamentos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AtivarRoute = AtivarRouteImport.update({
-  id: '/ativar',
-  path: '/ativar',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -83,9 +63,29 @@ const AppRoute = AppRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AtivarRoute = AtivarRouteImport.update({
+  id: '/ativar',
+  path: '/ativar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TreinamentosRoute = TreinamentosRouteImport.update({
+  id: '/treinamentos',
+  path: '/treinamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrustRoute = TrustRouteImport.update({
+  id: '/trust',
+  path: '/trust',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppModuleRoute = AppModuleRouteImport.update({
@@ -93,187 +93,10 @@ const AppModuleRoute = AppModuleRouteImport.update({
   path: '/$module',
   getParentRoute: () => AppRoute,
 } as any)
-const ApiPublicHooksZabbixCacheRefreshRoute =
-  ApiPublicHooksZabbixCacheRefreshRouteImport.update({
-    id: '/api/public/hooks/zabbix-cache-refresh',
-    path: '/api/public/hooks/zabbix-cache-refresh',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksVulnSnapshotRoute =
-  ApiPublicHooksVulnSnapshotRouteImport.update({
-    id: '/api/public/hooks/vuln-snapshot',
-    path: '/api/public/hooks/vuln-snapshot',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSslCheckRoute = ApiPublicHooksSslCheckRouteImport.update({
-  id: '/api/public/hooks/ssl-check',
-  path: '/api/public/hooks/ssl-check',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicHooksSophosSyncRoute =
-  ApiPublicHooksSophosSyncRouteImport.update({
-    id: '/api/public/hooks/sophos-sync',
-    path: '/api/public/hooks/sophos-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSophosIaSyncRoute =
-  ApiPublicHooksSophosIaSyncRouteImport.update({
-    id: '/api/public/hooks/sophos-ia-sync',
-    path: '/api/public/hooks/sophos-ia-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSophosAuditSyncRoute =
-  ApiPublicHooksSophosAuditSyncRouteImport.update({
-    id: '/api/public/hooks/sophos-audit-sync',
-    path: '/api/public/hooks/sophos-audit-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksShadowitCallbackRoute =
-  ApiPublicHooksShadowitCallbackRouteImport.update({
-    id: '/api/public/hooks/shadowit-callback',
-    path: '/api/public/hooks/shadowit-callback',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSekZendeskTicketsSyncRoute =
-  ApiPublicHooksSekZendeskTicketsSyncRouteImport.update({
-    id: '/api/public/hooks/sek-zendesk-tickets-sync',
-    path: '/api/public/hooks/sek-zendesk-tickets-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSekZendeskSyncRoute =
-  ApiPublicHooksSekZendeskSyncRouteImport.update({
-    id: '/api/public/hooks/sek-zendesk-sync',
-    path: '/api/public/hooks/sek-zendesk-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSekZendeskSessionUploadRoute =
-  ApiPublicHooksSekZendeskSessionUploadRouteImport.update({
-    id: '/api/public/hooks/sek-zendesk-session-upload',
-    path: '/api/public/hooks/sek-zendesk-session-upload',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSekZendeskAuthLogRoute =
-  ApiPublicHooksSekZendeskAuthLogRouteImport.update({
-    id: '/api/public/hooks/sek-zendesk-auth-log',
-    path: '/api/public/hooks/sek-zendesk-auth-log',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSastSyncRoute = ApiPublicHooksSastSyncRouteImport.update({
-  id: '/api/public/hooks/sast-sync',
-  path: '/api/public/hooks/sast-sync',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicHooksSastIngestRoute =
-  ApiPublicHooksSastIngestRouteImport.update({
-    id: '/api/public/hooks/sast-ingest',
-    path: '/api/public/hooks/sast-ingest',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksRankingIaSyncRoute =
-  ApiPublicHooksRankingIaSyncRouteImport.update({
-    id: '/api/public/hooks/ranking-ia-sync',
-    path: '/api/public/hooks/ranking-ia-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksQradarSyncWatchdogRoute =
-  ApiPublicHooksQradarSyncWatchdogRouteImport.update({
-    id: '/api/public/hooks/qradar-sync-watchdog',
-    path: '/api/public/hooks/qradar-sync-watchdog',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksQradarSyncManualRoute =
-  ApiPublicHooksQradarSyncManualRouteImport.update({
-    id: '/api/public/hooks/qradar-sync-manual',
-    path: '/api/public/hooks/qradar-sync-manual',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksQradarSyncRoute =
-  ApiPublicHooksQradarSyncRouteImport.update({
-    id: '/api/public/hooks/qradar-sync',
-    path: '/api/public/hooks/qradar-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksPrivacyToolsSyncRoute =
-  ApiPublicHooksPrivacyToolsSyncRouteImport.update({
-    id: '/api/public/hooks/privacy-tools-sync',
-    path: '/api/public/hooks/privacy-tools-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksLeakradarSyncRoute =
-  ApiPublicHooksLeakradarSyncRouteImport.update({
-    id: '/api/public/hooks/leakradar-sync',
-    path: '/api/public/hooks/leakradar-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksGophishSyncRoute =
-  ApiPublicHooksGophishSyncRouteImport.update({
-    id: '/api/public/hooks/gophish-sync',
-    path: '/api/public/hooks/gophish-sync',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksGmudEscalateRoute =
-  ApiPublicHooksGmudEscalateRouteImport.update({
-    id: '/api/public/hooks/gmud-escalate',
-    path: '/api/public/hooks/gmud-escalate',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksFornecedoresCheckRoute =
-  ApiPublicHooksFornecedoresCheckRouteImport.update({
-    id: '/api/public/hooks/fornecedores-check',
-    path: '/api/public/hooks/fornecedores-check',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksDomainsCheckRoute =
-  ApiPublicHooksDomainsCheckRouteImport.update({
-    id: '/api/public/hooks/domains-check',
-    path: '/api/public/hooks/domains-check',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksDlpSyncRoute = ApiPublicHooksDlpSyncRouteImport.update({
-  id: '/api/public/hooks/dlp-sync',
-  path: '/api/public/hooks/dlp-sync',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicHooksDastStaleScanSweepRoute =
-  ApiPublicHooksDastStaleScanSweepRouteImport.update({
-    id: '/api/public/hooks/dast-stale-scan-sweep',
-    path: '/api/public/hooks/dast-stale-scan-sweep',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksDastSchedulesRunRoute =
-  ApiPublicHooksDastSchedulesRunRouteImport.update({
-    id: '/api/public/hooks/dast-schedules-run',
-    path: '/api/public/hooks/dast-schedules-run',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksDastCallbackRoute =
-  ApiPublicHooksDastCallbackRouteImport.update({
-    id: '/api/public/hooks/dast-callback',
-    path: '/api/public/hooks/dast-callback',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksCtiMonitorRunRoute =
-  ApiPublicHooksCtiMonitorRunRouteImport.update({
-    id: '/api/public/hooks/cti-monitor-run',
-    path: '/api/public/hooks/cti-monitor-run',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksCmdbDnsCacheRefreshRoute =
-  ApiPublicHooksCmdbDnsCacheRefreshRouteImport.update({
-    id: '/api/public/hooks/cmdb-dns-cache-refresh',
-    path: '/api/public/hooks/cmdb-dns-cache-refresh',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksCmdbDeviceAlertsRoute =
-  ApiPublicHooksCmdbDeviceAlertsRouteImport.update({
-    id: '/api/public/hooks/cmdb-device-alerts',
-    path: '/api/public/hooks/cmdb-device-alerts',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksCloudflareSyncRoute =
-  ApiPublicHooksCloudflareSyncRouteImport.update({
-    id: '/api/public/hooks/cloudflare-sync',
-    path: '/api/public/hooks/cloudflare-sync',
+const ApiPublicHooksAdStatusSyncRoute =
+  ApiPublicHooksAdStatusSyncRouteImport.update({
+    id: '/api/public/hooks/ad-status-sync',
+    path: '/api/public/hooks/ad-status-sync',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksAgentIngestRoute =
@@ -282,22 +105,199 @@ const ApiPublicHooksAgentIngestRoute =
     path: '/api/public/hooks/agent-ingest',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicHooksAdStatusSyncRoute =
-  ApiPublicHooksAdStatusSyncRouteImport.update({
-    id: '/api/public/hooks/ad-status-sync',
-    path: '/api/public/hooks/ad-status-sync',
+const ApiPublicHooksCloudflareSyncRoute =
+  ApiPublicHooksCloudflareSyncRouteImport.update({
+    id: '/api/public/hooks/cloudflare-sync',
+    path: '/api/public/hooks/cloudflare-sync',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicTreinamentosSsoCallbackRoute =
-  ApiPublicTreinamentosSsoCallbackRouteImport.update({
-    id: '/api/public/treinamentos/sso/callback',
-    path: '/api/public/treinamentos/sso/callback',
+const ApiPublicHooksCmdbDeviceAlertsRoute =
+  ApiPublicHooksCmdbDeviceAlertsRouteImport.update({
+    id: '/api/public/hooks/cmdb-device-alerts',
+    path: '/api/public/hooks/cmdb-device-alerts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksCmdbDnsCacheRefreshRoute =
+  ApiPublicHooksCmdbDnsCacheRefreshRouteImport.update({
+    id: '/api/public/hooks/cmdb-dns-cache-refresh',
+    path: '/api/public/hooks/cmdb-dns-cache-refresh',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksCtiMonitorRunRoute =
+  ApiPublicHooksCtiMonitorRunRouteImport.update({
+    id: '/api/public/hooks/cti-monitor-run',
+    path: '/api/public/hooks/cti-monitor-run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksDastCallbackRoute =
+  ApiPublicHooksDastCallbackRouteImport.update({
+    id: '/api/public/hooks/dast-callback',
+    path: '/api/public/hooks/dast-callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksDastSchedulesRunRoute =
+  ApiPublicHooksDastSchedulesRunRouteImport.update({
+    id: '/api/public/hooks/dast-schedules-run',
+    path: '/api/public/hooks/dast-schedules-run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksDastStaleScanSweepRoute =
+  ApiPublicHooksDastStaleScanSweepRouteImport.update({
+    id: '/api/public/hooks/dast-stale-scan-sweep',
+    path: '/api/public/hooks/dast-stale-scan-sweep',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksDlpSyncRoute = ApiPublicHooksDlpSyncRouteImport.update({
+  id: '/api/public/hooks/dlp-sync',
+  path: '/api/public/hooks/dlp-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHooksDomainsCheckRoute =
+  ApiPublicHooksDomainsCheckRouteImport.update({
+    id: '/api/public/hooks/domains-check',
+    path: '/api/public/hooks/domains-check',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksFornecedoresCheckRoute =
+  ApiPublicHooksFornecedoresCheckRouteImport.update({
+    id: '/api/public/hooks/fornecedores-check',
+    path: '/api/public/hooks/fornecedores-check',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksGmudEscalateRoute =
+  ApiPublicHooksGmudEscalateRouteImport.update({
+    id: '/api/public/hooks/gmud-escalate',
+    path: '/api/public/hooks/gmud-escalate',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksGophishSyncRoute =
+  ApiPublicHooksGophishSyncRouteImport.update({
+    id: '/api/public/hooks/gophish-sync',
+    path: '/api/public/hooks/gophish-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksLeakradarSyncRoute =
+  ApiPublicHooksLeakradarSyncRouteImport.update({
+    id: '/api/public/hooks/leakradar-sync',
+    path: '/api/public/hooks/leakradar-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksPrivacyToolsSyncRoute =
+  ApiPublicHooksPrivacyToolsSyncRouteImport.update({
+    id: '/api/public/hooks/privacy-tools-sync',
+    path: '/api/public/hooks/privacy-tools-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksQradarSyncRoute =
+  ApiPublicHooksQradarSyncRouteImport.update({
+    id: '/api/public/hooks/qradar-sync',
+    path: '/api/public/hooks/qradar-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksQradarSyncManualRoute =
+  ApiPublicHooksQradarSyncManualRouteImport.update({
+    id: '/api/public/hooks/qradar-sync-manual',
+    path: '/api/public/hooks/qradar-sync-manual',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksQradarSyncWatchdogRoute =
+  ApiPublicHooksQradarSyncWatchdogRouteImport.update({
+    id: '/api/public/hooks/qradar-sync-watchdog',
+    path: '/api/public/hooks/qradar-sync-watchdog',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksRankingIaSyncRoute =
+  ApiPublicHooksRankingIaSyncRouteImport.update({
+    id: '/api/public/hooks/ranking-ia-sync',
+    path: '/api/public/hooks/ranking-ia-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSastIngestRoute =
+  ApiPublicHooksSastIngestRouteImport.update({
+    id: '/api/public/hooks/sast-ingest',
+    path: '/api/public/hooks/sast-ingest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSastSyncRoute = ApiPublicHooksSastSyncRouteImport.update({
+  id: '/api/public/hooks/sast-sync',
+  path: '/api/public/hooks/sast-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHooksSekZendeskAuthLogRoute =
+  ApiPublicHooksSekZendeskAuthLogRouteImport.update({
+    id: '/api/public/hooks/sek-zendesk-auth-log',
+    path: '/api/public/hooks/sek-zendesk-auth-log',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSekZendeskSessionUploadRoute =
+  ApiPublicHooksSekZendeskSessionUploadRouteImport.update({
+    id: '/api/public/hooks/sek-zendesk-session-upload',
+    path: '/api/public/hooks/sek-zendesk-session-upload',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSekZendeskSyncRoute =
+  ApiPublicHooksSekZendeskSyncRouteImport.update({
+    id: '/api/public/hooks/sek-zendesk-sync',
+    path: '/api/public/hooks/sek-zendesk-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSekZendeskTicketsSyncRoute =
+  ApiPublicHooksSekZendeskTicketsSyncRouteImport.update({
+    id: '/api/public/hooks/sek-zendesk-tickets-sync',
+    path: '/api/public/hooks/sek-zendesk-tickets-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksShadowitCallbackRoute =
+  ApiPublicHooksShadowitCallbackRouteImport.update({
+    id: '/api/public/hooks/shadowit-callback',
+    path: '/api/public/hooks/shadowit-callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSophosAuditSyncRoute =
+  ApiPublicHooksSophosAuditSyncRouteImport.update({
+    id: '/api/public/hooks/sophos-audit-sync',
+    path: '/api/public/hooks/sophos-audit-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSophosIaSyncRoute =
+  ApiPublicHooksSophosIaSyncRouteImport.update({
+    id: '/api/public/hooks/sophos-ia-sync',
+    path: '/api/public/hooks/sophos-ia-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSophosSyncRoute =
+  ApiPublicHooksSophosSyncRouteImport.update({
+    id: '/api/public/hooks/sophos-sync',
+    path: '/api/public/hooks/sophos-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSslCheckRoute = ApiPublicHooksSslCheckRouteImport.update({
+  id: '/api/public/hooks/ssl-check',
+  path: '/api/public/hooks/ssl-check',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHooksVulnSnapshotRoute =
+  ApiPublicHooksVulnSnapshotRouteImport.update({
+    id: '/api/public/hooks/vuln-snapshot',
+    path: '/api/public/hooks/vuln-snapshot',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksZabbixCacheRefreshRoute =
+  ApiPublicHooksZabbixCacheRefreshRouteImport.update({
+    id: '/api/public/hooks/zabbix-cache-refresh',
+    path: '/api/public/hooks/zabbix-cache-refresh',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicAuthAzureCallbackRoute =
   ApiPublicAuthAzureCallbackRouteImport.update({
     id: '/api/public/auth/azure/callback',
     path: '/api/public/auth/azure/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicTreinamentosSsoCallbackRoute =
+  ApiPublicTreinamentosSsoCallbackRouteImport.update({
+    id: '/api/public/treinamentos/sso/callback',
+    path: '/api/public/treinamentos/sso/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -622,39 +622,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/trust': {
-      id: '/trust'
-      path: '/trust'
-      fullPath: '/trust'
-      preLoaderRoute: typeof TrustRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/treinamentos': {
-      id: '/treinamentos'
-      path: '/treinamentos'
-      fullPath: '/treinamentos'
-      preLoaderRoute: typeof TreinamentosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ativar': {
-      id: '/ativar'
-      path: '/ativar'
-      fullPath: '/ativar'
-      preLoaderRoute: typeof AtivarRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app': {
@@ -664,11 +636,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/ativar': {
+      id: '/ativar'
+      path: '/ativar'
+      fullPath: '/ativar'
+      preLoaderRoute: typeof AtivarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/treinamentos': {
+      id: '/treinamentos'
+      path: '/treinamentos'
+      fullPath: '/treinamentos'
+      preLoaderRoute: typeof TreinamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trust': {
+      id: '/trust'
+      path: '/trust'
+      fullPath: '/trust'
+      preLoaderRoute: typeof TrustRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/$module': {
@@ -678,221 +678,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppModuleRouteImport
       parentRoute: typeof AppRoute
     }
-    '/api/public/hooks/zabbix-cache-refresh': {
-      id: '/api/public/hooks/zabbix-cache-refresh'
-      path: '/api/public/hooks/zabbix-cache-refresh'
-      fullPath: '/api/public/hooks/zabbix-cache-refresh'
-      preLoaderRoute: typeof ApiPublicHooksZabbixCacheRefreshRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/vuln-snapshot': {
-      id: '/api/public/hooks/vuln-snapshot'
-      path: '/api/public/hooks/vuln-snapshot'
-      fullPath: '/api/public/hooks/vuln-snapshot'
-      preLoaderRoute: typeof ApiPublicHooksVulnSnapshotRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/ssl-check': {
-      id: '/api/public/hooks/ssl-check'
-      path: '/api/public/hooks/ssl-check'
-      fullPath: '/api/public/hooks/ssl-check'
-      preLoaderRoute: typeof ApiPublicHooksSslCheckRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sophos-sync': {
-      id: '/api/public/hooks/sophos-sync'
-      path: '/api/public/hooks/sophos-sync'
-      fullPath: '/api/public/hooks/sophos-sync'
-      preLoaderRoute: typeof ApiPublicHooksSophosSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sophos-ia-sync': {
-      id: '/api/public/hooks/sophos-ia-sync'
-      path: '/api/public/hooks/sophos-ia-sync'
-      fullPath: '/api/public/hooks/sophos-ia-sync'
-      preLoaderRoute: typeof ApiPublicHooksSophosIaSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sophos-audit-sync': {
-      id: '/api/public/hooks/sophos-audit-sync'
-      path: '/api/public/hooks/sophos-audit-sync'
-      fullPath: '/api/public/hooks/sophos-audit-sync'
-      preLoaderRoute: typeof ApiPublicHooksSophosAuditSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/shadowit-callback': {
-      id: '/api/public/hooks/shadowit-callback'
-      path: '/api/public/hooks/shadowit-callback'
-      fullPath: '/api/public/hooks/shadowit-callback'
-      preLoaderRoute: typeof ApiPublicHooksShadowitCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sek-zendesk-tickets-sync': {
-      id: '/api/public/hooks/sek-zendesk-tickets-sync'
-      path: '/api/public/hooks/sek-zendesk-tickets-sync'
-      fullPath: '/api/public/hooks/sek-zendesk-tickets-sync'
-      preLoaderRoute: typeof ApiPublicHooksSekZendeskTicketsSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sek-zendesk-sync': {
-      id: '/api/public/hooks/sek-zendesk-sync'
-      path: '/api/public/hooks/sek-zendesk-sync'
-      fullPath: '/api/public/hooks/sek-zendesk-sync'
-      preLoaderRoute: typeof ApiPublicHooksSekZendeskSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sek-zendesk-session-upload': {
-      id: '/api/public/hooks/sek-zendesk-session-upload'
-      path: '/api/public/hooks/sek-zendesk-session-upload'
-      fullPath: '/api/public/hooks/sek-zendesk-session-upload'
-      preLoaderRoute: typeof ApiPublicHooksSekZendeskSessionUploadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sek-zendesk-auth-log': {
-      id: '/api/public/hooks/sek-zendesk-auth-log'
-      path: '/api/public/hooks/sek-zendesk-auth-log'
-      fullPath: '/api/public/hooks/sek-zendesk-auth-log'
-      preLoaderRoute: typeof ApiPublicHooksSekZendeskAuthLogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sast-sync': {
-      id: '/api/public/hooks/sast-sync'
-      path: '/api/public/hooks/sast-sync'
-      fullPath: '/api/public/hooks/sast-sync'
-      preLoaderRoute: typeof ApiPublicHooksSastSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/sast-ingest': {
-      id: '/api/public/hooks/sast-ingest'
-      path: '/api/public/hooks/sast-ingest'
-      fullPath: '/api/public/hooks/sast-ingest'
-      preLoaderRoute: typeof ApiPublicHooksSastIngestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/ranking-ia-sync': {
-      id: '/api/public/hooks/ranking-ia-sync'
-      path: '/api/public/hooks/ranking-ia-sync'
-      fullPath: '/api/public/hooks/ranking-ia-sync'
-      preLoaderRoute: typeof ApiPublicHooksRankingIaSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/qradar-sync-watchdog': {
-      id: '/api/public/hooks/qradar-sync-watchdog'
-      path: '/api/public/hooks/qradar-sync-watchdog'
-      fullPath: '/api/public/hooks/qradar-sync-watchdog'
-      preLoaderRoute: typeof ApiPublicHooksQradarSyncWatchdogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/qradar-sync-manual': {
-      id: '/api/public/hooks/qradar-sync-manual'
-      path: '/api/public/hooks/qradar-sync-manual'
-      fullPath: '/api/public/hooks/qradar-sync-manual'
-      preLoaderRoute: typeof ApiPublicHooksQradarSyncManualRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/qradar-sync': {
-      id: '/api/public/hooks/qradar-sync'
-      path: '/api/public/hooks/qradar-sync'
-      fullPath: '/api/public/hooks/qradar-sync'
-      preLoaderRoute: typeof ApiPublicHooksQradarSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/privacy-tools-sync': {
-      id: '/api/public/hooks/privacy-tools-sync'
-      path: '/api/public/hooks/privacy-tools-sync'
-      fullPath: '/api/public/hooks/privacy-tools-sync'
-      preLoaderRoute: typeof ApiPublicHooksPrivacyToolsSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/leakradar-sync': {
-      id: '/api/public/hooks/leakradar-sync'
-      path: '/api/public/hooks/leakradar-sync'
-      fullPath: '/api/public/hooks/leakradar-sync'
-      preLoaderRoute: typeof ApiPublicHooksLeakradarSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/gophish-sync': {
-      id: '/api/public/hooks/gophish-sync'
-      path: '/api/public/hooks/gophish-sync'
-      fullPath: '/api/public/hooks/gophish-sync'
-      preLoaderRoute: typeof ApiPublicHooksGophishSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/gmud-escalate': {
-      id: '/api/public/hooks/gmud-escalate'
-      path: '/api/public/hooks/gmud-escalate'
-      fullPath: '/api/public/hooks/gmud-escalate'
-      preLoaderRoute: typeof ApiPublicHooksGmudEscalateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/fornecedores-check': {
-      id: '/api/public/hooks/fornecedores-check'
-      path: '/api/public/hooks/fornecedores-check'
-      fullPath: '/api/public/hooks/fornecedores-check'
-      preLoaderRoute: typeof ApiPublicHooksFornecedoresCheckRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/domains-check': {
-      id: '/api/public/hooks/domains-check'
-      path: '/api/public/hooks/domains-check'
-      fullPath: '/api/public/hooks/domains-check'
-      preLoaderRoute: typeof ApiPublicHooksDomainsCheckRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/dlp-sync': {
-      id: '/api/public/hooks/dlp-sync'
-      path: '/api/public/hooks/dlp-sync'
-      fullPath: '/api/public/hooks/dlp-sync'
-      preLoaderRoute: typeof ApiPublicHooksDlpSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/dast-stale-scan-sweep': {
-      id: '/api/public/hooks/dast-stale-scan-sweep'
-      path: '/api/public/hooks/dast-stale-scan-sweep'
-      fullPath: '/api/public/hooks/dast-stale-scan-sweep'
-      preLoaderRoute: typeof ApiPublicHooksDastStaleScanSweepRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/dast-schedules-run': {
-      id: '/api/public/hooks/dast-schedules-run'
-      path: '/api/public/hooks/dast-schedules-run'
-      fullPath: '/api/public/hooks/dast-schedules-run'
-      preLoaderRoute: typeof ApiPublicHooksDastSchedulesRunRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/dast-callback': {
-      id: '/api/public/hooks/dast-callback'
-      path: '/api/public/hooks/dast-callback'
-      fullPath: '/api/public/hooks/dast-callback'
-      preLoaderRoute: typeof ApiPublicHooksDastCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/cti-monitor-run': {
-      id: '/api/public/hooks/cti-monitor-run'
-      path: '/api/public/hooks/cti-monitor-run'
-      fullPath: '/api/public/hooks/cti-monitor-run'
-      preLoaderRoute: typeof ApiPublicHooksCtiMonitorRunRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/cmdb-dns-cache-refresh': {
-      id: '/api/public/hooks/cmdb-dns-cache-refresh'
-      path: '/api/public/hooks/cmdb-dns-cache-refresh'
-      fullPath: '/api/public/hooks/cmdb-dns-cache-refresh'
-      preLoaderRoute: typeof ApiPublicHooksCmdbDnsCacheRefreshRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/cmdb-device-alerts': {
-      id: '/api/public/hooks/cmdb-device-alerts'
-      path: '/api/public/hooks/cmdb-device-alerts'
-      fullPath: '/api/public/hooks/cmdb-device-alerts'
-      preLoaderRoute: typeof ApiPublicHooksCmdbDeviceAlertsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/cloudflare-sync': {
-      id: '/api/public/hooks/cloudflare-sync'
-      path: '/api/public/hooks/cloudflare-sync'
-      fullPath: '/api/public/hooks/cloudflare-sync'
-      preLoaderRoute: typeof ApiPublicHooksCloudflareSyncRouteImport
+    '/api/public/hooks/ad-status-sync': {
+      id: '/api/public/hooks/ad-status-sync'
+      path: '/api/public/hooks/ad-status-sync'
+      fullPath: '/api/public/hooks/ad-status-sync'
+      preLoaderRoute: typeof ApiPublicHooksAdStatusSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/agent-ingest': {
@@ -902,18 +692,221 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksAgentIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/hooks/ad-status-sync': {
-      id: '/api/public/hooks/ad-status-sync'
-      path: '/api/public/hooks/ad-status-sync'
-      fullPath: '/api/public/hooks/ad-status-sync'
-      preLoaderRoute: typeof ApiPublicHooksAdStatusSyncRouteImport
+    '/api/public/hooks/cloudflare-sync': {
+      id: '/api/public/hooks/cloudflare-sync'
+      path: '/api/public/hooks/cloudflare-sync'
+      fullPath: '/api/public/hooks/cloudflare-sync'
+      preLoaderRoute: typeof ApiPublicHooksCloudflareSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/treinamentos/sso/callback': {
-      id: '/api/public/treinamentos/sso/callback'
-      path: '/api/public/treinamentos/sso/callback'
-      fullPath: '/api/public/treinamentos/sso/callback'
-      preLoaderRoute: typeof ApiPublicTreinamentosSsoCallbackRouteImport
+    '/api/public/hooks/cmdb-device-alerts': {
+      id: '/api/public/hooks/cmdb-device-alerts'
+      path: '/api/public/hooks/cmdb-device-alerts'
+      fullPath: '/api/public/hooks/cmdb-device-alerts'
+      preLoaderRoute: typeof ApiPublicHooksCmdbDeviceAlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/cmdb-dns-cache-refresh': {
+      id: '/api/public/hooks/cmdb-dns-cache-refresh'
+      path: '/api/public/hooks/cmdb-dns-cache-refresh'
+      fullPath: '/api/public/hooks/cmdb-dns-cache-refresh'
+      preLoaderRoute: typeof ApiPublicHooksCmdbDnsCacheRefreshRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/cti-monitor-run': {
+      id: '/api/public/hooks/cti-monitor-run'
+      path: '/api/public/hooks/cti-monitor-run'
+      fullPath: '/api/public/hooks/cti-monitor-run'
+      preLoaderRoute: typeof ApiPublicHooksCtiMonitorRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/dast-callback': {
+      id: '/api/public/hooks/dast-callback'
+      path: '/api/public/hooks/dast-callback'
+      fullPath: '/api/public/hooks/dast-callback'
+      preLoaderRoute: typeof ApiPublicHooksDastCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/dast-schedules-run': {
+      id: '/api/public/hooks/dast-schedules-run'
+      path: '/api/public/hooks/dast-schedules-run'
+      fullPath: '/api/public/hooks/dast-schedules-run'
+      preLoaderRoute: typeof ApiPublicHooksDastSchedulesRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/dast-stale-scan-sweep': {
+      id: '/api/public/hooks/dast-stale-scan-sweep'
+      path: '/api/public/hooks/dast-stale-scan-sweep'
+      fullPath: '/api/public/hooks/dast-stale-scan-sweep'
+      preLoaderRoute: typeof ApiPublicHooksDastStaleScanSweepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/dlp-sync': {
+      id: '/api/public/hooks/dlp-sync'
+      path: '/api/public/hooks/dlp-sync'
+      fullPath: '/api/public/hooks/dlp-sync'
+      preLoaderRoute: typeof ApiPublicHooksDlpSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/domains-check': {
+      id: '/api/public/hooks/domains-check'
+      path: '/api/public/hooks/domains-check'
+      fullPath: '/api/public/hooks/domains-check'
+      preLoaderRoute: typeof ApiPublicHooksDomainsCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/fornecedores-check': {
+      id: '/api/public/hooks/fornecedores-check'
+      path: '/api/public/hooks/fornecedores-check'
+      fullPath: '/api/public/hooks/fornecedores-check'
+      preLoaderRoute: typeof ApiPublicHooksFornecedoresCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/gmud-escalate': {
+      id: '/api/public/hooks/gmud-escalate'
+      path: '/api/public/hooks/gmud-escalate'
+      fullPath: '/api/public/hooks/gmud-escalate'
+      preLoaderRoute: typeof ApiPublicHooksGmudEscalateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/gophish-sync': {
+      id: '/api/public/hooks/gophish-sync'
+      path: '/api/public/hooks/gophish-sync'
+      fullPath: '/api/public/hooks/gophish-sync'
+      preLoaderRoute: typeof ApiPublicHooksGophishSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/leakradar-sync': {
+      id: '/api/public/hooks/leakradar-sync'
+      path: '/api/public/hooks/leakradar-sync'
+      fullPath: '/api/public/hooks/leakradar-sync'
+      preLoaderRoute: typeof ApiPublicHooksLeakradarSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/privacy-tools-sync': {
+      id: '/api/public/hooks/privacy-tools-sync'
+      path: '/api/public/hooks/privacy-tools-sync'
+      fullPath: '/api/public/hooks/privacy-tools-sync'
+      preLoaderRoute: typeof ApiPublicHooksPrivacyToolsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/qradar-sync': {
+      id: '/api/public/hooks/qradar-sync'
+      path: '/api/public/hooks/qradar-sync'
+      fullPath: '/api/public/hooks/qradar-sync'
+      preLoaderRoute: typeof ApiPublicHooksQradarSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/qradar-sync-manual': {
+      id: '/api/public/hooks/qradar-sync-manual'
+      path: '/api/public/hooks/qradar-sync-manual'
+      fullPath: '/api/public/hooks/qradar-sync-manual'
+      preLoaderRoute: typeof ApiPublicHooksQradarSyncManualRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/qradar-sync-watchdog': {
+      id: '/api/public/hooks/qradar-sync-watchdog'
+      path: '/api/public/hooks/qradar-sync-watchdog'
+      fullPath: '/api/public/hooks/qradar-sync-watchdog'
+      preLoaderRoute: typeof ApiPublicHooksQradarSyncWatchdogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/ranking-ia-sync': {
+      id: '/api/public/hooks/ranking-ia-sync'
+      path: '/api/public/hooks/ranking-ia-sync'
+      fullPath: '/api/public/hooks/ranking-ia-sync'
+      preLoaderRoute: typeof ApiPublicHooksRankingIaSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sast-ingest': {
+      id: '/api/public/hooks/sast-ingest'
+      path: '/api/public/hooks/sast-ingest'
+      fullPath: '/api/public/hooks/sast-ingest'
+      preLoaderRoute: typeof ApiPublicHooksSastIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sast-sync': {
+      id: '/api/public/hooks/sast-sync'
+      path: '/api/public/hooks/sast-sync'
+      fullPath: '/api/public/hooks/sast-sync'
+      preLoaderRoute: typeof ApiPublicHooksSastSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sek-zendesk-auth-log': {
+      id: '/api/public/hooks/sek-zendesk-auth-log'
+      path: '/api/public/hooks/sek-zendesk-auth-log'
+      fullPath: '/api/public/hooks/sek-zendesk-auth-log'
+      preLoaderRoute: typeof ApiPublicHooksSekZendeskAuthLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sek-zendesk-session-upload': {
+      id: '/api/public/hooks/sek-zendesk-session-upload'
+      path: '/api/public/hooks/sek-zendesk-session-upload'
+      fullPath: '/api/public/hooks/sek-zendesk-session-upload'
+      preLoaderRoute: typeof ApiPublicHooksSekZendeskSessionUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sek-zendesk-sync': {
+      id: '/api/public/hooks/sek-zendesk-sync'
+      path: '/api/public/hooks/sek-zendesk-sync'
+      fullPath: '/api/public/hooks/sek-zendesk-sync'
+      preLoaderRoute: typeof ApiPublicHooksSekZendeskSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sek-zendesk-tickets-sync': {
+      id: '/api/public/hooks/sek-zendesk-tickets-sync'
+      path: '/api/public/hooks/sek-zendesk-tickets-sync'
+      fullPath: '/api/public/hooks/sek-zendesk-tickets-sync'
+      preLoaderRoute: typeof ApiPublicHooksSekZendeskTicketsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/shadowit-callback': {
+      id: '/api/public/hooks/shadowit-callback'
+      path: '/api/public/hooks/shadowit-callback'
+      fullPath: '/api/public/hooks/shadowit-callback'
+      preLoaderRoute: typeof ApiPublicHooksShadowitCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sophos-audit-sync': {
+      id: '/api/public/hooks/sophos-audit-sync'
+      path: '/api/public/hooks/sophos-audit-sync'
+      fullPath: '/api/public/hooks/sophos-audit-sync'
+      preLoaderRoute: typeof ApiPublicHooksSophosAuditSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sophos-ia-sync': {
+      id: '/api/public/hooks/sophos-ia-sync'
+      path: '/api/public/hooks/sophos-ia-sync'
+      fullPath: '/api/public/hooks/sophos-ia-sync'
+      preLoaderRoute: typeof ApiPublicHooksSophosIaSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sophos-sync': {
+      id: '/api/public/hooks/sophos-sync'
+      path: '/api/public/hooks/sophos-sync'
+      fullPath: '/api/public/hooks/sophos-sync'
+      preLoaderRoute: typeof ApiPublicHooksSophosSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/ssl-check': {
+      id: '/api/public/hooks/ssl-check'
+      path: '/api/public/hooks/ssl-check'
+      fullPath: '/api/public/hooks/ssl-check'
+      preLoaderRoute: typeof ApiPublicHooksSslCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/vuln-snapshot': {
+      id: '/api/public/hooks/vuln-snapshot'
+      path: '/api/public/hooks/vuln-snapshot'
+      fullPath: '/api/public/hooks/vuln-snapshot'
+      preLoaderRoute: typeof ApiPublicHooksVulnSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/zabbix-cache-refresh': {
+      id: '/api/public/hooks/zabbix-cache-refresh'
+      path: '/api/public/hooks/zabbix-cache-refresh'
+      fullPath: '/api/public/hooks/zabbix-cache-refresh'
+      preLoaderRoute: typeof ApiPublicHooksZabbixCacheRefreshRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/auth/azure/callback': {
@@ -921,6 +914,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/auth/azure/callback'
       fullPath: '/api/public/auth/azure/callback'
       preLoaderRoute: typeof ApiPublicAuthAzureCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/treinamentos/sso/callback': {
+      id: '/api/public/treinamentos/sso/callback'
+      path: '/api/public/treinamentos/sso/callback'
+      fullPath: '/api/public/treinamentos/sso/callback'
+      preLoaderRoute: typeof ApiPublicTreinamentosSsoCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
