@@ -10,7 +10,9 @@ function isValidHostnameFormat(host: string): boolean {
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false; // literal IPv4
   const labels = host.split(".");
   if (labels.length < 2) return false;
-  return labels.every((l) => l.length > 0 && l.length <= 63 && !l.startsWith("-") && !l.endsWith("-"));
+  return labels.every(
+    (l) => l.length > 0 && l.length <= 63 && !l.startsWith("-") && !l.endsWith("-"),
+  );
 }
 
 function isPrivateOrReservedIp(ip: string): boolean {
@@ -27,7 +29,12 @@ function isPrivateOrReservedIp(ip: string): boolean {
   }
   const lower = ip.toLowerCase();
   if (lower === "::1") return true;
-  if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb"))
+  if (
+    lower.startsWith("fe8") ||
+    lower.startsWith("fe9") ||
+    lower.startsWith("fea") ||
+    lower.startsWith("feb")
+  )
     return true; // fe80::/10
   if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // fc00::/7
   if (lower.startsWith("::ffff:")) {
@@ -64,11 +71,36 @@ function headRequestToIp(ip: string, hostname: string): Promise<string | null> {
   });
 }
 
+// Valida uma URL de destino antes de fazer POST nela (ex.: validação de
+// credencial contra o endpoint de login de uma aplicação própria): exige https,
+// host em formato de domínio (sem IP literal) e que resolva para IP público.
+// Devolve a URL já parseada. Fecha a maior parte do vetor de SSRF; sobra uma
+// janela pequena de DNS rebinding porque o fetch re-resolve o host — aceitável
+// aqui, já que o endpoint é fixo e cadastrado por admin, não entrada por requisição.
+export async function assertPublicHttpsUrl(rawUrl: string): Promise<URL> {
+  let u: URL;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    throw new Error("URL de login inválida.");
+  }
+  if (u.protocol !== "https:") throw new Error("O endpoint de login precisa usar https.");
+  if (!isValidHostnameFormat(u.hostname)) {
+    throw new Error("Host do endpoint inválido (não use IP literal nem porta).");
+  }
+  const addresses = await dnsLookup(u.hostname, { all: true });
+  if (addresses.length === 0 || addresses.some((a) => isPrivateOrReservedIp(a.address))) {
+    throw new Error("O endpoint de login resolve para um IP privado ou reservado.");
+  }
+  return u;
+}
+
 export async function safeFetchAge(hostname: string): Promise<number | null> {
   if (!isValidHostnameFormat(hostname)) return null;
   try {
     const addresses = await dnsLookup(hostname, { all: true });
-    if (addresses.length === 0 || addresses.some((a) => isPrivateOrReservedIp(a.address))) return null;
+    if (addresses.length === 0 || addresses.some((a) => isPrivateOrReservedIp(a.address)))
+      return null;
 
     const ageHeader = await headRequestToIp(addresses[0].address, hostname);
     return ageHeader !== null ? Number(ageHeader) : null;

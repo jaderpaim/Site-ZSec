@@ -59,6 +59,7 @@ import { DastScannerDashboard } from "./DastScanner";
 import { ShadowItDashboard } from "./ShadowIt";
 import { SastDashboard } from "./Sast";
 import { DlpDashboard } from "./Dlp";
+import { ThreatIntelDashboard } from "./ThreatIntel";
 
 const C = {
   primary: "oklch(0.66 0.18 254)",
@@ -455,6 +456,7 @@ export const DASHBOARDS: Record<string, () => React.ReactElement> = {
   "shadow-it": ShadowItDashboard,
   sast: SastDashboard,
   dlp: DlpDashboard,
+  "threat-intel": ThreatIntelDashboard,
   politicas: PoliticasDashboard,
   gmud: GmudDashboard,
   maturidade: MaturidadeDashboard,

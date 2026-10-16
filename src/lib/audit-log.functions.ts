@@ -16,7 +16,8 @@ export type AuditModule =
   | "shadow-it"
   | "sast"
   | "disponibilidade"
-  | "dominios-ssl";
+  | "dominios-ssl"
+  | "threat-intel";
 
 type LogAuditParams = {
   userId: string;

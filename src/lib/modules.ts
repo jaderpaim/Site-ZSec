@@ -102,6 +102,14 @@ export const MODULES: ModuleDef[] = [
     headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
   },
   {
+    slug: "threat-intel",
+    title: "Threat Intelligence",
+    short: "Threat Intel",
+    group: "Monitoramento",
+    icon: KeyRound,
+    headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
+  },
+  {
     slug: "ranking-ia",
     title: "Ranking de Uso de IA",
     short: "Ranking IA",
