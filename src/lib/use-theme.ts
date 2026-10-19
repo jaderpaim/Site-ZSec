@@ -1,36 +1,53 @@
 import * as React from "react";
+import { useUserSettings } from "@/lib/use-user-settings";
 
 export type Theme = "dark" | "light";
 
 const STORAGE_KEY = "bsec.theme";
 
+function applyToDom(next: Theme) {
+  const root = document.documentElement;
+  root.setAttribute("data-theme", next);
+  // As variantes `dark:` do Tailwind dependem da classe .dark no <html>
+  root.classList.toggle("dark", next === "dark");
+  try {
+    localStorage.setItem(STORAGE_KEY, next);
+  } catch {
+    /* storage indisponível: só perde o cache da primeira pintura */
+  }
+}
+
 /**
- * Tema da interface v2. O valor inicial é aplicado no <html> por um script inline
- * em __root.tsx (antes da primeira pintura); aqui só lemos e alternamos.
+ * Tema da interface v2. Fonte da verdade: user_settings.theme (segue o usuário
+ * entre máquinas). O localStorage é só cache para o script inline do
+ * __root.tsx pintar o tema certo antes do React carregar.
  */
 export function useTheme() {
-  const [theme, setTheme] = React.useState<Theme>("dark");
+  const { row, update } = useUserSettings();
+  const [theme, setThemeState] = React.useState<Theme>("dark");
 
   React.useEffect(() => {
-    setTheme(document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark");
+    setThemeState(
+      document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark",
+    );
   }, []);
 
-  const applyTheme = React.useCallback((next: Theme) => {
-    const root = document.documentElement;
-    root.setAttribute("data-theme", next);
-    // As variantes `dark:` do Tailwind dependem da classe .dark no <html>
-    root.classList.toggle("dark", next === "dark");
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      /* storage indisponível: o tema só não fica salvo */
-    }
-    setTheme(next);
-  }, []);
+  // O que está salvo no perfil vence o cache local (ex.: trocou o tema em outra máquina)
+  const savedTheme = row?.theme;
+  React.useEffect(() => {
+    if (!savedTheme) return;
+    applyToDom(savedTheme);
+    setThemeState(savedTheme);
+  }, [savedTheme]);
 
-  const toggleTheme = React.useCallback(() => {
-    applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light");
-  }, [applyTheme]);
+  const setTheme = React.useCallback(
+    (next: Theme) => {
+      applyToDom(next);
+      setThemeState(next);
+      update({ theme: next });
+    },
+    [update],
+  );
 
-  return { theme, setTheme: applyTheme, toggleTheme };
+  return { theme, setTheme };
 }

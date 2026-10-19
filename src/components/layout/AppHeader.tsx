@@ -1,8 +1,7 @@
 import * as React from "react";
 import { useMaintenance } from "@/lib/use-maintenance";
 import { Wrench } from "lucide-react";
-import { Download, Calendar, Save, Menu, Search, ChevronRight, Sun, Moon } from "lucide-react";
-import { useTheme } from "@/lib/use-theme";
+import { Download, Calendar, Save, Menu, Search, ChevronRight } from "lucide-react";
 import { MODULE_BY_SLUG } from "@/lib/modules";
 import { useShellState } from "@/components/layout/shell-state";
 import { useServerFn } from "@tanstack/react-start";
@@ -49,7 +48,6 @@ export function AppHeader({
 
   const hasFilters = !hidePeriod || !hideDepartment;
   const { setNavOpen, setSearchOpen } = useShellState();
-  const { theme, setTheme } = useTheme();
   const group = (moduleSlug && MODULE_BY_SLUG[moduleSlug]?.group) || subtitle;
 
   const fetchFilterDefault = useServerFn(getModuleFilterDefault);
@@ -294,35 +292,6 @@ export function AppHeader({
               ⌘K
             </kbd>
           </button>
-
-          <div
-            role="group"
-            aria-label="Tema"
-            className="h-8 inline-flex items-center p-0.5 gap-0.5 bg-v2-bg border border-v2-line rounded-lg"
-          >
-            {(
-              [
-                ["dark", "Escuro", Moon],
-                ["light", "Claro", Sun],
-              ] as const
-            ).map(([value, label, Icon]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTheme(value)}
-                aria-pressed={theme === value}
-                title={`Tema ${label.toLowerCase()}`}
-                className={`h-full inline-flex items-center gap-1.5 px-2.5 rounded-md text-[12.5px] transition-colors ${
-                  theme === value
-                    ? "bg-v2-surface text-v2-fg shadow-[0_0_0_1px_var(--v2-line)]"
-                    : "text-v2-fg-2 hover:text-v2-fg"
-                }`}
-              >
-                <Icon className="size-3.5" />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            ))}
-          </div>
         </div>
       </header>
     </>

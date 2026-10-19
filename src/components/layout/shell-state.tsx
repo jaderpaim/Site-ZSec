@@ -1,21 +1,44 @@
 import * as React from "react";
 
 /**
- * Estado compartilhado do shell: menu lateral aberto no mobile e busca ⌘K.
- * Fica no layout /app porque o AppHeader é renderizado por cada módulo.
+ * Estado compartilhado do shell: menu lateral aberto no mobile, modo recolhido
+ * da sidebar e busca ⌘K. Fica no layout /app porque o AppHeader é renderizado
+ * por cada módulo.
  */
 type ShellState = {
   navOpen: boolean;
   setNavOpen: (open: boolean) => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
+  railMode: boolean;
+  setRailMode: (rail: boolean) => void;
 };
+
+const RAIL_KEY = "bsec.sidebar.rail";
 
 const ShellContext = React.createContext<ShellState | null>(null);
 
 export function ShellStateProvider({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
+
+  // Recolhido é por máquina (notebook x monitor grande), por isso fica no navegador e não no perfil
+  const [railMode, setRailModeState] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      setRailModeState(localStorage.getItem(RAIL_KEY) === "1");
+    } catch {
+      /* storage indisponível: começa expandido */
+    }
+  }, []);
+  const setRailMode = React.useCallback((rail: boolean) => {
+    setRailModeState(rail);
+    try {
+      localStorage.setItem(RAIL_KEY, rail ? "1" : "0");
+    } catch {
+      /* storage indisponível: só não persiste */
+    }
+  }, []);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -29,8 +52,8 @@ export function ShellStateProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const value = React.useMemo(
-    () => ({ navOpen, setNavOpen, searchOpen, setSearchOpen }),
-    [navOpen, searchOpen],
+    () => ({ navOpen, setNavOpen, searchOpen, setSearchOpen, railMode, setRailMode }),
+    [navOpen, searchOpen, railMode, setRailMode],
   );
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }
