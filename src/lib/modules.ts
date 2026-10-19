@@ -67,6 +67,14 @@ export const MODULES: ModuleDef[] = [
     icon: Gauge,
     headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
   },
+  {
+    slug: "benchmark",
+    title: "Comparações – Benchmark",
+    short: "Benchmark",
+    group: "Executivo",
+    icon: BarChart3,
+    headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
+  },
   // ── Monitoramento ──────────────────────────────────────────────────────────
   {
     slug: "cloudflare-waf",
@@ -105,7 +113,7 @@ export const MODULES: ModuleDef[] = [
     slug: "threat-intel",
     title: "Threat Intelligence",
     short: "Threat Intel",
-    group: "Monitoramento",
+    group: "Operações",
     icon: KeyRound,
     headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
   },
@@ -167,14 +175,6 @@ export const MODULES: ModuleDef[] = [
   },
 
   // ── Governança ─────────────────────────────────────────────────────────────
-  {
-    slug: "benchmark",
-    title: "Comparações – Benchmark",
-    short: "Benchmark",
-    group: "Governança",
-    icon: BarChart3,
-    headerConfig: { hidePeriod: true, hideDepartment: true, hideExport: true },
-  },
   { slug: "comites", title: "Comitês", short: "Comitês", group: "Governança", icon: CalendarCheck },
   {
     slug: "nps",

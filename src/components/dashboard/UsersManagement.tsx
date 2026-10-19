@@ -1347,6 +1347,8 @@ function UserPermissionsSheet({
   );
   const [activeModule, setActiveModule] = useState<string | null>(null);
   const currentModule = activeModule ?? moduleSlugs[0] ?? null;
+  const [activeExclusive, setActiveExclusive] = useState<string | null>(null);
+  const currentExclusive = activeExclusive ?? exclusiveModuleSlugs[0] ?? null;
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["user-perms", userId] });
@@ -1462,6 +1464,10 @@ function UserPermissionsSheet({
     canManageUsers || viewerRole === "admin" || matrix.moduleAdmins.has(mod);
 
   const grantedCount = moduleSlugs.reduce(
+    (n, m) => n + actionsForModule(m).filter((a) => perms.has(`${m}:${a.action}`)).length,
+    0,
+  );
+  const exclusiveGrantedCount = exclusiveModuleSlugs.reduce(
     (n, m) => n + actionsForModule(m).filter((a) => perms.has(`${m}:${a.action}`)).length,
     0,
   );
@@ -1623,6 +1629,7 @@ function UserPermissionsSheet({
   };
 
   const curDef = currentModule ? MODULES.find((m) => m.slug === currentModule) : null;
+  const curExclDef = currentExclusive ? MODULES.find((m) => m.slug === currentExclusive) : null;
   const created = user.created_at ? new Date(user.created_at).toLocaleDateString("pt-BR") : null;
 
   return (
@@ -1727,7 +1734,7 @@ function UserPermissionsSheet({
               aria-selected={tab === "exclusive"}
               onClick={() => setTab("exclusive")}
             >
-              Exclusivas
+              Exclusivas {!isSuperAdmin && <span className="c">{exclusiveGrantedCount}</span>}
             </button>
           )}
         </div>
@@ -1960,25 +1967,46 @@ function UserPermissionsSheet({
 
         {tab === "exclusive" && canManageUsers && (
           <>
+            {isSuperAdmin && (
+              <div className="um-note">
+                Super Admin já tem todas as permissões dos módulos exclusivos — nada para ajustar
+                aqui.
+              </div>
+            )}
+            <div className="um-perm-box um-excl">
+              <div className="um-mlist">
+                <div className="g">Exclusivos</div>
+                {exclusiveModuleSlugs.map((slug) => {
+                  const m = MODULES.find((x) => x.slug === slug);
+                  const c = moduleCounter(slug);
+                  return (
+                    <button
+                      key={slug}
+                      aria-current={currentExclusive === slug}
+                      onClick={() => setActiveExclusive(slug)}
+                    >
+                      <span>
+                        <Lock size={11} style={{ verticalAlign: -1, marginRight: 6 }} />
+                        {m?.short ?? m?.title ?? slug}
+                      </span>
+                      <span className={`ct ${c.cls}`}>{c.text}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="um-mbody">
+                {currentExclusive && (
+                  <>
+                    <h4>{curExclDef?.title ?? currentExclusive}</h4>
+                    {renderActions(currentExclusive, true)}
+                  </>
+                )}
+              </div>
+            </div>
             <div className="um-note">
               Módulos com dados restritos. Só Super Admin vê esta aba e concede acesso — inclusive
               para Admins, que não têm acesso automático aqui.
             </div>
-            {exclusiveModuleSlugs.map((mod) => (
-              <section
-                key={mod}
-                className="um-perm-box um-excl"
-                style={{ gridTemplateColumns: "1fr", minHeight: 0 }}
-              >
-                <div className="um-mbody">
-                  <h4>
-                    <Lock size={13} style={{ verticalAlign: -1, marginRight: 6 }} />
-                    {MODULES.find((x) => x.slug === mod)?.title ?? mod}
-                  </h4>
-                  {renderActions(mod, true)}
-                </div>
-              </section>
-            ))}
           </>
         )}
       </div>
