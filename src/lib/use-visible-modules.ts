@@ -1,6 +1,15 @@
 import { MODULES, type ModuleDef, type ModuleGroup } from "@/lib/modules";
 import { useAuth } from "@/lib/auth-context";
 import { usePermissions } from "@/lib/use-permissions";
+import {
+  Eye,
+  Landmark,
+  LayoutDashboard,
+  Library,
+  Settings2,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 
 export const MODULE_GROUPS: readonly ModuleGroup[] = [
   "Executivo",
@@ -10,6 +19,18 @@ export const MODULE_GROUPS: readonly ModuleGroup[] = [
   "Cadastros",
   "Configurações",
 ] as const;
+
+export type GroupTone = "exec" | "mon" | "gov" | "ops" | "cad" | "cfg";
+
+/** Ícone e cor (token --v2-cat-*) de cada categoria no trilho da sidebar */
+export const GROUP_META: Record<ModuleGroup, { icon: LucideIcon; tone: GroupTone }> = {
+  Executivo: { icon: LayoutDashboard, tone: "exec" },
+  Monitoramento: { icon: Eye, tone: "mon" },
+  Governança: { icon: Landmark, tone: "gov" },
+  Operações: { icon: Wrench, tone: "ops" },
+  Cadastros: { icon: Library, tone: "cad" },
+  Configurações: { icon: Settings2, tone: "cfg" },
+};
 
 /**
  * Módulos que o usuário atual enxerga na navegação (sidebar e busca ⌘K).

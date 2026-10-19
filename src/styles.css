@@ -121,9 +121,17 @@
   --v2-med: oklch(0.83 0.14 88);
   --v2-low: oklch(0.7 0.07 240);
   --v2-ok: oklch(0.75 0.14 162);
+  /* Categorias do menu: saturação baixa de propósito, para não competir com as cores de severidade */
+  --v2-cat-pin: oklch(0.83 0.13 85);
+  --v2-cat-exec: oklch(0.75 0.13 305);
+  --v2-cat-mon: oklch(0.76 0.11 215);
+  --v2-cat-gov: oklch(0.77 0.1 180);
+  --v2-cat-ops: oklch(0.77 0.11 140);
+  --v2-cat-cad: oklch(0.79 0.08 65);
+  --v2-cat-cfg: oklch(0.73 0.025 255);
 }
 
-/* Tema claro (seletor Escuro/Claro no cabeçalho; valor salvo em localStorage "bsec.theme").
+/* Tema claro (seletor no menu da conta da sidebar; salvo em user_settings.theme e em cache no localStorage "bsec.theme").
    `.v2-light` força o claro num trecho da página, independente da escolha — usado
    na tela de login, que é sempre clara. */
 :root[data-theme="light"],
@@ -145,6 +153,13 @@
   --v2-med: oklch(0.62 0.14 75);
   --v2-low: oklch(0.56 0.08 245);
   --v2-ok: oklch(0.55 0.13 160);
+  --v2-cat-pin: oklch(0.6 0.13 80);
+  --v2-cat-exec: oklch(0.52 0.16 305);
+  --v2-cat-mon: oklch(0.52 0.12 215);
+  --v2-cat-gov: oklch(0.52 0.1 180);
+  --v2-cat-ops: oklch(0.5 0.11 140);
+  --v2-cat-cad: oklch(0.52 0.08 60);
+  --v2-cat-cfg: oklch(0.5 0.025 255);
 }
 
 
