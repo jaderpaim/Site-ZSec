@@ -17,6 +17,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as TreinamentosRouteImport } from './routes/treinamentos'
 import { Route as TrustRouteImport } from './routes/trust'
 import { Route as AppModuleRouteImport } from './routes/app.$module'
+import { Route as AppPerfilRouteImport } from './routes/app.perfil'
 import { Route as ApiPublicHooksAdStatusSyncRouteImport } from './routes/api/public/hooks/ad-status-sync'
 import { Route as ApiPublicHooksAgentIngestRouteImport } from './routes/api/public/hooks/agent-ingest'
 import { Route as ApiPublicHooksCloudflareSyncRouteImport } from './routes/api/public/hooks/cloudflare-sync'
@@ -91,6 +92,11 @@ const TrustRoute = TrustRouteImport.update({
 const AppModuleRoute = AppModuleRouteImport.update({
   id: '/$module',
   path: '/$module',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPerfilRoute = AppPerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiPublicHooksAdStatusSyncRoute =
@@ -310,6 +316,7 @@ export interface FileRoutesByFullPath {
   '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/app/perfil': typeof AppPerfilRoute
   '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
@@ -355,6 +362,7 @@ export interface FileRoutesByTo {
   '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/app/perfil': typeof AppPerfilRoute
   '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
@@ -401,6 +409,7 @@ export interface FileRoutesById {
   '/treinamentos': typeof TreinamentosRoute
   '/trust': typeof TrustRoute
   '/app/$module': typeof AppModuleRoute
+  '/app/perfil': typeof AppPerfilRoute
   '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
@@ -448,6 +457,7 @@ export interface FileRouteTypes {
     | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/app/perfil'
     | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
@@ -493,6 +503,7 @@ export interface FileRouteTypes {
     | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/app/perfil'
     | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
@@ -538,6 +549,7 @@ export interface FileRouteTypes {
     | '/treinamentos'
     | '/trust'
     | '/app/$module'
+    | '/app/perfil'
     | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
     | '/api/public/hooks/cloudflare-sync'
@@ -676,6 +688,13 @@ declare module '@tanstack/react-router' {
       path: '/$module'
       fullPath: '/app/$module'
       preLoaderRoute: typeof AppModuleRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/perfil': {
+      id: '/app/perfil'
+      path: '/perfil'
+      fullPath: '/app/perfil'
+      preLoaderRoute: typeof AppPerfilRouteImport
       parentRoute: typeof AppRoute
     }
     '/api/public/hooks/ad-status-sync': {
@@ -928,10 +947,12 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppModuleRoute: typeof AppModuleRoute
+  AppPerfilRoute: typeof AppPerfilRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppModuleRoute: AppModuleRoute,
+  AppPerfilRoute: AppPerfilRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

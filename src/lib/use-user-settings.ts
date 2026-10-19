@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 
-export type UserSettings = { theme: "dark" | "light"; pinned_modules: string[] };
+/** "system" = Auto: segue o claro/escuro do sistema operacional */
+export type ThemePreference = "dark" | "light" | "system";
+export type UserSettings = { theme: ThemePreference; pinned_modules: string[] };
 
 const DEFAULTS: UserSettings = { theme: "dark", pinned_modules: [] };
 
