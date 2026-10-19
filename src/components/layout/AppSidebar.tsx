@@ -1,13 +1,13 @@
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import {
   LogOut,
-  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
   Star,
-  Sun,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -23,12 +23,17 @@ import { usePinnedModules } from "@/lib/use-user-settings";
 import { useTheme, type Theme } from "@/lib/use-theme";
 import { APP_NAME } from "@/lib/brand";
 import {
+  SEGMENT_BASE,
+  SEGMENT_OFF,
+  SEGMENT_ON,
+  THEME_OPTIONS,
+} from "@/components/layout/ThemeSwitch";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -37,13 +42,8 @@ import {
 type CategoryKey = ModuleGroup | "fixados";
 type Indicators = Record<string, NavIndicator | undefined>;
 
-const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Super admin",
-  admin: "Administrador",
-  analista: "Analista",
-  visualizador: "Visualizador",
-  personalizado: "Personalizado",
-};
+const MENU_ITEM =
+  "gap-2 h-8 px-2 rounded-md text-[13px] text-v2-fg-2 cursor-pointer data-[highlighted]:bg-v2-hover data-[highlighted]:text-v2-fg";
 
 const TONE_CLASS: Record<NavIndicatorTone, string> = {
   crit: "bg-v2-crit/15 text-v2-crit",
@@ -504,10 +504,9 @@ function ModuleLink({
 }
 
 function AccountMenu() {
-  const { user, role, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const email = user?.email ?? "";
-  const displayName = email.split("@")[0].replace(/[._]/g, " ");
 
   return (
     <DropdownMenu>
@@ -527,26 +526,42 @@ function AccountMenu() {
         side="right"
         align="end"
         sideOffset={10}
-        className="w-60 font-ui bg-v2-surface border-v2-line text-v2-fg"
+        className="w-[232px] p-1.5 font-ui rounded-[10px] bg-v2-surface border-v2-line text-v2-fg shadow-2xl"
       >
-        <DropdownMenuLabel className="font-normal">
-          <div className="text-[13px] font-medium capitalize truncate">{displayName || "—"}</div>
-          <div className="text-[11px] text-v2-fg-3">{role ? (ROLE_LABEL[role] ?? role) : "—"}</div>
-          <div className="mt-1 font-data text-[11px] text-v2-fg-3 break-all">{email}</div>
+        <DropdownMenuLabel className="px-2 pt-1 pb-2 font-data text-[11px] font-normal text-v2-fg-3 break-all">
+          {email}
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-[11px] font-normal text-v2-fg-3">Tema</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v as Theme)}>
-          <DropdownMenuRadioItem value="dark" className="gap-2">
-            <Moon className="size-3.5" /> Escuro
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="light" className="gap-2">
-            <Sun className="size-3.5" /> Claro
-          </DropdownMenuRadioItem>
+        <DropdownMenuSeparator className="mx-0 mb-1.5 bg-v2-line" />
+        <DropdownMenuLabel className="px-2 pt-0.5 pb-1 text-[11px] font-normal text-v2-fg-3">
+          Tema
+        </DropdownMenuLabel>
+        {/* Itens de rádio do Radix estilizados como segmentos: mantém navegação por setas */}
+        <DropdownMenuRadioGroup
+          value={theme}
+          onValueChange={(v) => setTheme(v as Theme)}
+          className="mx-1 mb-1.5 grid grid-cols-3 gap-0.5 p-0.5 rounded-[7px] bg-v2-surface-2"
+        >
+          {THEME_OPTIONS.map(({ value, label, Icon }) => (
+            <DropdownMenuPrimitive.RadioItem
+              key={value}
+              value={value}
+              onSelect={(e) => e.preventDefault()}
+              className={`${SEGMENT_BASE} cursor-pointer ${theme === value ? SEGMENT_ON : SEGMENT_OFF} data-[highlighted]:text-v2-fg`}
+            >
+              <Icon className="size-3.5" />
+              {label}
+            </DropdownMenuPrimitive.RadioItem>
+          ))}
         </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        {/* "Meu perfil" entra aqui quando a tela de perfil existir */}
-        <DropdownMenuItem onSelect={() => signOut()} className="gap-2">
+        <DropdownMenuItem asChild className={MENU_ITEM}>
+          <Link to="/app/perfil">
+            <UserRound className="size-4" /> Meu perfil
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => signOut()}
+          className={`${MENU_ITEM} data-[highlighted]:text-v2-crit`}
+        >
           <LogOut className="size-4" /> Sair
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -1,20 +1,38 @@
 import * as React from "react";
-import { useUserSettings } from "@/lib/use-user-settings";
+import { useUserSettings, type ThemePreference } from "@/lib/use-user-settings";
 
-export type Theme = "dark" | "light";
+export type Theme = ThemePreference;
 
 const STORAGE_KEY = "bsec.theme";
+const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-function applyToDom(next: Theme) {
+function resolve(pref: Theme): "dark" | "light" {
+  if (pref !== "system") return pref;
+  return window.matchMedia(DARK_QUERY).matches ? "dark" : "light";
+}
+
+function applyToDom(pref: Theme) {
+  const resolved = resolve(pref);
   const root = document.documentElement;
-  root.setAttribute("data-theme", next);
+  root.setAttribute("data-theme", resolved);
   // As variantes `dark:` do Tailwind dependem da classe .dark no <html>
-  root.classList.toggle("dark", next === "dark");
+  root.classList.toggle("dark", resolved === "dark");
   try {
-    localStorage.setItem(STORAGE_KEY, next);
+    // Guarda a preferência ("system" inclusive); o script do __root.tsx resolve na carga
+    localStorage.setItem(STORAGE_KEY, pref);
   } catch {
     /* storage indisponível: só perde o cache da primeira pintura */
   }
+}
+
+function readCached(): Theme {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    if (v === "light" || v === "system") return v;
+  } catch {
+    /* storage indisponível: assume o padrão */
+  }
+  return "dark";
 }
 
 /**
@@ -27,9 +45,7 @@ export function useTheme() {
   const [theme, setThemeState] = React.useState<Theme>("dark");
 
   React.useEffect(() => {
-    setThemeState(
-      document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark",
-    );
+    setThemeState(readCached());
   }, []);
 
   // O que está salvo no perfil vence o cache local (ex.: trocou o tema em outra máquina)
@@ -39,6 +55,15 @@ export function useTheme() {
     applyToDom(savedTheme);
     setThemeState(savedTheme);
   }, [savedTheme]);
+
+  // Em "Auto", acompanha a troca de claro/escuro do sistema sem recarregar a página
+  React.useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia(DARK_QUERY);
+    const onChange = () => applyToDom("system");
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [theme]);
 
   const setTheme = React.useCallback(
     (next: Theme) => {
