@@ -34,7 +34,10 @@ export type ModuleAction =
   | "view_analytics_http"
   | "view_analytics_security"
   | "view_analytics_web"
-  | "view_analytics_loadbalancing";
+  | "view_analytics_loadbalancing"
+  | "view_history"
+  | "manage_managed_rules"
+  | "manage_load_balancing";
 
 /**
  * Require the calling user to have `_action` on `_module`, otherwise throw.

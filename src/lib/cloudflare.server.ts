@@ -102,7 +102,16 @@ export function summarizeChanges(changes: FieldChange[], max = 4): string {
 }
 
 export async function logCloudflareAudit(entry: {
-  action: "purge_cache" | "create_dns" | "update_dns" | "update_rule" | "toggle_rule" | "delete_rule";
+  action:
+    | "purge_cache"
+    | "create_dns"
+    | "update_dns"
+    | "create_rule"
+    | "update_rule"
+    | "toggle_rule"
+    | "delete_rule"
+    | "update_managed"
+    | "update_lb";
   status: "success" | "error";
   zoneId?: string | null;
   zoneName?: string | null;
@@ -439,11 +448,15 @@ export async function runCloudflareSync(opts?: { fullResync?: boolean }): Promis
 // Purge cache + DNS create are called inline from server functions
 export async function purgeCloudflareCache(
   zoneId: string,
-  opts: { hostnames?: string[]; purgeEverything?: boolean },
+  opts: { hostnames?: string[]; files?: string[]; purgeEverything?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const creds = await getCredentials();
   if ("ok" in creds && creds.ok === false) return creds;
-  const body = opts.purgeEverything ? { purge_everything: true } : { hosts: opts.hostnames ?? [] };
+  const body = opts.purgeEverything
+    ? { purge_everything: true }
+    : opts.files?.length
+      ? { files: opts.files }
+      : { hosts: opts.hostnames ?? [] };
   const r = await cfFetch(`/zones/${zoneId}/purge_cache`, (creds as Credentials).apiToken, {
     method: "POST",
     body: JSON.stringify(body),

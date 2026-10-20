@@ -14,6 +14,7 @@ import {
   createCustomRule,
   updateCustomRule,
 } from "@/lib/cloudflare.functions";
+import { getCustomRuleHits } from "@/lib/cloudflare.config.functions";
 import {
   getRulesOverview,
   createRedirectRule,
@@ -1000,28 +1001,132 @@ export function OperationsTab() {
   );
 }
 
+// ── Telas de configuração usadas pelo novo layout do módulo (menu Ações e
+// painel do host). Reaproveitam os mesmos componentes de Operações, com a
+// zona vinda do SharedZoneContext de quem renderiza.
+export type ZoneConfigView = "dns" | "export" | "create-dns" | "rules" | "waf" | "pagerules" | "cache" | "purge";
+export function ZoneConfigPanel({
+  view,
+  initialQuery,
+  autoEditName,
+  initialHosts,
+  initialPurgeAll,
+  wafDraft,
+}: {
+  view: ZoneConfigView;
+  wafDraft?: WafDraft;
+  initialQuery?: string;
+  autoEditName?: string;
+  initialHosts?: string[];
+  initialPurgeAll?: boolean;
+}) {
+  const { can } = usePermissions();
+  const fetchZones = useServerFn(listCloudflareZones);
+  const { data: zonesData } = useQuery({ queryKey: ["cloudflare-zones"], queryFn: () => fetchZones() });
+  const zones: Zone[] = zonesData?.ok ? zonesData.zones : [];
+  const block =
+    view === "dns" || view === "export" ? "dns-lookup" : view === "create-dns" ? "create-dns" : view === "waf" ? "custom-rules" : view === "cache" ? "cache-status" : view === "purge" ? "purge-cache" : "rules";
+  const allowed = can("cloudflare-waf", BLOCK_PERMISSION[block]);
+  const canCreateDns = can("cloudflare-waf", BLOCK_PERMISSION["create-dns"]);
+  const qc = useQueryClient();
+  const [createOpen, setCreateOpen] = React.useState(false);
+  // Remonta a lista depois de criar um registro, para ela recarregar
+  const [dnsKey, setDnsKey] = React.useState(0);
+  return (
+    <div className="ops-root" style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      {!allowed ? (
+        <AccessRestrictedCard text="Você não tem permissão para esta tela. Peça acesso ao administrador do módulo." />
+      ) : view === "dns" || view === "export" ? (
+        <div className="ops-cards one">
+          <DnsLookupInner
+            key={dnsKey}
+            zones={zones}
+            initialQuery={initialQuery}
+            autoEditName={autoEditName}
+            autoExport={view === "export"}
+            action={
+              canCreateDns ? (
+                <button type="button" className="ops-btn primary" onClick={() => setCreateOpen(true)}>
+                  <Plus size={14} /> Adicionar registro
+                </button>
+              ) : null
+            }
+          />
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Novo registro DNS</DialogTitle>
+              </DialogHeader>
+              <div className="ops-root ops-card" style={{ border: 0, background: "transparent", minWidth: 0 }}>
+                <CreateDnsInner
+                  zones={zones}
+                  onCreated={() => {
+                    setCreateOpen(false);
+                    setDnsKey((k) => k + 1);
+                    qc.invalidateQueries({ queryKey: ["cf-zone-hosts"] });
+                  }}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      ) : view === "create-dns" ? (
+        <div className="ops-card" style={{ border: 0, background: "transparent", minWidth: 0 }}>
+          <CreateDnsInner zones={zones} />
+        </div>
+      ) : view === "waf" ? (
+        <div className="ops-cards one">
+          <OpsCard title="Custom rules (WAF)" description="Bloqueios, desafios e liberações definidos por você, avaliados em ordem">
+            <CustomRulesInner zones={zones} draft={wafDraft} />
+          </OpsCard>
+        </div>
+      ) : view === "rules" || view === "pagerules" ? (
+        <RulesInner zones={zones} initialTab={view === "pagerules" ? "page" : "overview"} />
+      ) : view === "cache" ? (
+        <div className="ops-cards one">
+          <OpsCard title="Performance de cache" description="Status de cache de um subdomínio">
+            <CacheStatusInner zones={zones} />
+          </OpsCard>
+        </div>
+      ) : (
+        <div className="ops-card" style={{ border: 0, background: "transparent", minWidth: 0 }}>
+          <PurgeCacheInner zones={zones} initialHosts={initialHosts} initialPurgeAll={initialPurgeAll} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // DNS LOOKUP
 // ══════════════════════════════════════════════════════════════════════════════
 function DnsLookupInner({
   zones,
   action,
+  initialQuery,
+  autoEditName,
+  autoExport,
 }: {
   zones: Array<Zone & { status?: string | null }>;
   action?: React.ReactNode;
+  autoExport?: boolean;
+  initialQuery?: string;
+  /** Abre direto a edição do registro com esse nome assim que a lista carregar */
+  autoEditName?: string;
 }) {
   const sharedZone = React.useContext(SharedZoneContext);
   const [ownZoneId, setZoneId] = React.useState<string>("__all__");
   const [allZones, setAllZones] = React.useState(false);
   const zoneId = sharedZone ? (allZones ? "__all__" : sharedZone) : ownZoneId;
-  const [query, setQuery] = React.useState("");
+  const [query, setQuery] = React.useState(initialQuery ?? "");
   const [results, setResults] = React.useState<any[] | null>(null);
   const [loading, setLoading] = React.useState(false);
   const doSearch = useServerFn(searchDnsRecords);
   const doUpdate = useServerFn(updateDnsRecord);
   const { can } = usePermissions();
   const canEdit = can("cloudflare-waf", "manage_editar_dns");
-  const [exportOpen, setExportOpen] = React.useState(false);
+  const [exportOpen, setExportOpen] = React.useState(!!autoExport);
 
   const [editRecord, setEditRecord] = React.useState<any | null>(null);
   const [editForm, setEditForm] = React.useState({
@@ -1062,6 +1167,16 @@ function DnsLookupInner({
     else setResults(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoneId]);
+
+  const autoEdited = React.useRef(false);
+  React.useEffect(() => {
+    if (!autoEditName || autoEdited.current || !results || !canEdit) return;
+    const rec = results.find((r) => String(r.name).toLowerCase() === autoEditName.toLowerCase());
+    if (rec) {
+      autoEdited.current = true;
+      openEdit(rec);
+    }
+  }, [results, autoEditName, canEdit]);
 
   const typesInResults = React.useMemo(
     () => Array.from(new Set((results ?? []).map((r) => String(r.type)))).sort(),
@@ -1627,11 +1742,21 @@ function DnsExportDialog({
 // ══════════════════════════════════════════════════════════════════════════════
 // PURGE CACHE
 // ══════════════════════════════════════════════════════════════════════════════
-function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
+function PurgeCacheInner({
+  zones,
+  initialHosts,
+  initialPurgeAll,
+}: {
+  zones: CRZone[];
+  initialHosts?: string[];
+  initialPurgeAll?: boolean;
+}) {
   const resetOnZone = React.useCallback(() => setHostnames(""), []);
   const [zoneId, setZoneId, zoneShared] = useZoneState("", resetOnZone);
-  const [hostnames, setHostnames] = React.useState("");
-  const [purgeAll, setPurgeAll] = React.useState(false);
+  const [hostnames, setHostnames] = React.useState((initialHosts ?? []).join("\n"));
+  const [mode, setMode] = React.useState<"host" | "url" | "all">(initialPurgeAll ? "all" : "host");
+  const purgeAll = mode === "all";
+  const [urls, setUrls] = React.useState("");
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const doPurge = useServerFn(purgeCache);
@@ -1672,7 +1797,16 @@ function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter(Boolean);
-  const canSubmit = zoneId && (purgeAll || hostList.length > 0);
+  const urlList = urls
+    .split(/\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const badUrls = urlList.filter((u) => !/^https?:\/\/[^\s/]+/i.test(u));
+  const canSubmit =
+    zoneId &&
+    (purgeAll ||
+      (mode === "host" && hostList.length > 0) ||
+      (mode === "url" && urlList.length > 0 && urlList.length <= 30 && badUrls.length === 0));
   const zoneName = zones.find((z) => z.id === zoneId)?.name ?? "—";
 
   async function execute() {
@@ -1682,7 +1816,10 @@ function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
       let res: Awaited<ReturnType<typeof doPurge>>;
       try {
         res = await doPurge({
-          data: { zoneId, hostnames: purgeAll ? undefined : hostList, purgeEverything: purgeAll },
+          data:
+            mode === "url"
+              ? { zoneId, files: urlList }
+              : { zoneId, hostnames: purgeAll ? undefined : hostList, purgeEverything: purgeAll },
         });
       } catch (err: any) {
         toast.error(err?.message ?? "Erro inesperado ao chamar a API de purge.");
@@ -1691,6 +1828,7 @@ function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
       if (res.ok) {
         toast.success("Purge executado com sucesso.");
         setHostnames("");
+        setUrls("");
       } else {
         toast.error((res as any).error ?? "Erro ao executar purge.");
       }
@@ -1724,10 +1862,13 @@ function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
       )}
 
       <div className="ops-seg" role="group" aria-label="O que limpar">
-        <button type="button" aria-pressed={!purgeAll} onClick={() => setPurgeAll(false)}>
+        <button type="button" aria-pressed={mode === "host"} onClick={() => setMode("host")}>
           Por hostname
         </button>
-        <button type="button" aria-pressed={purgeAll} onClick={() => setPurgeAll(true)}>
+        <button type="button" aria-pressed={mode === "url"} onClick={() => setMode("url")}>
+          Por URL
+        </button>
+        <button type="button" aria-pressed={purgeAll} onClick={() => setMode("all")}>
           Tudo da zona
         </button>
       </div>
@@ -1736,6 +1877,22 @@ function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
         <div className="ops-warn">
           Remove <strong>todo</strong> o cache da zona <strong>{zoneName}</strong>. A origem vai receber mais
           requisições até o cache se refazer.
+        </div>
+      ) : mode === "url" ? (
+        <div className="ops-field">
+          <ExecLabel>URLs</ExecLabel>
+          <Textarea
+            value={urls}
+            onChange={(e) => setUrls(e.target.value)}
+            placeholder={"https://www.exemplo.com/static/app.js\nhttps://www.exemplo.com/img/banner.webp"}
+            rows={5}
+            style={{ fontFamily: "var(--font-data)", fontSize: 12.5 }}
+          />
+          <p className="ops-hint">
+            Uma URL completa por linha (com https://), até 30 por vez. Só esses arquivos saem do cache.
+            {urlList.length > 30 && <strong> {urlList.length} URLs: o limite é 30.</strong>}
+            {badUrls.length > 0 && <strong> URL inválida: {badUrls[0]}</strong>}
+          </p>
         </div>
       ) : (
         <>
@@ -1800,7 +1957,9 @@ function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
         <Trash2 size={13} />
         {purgeAll
           ? "Limpar todo o cache da zona"
-          : `Executar purge${hostList.length ? ` (${hostList.length} ${hostList.length === 1 ? "host" : "hosts"})` : ""}`}
+          : mode === "url"
+            ? `Executar purge${urlList.length ? ` (${urlList.length} ${urlList.length === 1 ? "URL" : "URLs"})` : ""}`
+            : `Executar purge${hostList.length ? ` (${hostList.length} ${hostList.length === 1 ? "host" : "hosts"})` : ""}`}
       </button>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -1814,6 +1973,15 @@ function PurgeCacheInner({ zones }: { zones: CRZone[] }) {
                 </div>
                 {purgeAll ? (
                   <div style={{ color: T.danger, fontWeight: 600 }}>⚠️ TODO o cache desta zona será limpo.</div>
+                ) : mode === "url" ? (
+                  <div>
+                    URLs a purgar:
+                    <ul style={{ listStyleType: "disc", paddingLeft: 20, marginTop: 4, fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, wordBreak: "break-all" }}>
+                      {urlList.map((u) => (
+                        <li key={u}>{u}</li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : (
                   <div>
                     Hosts a purgar:
@@ -2143,7 +2311,7 @@ const DNS_TYPES = ["A", "AAAA", "CNAME", "TXT", "MX", "NS", "SRV", "CAA"] as con
 // Só A/AAAA/CNAME podem passar pelo proxy da Cloudflare
 const PROXIABLE = new Set(["A", "AAAA", "CNAME"]);
 
-function CreateDnsInner({ zones }: { zones: CRZone[] }) {
+function CreateDnsInner({ zones, onCreated }: { zones: CRZone[]; onCreated?: () => void }) {
   const qc = useQueryClient();
   const [zoneId, setZoneId, zoneShared] = useZoneState("");
   const [type, setType] = React.useState("A");
@@ -2176,6 +2344,7 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
       }
       if (res.ok) {
         toast.success(`Registro ${type} ${name} criado com sucesso.`);
+        onCreated?.();
         setName("");
         setContent("");
         setComment("");
@@ -2335,12 +2504,14 @@ function CreateDnsInner({ zones }: { zones: CRZone[] }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // CUSTOM RULES (WAF)
 // ══════════════════════════════════════════════════════════════════════════════
-function CustomRulesInner({ zones }: { zones: CRZone[] }) {
+export type WafDraft = { description: string; expression: string };
+function CustomRulesInner({ zones, draft }: { zones: CRZone[]; draft?: WafDraft }) {
   const resetOnZone = React.useCallback(() => setRulesetId(null), []);
   const [zoneId, setZoneId, zoneShared] = useZoneState("", resetOnZone);
   const [search, setSearch] = React.useState("");
   const [rulesetId, setRulesetId] = React.useState<string | null>(null);
-  const [createOpen, setCreateOpen] = React.useState(false);
+  // Rascunho vindo do painel do host: abre a criação já preenchida
+  const [createOpen, setCreateOpen] = React.useState(!!draft);
   const [editRule, setEditRule] = React.useState<WafRule | null>(null);
   // Regra aberta no painel lateral (só leitura)
   const [viewRuleId, setViewRuleId] = React.useState<string | null>(null);
@@ -2361,6 +2532,15 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
   }, [data]);
 
   const rules = (data as any)?.ok ? (data as any).rules : [];
+  // Quantas vezes cada regra bateu nas últimas 24 h (mostra se está funcionando)
+  const hitsFn = useServerFn(getCustomRuleHits);
+  const { data: hitsData } = useQuery({
+    queryKey: ["cf-custom-rule-hits", zoneId],
+    enabled: !!zoneId,
+    queryFn: () => hitsFn({ data: { zoneId } }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const hits: Record<string, number> | null = hitsData?.ok ? hitsData.hits : null;
   const filtered = search.trim()
     ? rules.filter(
         (r: any) =>
@@ -2449,6 +2629,7 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
                 <th>Descrição</th>
                 <th>Expressão</th>
                 <th>Action</th>
+                <th style={{ textAlign: "right" }} title="Eventos gerados pela regra nas últimas 24 h">Bateu (24h)</th>
                 <th>Status</th>
                 <th style={{ textAlign: "right" }}>Ações</th>
               </tr>
@@ -2456,7 +2637,7 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="ops-empty">
+                  <td colSpan={6} className="ops-empty">
                     {isFetching ? "Carregando…" : "Nenhuma regra encontrada."}
                   </td>
                 </tr>
@@ -2484,6 +2665,9 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
                   </td>
                   <td>
                     <span className="ops-action-pill">{r.action}</span>
+                  </td>
+                  <td className="mono" style={{ textAlign: "right" }}>
+                    {hits === null ? "—" : (hits[r.id] ?? 0).toLocaleString("pt-BR")}
                   </td>
                   <td>
                     {r.enabled ? (
@@ -2582,6 +2766,7 @@ function CustomRulesInner({ zones }: { zones: CRZone[] }) {
         rulesetId={rulesetId}
         rules={rules}
         editing={editRule}
+        draft={editRule ? undefined : draft}
         onSaved={() => {
           setCreateOpen(false);
           setEditRule(null);
@@ -2910,6 +3095,7 @@ function WafCustomRuleDialog({
   rulesetId,
   rules,
   editing,
+  draft,
   onSaved,
 }: {
   open: boolean;
@@ -2918,6 +3104,7 @@ function WafCustomRuleDialog({
   rulesetId: string | null;
   rules: WafRule[];
   editing: WafRule | null;
+  draft?: WafDraft;
   onSaved: () => void;
 }) {
   const create = useServerFn(createCustomRule);
@@ -2953,8 +3140,8 @@ function WafCustomRuleDialog({
       phases?: string[];
       products?: string[];
     };
-    setName(editing?.description ?? "");
-    setExpression(editing?.expression ?? "");
+    setName(editing?.description ?? draft?.description ?? "");
+    setExpression(editing?.expression ?? draft?.expression ?? "");
     setSeed((s) => s + 1);
     setAction(((CF_ACTION_LIST as readonly string[]).includes(editing?.action ?? "") ? editing!.action : "block") as (typeof CF_ACTION_LIST)[number]);
     setEnabled(editing ? editing.enabled : true);
@@ -3324,7 +3511,7 @@ function AccessRestrictedCard({ text }: { text?: string }) {
   );
 }
 
-function RulesInner({ zones }: { zones: CRZone[] }) {
+function RulesInner({ zones, initialTab }: { zones: CRZone[]; initialTab?: "overview" | "page" }) {
   const [zoneId, setZoneId, zoneShared] = useZoneState("");
   const qc = useQueryClient();
   const overviewFetching = useIsFetching({ queryKey: ["cf-rules-overview", zoneId] }) > 0;
@@ -3352,7 +3539,9 @@ function RulesInner({ zones }: { zones: CRZone[] }) {
   const cfCan = useCfWafCan();
   const canOverview = cfCan("manage_rules_overview");
   const canPageRules = cfCan("manage_rules_page_rules");
-  const [rulesTab, setRulesTab] = React.useState<"overview" | "page">(canOverview ? "overview" : "page");
+  const [rulesTab, setRulesTab] = React.useState<"overview" | "page">(
+    initialTab === "page" && canPageRules ? "page" : canOverview ? "overview" : "page",
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
