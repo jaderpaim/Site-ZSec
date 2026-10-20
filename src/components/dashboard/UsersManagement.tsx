@@ -1238,6 +1238,8 @@ const CF_PERM_TREE: Record<string, string[]> = {
     "manage_adicionar_dns",
     "manage_editar_dns",
     "manage_custom_rules",
+    "manage_managed_rules",
+    "manage_load_balancing",
   ],
   manage_rules: ["manage_rules_overview", "manage_rules_page_rules"],
   manage_rules_overview: [

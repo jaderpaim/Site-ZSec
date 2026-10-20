@@ -1697,11 +1697,13 @@ export const searchDnsRecords = createServerFn({ method: "POST" })
 
 export const purgeCache = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
-  .inputValidator((input: { zoneId: string; hostnames?: string[]; purgeEverything?: boolean }) =>
+  .inputValidator((input: { zoneId: string; hostnames?: string[]; files?: string[]; purgeEverything?: boolean }) =>
     z
       .object({
         zoneId: z.string().min(1).max(64),
         hostnames: z.array(z.string().min(1).max(255)).max(30).optional(),
+        // Limpeza por URL: a Cloudflare aceita até 30 URLs completas por chamada
+        files: z.array(z.string().url().max(2048)).max(30).optional(),
         purgeEverything: z.boolean().optional(),
       })
       .parse(input),
@@ -1713,6 +1715,7 @@ export const purgeCache = createServerFn({ method: "POST" })
     const startedAt = Date.now();
     const result = await purgeCloudflareCache(data.zoneId, {
       hostnames: data.hostnames,
+      files: data.files,
       purgeEverything: data.purgeEverything,
     });
     const [zoneName, userEmail] = await Promise.all([
@@ -1729,11 +1732,14 @@ export const purgeCache = createServerFn({ method: "POST" })
       details: {
         purge_everything: data.purgeEverything ?? false,
         hostnames: data.purgeEverything ? [] : (data.hostnames ?? []),
+        files: data.purgeEverything ? [] : (data.files ?? []),
       },
       message: result.ok
         ? data.purgeEverything
           ? `Purge total da zona ${zoneName ?? data.zoneId}`
-          : `${(data.hostnames ?? []).length} hostname(s) purgado(s)`
+          : data.files?.length
+            ? `${data.files.length} URL(s) purgada(s)`
+            : `${(data.hostnames ?? []).length} hostname(s) purgado(s)`
         : (result as any).error,
     });
     return result;
@@ -2244,6 +2250,42 @@ export const listCustomRules = createServerFn({ method: "POST" })
     return { ok: true, rules, rulesetId: json?.result?.id ?? null };
   });
 
+// Histórico (audit_logs) das Custom rules do WAF — nunca derruba a operação.
+async function logCustomRuleChange(args: {
+  kind: "create" | "update" | "toggle";
+  zoneId: string;
+  userId: string;
+  description: string;
+  enabled: boolean;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+}): Promise<void> {
+  try {
+    const { logCloudflareAudit, resolveZoneName, resolveUserEmail, diffObjects, summarizeChanges } = await import(
+      "@/lib/cloudflare.server"
+    );
+    const [zoneName, userEmail] = await Promise.all([resolveZoneName(args.zoneId), resolveUserEmail(args.userId, null)]);
+    const changes = args.before && args.after ? diffObjects(args.before, args.after) : [];
+    const where = zoneName ?? args.zoneId;
+    await logCloudflareAudit({
+      action: args.kind === "create" ? "create_rule" : args.kind === "toggle" ? "toggle_rule" : "update_rule",
+      status: "success",
+      zoneId: args.zoneId,
+      zoneName,
+      userEmail,
+      details: { category: "Custom rules (WAF)", description: args.description, enabled: args.enabled, changes },
+      message:
+        args.kind === "create"
+          ? `Custom rule "${args.description}" criada em ${where}`
+          : args.kind === "toggle"
+            ? `Custom rule "${args.description}" ${args.enabled ? "habilitada" : "desabilitada"} em ${where}`
+            : `Custom rule "${args.description}" editada em ${where} — ${summarizeChanges(changes)}`,
+    });
+  } catch (e) {
+    console.error("[logCustomRuleChange]", e);
+  }
+}
+
 export const createCustomRule = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator(
@@ -2292,6 +2334,13 @@ export const createCustomRule = createServerFn({ method: "POST" })
     });
     const json: any = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false as const, error: json?.errors?.[0]?.message ?? `HTTP ${res.status}` };
+    await logCustomRuleChange({
+      kind: "create",
+      zoneId: data.zoneId,
+      userId: context.userId,
+      description: data.description,
+      enabled: data.enabled ?? true,
+    });
     return { ok: true as const };
   });
 
@@ -2345,6 +2394,25 @@ export const updateCustomRule = createServerFn({ method: "POST" })
     if (data.position) body.position = data.position;
     if (data.logging) body.logging = data.logging;
 
+    // Estado anterior da regra, pro antes/depois do histórico
+    let before: Record<string, unknown> | null = null;
+    try {
+      const prev = await fetch(`https://api.cloudflare.com/client/v4/zones/${data.zoneId}/rulesets/${data.rulesetId}`, {
+        headers: { Authorization: `Bearer ${cred.token}` },
+      });
+      const pj: any = await prev.json().catch(() => ({}));
+      const r = (pj?.result?.rules ?? []).find((x: any) => String(x.id) === data.ruleId);
+      if (r)
+        before = {
+          description: r.description ?? "",
+          expression: r.expression ?? "",
+          action: r.action ?? "",
+          enabled: r.enabled !== false,
+        };
+    } catch {
+      /* histórico sem antes/depois */
+    }
+
     // Endpoint correto: PATCH /zones/{zone}/rulesets/{ruleset_id}/rules/{rule_id}
     const res = await fetch(
       `https://api.cloudflare.com/client/v4/zones/${data.zoneId}/rulesets/${data.rulesetId}/rules/${data.ruleId}`,
@@ -2356,5 +2424,26 @@ export const updateCustomRule = createServerFn({ method: "POST" })
     );
     const json: any = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false as const, error: json?.errors?.[0]?.message ?? `HTTP ${res.status}` };
+    const after = {
+      description: data.description,
+      expression: data.expression,
+      action: data.action,
+      enabled: data.enabled ?? true,
+    };
+    const onlyToggle =
+      !!before &&
+      before.enabled !== after.enabled &&
+      before.description === after.description &&
+      before.expression === after.expression &&
+      before.action === after.action;
+    await logCustomRuleChange({
+      kind: onlyToggle ? "toggle" : "update",
+      zoneId: data.zoneId,
+      userId: context.userId,
+      description: data.description,
+      enabled: after.enabled,
+      before,
+      after,
+    });
     return { ok: true as const };
   });
