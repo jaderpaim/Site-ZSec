@@ -100,7 +100,7 @@ function cfErrorMessage(json: any, res: Response): string {
 // Nunca deixa um erro de log/alerta derrubar a operação principal na
 // Cloudflare (o "await" dessa função sempre resolve, nunca rejeita).
 async function logRuleChange(args: {
-  kind: "update" | "toggle" | "delete";
+  kind: "create" | "update" | "toggle" | "delete";
   zoneId: string;
   category: string;
   description: string;
@@ -119,10 +119,13 @@ async function logRuleChange(args: {
     );
     const changes = args.before && args.after ? diffObjects(args.before, args.after) : undefined;
     const [zoneName, userEmail] = await Promise.all([resolveZoneName(args.zoneId), resolveUserEmail(args.userId, null)]);
-    const action = args.kind === "update" ? "update_rule" : args.kind === "toggle" ? "toggle_rule" : "delete_rule";
+    const action =
+      args.kind === "create" ? "create_rule" : args.kind === "update" ? "update_rule" : args.kind === "toggle" ? "toggle_rule" : "delete_rule";
     const changesSuffix = args.kind === "update" && changes ? ` — ${summarizeChanges(changes)}` : "";
     const message =
-      args.kind === "update"
+      args.kind === "create"
+        ? `Regra "${args.description}" (${args.category}) criada em ${zoneName ?? args.zoneId}`
+        : args.kind === "update"
         ? `Regra "${args.description}" (${args.category}) editada em ${zoneName ?? args.zoneId}${changesSuffix}`
         : args.kind === "toggle"
           ? `Regra "${args.description}" (${args.category}) ${args.enabled ? "habilitada" : "desabilitada"} em ${zoneName ?? args.zoneId}`
@@ -137,7 +140,10 @@ async function logRuleChange(args: {
         details: { category: args.category, description: args.description, enabled: args.enabled ?? null, changes: changes ?? [] },
         message,
       }),
-      notifyRuleChanged({
+      // Criação não tem template de alerta próprio: só fica no histórico
+      args.kind === "create"
+        ? Promise.resolve()
+        : notifyRuleChanged({
         kind: args.kind,
         zoneId: args.zoneId,
         category: args.category,
@@ -439,6 +445,14 @@ export const createRedirectRule = createServerFn({ method: "POST" })
       ...(data.position ? { position: data.position } : {}),
     });
     if (!res.ok) return { ok: false as const, error: cfErrorMessage(json, res) };
+    await logRuleChange({
+      kind: "create",
+      zoneId: data.zoneId,
+      category: RULE_CATEGORIES.redirect.label,
+      description: data.description,
+      enabled: false,
+      userId: context.userId,
+    });
     return { ok: true as const };
   });
 
@@ -647,6 +661,14 @@ export const createOverviewRule = createServerFn({ method: "POST" })
       ...(data.position ? { position: data.position } : {}),
     });
     if (!res.ok) return { ok: false as const, error: cfErrorMessage(json, res) };
+    await logRuleChange({
+      kind: "create",
+      zoneId: data.zoneId,
+      category: RULE_CATEGORIES[data.category].label,
+      description: data.description,
+      enabled: false,
+      userId: context.userId,
+    });
     return { ok: true as const };
   });
 
@@ -970,6 +992,14 @@ export const createPageRule = createServerFn({ method: "POST" })
     });
     if (!res.ok) return { ok: false as const, error: cfErrorMessage(json, res) };
     const ruleId = json?.result?.id ? String(json.result.id) : null;
+    await logRuleChange({
+      kind: "create",
+      zoneId: data.zoneId,
+      category: "Page Rules",
+      description: data.urlPattern,
+      enabled: false,
+      userId: context.userId,
+    });
     return { ok: true as const, ruleId };
   });
 
