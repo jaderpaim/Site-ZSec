@@ -47,17 +47,26 @@ export const requireActiveSession = createMiddleware({ type: "function" })
   .server(async ({ next, context }) => {
     const sessionId = (context.claims as { session_id?: unknown }).session_id;
     if (typeof sessionId !== "string" || !sessionId) {
+      console.error("[session-policy] JWT sem claim session_id", { userId: context.userId });
       setResponseStatus(401);
       throw new Error("Unauthorized: session expired (24h)");
     }
 
-    const rpc = supabaseAdmin.rpc as unknown as (
-      fn: "auth_session_info",
-      args: { _session_id: string },
-    ) => Promise<{ data: { user_id: string; created_at: string }[] | null; error: { message: string } | null }>;
+    // auth_session_info ainda não está nos tipos gerados (types.ts). Chamado como
+    // método do cliente — extrair `rpc` para uma variável perde o `this` do
+    // SupabaseClient ("Cannot read properties of undefined (reading 'rest')").
+    const adminRpc = supabaseAdmin as unknown as {
+      rpc: (
+        fn: "auth_session_info",
+        args: { _session_id: string },
+      ) => Promise<{
+        data: { user_id: string; created_at: string }[] | null;
+        error: { message: string } | null;
+      }>;
+    };
 
     const [{ data: sessionRows, error: sessionErr }, { data: profile }] = await Promise.all([
-      rpc("auth_session_info", { _session_id: sessionId }),
+      adminRpc.rpc("auth_session_info", { _session_id: sessionId }),
       supabaseAdmin
         .from("profiles")
         .select("last_active_at, auth_method")
@@ -66,12 +75,17 @@ export const requireActiveSession = createMiddleware({ type: "function" })
     ]);
 
     if (sessionErr) {
+      console.error("[session-policy] falha em auth_session_info:", sessionErr.message);
       setResponseStatus(500);
       throw new Error("Session check failed");
     }
 
     const authSession = sessionRows?.[0];
     if (!authSession || authSession.user_id !== context.userId) {
+      console.error("[session-policy] sessão não encontrada em auth.sessions", {
+        userId: context.userId,
+        sessionId,
+      });
       setResponseStatus(401);
       throw new Error("Unauthorized: session expired (24h)");
     }

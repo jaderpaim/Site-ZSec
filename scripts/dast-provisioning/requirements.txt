@@ -43,7 +43,7 @@ pydantic_core==2.46.4
 pyee==13.0.1
 PyJWT==2.15.0
 pyOpenSSL==26.4.0
-pypdf==6.19.0
+pypdf==6.21.2
 pyspnego==0.12.2
 python-dotenv==1.2.3
 realtime==2.31.0
