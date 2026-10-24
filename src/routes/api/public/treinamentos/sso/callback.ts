@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { verifyState } from "@/lib/sso.functions";
+import { ilikeExactPattern } from "@/lib/sql-like";
 import {
   adminDb,
   clientIp,
@@ -124,12 +125,17 @@ export const Route = createFileRoute("/api/public/treinamentos/sso/callback")({
             colab = data;
           }
           if (!colab) {
-            const { data } = await sb
-              .from("colaboradores")
-              .select("id, display_name, email, entra_oid")
-              .ilike("email", email)
-              .maybeSingle();
-            colab = data;
+            // Comparação exata do e-mail: sem escape, `_`/`%` viram curingas e uma
+            // conta do tenant poderia se vincular ao cadastro de outra pessoa.
+            const emailPattern = ilikeExactPattern(email);
+            if (emailPattern) {
+              const { data } = await sb
+                .from("colaboradores")
+                .select("id, display_name, email, entra_oid")
+                .ilike("email", emailPattern)
+                .maybeSingle();
+              colab = data;
+            }
           }
           if (!colab) {
             await log(email, "login_negado", "Colaborador não cadastrado");
