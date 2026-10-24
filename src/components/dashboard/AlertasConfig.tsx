@@ -262,11 +262,7 @@ export function AlertasConfigDashboard() {
     try {
       const res = await testTeamsFn({ data: undefined });
       if (res.ok) {
-        toast.success(
-          res.detail && res.detail !== "1"
-            ? `Teams respondeu: ${res.detail}`
-            : "Mensagem de teste enviada ao Teams",
-        );
+        toast.success("Mensagem de teste enviada ao Teams");
       } else {
         toast.error(`Falha no Teams: ${res.error}`);
       }

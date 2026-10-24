@@ -70,8 +70,10 @@ export function usePermissions() {
   }, [user?.id]);
 
   const { data = EMPTY, isLoading } = useQuery({
-    queryKey: ["permissions", user?.id],
-    enabled: !!user,
+    // role entra na chave: o queryFn depende dele (bypass de admin). Sem isso, se a
+    // consulta rodasse antes do papel carregar, "não é admin" ficava em cache.
+    queryKey: ["permissions", user?.id, role],
+    enabled: !!user && role !== null,
     queryFn: async (): Promise<PermissionMatrix> => {
       if (!user) return EMPTY;
       // admin e super_admin têm a mesma visibilidade/operação em todos os módulos.

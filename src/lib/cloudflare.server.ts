@@ -9,6 +9,7 @@ import { APP_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/app-url";
 import { sendMail } from "@/lib/mailer.server";
 import { readSecret } from "@/lib/crypto.server";
+import { postTeamsWebhook } from "@/lib/teams-webhook";
 
 const CF_API = "https://api.cloudflare.com/client/v4";
 const GQL_URL = `${CF_API}/graphql`;
@@ -625,7 +626,7 @@ export async function notifyDnsRecordCreated(record: {
     const dnsAlertEnabled = await isAlertModuleEnabled("cloudflare_dns_created");
     if (teamsCfg?.teams_enabled && teamsCfg.teams_webhook_url && dnsAlertEnabled) {
       const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      await fetch(teamsCfg.teams_webhook_url, {
+      await postTeamsWebhook(teamsCfg.teams_webhook_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -753,7 +754,7 @@ export async function notifyDnsRecordUpdated(record: {
     const dnsAlertEnabled = await isAlertModuleEnabled("cloudflare_dns_updated");
     if (teamsCfg?.teams_enabled && teamsCfg.teams_webhook_url && dnsAlertEnabled) {
       const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      await fetch(teamsCfg.teams_webhook_url, {
+      await postTeamsWebhook(teamsCfg.teams_webhook_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -928,7 +929,7 @@ export async function notifyRuleChanged(args: {
     const alertEnabled = await isAlertModuleEnabled(alertKey);
     if (teamsCfg?.teams_enabled && teamsCfg.teams_webhook_url && alertEnabled) {
       const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      await fetch(teamsCfg.teams_webhook_url, {
+      await postTeamsWebhook(teamsCfg.teams_webhook_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

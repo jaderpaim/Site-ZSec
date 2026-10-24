@@ -5,6 +5,7 @@ import { ingestWebEventsFromSophos } from "./ia.server";
 import { isAlertModuleEnabled } from "./alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
 import { readSecret } from "@/lib/crypto.server";
+import { postTeamsWebhook } from "@/lib/teams-webhook";
 
 const TOKEN_URL = "https://id.sophos.com/api/v2/oauth2/token";
 const WHOAMI_URL = "https://api.central.sophos.com/whoami/v1";
@@ -717,7 +718,7 @@ async function notifySophosAuditTeams(
       return { name: e.description ?? "—", value: `${dt} · por ${e.modifiedBy ?? "—"}` };
     });
 
-    await fetch(cfg.teams_webhook_url, {
+    await postTeamsWebhook(cfg.teams_webhook_url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

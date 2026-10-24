@@ -60,6 +60,16 @@ async function requireAdmin(context: { supabase: SupabaseClient<Database>; userI
   if (isAdmin !== true) throw new Error("Acesso negado: requer perfil admin");
 }
 
+// Origem (esquema + host + porta) de um base_url; null quando vazio ou inválido.
+function originOf(url: string | null | undefined): string | null {
+  if (!url?.trim()) return null;
+  try {
+    return new URL(url.trim()).origin;
+  } catch {
+    return url.trim().toLowerCase();
+  }
+}
+
 // "••••a91f" para tokens longos; só "••••" para senhas e valores curtos
 function secretHint(value: unknown, showTail: boolean): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -136,10 +146,32 @@ export const upsertIntegration = createServerFn({ method: "POST" })
 
     const { data: existing, error: readError } = await supabaseAdmin
       .from("integrations")
-      .select("api_key, config")
+      .select("api_key, config, base_url")
       .eq("provider", data.provider)
       .maybeSingle();
     if (readError) throw new Error(readError.message);
+
+    // Credencial gravada só vale para o host em que foi cadastrada. Se o endereço
+    // mudar de origem, exige digitar de novo os segredos que já existem — senão
+    // trocar o base_url bastava para o servidor mandar a credencial (que o admin
+    // não consegue ler) para outro host.
+    if (existing && originOf(existing.base_url) !== originOf(data.base_url)) {
+      const existingConfig = (existing.config as Record<string, unknown> | null) ?? {};
+      const missing = [
+        ...(existing.api_key && !data.api_key?.trim() ? ["api_key"] : []),
+        ...SECRET_CONFIG_KEYS.filter(
+          (k) =>
+            typeof existingConfig[k] === "string" &&
+            String(existingConfig[k]).trim() &&
+            !(typeof data.config[k] === "string" && String(data.config[k]).trim()),
+        ),
+      ];
+      if (missing.length) {
+        throw new Error(
+          `O endereço da integração mudou: informe novamente a credencial (${missing.join(", ")}) para salvar.`,
+        );
+      }
+    }
 
     const config: Record<string, unknown> = {
       ...((existing?.config as Record<string, unknown>) ?? {}),

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { logAudit } from "@/lib/audit-log.functions";
 import { appUrl } from "@/lib/app-url";
+import { buildHookUrl, HOOK_PATH_RE } from "@/lib/hook-path";
 
 function admin() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -29,7 +30,7 @@ function minutesToCron(minutes: number): string {
 }
 
 function hookUrlFor(hookPath: string): string {
-  return `${appUrl()}${hookPath}`;
+  return buildHookUrl(appUrl(), hookPath);
 }
 
 // ─── Schemas ───────────────────────────────────────────────────────────────────
@@ -43,7 +44,8 @@ const CreateSchema = z.object({
   jobName: z.string().min(1),
   label: z.string().min(1),
   intervalMinutes: z.number().int().positive(),
-  hookPath: z.string().min(1), // ex: "/api/public/hooks/cloudflare-sync"
+  // ex: "/api/public/hooks/cloudflare-sync" — só caminhos de hook, nunca outro host
+  hookPath: z.string().regex(HOOK_PATH_RE, "Use /api/public/hooks/<nome-do-hook>"),
 });
 
 const UpdateSchema = z.object({

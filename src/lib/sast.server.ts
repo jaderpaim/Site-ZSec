@@ -18,6 +18,7 @@ import { appUrl } from "@/lib/app-url";
 import { sendMail } from "@/lib/mailer.server";
 import { emailStrong, renderEmail } from "@/lib/email-layout";
 import { readSecret } from "@/lib/crypto.server";
+import { postTeamsWebhook } from "@/lib/teams-webhook";
 
 const adminDb = supabaseAdmin as unknown as {
   from: (t: string) => any;
@@ -365,7 +366,7 @@ export async function notifySastTriage(args: {
       ? (integ.config as { teams_enabled?: boolean; teams_webhook_url?: string | null })
       : null;
     if (teamsCfg?.teams_enabled && teamsCfg.teams_webhook_url) {
-      await fetch(teamsCfg.teams_webhook_url, {
+      await postTeamsWebhook(teamsCfg.teams_webhook_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -25,10 +25,15 @@ function isPrivateOrReservedIp(ip: string): boolean {
     if (a === 192 && b === 168) return true;
     if (a === 169 && b === 254) return true; // link-local / metadata endpoint
     if (a === 100 && b >= 64 && b <= 127) return true; // shared address space (CGNAT)
+    if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15 (benchmark)
+    if (a === 192 && b === 0 && parseInt(v4[3], 10) === 0) return true; // 192.0.0.0/24
     return false;
   }
   const lower = ip.toLowerCase();
-  if (lower === "::1") return true;
+  if (lower === "::1" || lower === "::") return true; // loopback / não especificado
+  if (lower.startsWith("64:ff9b:")) return true; // NAT64 (traduz para IPv4 qualquer)
+  if (/^::\d+\.\d+\.\d+\.\d+$/.test(lower)) return true; // IPv4-compatible (::a.b.c.d)
+  if (lower.startsWith("2001:db8:") || lower.startsWith("100::")) return true; // doc / discard
   if (
     lower.startsWith("fe8") ||
     lower.startsWith("fe9") ||

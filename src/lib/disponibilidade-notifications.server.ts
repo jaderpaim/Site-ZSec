@@ -1,4 +1,5 @@
 import { APP_NAME } from "@/lib/brand";
+import { postTeamsWebhook } from "@/lib/teams-webhook";
 
 type AtivoNotif = { nome: string; tipo: string | null; ip_hostname: string | null };
 
@@ -104,7 +105,7 @@ export async function notifyIndisponibilidadeChanged(sb: any, change: ChangeNoti
 
     if (cfg.teams_enabled && cfg.teams_webhook_url) {
       tasks.push(
-        fetch(cfg.teams_webhook_url, {
+        postTeamsWebhook(cfg.teams_webhook_url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildTeamsChangeCard(change)),
@@ -147,7 +148,7 @@ export async function notifyNewIndisponibilidades(sb: any, ativos: AtivoNotif[])
 
     if (cfg.teams_enabled && cfg.teams_webhook_url) {
       tasks.push(
-        fetch(cfg.teams_webhook_url, {
+        postTeamsWebhook(cfg.teams_webhook_url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildTeamsCard(ativos)),
