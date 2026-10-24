@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, useCallback, ty
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { logAccessFailure, logAccessSuccess, logLogoutEvent } from "@/lib/access-logs.functions";
+import { logAccessFailure, logAccessSuccess, logLogoutEvent, pingActivity } from "@/lib/access-logs.functions";
 
 const SESSION_MAX_MS = 24 * 60 * 60 * 1000; // 24h — expiração absoluta
 const INACTIVITY_MAX_MS = 8 * 60 * 60 * 1000; // 8h — timeout por inatividade
@@ -28,24 +28,17 @@ interface AuthCtx {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
-async function clearActivity(uid: string | null) {
-  if (!uid) return;
-  try {
-    await supabase.from("profiles").update({ last_active_at: null }).eq("id", uid);
-  } catch {
-    // ignore — best-effort
-  }
-}
+export type ForcedSignOutReason = "expired" | "inactivity" | "sso_required";
 
-/** Reconhece as duas mensagens específicas que requireActiveSession lança
+/** Reconhece as mensagens específicas que requireActiveSession lança
  * (session-policy.middleware.ts) num 401 real do servidor, distinguindo qual
- * dos dois limites (24h absoluto vs 8h de inatividade) foi violado -- reusa
- * os mesmos valores de `reason` que já existem, sem precisar de um terceiro
- * valor no enum de logLogoutEvent. */
-export function detectSessionExpiredReason(error: unknown): "expired" | "inactivity" | null {
+ * regra foi violada: 24h absoluto, 8h de inatividade ou conta só-SSO que
+ * entrou por senha/recuperação de senha. */
+export function detectSessionExpiredReason(error: unknown): ForcedSignOutReason | null {
   if (!(error instanceof Error)) return null;
   if (error.message.includes("session expired (24h)")) return "expired";
   if (error.message.includes("session expired (inactivity)")) return "inactivity";
+  if (error.message.includes("SSO required")) return "sso_required";
   return null;
 }
 
@@ -66,13 +59,10 @@ let forceSignOutInFlight = false;
  * próprio onAuthStateChange (mais abaixo) já faz essa limpeza reativamente
  * assim que supabase.auth.signOut() reduz a sessão a null.
  */
-export async function forceSignOut(reason: "expired" | "inactivity") {
+export async function forceSignOut(reason: ForcedSignOutReason) {
   if (forceSignOutInFlight) return;
   forceSignOutInFlight = true;
   try {
-    const { data } = await supabase.auth.getSession();
-    const uid = data.session?.user?.id ?? null;
-    await clearActivity(uid);
     localStorage.removeItem(LS_LOGIN_AT);
     // Precisa ser chamado ANTES de auth.signOut() — depois disso o token cai e a
     // server function (que exige sessão autenticada) não conseguiria gravar o log.
@@ -86,7 +76,9 @@ export async function forceSignOut(reason: "expired" | "inactivity") {
     const msg =
       reason === "expired"
         ? "Sua sessão de 24h expirou. Faça login novamente."
-        : "Sessão encerrada por 8h de inatividade. Faça login novamente.";
+        : reason === "inactivity"
+          ? "Sessão encerrada por 8h de inatividade. Faça login novamente."
+          : "Sua conta só pode entrar pelo login Microsoft (SSO).";
     sessionStorage.setItem(SS_SIGNOUT_REASON, msg);
     window.location.href = "/login";
   } finally {
@@ -126,17 +118,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function startActivityPing(uid: string) {
+  function startActivityPing(_uid: string) {
     stopActivityPing();
+    // Grava last_active_at no servidor (pingActivity -> requireActiveSession); o
+    // cliente não escreve mais direto em profiles (bloqueado por trigger).
     const ping = () => {
-      supabase
-        .from("profiles")
-        .update({ last_active_at: new Date().toISOString() })
-        .eq("id", uid)
-        .then(
-          () => {},
-          () => {},
-        );
+      pingActivity().then(
+        () => {},
+        (err) => {
+          const reason = detectSessionExpiredReason(err);
+          if (reason) forceSignOut(reason);
+        },
+      );
     };
     ping();
     activityPingRef.current = setInterval(ping, ACTIVITY_PING_INTERVAL_MS);
@@ -314,7 +307,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         signOut: async () => {
           stopActivityPing();
-          await clearActivity(currentUidRef.current);
           localStorage.removeItem(LS_LOGIN_AT);
           // Precisa ser chamado ANTES de auth.signOut() — depois disso o token cai e a
           // server function (que exige sessão autenticada) não conseguiria gravar o log.

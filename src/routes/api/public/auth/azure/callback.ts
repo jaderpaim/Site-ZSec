@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { verifyState } from "@/lib/sso.functions";
 import { isSafeRedirectPath } from "@/lib/safe-redirect";
+import { ilikeExactPattern } from "@/lib/sql-like";
 import type { Database } from "@/integrations/supabase/types";
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
@@ -105,12 +106,15 @@ export const Route = createFileRoute("/api/public/auth/azure/callback")({
 
           // supabaseAdmin already imported above
 
-          // Pré-cadastro obrigatório
-          const { data: profile } = await supabaseAdmin
-            .from("profiles")
-            .select("id,email,full_name")
-            .ilike("email", email)
-            .maybeSingle();
+          // Pré-cadastro obrigatório — comparação exata do e-mail (sem curingas do LIKE)
+          const emailPattern = ilikeExactPattern(email);
+          const { data: profile } = emailPattern
+            ? await supabaseAdmin
+                .from("profiles")
+                .select("id,email,full_name")
+                .ilike("email", emailPattern)
+                .maybeSingle()
+            : { data: null };
           if (!profile) {
             await supabaseAdmin.from("auth_access_logs").insert({
               email,
@@ -144,7 +148,9 @@ export const Route = createFileRoute("/api/public/auth/azure/callback")({
             isSafeRedirectPath(stateData.ar) && !stateData.ar.startsWith("/login") ? stateData.ar : defaultRedirect;
           const { data: link, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
             type: "magiclink",
-            email,
+            // E-mail do perfil pré-cadastrado, não o do token: a sessão é sempre de
+            // uma conta que o admin cadastrou.
+            email: profile.email ?? email,
             options: { redirectTo: `${appOrigin}${defaultRedirect}` },
           });
           if (linkErr || !link?.properties?.action_link) {
@@ -173,12 +179,11 @@ export const Route = createFileRoute("/api/public/auth/azure/callback")({
             ip,
           });
 
-          // Marca o início real da sessão no servidor (mesmo mecanismo de
-          // requireActiveSession usado pelo login por e-mail/senha).
-          const nowIso = new Date().toISOString();
+          // Presença ("online"). O limite de 24h conta a partir da sessão criada pelo
+          // magic link em auth.sessions (ver requireActiveSession).
           await supabaseAdmin
             .from("profiles")
-            .update({ session_started_at: nowIso, last_active_at: nowIso })
+            .update({ last_active_at: new Date().toISOString() })
             .eq("id", (profile as any).id);
 
           const headers: Record<string, string> = { Location: link.properties.action_link };
