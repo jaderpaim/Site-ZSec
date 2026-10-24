@@ -8,6 +8,7 @@ import { isAlertModuleEnabled } from "./alert-modules.functions";
 import { APP_NAME } from "@/lib/brand";
 import { sendMail } from "@/lib/mailer.server";
 import { coverageStatus, missingSources } from "@/lib/monitoring";
+import { postTeamsWebhook } from "@/lib/teams-webhook";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -191,7 +192,7 @@ async function notifyCmdbChannels(sb: any, alertBucket: Classified[], stoppedBuc
 
     if (cfg.teams_enabled && cfg.teams_webhook_url) {
       tasks.push(
-        fetch(cfg.teams_webhook_url, {
+        postTeamsWebhook(cfg.teams_webhook_url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

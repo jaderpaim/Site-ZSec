@@ -11,6 +11,7 @@ import { logAudit } from "@/lib/audit-log.functions";
 import { recordCronAttemptStart } from "@/lib/cron-tracking.server";
 import { CRON_JOB_MODULE, MODULE_CRON_JOBS } from "@/lib/cron-modules";
 import { internalAppUrl } from "@/lib/app-url";
+import { buildHookUrl, isValidHookPath } from "@/lib/hook-path";
 
 export type ModuleSyncJob = {
   job_name: string;
@@ -28,7 +29,7 @@ export type ModuleSyncJob = {
 
 // O próprio servidor chama o hook: endereço interno, não o público (ver internalAppUrl).
 function hookUrlFor(hookPath: string): string {
-  return `${internalAppUrl()}${hookPath}`;
+  return buildHookUrl(internalAppUrl(), hookPath);
 }
 
 async function hasRole(sb: SupabaseClient, userId: string, role: string): Promise<boolean> {
@@ -131,6 +132,8 @@ export const runCronJobNow = createServerFn({ method: "POST" })
       if (error) return { ok: false, finished: true, error: error.message };
       if (!row?.hook_path)
         return { ok: false, finished: true, error: "Job sem rota de execução cadastrada." };
+      if (!isValidHookPath(row.hook_path))
+        return { ok: false, finished: true, error: "Rota do job inválida (esperado /api/public/hooks/<nome>)." };
 
       // Já rodando (last_ok null com tentativa recente) — não empilha outra execução
       const startedAgo = row.last_attempt_at

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import { logAudit } from "@/lib/audit-log.functions";
 import { APP_NAME } from "@/lib/brand";
+import { isAllowedTeamsWebhookUrl, postTeamsWebhook, TEAMS_WEBHOOK_URL_HINT } from "@/lib/teams-webhook";
 
 function admin() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -74,7 +75,12 @@ export const getDisponibilidadeNotifConfig = createServerFn({ method: "GET" })
   });
 
 const SaveSchema = z.object({
-  teams_webhook_url: z.string().url("URL inválida").nullable().optional(),
+  teams_webhook_url: z
+    .string()
+    .url("URL inválida")
+    .refine(isAllowedTeamsWebhookUrl, TEAMS_WEBHOOK_URL_HINT)
+    .nullable()
+    .optional(),
   teams_enabled: z.boolean(),
   telegram_bot_token: z.string().nullable().optional(),
   telegram_chat_id: z.string().nullable().optional(),
@@ -156,8 +162,12 @@ export const testTeamsWebhook = createServerFn({ method: "POST" })
     const url = cfg?.teams_webhook_url;
     if (!url) return { ok: false, error: "URL do webhook do Teams não configurada" };
 
+    if (!isAllowedTeamsWebhookUrl(url)) {
+      return { ok: false, error: `URL gravada não é de um webhook do Teams. ${TEAMS_WEBHOOK_URL_HINT}` };
+    }
+
     try {
-      const res = await fetch(url, {
+      const res = await postTeamsWebhook(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
@@ -167,16 +177,18 @@ export const testTeamsWebhook = createServerFn({ method: "POST" })
           ),
         ),
       });
-      const body = await res.text().catch(() => "");
+      // O corpo da resposta não volta para quem testou: só o status e um trecho
+      // curto quando o Teams rejeita (antes o corpo inteiro era devolvido).
+      const body = (await res.text().catch(() => "")).slice(0, 200);
       if (!res.ok) {
-        return { ok: false, error: `HTTP ${res.status}: ${body || "(sem corpo)"}` };
+        return { ok: false, error: `HTTP ${res.status}` };
       }
       // Connectors antigos retornam "1"; Power Automate/Workflows retornam JSON.
       // Se o corpo contiver indicação explícita de rejeição, sinalizamos o erro.
       if (body && /error|invalid|bad|reject/i.test(body) && body.trim() !== "1") {
         return { ok: false, error: `Teams rejeitou: ${body}` };
       }
-      return { ok: true, detail: body || undefined };
+      return { ok: true };
     } catch (e: unknown) {
       return { ok: false, error: String(e instanceof Error ? e.message : e) };
     }

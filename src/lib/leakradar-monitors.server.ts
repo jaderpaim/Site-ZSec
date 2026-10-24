@@ -47,7 +47,9 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms = 12_000): Pr
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
+    // redirect: "error" — assertPublicHttpsUrl só valida o host original; seguir
+    // um redirect levaria o POST para um endereço não validado (ex.: rede interna).
+    return await fetch(url, { ...init, redirect: "error", signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }
