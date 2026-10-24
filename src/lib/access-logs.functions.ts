@@ -3,6 +3,16 @@ import { getRequestIP } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireActiveSession } from "@/lib/session-policy.middleware";
+
+/**
+ * Heartbeat de "usuário conectado" (auth-context.tsx, a cada 60s). requireActiveSession
+ * já grava last_active_at no servidor; antes o cliente gravava direto em profiles, o
+ * que deixava qualquer um renovar o próprio prazo de inatividade.
+ */
+export const pingActivity = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .handler(async () => ({ ok: true }));
 
 const failureInput = z.object({
   email: z.string().max(320),
@@ -75,15 +85,13 @@ export const logAccessSuccess = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
 
-    // Marca o início real da sessão no servidor (requireActiveSession usa isto para
-    // impor os limites de 24h/8h) — sempre via service role, nunca com o client
-    // autenticado, que é bloqueado por trigger. Sobrescreve qualquer valor anterior
-    // (ex.: sessão encerrada de forma não graciosa, sem passar por logLogoutEvent).
+    // Só marca presença ("online" na tela de usuários). O limite de 24h não depende
+    // mais daqui: requireActiveSession conta a partir de auth.sessions.created_at, que
+    // quem tem o token não consegue reiniciar chamando esta função de novo.
     try {
-      const nowIso = new Date().toISOString();
       await supabaseAdmin
         .from("profiles")
-        .update({ session_started_at: nowIso, last_active_at: nowIso })
+        .update({ last_active_at: new Date().toISOString() })
         .eq("id", context.userId);
     } catch {
       // ignore — best-effort, requireActiveSession se auto-corrige na próxima request
@@ -93,7 +101,7 @@ export const logAccessSuccess = createServerFn({ method: "POST" })
   });
 
 const logoutInput = z.object({
-  reason: z.enum(["manual", "inactivity", "expired"]),
+  reason: z.enum(["manual", "inactivity", "expired", "sso_required"]),
   user_agent: z.string().max(500).nullable().optional(),
 });
 
@@ -129,13 +137,13 @@ export const logLogoutEvent = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
 
-    // Limpa a marca de sessão no servidor — sem isso, um login seguinte dentro da
-    // mesma janela de 24h herdaria o timestamp antigo e seria rejeitado à toa por
-    // requireActiveSession.
+    // Tira o usuário de "online" na tela de usuários. Não afeta a política de sessão:
+    // o signOut do cliente encerra a linha em auth.sessions, que requireActiveSession
+    // passa a rejeitar.
     try {
       await supabaseAdmin
         .from("profiles")
-        .update({ session_started_at: null, last_active_at: null })
+        .update({ last_active_at: null })
         .eq("id", context.userId);
     } catch {
       // ignore — best-effort
