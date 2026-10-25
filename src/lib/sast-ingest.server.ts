@@ -22,6 +22,12 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getStoredIngestKeys, matchesIngestKey } from "@/lib/sast-ingest-key.server";
 import {
+  findTrustSourceByKey,
+  listTrustSources,
+  scopeMatchesSource,
+  type TrustSource,
+} from "@/lib/sast-trust-sources.server";
+import {
   adoFileUrl,
   branchToEnvironment,
   canonicalTool,
@@ -574,11 +580,19 @@ export async function handleSastIngest(request: Request): Promise<Response> {
   const presented = auth.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   if (!presented)
     return fail(401, "Header Authorization: Bearer <chave de ingestão SAST> ausente.");
-  const keys = await getStoredIngestKeys();
-  if (!keys.length)
+  // A chave identifica a FONTE confiável (organização/projeto + repositórios). A
+  // chave global antiga ("legada") ainda vale para qualquer repositório, só até
+  // as pipelines migrarem — depois é revogada no card SAST.
+  const [legacyKeys, sources] = await Promise.all([getStoredIngestKeys(), listTrustSources()]);
+  if (!legacyKeys.length && !sources.some((s) => s.enabled && s.keys.length)) {
     return fail(503, `Nenhuma chave de ingestão gerada no ${APP_NAME} (card SAST).`);
-  if (!matchesIngestKey(presented, keys))
-    return fail(401, "Chave de ingestão SAST inválida ou revogada.");
+  }
+  let source: TrustSource | null = null;
+  const legacy = matchesIngestKey(presented, legacyKeys);
+  if (!legacy) {
+    source = await findTrustSourceByKey(presented);
+    if (!source) return fail(401, "Chave de ingestão SAST inválida ou revogada.");
+  }
 
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (declared > MAX_BODY_BYTES)
@@ -617,6 +631,20 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     : await verifyAdoBuild(body as z.infer<typeof AdoIngestSchema>);
   if (!verified.ok) return fail(verified.status, verified.message, verified.log);
   const { scope, commitAuthor } = verified;
+
+  // O escopo conferido na API do CI tem que estar dentro da fonte dona da chave:
+  // a chave da organização A não registra execução da organização B.
+  if (source) {
+    const provider = isGitea ? "gitea" : "azure_devops";
+    if (!scopeMatchesSource(source, provider, scope.project, scope.repository)) {
+      const dono = source.repo_pattern === "*" ? source.owner : `${source.owner}/${source.repo_pattern}`;
+      return fail(
+        403,
+        `A chave usada pertence à fonte "${source.label || dono}" e não vale para ${scope.project}/${scope.repository}.`,
+      );
+    }
+  }
+  const keyLabel = source ? `fonte ${source.label || source.owner}` : "chave legada";
   const label =
     `${scope.project}/${scope.repository}/${scope.branch} ${isGitea ? "execução" : "build"} ${scope.buildId}` +
     (verified.pullRequest
@@ -689,7 +717,7 @@ export async function handleSastIngest(request: Request): Promise<Response> {
       logProvider,
       "success",
       202,
-      `${label}: ${list.length} achados, ${result.closed} fechados`,
+      `${label}: ${list.length} achados, ${result.closed} fechados (${keyLabel})`,
       Date.now() - started,
     );
     return json(202, result);

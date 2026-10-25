@@ -92,3 +92,12 @@ export async function revokePreviousIngestKey(): Promise<boolean> {
   await saveKeys(current.slice(0, 1));
   return true;
 }
+
+// Fim da migração para fontes confiáveis: apaga todas as chaves legadas
+// (globais). A partir daí só as chaves por fonte são aceitas.
+export async function revokeAllIngestKeys(): Promise<number> {
+  const current = await getStoredIngestKeys();
+  if (!current.length) return 0;
+  await saveKeys([]);
+  return current.length;
+}
