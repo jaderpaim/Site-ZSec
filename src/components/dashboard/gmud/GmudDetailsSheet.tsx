@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import { decideGmudApproval, updateGmudStatus, cancelGmud, deleteGmud } from "@/lib/gmud.functions";
 import { useAuth } from "@/lib/auth-context";
 import { usePermissions } from "@/lib/use-permissions";
+import { allowedStatusTransitions } from "@/lib/gmud-rules";
 import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import {
-  GMUD_STATUSES,
   errMsg,
   sortAprovadores,
   useCanDeleteGmud,
@@ -25,6 +25,7 @@ import {
   PlayCircle,
   Trash2,
   AlertTriangle,
+  UserCheck,
 } from "lucide-react";
 
 // Estilos: classes gm-* definidas em GmudReal.tsx (casco do módulo).
@@ -98,6 +99,10 @@ export function GmudDetailsSheet({
   const [cancelMotivo, setCancelMotivo] = React.useState("");
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  // Decisão em nome do aprovador (admin/super_admin)
+  const [behalfOpen, setBehalfOpen] = React.useState(false);
+  const [behalfAprId, setBehalfAprId] = React.useState<string>("");
+  const [behalfObs, setBehalfObs] = React.useState("");
 
   React.useEffect(() => {
     setShowReject(false);
@@ -105,6 +110,9 @@ export function GmudDetailsSheet({
     setShowCancel(false);
     setCancelMotivo("");
     setConfirmDelete(askDelete);
+    setBehalfOpen(false);
+    setBehalfAprId("");
+    setBehalfObs("");
   }, [gmud?.id, askDelete]);
 
   const aprsOrdered = sortAprovadores(gmud?.aprovadores);
@@ -117,7 +125,22 @@ export function GmudDetailsSheet({
   );
   const canManage = isAdmin || isModuleAdmin("gmud") || can("gmud", "edit");
   const isCreator = !!user && !!gmud?.criado_por && user.id === gmud.criado_por;
-  const canConclude = canManage || isCreator;
+  // Mesmas regras do servidor (gmud-rules.ts): a tela só oferece o que ele aceita.
+  const nextStatuses = allowedStatusTransitions(gmud?.status_geral, {
+    isCreator,
+    canExecute: can("gmud", "execute"),
+  });
+  const canConclude = nextStatuses.includes("Concluída");
+  // Admin/super_admin decide em nome do aprovador da vez (férias, ausência) —
+  // nunca na GMUD que ele mesmo criou, e não quando ele já é o aprovador da vez.
+  const canDecideOnBehalf =
+    !!gmud &&
+    isAdmin &&
+    !isCreator &&
+    !myApr &&
+    gmud.status_geral === "Em Aprovação" &&
+    activeAprs.length > 0;
+  const behalfApr = activeAprs.find((a) => a.id === behalfAprId) ?? activeAprs[0];
   const deletable = canDelete(gmud);
   const totalEtapas = gmud?.total_aprovadores ?? aprsOrdered.length;
 
@@ -161,6 +184,32 @@ export function GmudDetailsSheet({
       setLoading(false);
     }
   }
+  async function decideOnBehalf(decisao: "Aprovado" | "Rejeitado") {
+    if (!gmud || !behalfApr) return;
+    if (!behalfObs.trim()) return toast.error("Informe a justificativa");
+    setLoading(true);
+    try {
+      await decide({
+        data: {
+          gmudId: gmud.id,
+          aprovadorId: behalfApr.id,
+          decisao,
+          observacoes: behalfObs.trim(),
+        },
+      });
+      toast.success(
+        decisao === "Aprovado"
+          ? `Aprovado em nome de ${behalfApr.nome_aprovador}`
+          : `Rejeitado em nome de ${behalfApr.nome_aprovador}`,
+      );
+      refresh();
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setLoading(false);
+    }
+  }
   async function changeStatus(s: string) {
     if (!gmud) return;
     setLoading(true);
@@ -180,7 +229,7 @@ export function GmudDetailsSheet({
     setLoading(true);
     try {
       await cancel({
-        data: { id: gmud.id, motivo: cancelMotivo.trim(), usuario_email: user?.email ?? null },
+        data: { id: gmud.id, motivo: cancelMotivo.trim() },
       });
       toast.success("GMUD cancelada");
       refresh();
@@ -221,7 +270,7 @@ export function GmudDetailsSheet({
 
   // Ação principal no topo: o que esta pessoa pode fazer agora
   let action: React.ReactNode = null;
-  if (gmud && myApr) {
+  if (gmud && myApr && !isCreator) {
     action = !showReject ? (
       <div className="gm-act">
         <b>Sua aprovação é necessária</b>
@@ -255,6 +304,71 @@ export function GmudDetailsSheet({
             {loading ? spin : <XCircle size={14} />} Confirmar rejeição
           </button>
           <button className="gm-btn ghost" onClick={() => setShowReject(false)} disabled={loading}>
+            Voltar
+          </button>
+        </div>
+      </div>
+    );
+  } else if (canDecideOnBehalf && behalfApr) {
+    action = !behalfOpen ? (
+      <div className="gm-act neutral">
+        <b>Aguardando {behalfApr.nome_aprovador}</b>
+        <p>
+          Como administrador, você pode decidir em nome do aprovador da vez (ex.: férias ou
+          ausência). A decisão fica registrada no histórico como sua, com a justificativa.
+        </p>
+        <div className="row">
+          <button className="gm-btn" onClick={() => setBehalfOpen(true)} disabled={loading}>
+            <UserCheck size={14} /> Decidir em nome do aprovador
+          </button>
+        </div>
+      </div>
+    ) : (
+      <div className="gm-act neutral">
+        <b>Decidir em nome do aprovador</b>
+        {activeAprs.length > 1 && (
+          <select
+            className="gm-select"
+            value={behalfApr.id}
+            onChange={(e) => setBehalfAprId(e.target.value)}
+            disabled={loading}
+            aria-label="Aprovador"
+          >
+            {activeAprs.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.nome_aprovador} ({a.email_aprovador})
+              </option>
+            ))}
+          </select>
+        )}
+        <p>
+          Você vai decidir pela etapa {behalfApr.ordem} de {totalEtapas}, no lugar de{" "}
+          <strong>{behalfApr.nome_aprovador}</strong>.
+        </p>
+        <textarea
+          className="gm-textarea"
+          rows={3}
+          placeholder="Justificativa obrigatória (ex.: aprovador de férias, aprovado por telefone em 25/10)…"
+          value={behalfObs}
+          onChange={(e) => setBehalfObs(e.target.value)}
+          autoFocus
+        />
+        <div className="row">
+          <button
+            className="gm-btn ok"
+            onClick={() => decideOnBehalf("Aprovado")}
+            disabled={loading || !behalfObs.trim()}
+          >
+            {loading ? spin : <CheckCircle2 size={14} />} Aprovar em nome
+          </button>
+          <button
+            className="gm-btn danger"
+            onClick={() => decideOnBehalf("Rejeitado")}
+            disabled={loading || !behalfObs.trim()}
+          >
+            <XCircle size={14} /> Rejeitar em nome
+          </button>
+          <button className="gm-btn ghost" onClick={() => setBehalfOpen(false)} disabled={loading}>
             Voltar
           </button>
         </div>
@@ -347,7 +461,7 @@ export function GmudDetailsSheet({
               Excluir
             </button>
           )}
-          {canManage && (
+          {canManage && nextStatuses.length > 0 && (
             <span
               style={{ display: "inline-flex", alignItems: "center", gap: 8, marginLeft: "auto" }}
             >
@@ -359,7 +473,7 @@ export function GmudDetailsSheet({
                 disabled={loading}
                 aria-label="Alterar status"
               >
-                {GMUD_STATUSES.map((s) => (
+                {[gmud.status_geral, ...nextStatuses].map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
