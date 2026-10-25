@@ -13,6 +13,7 @@ import { requirePermission, requireAdminOrAnalista, hasPermission } from "@/lib/
 import { APP_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/app-url";
 import { sendMail } from "@/lib/mailer.server";
+import { allowedStatusTransitions, isGerenciaTiName, requiresGerenciaTi } from "@/lib/gmud-rules";
 
 function admin() {
   const url = process.env.SUPABASE_URL!;
@@ -83,6 +84,23 @@ async function fetchProfilesById(
   const { data } = await sb.from("profiles").select("id, full_name, email").in("id", ids);
   for (const p of data ?? []) map.set(p.id, { full_name: p.full_name, email: p.email });
   return map;
+}
+
+/**
+ * Quem está agindo, sempre a partir da sessão (nunca do corpo da requisição):
+ * é o que vai para o histórico da GMUD.
+ */
+async function getActor(
+  sb: ReturnType<typeof admin>,
+  userId: string,
+  claims: unknown,
+): Promise<{ email: string | null; nome: string | null }> {
+  const profile = (await fetchProfilesById(sb, [userId])).get(userId);
+  const claimEmail = (claims as { email?: string } | undefined)?.email ?? null;
+  return {
+    email: (profile?.email ?? claimEmail)?.toLowerCase() ?? null,
+    nome: profile?.full_name ?? null,
+  };
 }
 
 type AprRow = {
@@ -389,6 +407,20 @@ export const createGmud = createServerFn({ method: "POST" })
     const deptOrder = [
       ...new Set([data.department_id, ...(data.extra_department_ids ?? []).filter(Boolean)]),
     ];
+
+    // Emergencial ou impacto Crítico: Gerência de TI entra na cadeia (por último)
+    // mesmo que o cliente não tenha mandado — antes essa regra só existia no formulário.
+    if (requiresGerenciaTi(tipoFinal, data.impacto)) {
+      const { data: depts, error: deptErr } = await sb.from("departments").select("id, name");
+      if (deptErr) throw new Error(deptErr.message);
+      const gerencia = (depts ?? []).find((d) => isGerenciaTiName(d.name));
+      if (!gerencia) {
+        throw new Error(
+          "GMUD Emergencial ou de impacto Crítico exige a Gerência de TI, mas o departamento 'Gerência de TI' não foi encontrado.",
+        );
+      }
+      if (!deptOrder.includes(gerencia.id)) deptOrder.push(gerencia.id);
+    }
     type AprCandidate = {
       nome: string;
       email: string;
@@ -454,6 +486,18 @@ export const createGmud = createServerFn({ method: "POST" })
     // (bypassa RLS), então a proteção tem que ser aqui -- não dá pra confiar
     // em data.criado_por pra dizer quem abriu a GMUD.
     const creatorProfile = (await fetchProfilesById(sb, [context.userId])).get(context.userId);
+
+    // Segregação de funções: quem abre a GMUD não pode estar na cadeia de aprovação.
+    const creatorEmails = new Set(
+      [creatorProfile?.email, (context as any).claims?.email]
+        .filter(Boolean)
+        .map((e) => String(e).toLowerCase().trim()),
+    );
+    if (allAprovadores.some((a) => creatorEmails.has((a.email ?? "").toLowerCase().trim()))) {
+      throw new Error(
+        "Você é aprovador de um dos departamentos selecionados — um aprovador não pode aprovar a própria GMUD. Escolha outro departamento ou peça a outra pessoa para abrir a GMUD.",
+      );
+    }
 
     const { data: g, error } = await sb
       .from("gmuds")
@@ -876,7 +920,7 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
     // ordem maior que o rejeitador ainda conseguiria decidir depois.
     const { data: gmudRow } = await sb
       .from("gmuds")
-      .select("titulo, status_geral")
+      .select("titulo, status_geral, criado_por")
       .eq("id", data.gmudId)
       .maybeSingle();
     if (!gmudRow) throw new Error("GMUD não encontrada");
@@ -896,18 +940,34 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
     const target = list.find((a) => a.id === data.aprovadorId);
     if (!target) throw new Error("Aprovador não encontrado");
 
-    // Identity check — caller must be the approver themselves.
-    // Admins/analistas can act on behalf when needed.
-    const callerEmail = ((context as any).claims?.email ?? "").toString().toLowerCase();
-    const callerUserId = (context as any).userId as string;
-    const [adminRes, analistaRes] = await Promise.all([
-      sb.rpc("has_role", { _user_id: callerUserId, _role: "admin" as any }),
-      sb.rpc("has_role", { _user_id: callerUserId, _role: "analista" as any }),
-    ]);
-    const isPrivileged = adminRes.data === true || analistaRes.data === true;
-    if (!isPrivileged && callerEmail !== (target.email_aprovador ?? "").toLowerCase()) {
-      throw new Error("Acesso negado: você não é este aprovador");
+    const callerUserId = context.userId;
+    const actor = await getActor(sb, callerUserId, (context as any).claims);
+    const actorLabel = actor.nome ? `${actor.nome} (${actor.email ?? "—"})` : (actor.email ?? "—");
+
+    // Segregação de funções: o criador nunca decide a própria GMUD (ele pode cancelá-la).
+    if (gmudRow.criado_por && gmudRow.criado_por === callerUserId) {
+      throw new Error("Você criou esta GMUD e não pode decidir a aprovação dela.");
     }
+
+    // Quem decide: o próprio aprovador da linha, ou um admin/super_admin global
+    // "em nome de" (férias, ausência) — com justificativa obrigatória e registrado
+    // como decisão de quem clicou. has_role('admin') também vale para super_admin.
+    const onBehalf = (actor.email ?? "") !== (target.email_aprovador ?? "").toLowerCase();
+    if (onBehalf) {
+      const { data: isAdmin } = await context.supabase.rpc("has_role", {
+        _user_id: callerUserId,
+        _role: "admin" as any,
+      });
+      if (isAdmin !== true) {
+        throw new Error("Acesso negado: você não é este aprovador");
+      }
+      if (!data.observacoes?.trim()) {
+        throw new Error("Informe a justificativa para decidir em nome do aprovador.");
+      }
+    }
+    const onBehalfNote = onBehalf
+      ? `[Decidido por ${actorLabel} em nome de ${target.nome_aprovador}] `
+      : "";
 
     // Hierarquia: o aprovador precisa ter sido notificado no grupo da vez
     // (mesmo departamento + papel ainda sem ninguém aprovado).
@@ -921,7 +981,7 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
       .update({
         status_aprovacao: data.decisao,
         data_acao: new Date().toISOString(),
-        observacoes: data.observacoes ?? null,
+        observacoes: onBehalf ? `${onBehalfNote}${data.observacoes ?? ""}` : (data.observacoes ?? null),
       })
       .eq("id", data.aprovadorId);
     if (e1) throw new Error(e1.message);
@@ -942,14 +1002,24 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
         gmud_id: data.gmudId,
         gmud_titulo: gmudRow.titulo ?? null,
         tipo_evento: "rejeicao",
-        descricao: `GMUD rejeitada por ${target.nome_aprovador} (${target.email_aprovador})${data.observacoes ? `: ${data.observacoes}` : ""}`,
-        usuario_email: target.email_aprovador,
-        usuario_nome: target.nome_aprovador,
+        descricao: onBehalf
+          ? `GMUD rejeitada por ${actorLabel} em nome de ${target.nome_aprovador} (${target.email_aprovador}): ${data.observacoes}`
+          : `GMUD rejeitada por ${target.nome_aprovador} (${target.email_aprovador})${data.observacoes ? `: ${data.observacoes}` : ""}`,
+        usuario_email: actor.email,
+        usuario_nome: actor.nome,
         status: "error",
-        detalhes: { aprovador_id: data.aprovadorId, observacoes: data.observacoes },
+        detalhes: {
+          aprovador_id: data.aprovadorId,
+          observacoes: data.observacoes,
+          em_nome_de: onBehalf ? target.email_aprovador : null,
+        },
       });
       try {
-        await sendRejectedEmail(data.gmudId, target.nome_aprovador, data.observacoes ?? null);
+        await sendRejectedEmail(
+          data.gmudId,
+          onBehalf ? `${actor.nome ?? actor.email} (em nome de ${target.nome_aprovador})` : target.nome_aprovador,
+          data.observacoes ?? null,
+        );
       } catch (e) {
         console.error("sendRejectedEmail failed", e);
       }
@@ -983,11 +1053,17 @@ export const decideGmudApproval = createServerFn({ method: "POST" })
       gmud_id: data.gmudId,
       gmud_titulo: gmudRow.titulo ?? null,
       tipo_evento: "aprovacao",
-      descricao: `Aprovado por ${target.nome_aprovador} (${target.email_aprovador}) — etapa ${target.ordem}`,
-      usuario_email: target.email_aprovador,
-      usuario_nome: target.nome_aprovador,
+      descricao: onBehalf
+        ? `Aprovado por ${actorLabel} em nome de ${target.nome_aprovador} (${target.email_aprovador}) — etapa ${target.ordem}. Justificativa: ${data.observacoes}`
+        : `Aprovado por ${target.nome_aprovador} (${target.email_aprovador}) — etapa ${target.ordem}`,
+      usuario_email: actor.email,
+      usuario_nome: actor.nome,
       status: "success",
-      detalhes: { aprovador_id: data.aprovadorId, ordem: target.ordem },
+      detalhes: {
+        aprovador_id: data.aprovadorId,
+        ordem: target.ordem,
+        em_nome_de: onBehalf ? target.email_aprovador : null,
+      },
     });
 
     // Próximo = primeiro pendente do próximo grupo em aberto (não "a próxima
@@ -1363,10 +1439,23 @@ export const updateGmudStatus = createServerFn({ method: "POST" })
       .select("titulo, status_geral, criado_por")
       .eq("id", data.id)
       .maybeSingle();
-    // Criador pode concluir/rollback a própria GMUD; demais precisam da permissão "execute".
-    if (!gmudInfo || gmudInfo.criado_por !== context.userId) {
-      await requirePermission(context.supabase, context.userId, "gmud", "execute");
+    if (!gmudInfo) throw new Error("GMUD não encontrada");
+
+    // Só transições permitidas (gmud-rules.ts): o criador registra o desfecho da
+    // própria GMUD já aprovada; quem tem "execute" conduz a execução. Ninguém leva
+    // uma GMUD a "Aprovada"/"Rejeitada" por aqui — isso é só via decideGmudApproval.
+    const isCreator = gmudInfo.criado_por === context.userId;
+    const canExecute = await hasPermission(context.supabase, context.userId, "gmud", "execute");
+    if (!isCreator && !canExecute) {
+      throw new Error("Acesso negado: você não tem permissão para esta ação");
     }
+    const allowed = allowedStatusTransitions(gmudInfo.status_geral, { isCreator, canExecute });
+    if (!allowed.includes(data.status)) {
+      throw new Error(
+        `Não é possível mudar de "${gmudInfo.status_geral}" para "${data.status}".`,
+      );
+    }
+    const actor = await getActor(sb, context.userId, (context as any).claims);
     const { error } = await sb
       .from("gmuds")
       .update({ status_geral: data.status })
@@ -1376,10 +1465,11 @@ export const updateGmudStatus = createServerFn({ method: "POST" })
       gmud_id: data.id,
       gmud_titulo: gmudInfo?.titulo ?? null,
       tipo_evento: "mudanca_status",
-      descricao: `Status alterado de "${gmudInfo?.status_geral ?? "?"}" para "${data.status}"`,
-      usuario_email: data.usuario_email ?? null,
+      descricao: `Status alterado de "${gmudInfo.status_geral}" para "${data.status}"`,
+      usuario_email: actor.email,
+      usuario_nome: actor.nome,
       status: "info",
-      detalhes: { status_anterior: gmudInfo?.status_geral, status_novo: data.status },
+      detalhes: { status_anterior: gmudInfo.status_geral, status_novo: data.status },
     });
     return { ok: true };
   });
@@ -1431,13 +1521,14 @@ export const cancelGmud = createServerFn({ method: "POST" })
       .eq("gmud_id", data.id)
       .eq("status_aprovacao", "Pendente");
 
+    const cancelActor = await getActor(sb, context.userId, (context as any).claims);
     await logGmud(sb, {
       gmud_id: data.id,
       gmud_titulo: gmudInfo.titulo,
       tipo_evento: "mudanca_status",
       descricao: `GMUD cancelada pelo criador. Motivo: ${data.motivo}`,
-      usuario_email: data.usuario_email ?? null,
-      usuario_nome: data.usuario_nome ?? null,
+      usuario_email: cancelActor.email,
+      usuario_nome: cancelActor.nome,
       status: "info",
       detalhes: {
         status_anterior: gmudInfo.status_geral,
