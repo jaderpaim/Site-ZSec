@@ -69,3 +69,20 @@ export const revokePreviousSastIngestKey = createServerFn({ method: "POST" })
     });
     return { revoked };
   });
+
+export const revokeAllSastIngestKeys = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .handler(async ({ context }) => {
+    await assertIntegrationsAdmin(context);
+    const { revokeAllIngestKeys } = await import("@/lib/sast-ingest-key.server");
+    const revoked = await revokeAllIngestKeys();
+    await logAudit({
+      userId: context.userId,
+      modulo: "sast",
+      acao: "revoke_all_ingest_keys",
+      descricao: revoked
+        ? `Desativou a chave legada de ingestão SAST (${revoked} chave(s)); só chaves por fonte confiável valem agora`
+        : "Tentou desativar a chave legada de ingestão SAST, mas não havia nenhuma",
+    });
+    return { revoked };
+  });

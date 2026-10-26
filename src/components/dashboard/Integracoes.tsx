@@ -15,6 +15,7 @@ import {
 } from "@/lib/sek-zendesk.functions";
 import {
   getSastIngestKeyStatus,
+  revokeAllSastIngestKeys,
   revokePreviousSastIngestKey,
   rotateSastIngestKey,
 } from "@/lib/sast-ingest-key.functions";
@@ -40,8 +41,19 @@ import {
   Check,
   ChevronRight,
   KeyRound,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { APP_NAME } from "@/lib/brand";
+import { useDepartments } from "@/lib/use-departments";
+import {
+  deleteSastTrustSource,
+  listSastTrustSources,
+  revokePreviousSastTrustSourceKey,
+  rotateSastTrustSourceKey,
+  upsertSastTrustSource,
+  type TrustSourceView,
+} from "@/lib/sast-trust-sources.functions";
 
 // ── Types — INALTERADOS ────────────────────────────────────────────────────────
 type Provider =
@@ -1411,6 +1423,347 @@ function ProviderSheet({
 
 const ADO_ORG_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,49}$/; // mesma regra de sast-ingest.server.ts
 
+// ── Fontes confiáveis (fase 6.1) ──────────────────────────────────────────────
+// Cada fonte = provedor + organização/projeto + filtro de repositórios, com a
+// própria chave. O servidor só aceita um envio se o repositório conferido na API
+// do CI estiver dentro da fonte dona da chave. Repositório novo numa organização
+// cadastrada entra sozinho — não precisa de chave por repositório.
+const TRUST_PROVIDER_LABEL: Record<TrustSourceView["provider"], string> = {
+  gitea: "Gitea",
+  github: "GitHub",
+  azure_devops: "Azure DevOps",
+};
+
+type TrustDraft = {
+  id: string | null;
+  provider: "gitea" | "azure_devops";
+  owner: string;
+  repo_pattern: string;
+  department_id: string;
+  label: string;
+  enabled: boolean;
+};
+
+const EMPTY_TRUST_DRAFT: TrustDraft = {
+  id: null,
+  provider: "gitea",
+  owner: "",
+  repo_pattern: "*",
+  department_id: "",
+  label: "",
+  enabled: true,
+};
+
+function SastTrustSourcesPanel() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listSastTrustSources);
+  const upsertFn = useServerFn(upsertSastTrustSource);
+  const deleteFn = useServerFn(deleteSastTrustSource);
+  const rotateFn = useServerFn(rotateSastTrustSourceKey);
+  const revokeFn = useServerFn(revokePreviousSastTrustSourceKey);
+  const { data: departments = [] } = useDepartments();
+
+  const sourcesQ = useQuery({ queryKey: ["sast-trust-sources"], queryFn: () => listFn() });
+  const sources = sourcesQ.data ?? [];
+  const [draft, setDraft] = React.useState<TrustDraft | null>(null);
+  const [newKey, setNewKey] = React.useState<{ id: string; key: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState<string | null>(null);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ["sast-trust-sources"] });
+  const deptName = (id: string | null) => departments.find((d) => d.id === id)?.name ?? null;
+
+  const save = useMutation({
+    mutationFn: (d: TrustDraft) =>
+      upsertFn({
+        data: {
+          id: d.id,
+          provider: d.provider,
+          owner: d.owner.trim(),
+          repo_pattern: d.repo_pattern.trim() || "*",
+          department_id: d.department_id || null,
+          label: d.label.trim() || null,
+          enabled: d.enabled,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Fonte confiável salva");
+      setDraft(null);
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggle = useMutation({
+    mutationFn: (s: TrustSourceView) =>
+      upsertFn({
+        data: {
+          id: s.id,
+          provider: s.provider === "github" ? "gitea" : s.provider,
+          owner: s.owner,
+          repo_pattern: s.repo_pattern,
+          department_id: s.department_id,
+          label: s.label,
+          enabled: !s.enabled,
+        },
+      }),
+    onSuccess: refresh,
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Fonte excluída — as chaves dela deixaram de valer.");
+      setConfirmDelete(null);
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rotate = useMutation({
+    mutationFn: (id: string) => rotateFn({ data: { id } }).then((r) => ({ id, ...r })),
+    onSuccess: (r) => {
+      setNewKey({ id: r.id, key: r.key });
+      toast.success("Chave gerada. A anterior (se houver) continua válida até você revogar.");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const revoke = useMutation({
+    mutationFn: (id: string) => revokeFn({ data: { id } }),
+    onSuccess: (r) => {
+      toast.success(r.revoked ? "Chave anterior revogada." : "Não havia chave anterior.");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const draftForm = draft && (
+    <div className="int-form" style={{ border: "1px solid var(--v2-line)", borderRadius: 10, padding: 12 }}>
+      <Field label="Plataforma">
+        <select
+          className="int-input"
+          value={draft.provider}
+          onChange={(e) =>
+            setDraft({ ...draft, provider: e.target.value as TrustDraft["provider"] })
+          }
+        >
+          <option value="gitea">Gitea</option>
+          <option value="azure_devops">Azure DevOps</option>
+          <option value="github" disabled>
+            GitHub (em breve)
+          </option>
+        </select>
+      </Field>
+      <Field
+        label={draft.provider === "azure_devops" ? "Projeto" : "Organização / usuário dono"}
+        help={
+          draft.provider === "azure_devops"
+            ? "Nome do projeto no Azure DevOps (a organização vem da aba Azure DevOps)."
+            : "O dono dos repositórios no Gitea, ex.: jaderpaim ou squad-pagamentos."
+        }
+      >
+        <input
+          className="int-input mono"
+          value={draft.owner}
+          onChange={(e) => setDraft({ ...draft, owner: e.target.value })}
+          placeholder={draft.provider === "azure_devops" ? "ProjetoCore" : "minha-organizacao"}
+        />
+      </Field>
+      <Field
+        label="Repositórios"
+        help="* = todos os repositórios (inclusive os criados depois); pagamentos-* = os que começam assim; ou o nome exato."
+      >
+        <input
+          className="int-input mono"
+          value={draft.repo_pattern}
+          onChange={(e) => setDraft({ ...draft, repo_pattern: e.target.value })}
+          placeholder="*"
+        />
+      </Field>
+      <Field label="Squad responsável" optional>
+        <select
+          className="int-input"
+          value={draft.department_id}
+          onChange={(e) => setDraft({ ...draft, department_id: e.target.value })}
+        >
+          <option value="">—</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Nome de exibição" optional>
+        <input
+          className="int-input"
+          value={draft.label}
+          onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+          placeholder="ex.: Repositórios do time de Pagamentos"
+        />
+      </Field>
+      <div className="int-actions">
+        <button
+          className="int-btn primary"
+          onClick={() => save.mutate(draft)}
+          disabled={save.isPending || !draft.owner.trim()}
+        >
+          Salvar fonte
+        </button>
+        <button className="int-btn ghost" onClick={() => setDraft(null)} disabled={save.isPending}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="int-form">
+      <div className="int-help">
+        Cada fonte libera uma organização (ou projeto) com uma chave própria. O {APP_NAME} confere
+        na API da plataforma de qual repositório veio cada envio e só aceita se ele estiver dentro
+        da fonte dona da chave. Repositórios novos dessa organização entram sozinhos. No Gitea,
+        cadastre a chave como segredo da <b>organização</b>, para todos os repositórios herdarem.
+      </div>
+
+      {sourcesQ.isLoading ? (
+        <div className="int-help">Carregando…</div>
+      ) : sources.length === 0 && !draft ? (
+        <div className="int-help">Nenhuma fonte cadastrada ainda.</div>
+      ) : null}
+
+      {sources.map((s) =>
+        draft?.id === s.id ? (
+          <React.Fragment key={s.id}>{draftForm}</React.Fragment>
+        ) : (
+          <div
+            key={s.id}
+            style={{ display: "grid", gap: 8, border: "1px solid var(--v2-line)", borderRadius: 10, padding: 12 }}
+          >
+            <ToggleRow
+              title={`${TRUST_PROVIDER_LABEL[s.provider]} · ${s.owner}/${s.repo_pattern}`}
+              hint={[s.label, deptName(s.department_id) && `Squad: ${deptName(s.department_id)}`]
+                .filter(Boolean)
+                .join(" · ") || (s.enabled ? "Ativa" : "Desligada — chaves recusadas")}
+              checked={s.enabled}
+              onChange={() => toggle.mutate(s)}
+            />
+            {s.keys.length ? (
+              s.keys.map((k, i) => (
+                <div key={k.hint + k.createdAt} className="int-keyrow">
+                  <span>
+                    {i === 0 ? "Atual" : "Anterior (ainda válida)"} · {k.hint}…
+                  </span>
+                  <span>{new Date(k.createdAt).toLocaleString("pt-BR")}</span>
+                </div>
+              ))
+            ) : (
+              <div className="int-help">Sem chave — gere uma para os pipelines usarem.</div>
+            )}
+            {newKey?.id === s.id && (
+              <div style={{ display: "grid", gap: 6 }}>
+                <div className="int-pw">
+                  <input
+                    className="int-input"
+                    readOnly
+                    value={newKey.key}
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <button
+                    className="int-btn icon"
+                    onClick={() => {
+                      navigator.clipboard.writeText(newKey.key);
+                      toast.success("Chave copiada");
+                    }}
+                    aria-label="Copiar chave"
+                    title="Copiar"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+                <div className="int-help">
+                  Copie agora: esta chave não aparece de novo. Cadastre como segredo
+                  SAST_INGEST_KEY da organização e, quando todos os pipelines usarem a nova,
+                  revogue a anterior.
+                </div>
+              </div>
+            )}
+            <div className="int-actions">
+              <button
+                className="int-btn"
+                onClick={() => rotate.mutate(s.id)}
+                disabled={rotate.isPending}
+              >
+                <RefreshCw size={14} />
+                {s.keys.length ? "Gerar nova chave" : "Gerar chave"}
+              </button>
+              {s.keys.length > 1 && (
+                <button
+                  className="int-btn"
+                  onClick={() => revoke.mutate(s.id)}
+                  disabled={revoke.isPending}
+                >
+                  Revogar anterior
+                </button>
+              )}
+              <button
+                className="int-btn ghost"
+                onClick={() =>
+                  setDraft({
+                    id: s.id,
+                    provider: s.provider === "azure_devops" ? "azure_devops" : "gitea",
+                    owner: s.owner,
+                    repo_pattern: s.repo_pattern,
+                    department_id: s.department_id ?? "",
+                    label: s.label ?? "",
+                    enabled: s.enabled,
+                  })
+                }
+              >
+                Editar
+              </button>
+              {confirmDelete === s.id ? (
+                <>
+                  <button
+                    className="int-btn"
+                    onClick={() => remove.mutate(s.id)}
+                    disabled={remove.isPending}
+                  >
+                    Confirmar exclusão
+                  </button>
+                  <button className="int-btn ghost" onClick={() => setConfirmDelete(null)}>
+                    Voltar
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="int-btn ghost"
+                  onClick={() => setConfirmDelete(s.id)}
+                  aria-label="Excluir fonte"
+                  title="Excluir fonte"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        ),
+      )}
+
+      {draft && !draft.id && draftForm}
+      {!draft && (
+        <div className="int-actions">
+          <button className="int-btn" onClick={() => setDraft({ ...EMPTY_TRUST_DRAFT })}>
+            <Plus size={14} /> Adicionar fonte
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SastSheet({
   open,
   onOpenChange,
@@ -1425,7 +1778,7 @@ function SastSheet({
   gitea?: Integration;
   onSaved: () => void;
 }) {
-  const [tab, setTab] = React.useState<"devops" | "gitea" | "appinsights">("devops");
+  const [tab, setTab] = React.useState<"devops" | "gitea" | "appinsights" | "fontes">("devops");
   const [saveCount, setSaveCount] = React.useState(0);
   const [adoEnabled, setAdoEnabled] = React.useState(devops?.enabled ?? false);
   const [adoOrg, setAdoOrg] = React.useState(cfgStr(devops?.config, "organization"));
@@ -1476,7 +1829,9 @@ function SastSheet({
   const keyStatusFn = useServerFn(getSastIngestKeyStatus);
   const rotateKeyFn = useServerFn(rotateSastIngestKey);
   const revokeKeyFn = useServerFn(revokePreviousSastIngestKey);
+  const revokeAllKeysFn = useServerFn(revokeAllSastIngestKeys);
   const qc = useQueryClient();
+  const [confirmLegacyOff, setConfirmLegacyOff] = React.useState(false);
 
   const keyStatus = useQuery({ queryKey: ["sast-ingest-keys"], queryFn: () => keyStatusFn() });
   const ingestKeys = keyStatus.data?.keys ?? [];
@@ -1501,6 +1856,16 @@ function SastSheet({
       toast.success(
         r.revoked ? "Chave anterior revogada." : "Não havia chave anterior pra revogar.",
       );
+      qc.invalidateQueries({ queryKey: ["sast-ingest-keys"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const revokeAllKeys = useMutation({
+    mutationFn: () => revokeAllKeysFn(),
+    onSuccess: () => {
+      toast.success("Chave legada desativada. Só as chaves das fontes confiáveis valem agora.");
+      setConfirmLegacyOff(false);
       qc.invalidateQueries({ queryKey: ["sast-ingest-keys"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1600,7 +1965,11 @@ function SastSheet({
   // Chave única de ingestão: usada pelas pipelines do Azure DevOps e do Gitea.
   const ingestKeyBlock = (
     <>
-      <div className="int-sublabel">Chave de ingestão (usada pela pipeline)</div>
+      <div className="int-sublabel">Chave legada (vale para qualquer repositório)</div>
+      <div className="int-help">
+        Prefira as chaves por organização, na aba <b>Fontes confiáveis</b>. Quando todos os
+        pipelines tiverem migrado, revogue esta chave.
+      </div>
       {ingestKeys.length ? (
         <div style={{ display: "grid", gap: 6 }}>
           {ingestKeys.map((k, i) => (
@@ -1635,6 +2004,25 @@ function SastSheet({
             Revogar anterior
           </button>
         )}
+        {ingestKeys.length > 0 &&
+          (confirmLegacyOff ? (
+            <>
+              <button
+                className="int-btn"
+                onClick={() => revokeAllKeys.mutate()}
+                disabled={revokeAllKeys.isPending}
+              >
+                Confirmar: desativar chave legada
+              </button>
+              <button className="int-btn ghost" onClick={() => setConfirmLegacyOff(false)}>
+                Voltar
+              </button>
+            </>
+          ) : (
+            <button className="int-btn ghost" onClick={() => setConfirmLegacyOff(true)}>
+              Desativar chave legada
+            </button>
+          ))}
       </div>
       {newKey && (
         <div style={{ display: "grid", gap: 6 }}>
@@ -1694,9 +2082,12 @@ function SastSheet({
               ["devops", "Azure DevOps"],
               ["gitea", "Gitea"],
               ["appinsights", "App Insights"],
+              ["fontes", "Fontes confiáveis"],
             ]}
           />
-          {tab === "devops" ? (
+          {tab === "fontes" ? (
+            <SastTrustSourcesPanel />
+          ) : tab === "devops" ? (
             <div className="int-form">
               {/* ── Azure DevOps: a pipeline envia direto com a chave de ingestão; o
                 Z-Sec confere a build com a credencial de leitura dele ── */}
