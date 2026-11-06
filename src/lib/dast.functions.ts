@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
 import {
-  assertDastAccess,
+  assertDastPermission,
+  getDastPermissionFlags,
   getDastCreds,
   getCloudflareApiToken,
   scannerFetch,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/dast.server";
 import { logAudit } from "@/lib/audit-log.functions";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { hasPermission } from "@/lib/authz";
 import { buildDastPdfCoverHtml, buildDastPdfBodyHtml } from "@/lib/dast-report";
 import { APP_NAME } from "@/lib/brand";
 
@@ -74,13 +76,9 @@ export function isPrivateCidr(raw: string): boolean {
 // ── Acesso (para o front decidir exibir o módulo) ─────────────────────────────
 export const getDastAccess = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
-  .handler(async ({ context }): Promise<{ allowed: boolean }> => {
-    try {
-      await assertDastAccess(context.supabase, context.userId);
-      return { allowed: true };
-    } catch {
-      return { allowed: false };
-    }
+  .handler(async ({ context }) => {
+    const f = await getDastPermissionFlags(context.supabase, context.userId, "dast-scanner");
+    return { allowed: f.canView, ...f };
   });
 
 // ── Overview do dashboard ─────────────────────────────────────────────────────
@@ -104,7 +102,7 @@ export const getDastOverview = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ days: z.number().int().min(1).max(365).default(30) }).parse(d))
   .handler(async ({ data, context }): Promise<DastOverview> => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     const sb = db(context.supabase);
     const since = new Date(Date.now() - data.days * 86400000).toISOString();
 
@@ -174,7 +172,7 @@ export const getDastOverview = createServerFn({ method: "POST" })
 export const listDastScans = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     const { data } = await db(context.supabase)
       .from("dast_scans")
       .select(
@@ -190,7 +188,7 @@ export const listDastVulns = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scanId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     // "info" fica de fora da navegação (Dashboard/Acompanhamento) por
     // decisão do usuário -- é observação/fingerprint, não vulnerabilidade
     // explorável, e só polui a lista. Continua aparecendo no relatório
@@ -212,7 +210,7 @@ export const listDastOutOfScopeHosts = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scanId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     const { data: rows } = await db(context.supabase)
       .from("dast_scan_out_of_scope_hosts")
       .select("*")
@@ -245,7 +243,7 @@ export const startDastScan = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => StartSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "edit");
 
     // Validação de escopo (bloqueio anti-SSRF básico antes de qualquer disparo).
     const validated: string[] = [];
@@ -255,7 +253,7 @@ export const startDastScan = createServerFn({ method: "POST" })
       validated.push(v.value);
     }
 
-    const sb = db(context.supabase);
+    const sb = db(supabaseAdmin);
     const primary = validated[0];
     const domain = (() => {
       try {
@@ -394,8 +392,8 @@ export const startDastDiscovery = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => DiscoverySchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
+    const sb = db(supabaseAdmin);
 
     const v = validateTarget(data.domain.trim());
     if (!v.ok) throw new Error(v.error);
@@ -482,8 +480,17 @@ export const startDastDiscoveryFromCloudflare = createServerFn({ method: "POST" 
   .middleware([requireActiveSession])
   .inputValidator((d) => CloudflareDiscoverySchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
+    const sb = db(supabaseAdmin);
+
+    // zoneId vem do cliente e vai pra URL da API com o token da integração —
+    // só aceita zona já conhecida pelo app (cloudflare_zones).
+    const { data: knownZone } = await supabaseAdmin
+      .from("cloudflare_zones")
+      .select("id")
+      .eq("id", data.zoneId)
+      .maybeSingle();
+    if (!knownZone) throw new Error("Zona Cloudflare não sincronizada no app.");
 
     const token = await getCloudflareApiToken();
     if (!token) throw new Error("Integração Cloudflare não está ativa/configurada.");
@@ -587,7 +594,7 @@ export const saveDastAdLdapCredential = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => SaveAdLdapCredsSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
     await saveDastAdLdapCreds(data.username, data.password, data.dcHost);
     await logAudit({
       userId: context.userId,
@@ -605,7 +612,7 @@ export const saveDastAdLdapCredential = createServerFn({ method: "POST" })
 export const getDastAdLdapCredentialStatus = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
     const creds = await getDastAdLdapCreds();
     return { configured: !!creds, username: creds?.username ?? null, dcHost: creds?.dcHost ?? null };
   });
@@ -614,7 +621,7 @@ export const getDastAdLdapCredentialStatus = createServerFn({ method: "POST" })
 export const listDastAuthCredentialsFn = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
     return { credentials: await listDastAuthCredentials() };
   });
 
@@ -634,7 +641,7 @@ export const saveDastAuthCredentialFn = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => SaveAuthCredentialSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
     const domain = data.domain.trim().toLowerCase();
     await saveDastAuthCredential({
       domain,
@@ -658,7 +665,7 @@ export const deleteDastAuthCredentialFn = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "delete");
     await deleteDastAuthCredential(data.id);
     await logAudit({
       userId: context.userId,
@@ -679,8 +686,8 @@ export const deleteDastAuthCredentialFn = createServerFn({ method: "POST" })
 export const startInternalAppsDiscovery = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
+    const sb = db(supabaseAdmin);
 
     const creds = await getDastAdLdapCreds();
     if (!creds) throw new Error("Credencial AD (LDAP) não configurada.");
@@ -743,8 +750,8 @@ export const getInternalAppsCandidates = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scanId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const { data: scan } = await db(context.supabase)
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
+    const { data: scan } = await db(supabaseAdmin)
       .from("dast_scans")
       .select("status, error, config")
       .eq("id", data.scanId)
@@ -765,8 +772,8 @@ export const confirmInternalApps = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => ConfirmInternalAppsSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "manage");
+    const sb = db(supabaseAdmin);
 
     const rows = data.fqdns.map((fqdn) => ({
       scan_id: data.scanId,
@@ -800,8 +807,8 @@ export const retestDastVuln = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ vulnerabilityId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "edit");
+    const sb = db(supabaseAdmin);
     const { data: v } = await sb
       .from("dast_vulnerabilities")
       .select("id, matched_url, http_method, param, engine, raw_output")
@@ -863,8 +870,8 @@ export const cancelDastScan = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scanId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    await db(context.supabase)
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "edit");
+    await db(supabaseAdmin)
       .from("dast_scans")
       .update({ status: "cancelled", finished_at: new Date().toISOString() })
       .eq("id", data.scanId)
@@ -899,8 +906,8 @@ export const deleteDastScan = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scanId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "delete");
+    const sb = db(supabaseAdmin);
     const { data: scan } = await sb
       .from("dast_scans")
       .select("id, name, target_url, status")
@@ -937,8 +944,8 @@ export const setDastVulnStatus = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const { error } = await db(context.supabase)
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "edit");
+    const { error } = await db(supabaseAdmin)
       .from("dast_vulnerabilities")
       .update({ status: data.status })
       .eq("id", data.vulnerabilityId);
@@ -958,7 +965,7 @@ export const setDastVulnStatus = createServerFn({ method: "POST" })
 export const getDastAlerts = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const { data } = await db(context.supabase)
       .from("dast_vulnerabilities")
@@ -976,7 +983,7 @@ export const listDastAssets = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scope: z.enum(["all", "external", "internal"]).default("all") }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     const sb = db(context.supabase);
     let q = sb
       .from("dast_recon_subdomains")
@@ -991,13 +998,18 @@ export const listDastAssets = createServerFn({ method: "POST" })
     // Aqui é o mesmo nome comparado contra o subdomínio descoberto. Via admin
     // client de propósito: a policy de "applications" não cobre super_admin
     // (só admin/permissão de módulo), e aqui é só leitura de nome pra um
-    // badge, não exposição de dado sensível novo.
-    const { data: apps } = await supabaseAdmin.from("applications").select("name");
-    const appNames = new Set((apps ?? []).map((a: any) => String(a.name).toLowerCase()));
+    // badge. Só pra quem tem "aplicacoes:view" — sem isso o badge vira um
+    // oráculo de quais aplicações existem (in_applications = null, UI mostra "—").
+    const canViewApps = await hasPermission(context.supabase, context.userId, "aplicacoes", "view");
+    let appNames: Set<string> | null = null;
+    if (canViewApps) {
+      const { data: apps } = await supabaseAdmin.from("applications").select("name");
+      appNames = new Set((apps ?? []).map((a: any) => String(a.name).toLowerCase()));
+    }
 
     const assets = (rows ?? []).map((r: any) => ({
       ...r,
-      in_applications: appNames.has(String(r.subdomain).toLowerCase()),
+      in_applications: appNames ? appNames.has(String(r.subdomain).toLowerCase()) : null,
     }));
     return { assets };
   });
@@ -1007,8 +1019,8 @@ export const deleteDastAsset = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ assetId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "delete");
+    const sb = db(supabaseAdmin);
     const { data: asset } = await sb
       .from("dast_recon_subdomains")
       .select("subdomain")
@@ -1032,7 +1044,7 @@ export const listDastRetests = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ vulnerabilityId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     const { data: rows } = await db(context.supabase)
       .from("dast_retest_history")
       .select("id, result, engine, tested_at")
@@ -1046,7 +1058,7 @@ export const listDastRetests = createServerFn({ method: "POST" })
 export const listDastSchedules = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     const { data } = await db(context.supabase)
       .from("dast_scan_schedules")
       .select("*")
@@ -1072,8 +1084,8 @@ export const upsertDastSchedule = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => ScheduleSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "edit");
+    const sb = db(supabaseAdmin);
     let domain: string | null = null;
     try {
       domain = new URL(/^https?:\/\//i.test(data.target_url) ? data.target_url : `https://${data.target_url}`).hostname;
@@ -1117,8 +1129,8 @@ export const toggleDastSchedule = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ id: z.string().uuid(), active: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const { error } = await db(context.supabase)
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "edit");
+    const { error } = await db(supabaseAdmin)
       .from("dast_scan_schedules")
       .update({ active: data.active })
       .eq("id", data.id);
@@ -1130,8 +1142,8 @@ export const deleteDastSchedule = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const { error } = await db(context.supabase).from("dast_scan_schedules").delete().eq("id", data.id);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "delete");
+    const { error } = await db(supabaseAdmin).from("dast_scan_schedules").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -1146,7 +1158,7 @@ export const exportDastReport = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scanId: z.string().uuid(), format: z.enum(["json", "csv", "html", "pdf"]) }).parse(d))
   .handler(async ({ data, context }): Promise<{ filename: string; mime: string; content: string }> => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "dast-scanner", "view");
     const sb = db(context.supabase);
     const { data: scan } = await sb.from("dast_scans").select("*").eq("id", data.scanId).maybeSingle();
     if (!scan) throw new Error("Scan não encontrado");

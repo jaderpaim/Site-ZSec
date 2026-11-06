@@ -1,19 +1,20 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireActiveSession } from "@/lib/session-policy.middleware";
-import { assertDastAccess, getDastCreds, scannerFetch } from "@/lib/dast.server";
+import { assertDastPermission, getDastPermissionFlags, getDastCreds, scannerFetch } from "@/lib/dast.server";
 import { isPrivateCidr } from "@/lib/dast.functions";
 import { getShadowItSmbCreds, saveShadowItSmbCreds, getCmdbKnownIps } from "@/lib/shadowit.server";
 import { logAudit } from "@/lib/audit-log.functions";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 // Módulo Shadow IT: todo host descoberto na rede interna (ping sweep, com ou
 // sem hostname resolvido) mais os achados de enriquecimento (SMB/FTP/HTTP-
 // título/NetBIOS) contra eles. Fila, endpoints (/shadowit/scan,
 // /shadowit/discover) e tabela de status (shadowit_scans) próprios -- nunca
-// toca dast_scans/dast_recon_subdomains, mesmo rodando no mesmo FastAPI e
-// reaproveitando is_dast_allowed() como controle de acesso (mesmo time audita
-// os dois módulos hoje) e as mesmas credenciais/infra de chamada
-// (getDastCreds/scannerFetch).
+// toca dast_scans/dast_recon_subdomains, mesmo rodando no mesmo FastAPI e com
+// as mesmas credenciais/infra de chamada (getDastCreds/scannerFetch).
+// Permissão própria 'shadow-it' (view/edit/manage), mesmo modelo do SAST;
+// leitura pela RLS (client do usuário), escrita sempre com service_role.
 type AnyDb = {
   from: (t: string) => any;
   rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
@@ -22,20 +23,16 @@ const db = (sb: unknown) => sb as unknown as AnyDb;
 
 export const getShadowItAccess = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
-  .handler(async ({ context }): Promise<{ allowed: boolean }> => {
-    try {
-      await assertDastAccess(context.supabase, context.userId);
-      return { allowed: true };
-    } catch {
-      return { allowed: false };
-    }
+  .handler(async ({ context }) => {
+    const f = await getDastPermissionFlags(context.supabase, context.userId, "shadow-it");
+    return { allowed: f.canView, ...f };
   });
 
 // ── Hosts (sem hostname resolvido -- ver dast-callback.ts / shadow_hosts) ────
 export const listShadowItHosts = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "view");
     const { data } = await db(context.supabase)
       .from("shadowit_hosts")
       .select("id, ip, hostname, mac, source, first_seen_at, last_seen_at")
@@ -51,7 +48,7 @@ export const listShadowItHosts = createServerFn({ method: "POST" })
 export const listShadowItFindings = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "view");
     const { data } = await db(context.supabase)
       .from("shadowit_findings")
       .select(
@@ -65,7 +62,7 @@ export const listShadowItFindings = createServerFn({ method: "POST" })
 export const listShadowItScans = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "view");
     const { data } = await db(context.supabase)
       .from("shadowit_scans")
       .select("id, name, targets, status, progress, error, created_at, started_at, finished_at")
@@ -88,7 +85,7 @@ export const saveShadowItSmbCredential = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => SaveSmbCredsSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "manage");
     await saveShadowItSmbCreds(data.username, data.password);
     await logAudit({
       userId: context.userId,
@@ -106,7 +103,7 @@ export const saveShadowItSmbCredential = createServerFn({ method: "POST" })
 export const getShadowItSmbCredentialStatus = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .handler(async ({ context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "manage");
     const creds = await getShadowItSmbCreds();
     return { configured: !!creds, username: creds?.username ?? null };
   });
@@ -123,10 +120,10 @@ export const startShadowItDiscovery = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => DiscoverSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "manage");
     const subnet = data.subnet.trim();
     if (!isPrivateCidr(subnet)) throw new Error(`Subnet inválida ou não privada: "${subnet}" (use algo como 192.168.1.0/24)`);
-    const sb = db(context.supabase);
+    const sb = db(supabaseAdmin);
 
     const { data: inserted, error } = await sb
       .from("shadowit_scans")
@@ -183,8 +180,8 @@ export const startShadowItScan = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => StartSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "edit");
+    const sb = db(supabaseAdmin);
 
     let targets = data.ips;
     if (!targets?.length) {
@@ -249,8 +246,8 @@ export const cancelShadowItScan = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scanId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    await db(context.supabase)
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "edit");
+    await db(supabaseAdmin)
       .from("shadowit_scans")
       .update({ status: "cancelled", finished_at: new Date().toISOString() })
       .eq("id", data.scanId)
@@ -270,8 +267,8 @@ export const deleteShadowItScan = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((d) => z.object({ scanId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const sb = db(context.supabase);
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "delete");
+    const sb = db(supabaseAdmin);
     const { data: scan } = await sb.from("shadowit_scans").select("id, name, status").eq("id", data.scanId).maybeSingle();
     if (!scan) throw new Error("Varredura não encontrada");
     if (scan.status === "queued" || scan.status === "running") {
@@ -305,8 +302,8 @@ export const setShadowItFindingStatus = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await assertDastAccess(context.supabase, context.userId);
-    const { error } = await db(context.supabase)
+    await assertDastPermission(context.supabase, context.userId, "shadow-it", "edit");
+    const { error } = await db(supabaseAdmin)
       .from("shadowit_findings")
       .update({ status: data.status })
       .eq("id", data.findingId);

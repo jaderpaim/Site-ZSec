@@ -12,10 +12,14 @@
 //
 // Precisa ficar em sincronia manual com a exclusão equivalente em
 // is_module_admin/has_module_permission/apply_role_defaults no banco (ver
-// migrations 20260826120000_exclusive_modules_rbac.sql e
-// 20260827120000_painel_executivo_exclusive.sql) — não há uma fonte única
+// migrations 20260826120000_exclusive_modules_rbac.sql,
+// 20260827120000_painel_executivo_exclusive.sql e
+// 20261106110000_nps_exclusive_module.sql) — não há uma fonte única
 // compartilhada entre TS e SQL.
-export const EXCLUSIVE_MODULE_SLUGS = new Set<string>(["benchmark", "painel-executivo"]);
+//
+// "nps" (2026-11) seguiu o mesmo caminho do painel-executivo: não-admin que
+// já tinha acesso manteve; admin perdeu o bypass e as concessões antigas.
+export const EXCLUSIVE_MODULE_SLUGS = new Set<string>(["benchmark", "painel-executivo", "nps"]);
 
 export function isExclusiveModule(moduleSlug: string): boolean {
   return EXCLUSIVE_MODULE_SLUGS.has(moduleSlug);
