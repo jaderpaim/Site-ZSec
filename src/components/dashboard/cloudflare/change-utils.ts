@@ -17,6 +17,13 @@ type Details = {
   category?: string;
   enabled?: boolean | null;
   changes?: Diff[];
+  // Proteção de DNS (pedidos, exceção, importação, restauração)
+  records?: string[];
+  added?: number;
+  user_email?: string;
+  hours?: number;
+  max?: number;
+  used?: number;
 };
 
 // Ação feita no painel da Cloudflare (log de auditoria da conta)
@@ -41,10 +48,24 @@ const CF_VERB: Record<string, string> = {
   remove: "excluiu",
 };
 
+// Ações da proteção de DNS (cloudflare.guard.functions.ts) que não terminam em "_dns".
+const DNS_GUARD_ACTIONS = new Set([
+  "request_dns_delete",
+  "reject_dns_delete",
+  "delete_dns_exception",
+  "grant_dns_exception",
+  "close_dns_exception",
+]);
+
+const listHead = (xs: unknown, n = 3): string =>
+  Array.isArray(xs) && xs.length
+    ? xs.slice(0, n).join(", ") + (xs.length > n ? ` (+${xs.length - n})` : "")
+    : "";
+
 export function changeArea(c: ZoneChange): ChangeArea {
   if (c.action.startsWith("cf:"))
     return cfArea(changeDetails(c).resourceType ?? "", c.action.slice(3));
-  if (c.action.endsWith("_dns")) return "DNS";
+  if (c.action.endsWith("_dns") || DNS_GUARD_ACTIONS.has(c.action)) return "DNS";
   if (c.action.endsWith("_rule")) return "Regras";
   if (c.action === "purge_cache") return "Cache";
   if (c.action === "update_managed") return "Regras";
@@ -120,6 +141,30 @@ export function changeText(c: ZoneChange): { verb: string; target: string } {
       };
     case "delete_rule":
       return { verb: "excluiu a regra", target: `“${d.description ?? ""}”` };
+    case "request_dns_delete":
+      return { verb: "pediu a exclusão do registro", target: `${d.name ?? ""} (${d.type ?? ""})` };
+    case "delete_dns":
+      return { verb: "excluiu o registro (pedido aprovado)", target: `${d.name ?? ""} (${d.type ?? ""})` };
+    case "reject_dns_delete":
+      return { verb: "recusou a exclusão do registro", target: `${d.name ?? ""} (${d.type ?? ""})` };
+    case "remove_rogue_dns":
+      return { verb: "removeu o registro criado fora do fluxo", target: `${d.name ?? ""} (${d.type ?? ""})` };
+    case "delete_dns_exception":
+      return { verb: "excluiu o registro (por exceção)", target: `${d.name ?? ""} (${d.type ?? ""})` };
+    case "restore_dns":
+      return { verb: "restaurou registros do backup", target: listHead(d.records) };
+    case "import_dns":
+      return { verb: `importou ${d.added ?? 0} registro(s) de arquivo de zona`, target: listHead(d.records) };
+    case "grant_dns_exception":
+      return {
+        verb: "liberou exceção de aprovação",
+        target: `para ${d.user_email ?? "—"} · ${d.hours ?? "?"} h · até ${d.max ?? "?"} exclusões`,
+      };
+    case "close_dns_exception":
+      return {
+        verb: "janela de exceção encerrada",
+        target: `${d.user_email ?? "—"} · ${d.used ?? 0} de ${d.max ?? "?"} exclusões`,
+      };
     default:
       return { verb: c.action.replace(/_/g, " "), target: "" };
   }
@@ -146,5 +191,26 @@ export function useZoneChanges(zoneId: string | null, days: number, enabled: boo
     enabled: !!zoneId && enabled,
     queryFn: () => fetchChanges({ data: { zoneId: zoneId!, days } }),
     refetchInterval: 60_000,
+  });
+}
+
+export function timeAgo(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "—";
+  const diff = Math.max(0, Date.now() - t);
+  const h = Math.floor(diff / 3_600_000);
+  if (h < 1) return `há ${Math.max(1, Math.floor(diff / 60_000))} min`;
+  if (h < 24) return `há ${h} h`;
+  return `há ${Math.round(h / 24)} d`;
+}
+
+export function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }

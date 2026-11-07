@@ -20,6 +20,8 @@ import { Route as AppModuleRouteImport } from './routes/app.$module'
 import { Route as AppPerfilRouteImport } from './routes/app.perfil'
 import { Route as ApiPublicHooksAdStatusSyncRouteImport } from './routes/api/public/hooks/ad-status-sync'
 import { Route as ApiPublicHooksAgentIngestRouteImport } from './routes/api/public/hooks/agent-ingest'
+import { Route as ApiPublicHooksCloudflareAuditWatchRouteImport } from './routes/api/public/hooks/cloudflare-audit-watch'
+import { Route as ApiPublicHooksCloudflareDnsBackupRouteImport } from './routes/api/public/hooks/cloudflare-dns-backup'
 import { Route as ApiPublicHooksCloudflareSyncRouteImport } from './routes/api/public/hooks/cloudflare-sync'
 import { Route as ApiPublicHooksCmdbDeviceAlertsRouteImport } from './routes/api/public/hooks/cmdb-device-alerts'
 import { Route as ApiPublicHooksCmdbDnsCacheRefreshRouteImport } from './routes/api/public/hooks/cmdb-dns-cache-refresh'
@@ -109,6 +111,18 @@ const ApiPublicHooksAgentIngestRoute =
   ApiPublicHooksAgentIngestRouteImport.update({
     id: '/api/public/hooks/agent-ingest',
     path: '/api/public/hooks/agent-ingest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksCloudflareAuditWatchRoute =
+  ApiPublicHooksCloudflareAuditWatchRouteImport.update({
+    id: '/api/public/hooks/cloudflare-audit-watch',
+    path: '/api/public/hooks/cloudflare-audit-watch',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksCloudflareDnsBackupRoute =
+  ApiPublicHooksCloudflareDnsBackupRouteImport.update({
+    id: '/api/public/hooks/cloudflare-dns-backup',
+    path: '/api/public/hooks/cloudflare-dns-backup',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksCloudflareSyncRoute =
@@ -319,6 +333,8 @@ export interface FileRoutesByFullPath {
   '/app/perfil': typeof AppPerfilRoute
   '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
+  '/api/public/hooks/cloudflare-audit-watch': typeof ApiPublicHooksCloudflareAuditWatchRoute
+  '/api/public/hooks/cloudflare-dns-backup': typeof ApiPublicHooksCloudflareDnsBackupRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
@@ -365,6 +381,8 @@ export interface FileRoutesByTo {
   '/app/perfil': typeof AppPerfilRoute
   '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
+  '/api/public/hooks/cloudflare-audit-watch': typeof ApiPublicHooksCloudflareAuditWatchRoute
+  '/api/public/hooks/cloudflare-dns-backup': typeof ApiPublicHooksCloudflareDnsBackupRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
@@ -412,6 +430,8 @@ export interface FileRoutesById {
   '/app/perfil': typeof AppPerfilRoute
   '/api/public/hooks/ad-status-sync': typeof ApiPublicHooksAdStatusSyncRoute
   '/api/public/hooks/agent-ingest': typeof ApiPublicHooksAgentIngestRoute
+  '/api/public/hooks/cloudflare-audit-watch': typeof ApiPublicHooksCloudflareAuditWatchRoute
+  '/api/public/hooks/cloudflare-dns-backup': typeof ApiPublicHooksCloudflareDnsBackupRoute
   '/api/public/hooks/cloudflare-sync': typeof ApiPublicHooksCloudflareSyncRoute
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
@@ -460,6 +480,8 @@ export interface FileRouteTypes {
     | '/app/perfil'
     | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
+    | '/api/public/hooks/cloudflare-audit-watch'
+    | '/api/public/hooks/cloudflare-dns-backup'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
@@ -506,6 +528,8 @@ export interface FileRouteTypes {
     | '/app/perfil'
     | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
+    | '/api/public/hooks/cloudflare-audit-watch'
+    | '/api/public/hooks/cloudflare-dns-backup'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
@@ -552,6 +576,8 @@ export interface FileRouteTypes {
     | '/app/perfil'
     | '/api/public/hooks/ad-status-sync'
     | '/api/public/hooks/agent-ingest'
+    | '/api/public/hooks/cloudflare-audit-watch'
+    | '/api/public/hooks/cloudflare-dns-backup'
     | '/api/public/hooks/cloudflare-sync'
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
@@ -597,6 +623,8 @@ export interface RootRouteChildren {
   TrustRoute: typeof TrustRoute
   ApiPublicHooksAdStatusSyncRoute: typeof ApiPublicHooksAdStatusSyncRoute
   ApiPublicHooksAgentIngestRoute: typeof ApiPublicHooksAgentIngestRoute
+  ApiPublicHooksCloudflareAuditWatchRoute: typeof ApiPublicHooksCloudflareAuditWatchRoute
+  ApiPublicHooksCloudflareDnsBackupRoute: typeof ApiPublicHooksCloudflareDnsBackupRoute
   ApiPublicHooksCloudflareSyncRoute: typeof ApiPublicHooksCloudflareSyncRoute
   ApiPublicHooksCmdbDeviceAlertsRoute: typeof ApiPublicHooksCmdbDeviceAlertsRoute
   ApiPublicHooksCmdbDnsCacheRefreshRoute: typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
@@ -709,6 +737,20 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/agent-ingest'
       fullPath: '/api/public/hooks/agent-ingest'
       preLoaderRoute: typeof ApiPublicHooksAgentIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/cloudflare-audit-watch': {
+      id: '/api/public/hooks/cloudflare-audit-watch'
+      path: '/api/public/hooks/cloudflare-audit-watch'
+      fullPath: '/api/public/hooks/cloudflare-audit-watch'
+      preLoaderRoute: typeof ApiPublicHooksCloudflareAuditWatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/cloudflare-dns-backup': {
+      id: '/api/public/hooks/cloudflare-dns-backup'
+      path: '/api/public/hooks/cloudflare-dns-backup'
+      fullPath: '/api/public/hooks/cloudflare-dns-backup'
+      preLoaderRoute: typeof ApiPublicHooksCloudflareDnsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/cloudflare-sync': {
@@ -967,6 +1009,10 @@ const rootRouteChildren: RootRouteChildren = {
   TrustRoute: TrustRoute,
   ApiPublicHooksAdStatusSyncRoute: ApiPublicHooksAdStatusSyncRoute,
   ApiPublicHooksAgentIngestRoute: ApiPublicHooksAgentIngestRoute,
+  ApiPublicHooksCloudflareAuditWatchRoute:
+    ApiPublicHooksCloudflareAuditWatchRoute,
+  ApiPublicHooksCloudflareDnsBackupRoute:
+    ApiPublicHooksCloudflareDnsBackupRoute,
   ApiPublicHooksCloudflareSyncRoute: ApiPublicHooksCloudflareSyncRoute,
   ApiPublicHooksCmdbDeviceAlertsRoute: ApiPublicHooksCmdbDeviceAlertsRoute,
   ApiPublicHooksCmdbDnsCacheRefreshRoute:

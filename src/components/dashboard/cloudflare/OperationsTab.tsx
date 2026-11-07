@@ -85,10 +85,19 @@ import {
   Lock,
   AlertTriangle,
   Download,
+  Upload,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { usePermissions } from "@/lib/use-permissions";
 import { SharedZoneContext } from "./shared-zone";
+import {
+  DeleteExceptionBanner,
+  DeleteRequestButton,
+  DeleteRequestDialog,
+  useDnsDeleteRequests,
+  type DeleteTarget,
+} from "./DnsDeleteRequest";
+import { DnsImportDialog } from "./DnsImportDialog";
 import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 
 // ── Design Tokens (same as CloudflareReal) ────────────────────────────────────
@@ -1124,9 +1133,27 @@ function DnsLookupInner({
   const [loading, setLoading] = React.useState(false);
   const doSearch = useServerFn(searchDnsRecords);
   const doUpdate = useServerFn(updateDnsRecord);
-  const { can } = usePermissions();
+  const { can, isAdmin } = usePermissions();
   const canEdit = can("cloudflare-waf", "manage_editar_dns");
   const [exportOpen, setExportOpen] = React.useState(!!autoExport);
+  // Pedido de exclusão (só dentro do shell, com a zona do cabeçalho): a
+  // lixeira não apaga, abre pedido pra outra pessoa confirmar — ou apaga na
+  // hora se houver janela de exceção liberada pra esta zona.
+  const deleteReq = useDnsDeleteRequests(sharedZone ?? null);
+  const canDel = !!sharedZone && deleteReq.canRequest;
+  const showActions = canEdit || canDel;
+  const [delTarget, setDelTarget] = React.useState<DeleteTarget | null>(null);
+  // Importar arquivo de zona (BIND): só adiciona; admin + permissão.
+  const canImport = !!sharedZone && isAdmin && can("cloudflare-waf", "manage_importar_dns");
+  const [importOpen, setImportOpen] = React.useState(false);
+  const sharedZoneName = zones.find((z) => z.id === sharedZone)?.name ?? sharedZone ?? "";
+  function requestDelete(r: any) {
+    setDelTarget({
+      zoneId: r.zone_id,
+      zoneName: r.zone_name ?? r.zone_id,
+      record: { id: r.id, type: r.type, name: r.name, content: r.content, proxied: r.proxied ?? null },
+    });
+  }
 
   const [editRecord, setEditRecord] = React.useState<any | null>(null);
   const [editForm, setEditForm] = React.useState({
@@ -1254,6 +1281,7 @@ function DnsLookupInner({
 
   return (
     <>
+      {canDel && <DeleteExceptionBanner exception={deleteReq.exception} />}
       <div className="ops-dns-toolbar">
         <div className="ops-dns-search">
           <Search size={14} />
@@ -1309,6 +1337,11 @@ function DnsLookupInner({
               <Download size={13} /> Exportar
             </button>
           )}
+          {canImport && (
+            <button className="ops-btn outline" onClick={() => setImportOpen(true)}>
+              <Upload size={13} /> Importar
+            </button>
+          )}
           {action}
         </div>
       </div>
@@ -1324,7 +1357,7 @@ function DnsLookupInner({
                 <th>Proxy</th>
                 <th>TTL</th>
                 {!singleZone && <th>Zona</th>}
-                {canEdit && (
+                {showActions && (
                   <th>
                     <span className="sr-only">Ações</span>
                   </th>
@@ -1362,7 +1395,18 @@ function DnsLookupInner({
                         {r.type}
                       </span>
                     </td>
-                    <td className="mono">{r.name}</td>
+                    <td className="mono">
+                      {r.name}
+                      {canDel && r.zone_id === sharedZone && deleteReq.pendingIds.has(r.id) && (
+                        <span
+                          className="ops-pill"
+                          style={{ "--c": "var(--v2-high)", marginLeft: 8 } as React.CSSProperties}
+                          title="Pedido de exclusão aguardando aprovação na aba Solicitações"
+                        >
+                          Exclusão solicitada
+                        </span>
+                      )}
+                    </td>
                     <td className="mono trunc" title={r.content}>
                       {r.content}
                     </td>
@@ -1379,11 +1423,26 @@ function DnsLookupInner({
                     </td>
                     <td className="mono">{r.ttl === 1 ? "Auto" : r.ttl}</td>
                     {!singleZone && <td className="mono">{r.zone_name}</td>}
-                    {canEdit && (
-                      <td style={{ textAlign: "right" }}>
-                        <button className="ops-btn outline sm" onClick={() => openEdit(r)}>
-                          <Pencil size={12} /> Editar
-                        </button>
+                    {showActions && (
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {canEdit && (
+                          <button className="ops-btn outline sm" onClick={() => openEdit(r)}>
+                            <Pencil size={12} /> Editar
+                          </button>
+                        )}
+                        {canDel && (
+                          <DeleteRequestButton
+                            pending={r.zone_id === sharedZone && deleteReq.pendingIds.has(r.id)}
+                            exception={deleteReq.exceptionFor(r.zone_id)}
+                            disabled={r.zone_id !== sharedZone}
+                            title={
+                              r.zone_id !== sharedZone
+                                ? "Selecione esta zona no topo do módulo para pedir a exclusão"
+                                : undefined
+                            }
+                            onClick={() => requestDelete(r)}
+                          />
+                        )}
                       </td>
                     )}
                   </tr>
@@ -1399,6 +1458,21 @@ function DnsLookupInner({
           </div>
         )}
       </section>
+
+      <DeleteRequestDialog
+        target={delTarget}
+        onClose={() => setDelTarget(null)}
+        onDeleted={(id) => setResults((prev) => (prev ? prev.filter((x) => x.id !== id) : prev))}
+      />
+      {canImport && sharedZone && (
+        <DnsImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          zoneId={sharedZone}
+          zoneName={sharedZoneName}
+          onImported={() => onSearch("")}
+        />
+      )}
 
       {/* Dialog: Editar registro DNS */}
       <Dialog open={!!editRecord} onOpenChange={(o) => !o && setEditRecord(null)}>

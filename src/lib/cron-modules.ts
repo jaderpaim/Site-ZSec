@@ -20,6 +20,16 @@ export const CRON_JOB_MODULE: Record<
     moduleLabel: "Cloudflare WAF",
     rule: "execute",
   },
+  "cloudflare-dns-backup": {
+    module: "cloudflare-waf",
+    moduleLabel: "Cloudflare WAF",
+    rule: "module_admin",
+  },
+  "cloudflare-audit-watch": {
+    module: "cloudflare-waf",
+    moduleLabel: "Cloudflare WAF",
+    rule: "module_admin",
+  },
   "sophos-sync": { module: "sophos-xdr", moduleLabel: "Sophos XDR", rule: "analista" },
   "sophos-audit-sync": { module: "sophos-xdr", moduleLabel: "Sophos XDR", rule: "analista" },
   "qradar-sync": { module: "soc", moduleLabel: "SOC", rule: "analista" },
@@ -91,7 +101,7 @@ export const CRON_JOB_MODULE: Record<
 
 /** Jobs exibidos na etiqueta de cada módulo (um job pode aparecer em mais de um). */
 export const MODULE_CRON_JOBS: Record<string, string[]> = {
-  "cloudflare-waf": ["cloudflare-daily-sync"],
+  "cloudflare-waf": ["cloudflare-daily-sync", "cloudflare-dns-backup", "cloudflare-audit-watch"],
   "sophos-xdr": ["sophos-sync", "sophos-audit-sync"],
   soc: ["qradar-sync", "sek-zendesk-sync"],
   phishing: ["gophish-sync"],

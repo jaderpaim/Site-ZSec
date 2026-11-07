@@ -37,7 +37,13 @@ export type ModuleAction =
   | "view_analytics_loadbalancing"
   | "view_history"
   | "manage_managed_rules"
-  | "manage_load_balancing";
+  | "manage_load_balancing"
+  | "view_solicitacoes"
+  | "manage_solicitar_exclusao_dns"
+  | "manage_aprovar_exclusao_dns"
+  | "manage_backups_dns"
+  | "manage_importar_dns"
+  | "manage_liberar_excecao_dns";
 
 /**
  * Require the calling user to have `_action` on `_module`, otherwise throw.

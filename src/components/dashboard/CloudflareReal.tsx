@@ -9,6 +9,7 @@ import {
   ChevronsUpDown,
   Globe,
   History,
+  Inbox,
   Search,
   Server,
   Settings2,
@@ -46,12 +47,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/lib/use-permissions";
+import { getGuardStatus } from "@/lib/cloudflare.guard.functions";
+import { RequestsView } from "@/components/dashboard/cloudflare/RequestsView";
+import { BackupsView } from "@/components/dashboard/cloudflare/BackupsView";
+import { CFX_CSS } from "@/components/dashboard/cloudflare/cf-ui";
 import { useOrganizacao } from "@/lib/use-organizacao";
 import { pickDefaultZone } from "@/lib/cloudflare-zones";
 
-// Visões do módulo: as 3 abas fixas + as telas abertas pelo menu Ações
-type TabView = "hosts" | "analytics" | "history";
-type ExtraView = "managed" | "lb";
+// Visões do módulo: as abas fixas + as telas abertas pelo menu Ações
+type TabView = "hosts" | "analytics" | "history" | "requests";
+const TAB_VIEWS: TabView[] = ["hosts", "analytics", "history", "requests"];
+type ExtraView = "managed" | "lb" | "dns-backups";
 type ConfigKey = ZoneConfigView | ExtraView;
 type View = TabView | ConfigKey;
 type ConfigOpts = Parameters<OpenConfig>[1];
@@ -59,6 +65,7 @@ type ConfigOpts = Parameters<OpenConfig>[1];
 const CONFIG_TITLE: Record<ConfigKey, string> = {
   managed: "Managed rules",
   lb: "Load Balancing",
+  "dns-backups": "Backups de DNS",
   dns: "Registros DNS",
   export: "Exportar DNS",
   "create-dns": "Adicionar registro DNS",
@@ -120,9 +127,15 @@ export function CloudflareDashboardReal() {
     "view_analytics_loadbalancing",
   ].some(cf);
   const canHistory = cf("view_history");
+  // Aba Solicitações: quem vê (view_solicitacoes), quem pode pedir exclusão
+  // (acompanha os próprios pedidos) ou quem libera exceção de aprovação.
+  const canExceptions = isAdmin && cf("manage_liberar_excecao_dns");
+  const canRequests =
+    cf("view_solicitacoes") || cf("manage_solicitar_exclusao_dns") || canExceptions;
   const CONFIG_PERM: Record<ConfigKey, boolean> = {
     managed: cf("manage_managed_rules"),
     lb: cf("manage_load_balancing"),
+    "dns-backups": cf("manage_backups_dns"),
     dns: cf("manage_buscar_dns"),
     export: cf("manage_buscar_dns"),
     "create-dns": cf("manage_adicionar_dns"),
@@ -196,7 +209,7 @@ export function CloudflareDashboardReal() {
   const [view, setView] = React.useState<View>(() => {
     try {
       const v = localStorage.getItem("cloudflare_view") as TabView | null;
-      return v === "analytics" || v === "history" ? v : "hosts";
+      return v && TAB_VIEWS.includes(v) ? v : "hosts";
     } catch {
       return "hosts";
     }
@@ -207,7 +220,7 @@ export function CloudflareDashboardReal() {
     setView(v);
     setConfigOpts(opts);
     setConfigKey((k) => k + 1);
-    if (v === "hosts" || v === "analytics" || v === "history") {
+    if ((TAB_VIEWS as View[]).includes(v)) {
       try {
         localStorage.setItem("cloudflare_view", v);
       } catch {
@@ -227,17 +240,31 @@ export function CloudflareDashboardReal() {
           ? canAnalytics
           : v === "history"
             ? canHistory
-            : CONFIG_PERM[v];
+            : v === "requests"
+              ? canRequests
+              : CONFIG_PERM[v];
     if (!ok(view)) {
-      const first = (["hosts", "analytics", "history"] as TabView[]).find(ok);
+      const first = TAB_VIEWS.find(ok);
       if (first) setView(first);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [permLoading, canHosts, canAnalytics, canHistory]);
+  }, [permLoading, canHosts, canAnalytics, canHistory, canRequests]);
+
+  // Balões das abas: pedidos de exclusão pendentes (Solicitações) e alerta
+  // crítico não reconhecido (Histórico). Atualiza a cada minuto.
+  const fetchGuardStatus = useServerFn(getGuardStatus);
+  const guardStatus = useQuery({
+    queryKey: ["cf-guard-status", zoneId],
+    queryFn: () => fetchGuardStatus({ data: { zoneId: zoneId! } }),
+    enabled: !!zoneId && !permLoading && (canRequests || canHistory),
+    refetchInterval: 60_000,
+  });
+  const pendingRequests = guardStatus.data?.pendingRequests ?? 0;
+  const criticalOpen = guardStatus.data?.criticalOpen ?? 0;
 
   const [days, setDays] = React.useState<1 | 3>(1);
   const [query, setQuery] = React.useState("");
-  const isConfig = !(view === "hosts" || view === "analytics" || view === "history");
+  const isConfig = !(TAB_VIEWS as View[]).includes(view);
 
   const configItems: Array<[ConfigKey, string]> = [
     ["dns", "Registros DNS"],
@@ -247,6 +274,7 @@ export function CloudflareDashboardReal() {
     ["managed", "Managed rules"],
     ["lb", "Load Balancing"],
     ["cache", "Desempenho de cache"],
+    ["dns-backups", "Backups de DNS"],
   ];
   const actionItems: Array<[ZoneConfigView, string]> = [
     ["purge", "Limpar cache"],
@@ -257,7 +285,7 @@ export function CloudflareDashboardReal() {
 
   return (
     <div className="cf-root">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: CSS + CFX_CSS }} />
       <SharedZoneContext.Provider value={zoneId}>
         <CfNavContext.Provider value={(v) => go(v)}>
           <div className="cf-stack">
@@ -389,6 +417,26 @@ export function CloudflareDashboardReal() {
               {canHistory && (
                 <button aria-current={view === "history"} onClick={() => go("history")}>
                   <History size={15} /> Histórico
+                  {criticalOpen > 0 && (
+                    <span
+                      className="cfx-alert-dot"
+                      title="Alerta crítico não reconhecido"
+                      aria-label="Alerta crítico não reconhecido"
+                    />
+                  )}
+                </button>
+              )}
+              {canRequests && (
+                <button aria-current={view === "requests"} onClick={() => go("requests")}>
+                  <Inbox size={15} /> Solicitações
+                  {pendingRequests > 0 && (
+                    <span
+                      className="cfx-bubble"
+                      aria-label={`${pendingRequests} solicitação(ões) pendente(s)`}
+                    >
+                      {pendingRequests}
+                    </span>
+                  )}
                 </button>
               )}
               {(view === "hosts" || view === "analytics") && (
@@ -435,12 +483,20 @@ export function CloudflareDashboardReal() {
             ) : view === "analytics" && canAnalytics ? (
               <AnalyticsTab zoneId={zoneId} days={days} />
             ) : view === "history" && canHistory ? (
-              <HistoryView zoneId={zoneId} zoneName={zone?.name ?? null} />
+              <HistoryView
+                zoneId={zoneId}
+                zoneName={zone?.name ?? null}
+                criticalOpen={criticalOpen}
+              />
             ) : view === "managed" && CONFIG_PERM.managed ? (
               <ManagedRulesView zoneId={zoneId} />
+            ) : view === "requests" && canRequests ? (
+              <RequestsView zoneId={zoneId} />
             ) : view === "lb" && CONFIG_PERM.lb ? (
               <LoadBalancingConfigView zoneId={zoneId} />
-            ) : isConfig && view !== "managed" && view !== "lb" ? (
+            ) : view === "dns-backups" && CONFIG_PERM["dns-backups"] ? (
+              <BackupsView zoneId={zoneId} />
+            ) : isConfig && view !== "managed" && view !== "lb" && view !== "dns-backups" ? (
               <ZoneConfigPanel
                 key={`${view}-${configKey}`}
                 view={view as ZoneConfigView}

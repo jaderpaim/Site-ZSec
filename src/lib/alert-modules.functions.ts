@@ -48,6 +48,20 @@ export const ALERT_MODULES = [
     channels: ["Teams"],
   },
   {
+    key: "cloudflare_dns_delete_request",
+    label: "Cloudflare — Solicitação de Exclusão de DNS",
+    description:
+      "Notifica o time quando alguém pede a exclusão de um registro DNS e quando o pedido é confirmado (registro apagado) ou recusado.",
+    channels: ["Teams"],
+  },
+  {
+    key: "cloudflare_audit_alert",
+    label: "Cloudflare — Alerta de Auditoria",
+    description:
+      "Notifica o time quando o monitor do log de auditoria da conta detecta exclusão de DNS fora do fluxo, volume anormal, host crítico alterado, falha de backup ou restauração de DNS.",
+    channels: ["Teams"],
+  },
+  {
     key: "sophos_audit_alert",
     label: "Sophos — Auditoria",
     description:

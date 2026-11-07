@@ -112,7 +112,16 @@ export async function logCloudflareAudit(entry: {
     | "toggle_rule"
     | "delete_rule"
     | "update_managed"
-    | "update_lb";
+    | "update_lb"
+    | "request_dns_delete"
+    | "delete_dns"
+    | "reject_dns_delete"
+    | "restore_dns"
+    | "remove_rogue_dns"
+    | "import_dns"
+    | "grant_dns_exception"
+    | "close_dns_exception"
+    | "delete_dns_exception";
   status: "success" | "error";
   zoneId?: string | null;
   zoneName?: string | null;
@@ -263,6 +272,26 @@ async function upsertZones(apiToken: string) {
     }));
     const { error } = await supabaseAdmin.from("cloudflare_zones").upsert(rows, { onConflict: "id" });
     if (error) throw new Error(`upsert zones: ${error.message}`);
+
+    // Zonas que estão no banco e não vieram da Cloudflare: confere uma a uma
+    // (GET /zones/{id} → 1001) antes de marcar "removed" — falha de token ou
+    // de rede nunca marca. Lista vazia (token sem acesso) nem entra aqui.
+    try {
+      const g = await import("@/lib/cloudflare.guard.server");
+      const seen = new Set(zones.map((z) => z.id));
+      const { data: known } = await supabaseAdmin
+        .from("cloudflare_zones")
+        .select("id, name")
+        .or(g.NOT_REMOVED_FILTER);
+      for (const k of ((known ?? []) as Array<{ id: string; name: string }>).filter(
+        (k) => !seen.has(k.id),
+      )) {
+        if (await g.isZoneGone(apiToken, k.id).catch(() => false))
+          await g.markZoneRemoved(k, "sync");
+      }
+    } catch (e) {
+      console.error("[upsertZones] zonas removidas:", e);
+    }
   }
   return zones;
 }
@@ -571,7 +600,7 @@ export async function updateCloudflareDnsRecord(
 // Usa a config compartilhada do módulo "Alertar via Teams" (integrations/disponibilidade_alerts).
 // Falhas de notificação nunca derrubam a criação do registro DNS.
 
-async function getGlobalAdminEmails(): Promise<string[]> {
+export async function getGlobalAdminEmails(): Promise<string[]> {
   const { data: roles } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "admin");
   const ids = Array.from(new Set(((roles ?? []) as any[]).map((r) => r.user_id)));
   if (ids.length === 0) return [];
