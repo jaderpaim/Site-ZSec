@@ -82,6 +82,41 @@ export const ALERT_MODULES = [
       "Notifica o time quando um certificado SSL importado é substituído (renovação), com as URLs vinculadas que precisam receber o novo certificado.",
     channels: ["Teams"],
   },
+  {
+    key: "threat_intel_credential_revealed",
+    label: "Threat Intelligence — Credencial Revelada",
+    description:
+      "Notifica o time quando a senha de uma credencial vazada é revelada em tela no Threat Intelligence.",
+    channels: ["Teams"],
+  },
+  {
+    key: "threat_intel_credential_critical",
+    label: "Threat Intelligence — Credencial Crítica",
+    description:
+      "Notifica o time quando a validação confirma uma credencial vazada com acesso efetivo (senha válida, sem MFA e com acesso ao sistema). As válidas de risco menor vão pelo alerta \"Credencial Válida\".",
+    channels: ["Teams"],
+  },
+  {
+    key: "threat_intel_credential_valid",
+    label: "Threat Intelligence — Credencial Válida",
+    description:
+      "Notifica o time quando a validação confirma que uma credencial vazada ainda funciona, mas com risco menor: o login exige MFA ou a pessoa não tem acesso efetivo ao sistema.",
+    channels: ["Teams"],
+  },
+  {
+    key: "threat_intel_domain_spike",
+    label: "Threat Intelligence — Pico de Domínio",
+    description:
+      "Notifica o time quando a varredura periódica detecta um pico de credenciais vazadas de um domínio de parceiro no dia. No máximo um aviso por domínio de parceiro por dia.",
+    channels: ["Teams"],
+  },
+  {
+    key: "threat_intel_incident_closed",
+    label: "Threat Intelligence — Incidente Encerrado",
+    description:
+      "Notifica o time quando um incidente de credencial vazada é resolvido ou cancelado (a abertura já sai pelos canais de incidente do módulo).",
+    channels: ["Teams"],
+  },
 ] as const;
 
 export type AlertModuleKey = (typeof ALERT_MODULES)[number]["key"];

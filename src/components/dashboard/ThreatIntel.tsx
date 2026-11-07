@@ -33,6 +33,7 @@ import {
   getTopHosts,
   getStatusCounts,
   getThreatIntelAdAlert,
+  getDomainSpike,
   updateLeakStatus,
   unlockLeaks,
   getLeakRadarAccountInfo,
@@ -475,6 +476,11 @@ const APP_VAZIO: LeakApp = {
   success_type: "status",
   success_value: "200",
   enabled: true,
+  prime_url: null,
+  post_login_url: null,
+  id_field: null,
+  access_failure_contains: null,
+  access_success_contains: null,
 };
 
 function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
@@ -520,6 +526,11 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
           success_type: editando.success_type,
           success_value: editando.success_value,
           enabled: editando.enabled,
+          prime_url: editando.prime_url?.trim() || null,
+          post_login_url: editando.post_login_url?.trim() || null,
+          id_field: editando.id_field?.trim() || null,
+          access_failure_contains: editando.access_failure_contains?.trim() || null,
+          access_success_contains: editando.access_success_contains?.trim() || null,
         },
       });
     },
@@ -756,6 +767,67 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
                   />
                 </label>
               </div>
+              <div className="ti-panel-title" style={{ fontSize: 13, marginTop: 6 }}>
+                Sessão e acesso <span className="dim" style={{ fontWeight: 400 }}>(opcional)</span>
+              </div>
+              <label className="ti-field">
+                <span>URL da página de login (cookies/CSRF antes do POST)</span>
+                <input
+                  className="ti-input mono"
+                  value={editando.prime_url ?? ""}
+                  placeholder="https://app.exemplo.com.br/login — vazio usa a raiz do host"
+                  onChange={(e) => up({ prime_url: e.target.value })}
+                />
+              </label>
+              <span className="dim" style={{ fontSize: 12.5 }}>
+                Antes do login o teste abre esta página para pegar os cookies de sessão e o token
+                CSRF (ex.: XSRF-TOKEN), como um navegador. Resolve apps que recusam o POST com
+                HTTP 403/405/419.
+              </span>
+              <label className="ti-field">
+                <span>URL de verificação de acesso (pós-login)</span>
+                <input
+                  className="ti-input mono"
+                  value={editando.post_login_url ?? ""}
+                  placeholder="https://app.exemplo.com.br/api/perfis/{id}"
+                  onChange={(e) => up({ post_login_url: e.target.value })}
+                />
+              </label>
+              <span className="dim" style={{ fontSize: 12.5 }}>
+                Depois do login aceito, um GET aqui com a sessão diz se a pessoa entra de fato no
+                sistema. <span className="mono">{"{id}"}</span> vem do corpo da resposta do login.
+                Sem acesso, a credencial fica válida, mas sinalizada como &quot;sem acesso
+                efetivo&quot;.
+              </span>
+              <div className="ti-field-row">
+                <label className="ti-field">
+                  <span>Campo do id no login</span>
+                  <input
+                    className="ti-input mono"
+                    value={editando.id_field ?? ""}
+                    placeholder="objeto.id (vazio = automático)"
+                    onChange={(e) => up({ id_field: e.target.value })}
+                  />
+                </label>
+                <label className="ti-field">
+                  <span>Texto que indica SEM acesso</span>
+                  <input
+                    className="ti-input mono"
+                    value={editando.access_failure_contains ?? ""}
+                    placeholder="Sem perfil associado"
+                    onChange={(e) => up({ access_failure_contains: e.target.value })}
+                  />
+                </label>
+                <label className="ti-field">
+                  <span>Texto que confirma acesso</span>
+                  <input
+                    className="ti-input mono"
+                    value={editando.access_success_contains ?? ""}
+                    placeholder="opcional"
+                    onChange={(e) => up({ access_success_contains: e.target.value })}
+                  />
+                </label>
+              </div>
               <label className="ti-check">
                 <input
                   type="checkbox"
@@ -770,6 +842,117 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
         )}
       </DetailSheet>
     </div>
+  );
+}
+
+// ── Pico de credenciais por domínio de parceiro ─────────────────────────────
+// Mesmo cálculo do cron cti-spike-sweep (leakradar-spike.server.ts): muitas
+// contas de um mesmo domínio de parceiro indexadas hoje.
+function SpikeAlert() {
+  const fetchSpike = useServerFn(getDomainSpike);
+  const { data } = useQuery({
+    queryKey: ["threat-intel-spike"],
+    queryFn: () => fetchSpike(),
+    refetchInterval: 10 * 60_000,
+  });
+  const [open, setOpen] = React.useState(false);
+  const results = data?.results ?? [];
+  const alertas = results.flatMap((r) =>
+    r.domains.filter((d) => d.alert).map((d) => ({ ...d, monitored: r.domain })),
+  );
+  if (alertas.length === 0) return null;
+  const threshold = results[0]?.threshold ?? 5;
+  return (
+    <>
+      <button type="button" className="ti-alert" onClick={() => setOpen(true)}>
+        <span className="ti-alert-ic">
+          <AlertTriangle size={18} />
+        </span>
+        <span className="ti-alert-tx">
+          <b>
+            Pico de credenciais vazadas hoje:{" "}
+            {alertas.length === 1
+              ? alertas[0].root
+              : `${alertas.length} domínios de parceiros`}
+          </b>
+          <span>
+            {alertas
+              .slice(0, 3)
+              .map((d) => `${d.root} · ${nf.format(d.uniqueAccounts)} contas`)
+              .join(" · ")}
+            {` · gatilho ${threshold} contas únicas/dia`}
+          </span>
+        </span>
+        <span className="ti-alert-cta">Ver detalhes →</span>
+      </button>
+      <DetailSheet
+        open={open}
+        onOpenChange={setOpen}
+        eyebrow="pico de credenciais · hoje"
+        title="Domínios de parceiros em pico"
+      >
+        <div className="ti-root ti-sheet">
+          <style>{CSS}</style>
+          {results.map((r) => (
+            <DetailSection key={r.domain} title={`Vazamentos em ${r.domain}`}>
+              <div className="ti-scroll">
+                <table className="ti-table">
+                  <thead>
+                    <tr>
+                      <th>Parceiro</th>
+                      <th>Contas</th>
+                      <th>Linhas</th>
+                      <th>Reutilizadas</th>
+                      <th>Válidas / inválidas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.domains.map((d) => (
+                      <tr key={d.root}>
+                        <td className="mono">
+                          {d.root}
+                          {d.alert && (
+                            <span
+                              className="ti-pill"
+                              style={
+                                {
+                                  ["--c" as string]: "var(--v2-crit)",
+                                  marginLeft: 6,
+                                } as React.CSSProperties
+                              }
+                            >
+                              pico
+                            </span>
+                          )}
+                        </td>
+                        <td className="mono">{nf.format(d.uniqueAccounts)}</td>
+                        <td className="mono dim">{nf.format(d.lines)}</td>
+                        <td className="mono dim">{nf.format(d.reusedCount)}</td>
+                        <td className="mono dim">
+                          {d.validCount} / {d.invalidCount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {r.domains.some((d) => d.services.length > 0) && (
+                <DetailList
+                  items={r.domains
+                    .filter((d) => d.alert && d.services.length > 0)
+                    .map((d) => [d.root, d.services.join(", ")] as [string, string])}
+                />
+              )}
+            </DetailSection>
+          ))}
+          <span className="dim" style={{ fontSize: 12.5 }}>
+            Contas de provedores públicos (Gmail, Outlook…) e do próprio domínio monitorado não
+            entram. O aviso no Teams sai pelo cron <b>cti-spike-sweep</b>, no máximo uma vez por
+            domínio de parceiro por dia.
+          </span>
+        </div>
+      </DetailSheet>
+    </>
   );
 }
 
@@ -2393,6 +2576,7 @@ export function ThreatIntelDashboard() {
           <span className="ti-alert-cta">Ver colaboradores →</span>
         </button>
       )}
+      {aba === "credenciais" && <SpikeAlert />}
       {aba === "credenciais" && adAlert && adAlert.emRisco === 0 && adAlert.lastSync === null && (
         <div className="ti-note">
           <Info size={15} />

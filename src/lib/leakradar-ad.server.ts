@@ -223,7 +223,7 @@ export function isMsLoginHost(host: string | null | undefined): boolean {
 export async function validateEntraRopc(
   username: string,
   password: string,
-): Promise<{ status: "valida" | "invalida" | "inconclusiva"; detail: string }> {
+): Promise<{ status: "valida" | "invalida" | "inconclusiva"; detail: string; mfa?: boolean }> {
   const creds = await getEntraCreds();
   if (!creds) return { status: "inconclusiva", detail: "Entra/SSO não configurado." };
   const body = new URLSearchParams({
@@ -272,7 +272,11 @@ export async function validateEntraRopc(
   const code = (err.match(/AADSTS\d+/) ?? [])[0] ?? "";
   // MFA exigido = a SENHA está correta (a 1ª etapa passou); só o 2º fator barrou.
   if (/AADSTS50076|AADSTS50079|AADSTS50074|AADSTS50072|AADSTS50158/.test(err)) {
-    return { status: "valida", detail: "Senha válida — o login exige MFA (2º fator barrou)." };
+    return {
+      status: "valida",
+      detail: "Senha válida — o login exige MFA (2º fator barrou).",
+      mfa: true,
+    };
   }
   if (/AADSTS50126/.test(err)) return { status: "invalida", detail: "Senha recusada pelo Entra." };
   if (/AADSTS700056|AADSTS50034|AADSTS50128|AADSTS51004/.test(err))
