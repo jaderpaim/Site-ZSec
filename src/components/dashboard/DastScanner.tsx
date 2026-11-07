@@ -139,6 +139,17 @@ const SEV_ICON: Record<
   medium: Square,
   low: Circle,
 };
+// Permissões do módulo (mesmo modelo do SAST) -- só pra esconder botões; o
+// servidor confere a ação em cada endpoint de qualquer forma.
+type DastPerms = { canView: boolean; canEdit: boolean; canManage: boolean; canDelete: boolean };
+const DastPermsContext = React.createContext<DastPerms>({
+  canView: false,
+  canEdit: false,
+  canManage: false,
+  canDelete: false,
+});
+const useDastPerms = () => React.useContext(DastPermsContext);
+
 const SEV_LABEL: Record<string, string> = {
   critical: "Crítico",
   high: "Alto",
@@ -952,6 +963,7 @@ function NewScanDialog({
 
 // ── Linha de vulnerabilidade (accordion com detalhe) ─────────────────────────────
 function VulnRow({ v, onChanged }: { v: any; onChanged: () => void }) {
+  const perms = useDastPerms();
   const [open, setOpen] = React.useState(false);
   const [showRaw, setShowRaw] = React.useState(false);
   // Cada ocorrência agrupada (ver group_zap_alerts no scanner) pode ter sua
@@ -1317,6 +1329,7 @@ function VulnRow({ v, onChanged }: { v: any; onChanged: () => void }) {
               <div style={{ fontSize: 11, color: T.textSubtle }}>Nenhum retest ainda.</div>
             )}
           </div>
+          {perms.canEdit && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 4 }}>
             <button
               className="dast-btn gst"
@@ -1345,6 +1358,7 @@ function VulnRow({ v, onChanged }: { v: any; onChanged: () => void }) {
               <XCircle size={12} /> Falso positivo
             </button>
           </div>
+          )}
         </div>
       )}
     </div>
@@ -1353,6 +1367,7 @@ function VulnRow({ v, onChanged }: { v: any; onChanged: () => void }) {
 
 // ── Aba Acompanhamento ────────────────────────────────────────────────────────────
 function AcompanhamentoView({ scanRows }: { scanRows: any[] }) {
+  const perms = useDastPerms();
   const qc = useQueryClient();
   const cancelFn = useServerFn(cancelDastScan);
   const fetchAlerts = useServerFn(getDastAlerts);
@@ -1452,13 +1467,15 @@ function AcompanhamentoView({ scanRows }: { scanRows: any[] }) {
                       color={STATUS_TONE[s.status] ?? T.textMuted}
                       live={s.status === "running"}
                     />
-                    <button
-                      className="dast-btn"
-                      disabled={cancel.isPending}
-                      onClick={() => cancel.mutate(s.id)}
-                    >
-                      <Ban size={13} /> Cancelar
-                    </button>
+                    {perms.canEdit && (
+                      <button
+                        className="dast-btn"
+                        disabled={cancel.isPending}
+                        onClick={() => cancel.mutate(s.id)}
+                      >
+                        <Ban size={13} /> Cancelar
+                      </button>
+                    )}
                   </div>
                   <div className="dast-progress">
                     <div className="dast-prog">
@@ -1499,14 +1516,16 @@ function AcompanhamentoView({ scanRows }: { scanRows: any[] }) {
                         .join(" · ")}
                     </small>
                   </div>
-                  <button
-                    className="dast-btn"
-                    disabled={alertRetest.isPending}
-                    onClick={() => alertRetest.mutate(a.id)}
-                    title="Roda o teste de novo só nesta falha"
-                  >
-                    <RefreshCw size={12} /> Retest
-                  </button>
+                  {perms.canEdit && (
+                    <button
+                      className="dast-btn"
+                      disabled={alertRetest.isPending}
+                      onClick={() => alertRetest.mutate(a.id)}
+                      title="Roda o teste de novo só nesta falha"
+                    >
+                      <RefreshCw size={12} /> Retest
+                    </button>
+                  )}
                 </div>
               ))
             ) : (
@@ -1792,6 +1811,7 @@ function ConfirmDeleteButton({
 
 // ── Excluir scan (bloqueado em teste/produção pra scans ainda ativos) ───────
 function DeleteScanButton({ scanId, status }: { scanId: string; status: string }) {
+  const perms = useDastPerms();
   const qc = useQueryClient();
   const deleteFn = useServerFn(deleteDastScan);
   const isActive = status === "queued" || status === "running";
@@ -1805,6 +1825,7 @@ function DeleteScanButton({ scanId, status }: { scanId: string; status: string }
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  if (!perms.canDelete) return null;
   return (
     <ConfirmDeleteButton
       triggerClassName="dast-btn dng"
@@ -1820,6 +1841,7 @@ function DeleteScanButton({ scanId, status }: { scanId: string; status: string }
 
 // ── Cancelar scan direto do Dashboard (sem precisar trocar de aba) ───────────
 function CancelScanButton({ scanId, status }: { scanId: string; status: string }) {
+  const perms = useDastPerms();
   const qc = useQueryClient();
   const cancelFn = useServerFn(cancelDastScan);
   const isActive = status === "queued" || status === "running";
@@ -1832,7 +1854,7 @@ function CancelScanButton({ scanId, status }: { scanId: string; status: string }
     },
     onError: (e: Error) => toast.error(e.message),
   });
-  if (!isActive) return null;
+  if (!isActive || !perms.canEdit) return null;
   return (
     <button
       className="dast-btn dng"
@@ -2037,6 +2059,7 @@ const FREQ_LABEL: Record<string, string> = {
   monthly: "Mensal",
 };
 function AgendamentosView() {
+  const perms = useDastPerms();
   const qc = useQueryClient();
   const listFn = useServerFn(listDastSchedules);
   const toggleFn = useServerFn(toggleDastSchedule);
@@ -2063,9 +2086,11 @@ function AgendamentosView() {
         <div className="dast-panel-title">
           <CalendarClock size={11} color={T.accent} /> Agendamentos ({rows.length})
         </div>
-        <button className="dast-btn pri" onClick={() => setDlgOpen(true)}>
-          <Plus size={13} /> Novo agendamento
-        </button>
+        {perms.canEdit && (
+          <button className="dast-btn pri" onClick={() => setDlgOpen(true)}>
+            <Plus size={13} /> Novo agendamento
+          </button>
+        )}
       </div>
       {rows.length ? (
         <div style={{ overflowX: "auto" }}>
@@ -2125,22 +2150,26 @@ function AgendamentosView() {
                   </td>
                   <td style={{ textAlign: "right", paddingRight: 18 }}>
                     <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                      <button
-                        className="dast-btn gst"
-                        title={s.active ? "Pausar" : "Ativar"}
-                        onClick={() => toggle.mutate({ id: s.id, active: !s.active })}
-                      >
-                        {s.active ? <Pause size={12} /> : <Play size={12} />}
-                      </button>
-                      <ConfirmDeleteButton
-                        triggerClassName="dast-btn dng"
-                        triggerTitle="Remover"
-                        icon={<Trash2 size={12} />}
-                        dialogTitle="Remover agendamento"
-                        dialogDescription={`Remover o agendamento "${s.name ?? "sem nome"}"? Essa ação não pode ser desfeita.`}
-                        confirmLabel="Remover"
-                        onConfirm={() => del.mutate(s.id)}
-                      />
+                      {perms.canEdit && (
+                        <button
+                          className="dast-btn gst"
+                          title={s.active ? "Pausar" : "Ativar"}
+                          onClick={() => toggle.mutate({ id: s.id, active: !s.active })}
+                        >
+                          {s.active ? <Pause size={12} /> : <Play size={12} />}
+                        </button>
+                      )}
+                      {perms.canDelete && (
+                        <ConfirmDeleteButton
+                          triggerClassName="dast-btn dng"
+                          triggerTitle="Remover"
+                          icon={<Trash2 size={12} />}
+                          dialogTitle="Remover agendamento"
+                          dialogDescription={`Remover o agendamento "${s.name ?? "sem nome"}"? Essa ação não pode ser desfeita.`}
+                          confirmLabel="Remover"
+                          onConfirm={() => del.mutate(s.id)}
+                        />
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -2765,6 +2794,7 @@ function AuthCredentialsDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const perms = useDastPerms();
   const list = useServerFn(listDastAuthCredentialsFn);
   const save = useServerFn(saveDastAuthCredentialFn);
   const del = useServerFn(deleteDastAuthCredentialFn);
@@ -2880,14 +2910,16 @@ function AuthCredentialsDialog({
                       {cred.loginUrl || "raiz do alvo (sem URL de login específica)"}
                     </span>
                   </div>
-                  <ConfirmDeleteButton
-                    triggerClassName="dast-btn gst"
-                    triggerTitle="Remover credencial"
-                    icon={<Trash2 size={13} />}
-                    dialogTitle="Remover credencial?"
-                    dialogDescription={`Scans futuros contra ${cred.domain} voltam a rodar anônimos.`}
-                    onConfirm={() => deleteMutation.mutate(cred.id)}
-                  />
+                  {perms.canDelete && (
+                    <ConfirmDeleteButton
+                      triggerClassName="dast-btn gst"
+                      triggerTitle="Remover credencial"
+                      icon={<Trash2 size={13} />}
+                      dialogTitle="Remover credencial?"
+                      dialogDescription={`Scans futuros contra ${cred.domain} voltam a rodar anônimos.`}
+                      onConfirm={() => deleteMutation.mutate(cred.id)}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -3007,6 +3039,7 @@ function getRootDomain(raw: string): string {
 }
 
 function AtivosDescobertosView({ discoveryScans }: { discoveryScans: any[] }) {
+  const perms = useDastPerms();
   const fetchAssets = useServerFn(listDastAssets);
   const deleteAssetFn = useServerFn(deleteDastAsset);
   const qc = useQueryClient();
@@ -3039,7 +3072,7 @@ function AtivosDescobertosView({ discoveryScans }: { discoveryScans: any[] }) {
     if (domainFilter !== "all" && !domains.includes(domainFilter)) setDomainFilter("all");
   }, [domains, domainFilter]);
 
-  const semCadastro = filteredRows.filter((r) => !r.in_applications).length;
+  const semCadastro = filteredRows.filter((r) => r.in_applications === false).length;
   return (
     <>
       <div className="dast-kpis">
@@ -3121,20 +3154,28 @@ function AtivosDescobertosView({ discoveryScans }: { discoveryScans: any[] }) {
                 ))}
               </SelectContent>
             </Select>
-            <button className="dast-btn gst" onClick={() => setAdCredDlgOpen(true)}>
-              Credencial AD
-            </button>
-            <button className="dast-btn gst" onClick={() => setAuthCredDlgOpen(true)}>
-              <KeyRound size={13} /> Scan autenticado
-            </button>
-            <button className="dast-btn pri" onClick={() => setDlgOpen(true)}>
-              <Plus size={13} /> Nova descoberta
-            </button>
+            {perms.canManage && (
+              <>
+                <button className="dast-btn gst" onClick={() => setAdCredDlgOpen(true)}>
+                  Credencial AD
+                </button>
+                <button className="dast-btn gst" onClick={() => setAuthCredDlgOpen(true)}>
+                  <KeyRound size={13} /> Scan autenticado
+                </button>
+                <button className="dast-btn pri" onClick={() => setDlgOpen(true)}>
+                  <Plus size={13} /> Nova descoberta
+                </button>
+              </>
+            )}
           </div>
         </div>
-        <DiscoveryDialog open={dlgOpen} onOpenChange={setDlgOpen} />
-        <AdLdapCredentialDialog open={adCredDlgOpen} onOpenChange={setAdCredDlgOpen} />
-        <AuthCredentialsDialog open={authCredDlgOpen} onOpenChange={setAuthCredDlgOpen} />
+        {perms.canManage && (
+          <>
+            <DiscoveryDialog open={dlgOpen} onOpenChange={setDlgOpen} />
+            <AdLdapCredentialDialog open={adCredDlgOpen} onOpenChange={setAdCredDlgOpen} />
+            <AuthCredentialsDialog open={authCredDlgOpen} onOpenChange={setAuthCredDlgOpen} />
+          </>
+        )}
         <div style={{ padding: filteredRows.length ? 0 : 20 }}>
           {q.isLoading ? (
             <div className="dast-empty">
@@ -3184,7 +3225,9 @@ function AtivosDescobertosView({ discoveryScans }: { discoveryScans: any[] }) {
                         {r.source ?? "—"}
                       </td>
                       <td>
-                        {r.in_applications ? (
+                        {r.in_applications == null ? (
+                          <span style={{ color: T.textMuted }}>—</span>
+                        ) : r.in_applications ? (
                           <StatusPill label="Cadastrada" color={T.success} />
                         ) : (
                           <StatusPill label="Sem cadastro" color={T.medium} />
@@ -3194,15 +3237,17 @@ function AtivosDescobertosView({ discoveryScans }: { discoveryScans: any[] }) {
                         {fmtRel(r.discovered_at)}
                       </td>
                       <td style={{ paddingRight: 18, textAlign: "right" }}>
-                        <ConfirmDeleteButton
-                          triggerClassName="dast-btn dng"
-                          triggerTitle="Excluir ativo"
-                          triggerDisabled={deleteAsset.isPending}
-                          icon={<Trash2 size={12} />}
-                          dialogTitle="Excluir ativo descoberto"
-                          dialogDescription={`Excluir "${r.subdomain}" de Ativos Descobertos? Essa ação não pode ser desfeita.`}
-                          onConfirm={() => deleteAsset.mutate(r.id)}
-                        />
+                        {perms.canDelete && (
+                          <ConfirmDeleteButton
+                            triggerClassName="dast-btn dng"
+                            triggerTitle="Excluir ativo"
+                            triggerDisabled={deleteAsset.isPending}
+                            icon={<Trash2 size={12} />}
+                            dialogTitle="Excluir ativo descoberto"
+                            dialogDescription={`Excluir "${r.subdomain}" de Ativos Descobertos? Essa ação não pode ser desfeita.`}
+                            onConfirm={() => deleteAsset.mutate(r.id)}
+                          />
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -3308,6 +3353,12 @@ export function DastScannerDashboard() {
   });
   const isDastAllowed = !!accessQuery.data?.allowed;
   const loading = accessQuery.isLoading;
+  const perms: DastPerms = {
+    canView: !!accessQuery.data?.canView,
+    canEdit: !!accessQuery.data?.canEdit,
+    canManage: !!accessQuery.data?.canManage,
+    canDelete: !!accessQuery.data?.canDelete,
+  };
 
   const fetchOverview = useServerFn(getDastOverview);
   const fetchScans = useServerFn(listDastScans);
@@ -3334,7 +3385,7 @@ export function DastScannerDashboard() {
   >("all");
 
   // Realtime: qualquer mudança em scans/vulnerabilities dispara refetch (dados
-  // continuam protegidos por RLS is_dast_allowed nas queries).
+  // continuam protegidos pela RLS de dast-scanner:view nas queries).
   React.useEffect(() => {
     if (!isDastAllowed) return;
     const invalidate = () => {
@@ -3371,7 +3422,8 @@ export function DastScannerDashboard() {
           <Lock size={22} color={T.critical} />
           <span style={{ fontSize: 15, fontWeight: 600 }}>Acesso restrito</span>
           <span className="dast-dim" style={{ fontSize: 13, maxWidth: 420 }}>
-            Este módulo é exclusivo para administradores do departamento de Segurança da Informação.
+            Você não tem permissão para visualizar o DAST Scanner. Peça acesso a um administrador em
+            Gestão de Usuários.
           </span>
         </div>
       </div>
@@ -3403,6 +3455,7 @@ export function DastScannerDashboard() {
   const toggleKpi = (k: typeof kpiFilter) => setKpiFilter((prev) => (prev === k ? "all" : k));
 
   return (
+    <DastPermsContext.Provider value={perms}>
     <div className="dast-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
@@ -3432,9 +3485,11 @@ export function DastScannerDashboard() {
               />{" "}
               Atualizar
             </button>
-            <button className="dast-btn pri lg" onClick={() => setDialogOpen(true)}>
-              <Plus size={14} /> Novo scan
-            </button>
+            {perms.canEdit && (
+              <button className="dast-btn pri lg" onClick={() => setDialogOpen(true)}>
+                <Plus size={14} /> Novo scan
+              </button>
+            )}
           </div>
         </SyncActions>
       </div>
@@ -3789,7 +3844,8 @@ export function DastScannerDashboard() {
 
       {view === "agendamentos" && <AgendamentosView />}
 
-      <NewScanDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      {perms.canEdit && <NewScanDialog open={dialogOpen} onOpenChange={setDialogOpen} />}
     </div>
+    </DastPermsContext.Provider>
   );
 }

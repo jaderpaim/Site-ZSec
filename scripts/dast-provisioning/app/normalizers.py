@@ -1,4 +1,5 @@
 import re
+# defusedxml: ver comentário em main.py (XXE / billion laughs).
 import defusedxml.ElementTree as ET
 
 CVE_PATTERN = re.compile(r'CVE-\d{4}-\d{4,7}')

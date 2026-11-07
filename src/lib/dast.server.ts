@@ -4,6 +4,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptSecret, decryptSecret, readSecret } from "@/lib/crypto.server";
+import { hasPermission, requireGlobalAdminRole, requirePermission } from "@/lib/authz";
 
 // types.ts gerado não conhece as tabelas dast_* — acesso por cast.
 const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
@@ -172,14 +173,34 @@ export async function deleteDastAuthCredential(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-// Gate server-side: admin + depto Segurança da Informação (espelha a RPC is_dast_allowed).
-// Usa o client user-scoped (context.supabase) para que a checagem valha para o chamador.
-export async function assertDastAccess(sb: SupabaseClient, userId: string): Promise<void> {
-  const { data, error } = await sb.rpc("is_dast_allowed" as never, { _uid: userId } as never);
-  if (error) throw new Error(`Permissão indisponível: ${error.message}`);
-  if (data !== true) {
-    throw new Error("Acesso negado: requer admin e departamento Segurança da Informação");
-  }
+// Gate server-side do DAST e do Shadow IT -- mesmo modelo do SAST (migration
+// 20261106100000): view / edit / manage por módulo, via has_module_permission
+// (admin/super_admin passam pelo bypass normal; sem exigência de departamento).
+// "delete" = manage + papel global admin/super_admin (piso de ação destrutiva).
+// Usa o client user-scoped (context.supabase) pra checagem valer pro chamador.
+export type DastModule = "dast-scanner" | "shadow-it";
+export type DastAction = "view" | "edit" | "manage" | "delete";
+
+export async function assertDastPermission(
+  sb: SupabaseClient,
+  userId: string,
+  module: DastModule,
+  action: DastAction,
+): Promise<void> {
+  await requirePermission(sb, userId, module, action === "delete" ? "manage" : action);
+  if (action === "delete") await requireGlobalAdminRole(sb, userId);
+}
+
+// O que a tela precisa saber pra mostrar/esconder botões (sem lançar erro).
+export async function getDastPermissionFlags(sb: SupabaseClient, userId: string, module: DastModule) {
+  const [canView, canEdit, canManage, isAdmin, isSuperAdmin] = await Promise.all([
+    hasPermission(sb, userId, module, "view"),
+    hasPermission(sb, userId, module, "edit"),
+    hasPermission(sb, userId, module, "manage"),
+    sb.rpc("has_role", { _user_id: userId, _role: "admin" as any }).then((r) => r.data === true),
+    sb.rpc("has_role", { _user_id: userId, _role: "super_admin" as any }).then((r) => r.data === true),
+  ]);
+  return { canView, canEdit, canManage, canDelete: canManage && (isAdmin || isSuperAdmin) };
 }
 
 async function logApi(status: "success" | "error", httpStatus: number | null, message: string, ms: number) {

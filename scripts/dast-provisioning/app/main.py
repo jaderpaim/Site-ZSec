@@ -9,6 +9,9 @@ import re
 import socket
 import time
 import uuid
+# defusedxml no lugar de xml.etree: o XML do Nikto/Nmap carrega conteúdo vindo
+# do alvo escaneado -- bloqueia XXE e "billion laughs" (Semgrep
+# use-defused-xml-parse, CI do Gitea 2026-10-16). Mesma API: parse/ParseError.
 import defusedxml.ElementTree as ET
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse, urlencode
@@ -201,6 +204,49 @@ ZAP_STATIC_ASSET_EXCLUDE_REGEX = (
     r'|mp3|wav|ogg|m4a'
     r'|woff2?|ttf|eot|otf'
     r'|pdf|zip|rar|7z|tar|gz)$'
+)
+
+# So' pro ACTIVE SCAN (ascan/action/excludeFromScan -- acao separada da do
+# spider acima, confirmada ao vivo 2026-10-02) -- NAO usada no spider/proxy/
+# passive scan, onde js/css ficam de propósito dentro do escopo (valor real
+# de passive scan: Source Code Disclosure, segredo hardcoded etc., ver
+# comentario do regex acima). Mas testar SQLi/XSS no PARAMETRO de um arquivo
+# estatico (.js/.css incluso) nunca faz sentido -- confirmado em producao
+# (2026-10-02): 3 dos 4 "achados" de SQLi num scan de www.bernoulli.com.br
+# eram o parametro `ver` (cache-busting do WordPress, tipo
+# `password-strength-meter.min.js?ver=7.0.2`); e confirmado de novo
+# (2026-10-05) com outro app/convencao de nome totalmente diferente:
+# admissao.bernoulli.com.br usa `?c=001815...` (nao `ver=`) no mesmo
+# padrao de cache-busting, e o SQLInjectionScanRule (tecnica boolean-based)
+# marcou como vulneravel mesmo a resposta sendo IDENTICA pra condicao
+# verdadeira e falsa (confirmado manualmente: sempre retorna o mesmo
+# codigo JS estatico) -- falso positivo de heuristica do proprio ZAP, nao
+# SQLi real.
+#
+# Tentativa intermediaria (2026-10-05): restringir a exclusao so' a nomes
+# de parametro "conhecidos" de cache-busting (ver/v/version) e deixar
+# qualquer outro nome (como o `c=` acima) dentro do escopo -- descartada
+# na hora por ser exatamente o mesmo tipo de heuristica fragil/sem limite
+# que ja tinha sido rejeitada pro HandleParameters: cada site/equipe
+# inventa a propria convencao de nome (c=, t=, build=, h=, _=...),
+# entao qualquer lista fixa de nomes deixa passar falso positivo novo a
+# cada dominio diferente escaneado -- nao e' uma lista que convirja.
+# Exclusao ampla (QUALQUER query string em .js/.css, igual midia binaria)
+# e' o risco MAIS LIMITADO dos dois: active scan so' consegue provar SQLi
+# via diferenca observavel de resposta, e se o pior caso for um endpoint
+# .js/.css genuinamente dinamico escondido atras da extensao (raro), a
+# mesma logica de backend tende a estar exposta tambem por um endpoint
+# nao-estatico que continua 100% no escopo -- e o passive scan ainda
+# cobre esse trafego mesmo excluido do active scan.
+# '(\?.*)?$' em vez de so' '$' -- precisa bater mesmo com query string depois
+# da extensao.
+ZAP_ACTIVE_SCAN_STATIC_ASSET_EXCLUDE_REGEX = (
+    r'(?i)\.(jpe?g|png|gif|webp|svg|ico|bmp|tiff?'
+    r'|mp4|webm|mov|avi|mkv|flv'
+    r'|mp3|wav|ogg|m4a'
+    r'|woff2?|ttf|eot|otf'
+    r'|pdf|zip|rar|7z|tar|gz'
+    r'|js|css)(\?.*)?$'
 )
 
 # Regex global de exclusao (Spider classico + proxy, ver configure_zap_global_excludes)
@@ -403,13 +449,46 @@ async def configure_zap_active_scan_policy() -> None:
             await c.get(f'{ZAP_URL}/JSON/ascan/action/setOptionThreadPerHost/', params={
                 'apikey': ZAP_KEY, 'Integer': str(ZAP_ASCAN_THREADS_PER_HOST),
             })
+            await c.get(f'{ZAP_URL}/JSON/ascan/action/excludeFromScan/', params={
+                'apikey': ZAP_KEY, 'regex': ZAP_ACTIVE_SCAN_STATIC_ASSET_EXCLUDE_REGEX,
+            })
+            # Garante que a scan policy usada pelo nivel "advanced"
+            # (ZAP_ADVANCED_POLICY) existe -- ver comentario na definicao
+            # da constante sobre o bug real que isso causou (scan falhando
+            # com "does_not_exist" porque a policy nunca tinha sido criada
+            # de verdade por codigo nenhum). addScanPolicy e' idempotente
+            # (mesmo padrao confirmado em RETEST_SCAN_POLICY_NAME/retest.py
+            # -- ZAP ignora se a policy ja existir). alertThreshold=LOW +
+            # attackStrength=HIGH aplicado a TODOS os scanners da policy de
+            # uma vez so' (e' exatamente o "mais payload, mais sensivel"
+            # que o nivel "advanced" promete).
+            await c.get(f'{ZAP_URL}/JSON/ascan/action/addScanPolicy/', params={
+                'apikey': ZAP_KEY, 'scanPolicyName': ZAP_ADVANCED_POLICY,
+                'alertThreshold': 'LOW', 'attackStrength': 'HIGH',
+            })
+            # Uma policy nova via addScanPolicy comeca com TODOS os
+            # scanners habilitados -- nao herda o disableScanners da
+            # Default Policy acima. Reaplica explicitamente aqui pra
+            # DomXssScanRule (travamento documentado, ver
+            # ZAP_DISABLED_ASCAN_RULE_IDS) nao reaparecer so' no nivel
+            # "advanced".
+            await c.get(f'{ZAP_URL}/JSON/ascan/action/disableScanners/', params={
+                'apikey': ZAP_KEY, 'ids': ','.join(ZAP_DISABLED_ASCAN_RULE_IDS),
+                'scanPolicyName': ZAP_ADVANCED_POLICY,
+            })
         print(f'[zap] scan rules desabilitadas globalmente: {ZAP_DISABLED_ASCAN_RULE_IDS} '
               '(DomXssScanRule -- trava o active scan inteiro nesse ambiente, ver comentario); '
               f'spider maxDuration={ZAP_SPIDER_MAX_DURATION_MIN}min, '
               f'ajaxSpider maxDuration={ZAP_AJAX_SPIDER_MAX_DURATION_MIN}min '
               '(evita alvo sozinho estourar o teto de cache do HSQLDB); '
               f'ascan threadPerHost={ZAP_ASCAN_THREADS_PER_HOST} '
-              '(reduz jitter de rede pra deteccao SQLi por tempo ser mais confiavel)',
+              '(reduz jitter de rede pra deteccao SQLi por tempo ser mais confiavel); '
+              'ascan excludeFromScan de assets estaticos (.js/.css inclusos, com ou sem '
+              'query string, qualquer nome de parametro) configurado -- evita falso positivo '
+              'de SQLi/XSS em parametro tipo cache-busting (nomes variam por app: ver=, c=, '
+              f't=... nenhum chega em SQL nenhum); scan policy "{ZAP_ADVANCED_POLICY}" '
+              '(nivel advanced) garantida/criada de forma idempotente, com DomXssScanRule '
+              'desabilitada nela tambem',
               flush=True)
     except Exception as e:
         print(f'[zap] falha ao configurar politica de scan (seguindo mesmo assim): '
@@ -1581,15 +1660,48 @@ async def run_scan_job(req: dict) -> None:
             # (DomXssScanRule, ver configure_zap_active_scan_policy) sao
             # politica de scan, NAO sessao -- sobrevivem sozinhas,
             # confirmado ao vivo, nao precisam reaplicar aqui.
+            #
+            # Timeout de 30s (original) nao bastava depois de um alvo MUITO
+            # grande -- confirmado em producao (2026-10-02): newSession deu
+            # ReadTimeout na transicao www (338mil requisicoes, 17mil alertas)
+            # -> fluig, JVM provavelmente ainda ocupada limpando/resetando a
+            # sessao enorme. Sessao ficou num estado inconsistente -- o
+            # spider do fluig nunca chegou a progredir de verdade (status
+            # -1%, sentinela do ZAP pra "scanId desconhecido"), stall-
+            # detection abortou corretamente depois de 20min mas 0 achados
+            # de ZAP foram possiveis (nuclei/nikto continuaram normais em
+            # paralelo). Timeout maior (120s) + 1 retry depois de uma pausa
+            # curta cobre o caso de JVM so' estar ocupada, nao travada.
+            for attempt in (1, 2):
+                async with httpx.AsyncClient(timeout=120) as c:
+                    try:
+                        await c.get(f'{ZAP_URL}/JSON/core/action/newSession/', params={
+                            'apikey': ZAP_KEY, 'name': '', 'overwrite': 'true',
+                        })
+                        break
+                    except Exception as e:
+                        print(f'[zap] falha ao iniciar sessao nova pro alvo {target} '
+                              f'(tentativa {attempt}/2): {type(e).__name__}: {e}', flush=True)
+                        if attempt == 1:
+                            await asyncio.sleep(15)
+                        else:
+                            print(f'[zap] desistindo de newSession pro alvo {target} apos 2 '
+                                  'tentativas -- seguindo mesmo assim, sessao pode estar '
+                                  'inconsistente', flush=True)
+            await configure_zap_global_excludes()
+            # Defensivo -- nao confirmado ainda se ascan/action/excludeFromScan
+            # e' escopo de sessao (igual spider/proxy acima) ou de politica
+            # (igual scan rules desabilitadas), entao reaplica aqui tambem pra
+            # nao arriscar perder entre alvos do mesmo bulk (ver
+            # configure_zap_active_scan_policy pro motivo da exclusao em si).
             async with httpx.AsyncClient(timeout=30) as c:
                 try:
-                    await c.get(f'{ZAP_URL}/JSON/core/action/newSession/', params={
-                        'apikey': ZAP_KEY, 'name': '', 'overwrite': 'true',
+                    await c.get(f'{ZAP_URL}/JSON/ascan/action/excludeFromScan/', params={
+                        'apikey': ZAP_KEY, 'regex': ZAP_ACTIVE_SCAN_STATIC_ASSET_EXCLUDE_REGEX,
                     })
                 except Exception as e:
-                    print(f'[zap] falha ao iniciar sessao nova pro alvo {target} '
+                    print(f'[zap] falha ao reaplicar exclusao de assets no active scan '
                           f'(seguindo mesmo assim): {type(e).__name__}: {e}', flush=True)
-            await configure_zap_global_excludes()
             # Mesmo motivo do scan_worker -- so' que aqui e' ENTRE alvos do
             # MESMO job bulk, nao so' entre jobs diferentes (ver
             # zap_wait_pscan_idle).
@@ -1833,7 +1945,16 @@ async def run_nuclei(url: str, level: str = 'intermediate') -> list:
     return findings
 
 
-ZAP_ADVANCED_POLICY = 'St-High-Th-Low'  # policy pre-pronta do ZAP: Strength=High, Threshold=Low
+# NAO e' uma policy pre-pronta do ZAP (ZAP so' vem com "Default Policy" de
+# fabrica) -- nome historico sugeria o contrario, mas nunca existiu codigo
+# que a criasse. Bug real confirmado em producao (2026-10-29): scan nivel
+# "advanced" falhando com `ascan/action/scan` -> {'code': 'does_not_exist'}
+# porque essa policy nao existia na sessao do ZAP (criada manualmente uma
+# vez via UI/API em algum momento, perdida numa recriacao de container ou
+# nunca persistida). Garantida de forma idempotente em
+# configure_zap_active_scan_policy() (ver ascan/action/addScanPolicy la --
+# mesmo padrao ja usado por RETEST_SCAN_POLICY_NAME em retest.py).
+ZAP_ADVANCED_POLICY = 'St-High-Th-Low'  # Strength=High, Threshold=Low
 
 # Teto de INATIVIDADE (nao de tempo total) pro polling de spider/ascan --
 # 20min sem a % avancar nem um pouco e' trava de verdade (maior regra

@@ -648,7 +648,7 @@ function HostRow({
 }: {
   host: any;
   findings: any[];
-  onVerify: (ip: string) => void;
+  onVerify?: (ip: string) => void;
   verifying: boolean;
   selected: boolean;
   onSelect: (ip: string) => void;
@@ -727,15 +727,17 @@ function HostRow({
         </td>
       ))}
       <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
-        <button
-          className="swit-icon-btn"
-          disabled={verifying}
-          onClick={() => onVerify(host.ip)}
-          title="Verificar só este host"
-          aria-label="Verificar só este host"
-        >
-          {verifying ? <Loader2 size={14} className="swit-spin" /> : <RefreshCw size={14} />}
-        </button>
+        {onVerify && (
+          <button
+            className="swit-icon-btn"
+            disabled={verifying}
+            onClick={() => onVerify(host.ip)}
+            title="Verificar só este host"
+            aria-label="Verificar só este host"
+          >
+            {verifying ? <Loader2 size={14} className="swit-spin" /> : <RefreshCw size={14} />}
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -756,8 +758,8 @@ function HostDetailsSheet({
   onOpenChange: (v: boolean) => void;
   host: any | null;
   findings: any[];
-  onSetStatus: (findingId: string, status: "resolved" | "false_positive") => void;
-  onVerify: (ip: string) => void;
+  onSetStatus?: (findingId: string, status: "resolved" | "false_positive") => void;
+  onVerify?: (ip: string) => void;
   verifying: boolean;
 }) {
   // Mantém o último host exibido enquanto o painel anima a saída -- `host` vira
@@ -811,10 +813,12 @@ function HostDetailsSheet({
           >
             Fechar
           </button>
-          <button className="swit-btn" disabled={verifying} onClick={() => onVerify(host_.ip)}>
-            {verifying ? <Loader2 size={14} className="swit-spin" /> : <RefreshCw size={14} />}
-            Verificar este host
-          </button>
+          {onVerify && (
+            <button className="swit-btn" disabled={verifying} onClick={() => onVerify(host_.ip)}>
+              {verifying ? <Loader2 size={14} className="swit-spin" /> : <RefreshCw size={14} />}
+              Verificar este host
+            </button>
+          )}
         </>
       }
     >
@@ -911,17 +915,19 @@ function HostDetailsSheet({
                       {f.permission ?? "—"}
                     </span>
                   </div>
-                  <div className="swit-share-acts">
-                    <button className="swit-btn sm" onClick={() => onSetStatus(f.id, "resolved")}>
-                      Resolvido
-                    </button>
-                    <button
-                      className="swit-btn sm dng"
-                      onClick={() => onSetStatus(f.id, "false_positive")}
-                    >
-                      Falso positivo
-                    </button>
-                  </div>
+                  {onSetStatus && (
+                    <div className="swit-share-acts">
+                      <button className="swit-btn sm" onClick={() => onSetStatus(f.id, "resolved")}>
+                        Resolvido
+                      </button>
+                      <button
+                        className="swit-btn sm dng"
+                        onClick={() => onSetStatus(f.id, "false_positive")}
+                      >
+                        Falso positivo
+                      </button>
+                    </div>
+                  )}
                   <CopyableText value={uncPath} />
                 </div>
               );
@@ -1128,6 +1134,10 @@ export function ShadowItDashboard() {
       </div>
     );
   }
+  // Mesmo modelo do SAST; o servidor confere de novo em cada ação.
+  const canEdit = !!access.data?.canEdit;
+  const canManage = !!access.data?.canManage;
+  const canDelete = !!access.data?.canDelete;
 
   return (
     <div className="swit-root">
@@ -1141,12 +1151,17 @@ export function ShadowItDashboard() {
           </p>
         </div>
         <div className="swit-ph-actions">
-          <button className="swit-btn" onClick={() => setCredDlgOpen(true)}>
-            <KeyRound size={14} /> Credencial SMB
-          </button>
-          <button className="swit-btn" onClick={() => setSubnetDlgOpen(true)}>
-            <Plus size={14} /> Nova varredura
-          </button>
+          {canManage && (
+            <>
+              <button className="swit-btn" onClick={() => setCredDlgOpen(true)}>
+                <KeyRound size={14} /> Credencial SMB
+              </button>
+              <button className="swit-btn" onClick={() => setSubnetDlgOpen(true)}>
+                <Plus size={14} /> Nova varredura
+              </button>
+            </>
+          )}
+          {canEdit && (
           <button
             className="swit-btn pri"
             disabled={(startMutation.isPending && !startMutation.variables) || hosts.length === 0}
@@ -1164,6 +1179,7 @@ export function ShadowItDashboard() {
             )}
             Verificar todos
           </button>
+          )}
         </div>
       </div>
 
@@ -1389,7 +1405,7 @@ export function ShadowItDashboard() {
                         key={h.id}
                         host={h}
                         findings={findingsByIp.get(h.ip) ?? []}
-                        onVerify={(ip) => startMutation.mutate([ip])}
+                        onVerify={canEdit ? (ip) => startMutation.mutate([ip]) : undefined}
                         verifying={startMutation.isPending && startMutation.variables?.[0] === h.ip}
                         selected={selectedIp === h.ip}
                         onSelect={(ip) => setSelectedIp((cur) => (cur === ip ? null : ip))}
@@ -1492,7 +1508,7 @@ export function ShadowItDashboard() {
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
-                            {(s.status === "queued" || s.status === "running") && (
+                            {canEdit && (s.status === "queued" || s.status === "running") && (
                               <button
                                 className="swit-icon-btn danger"
                                 onClick={() => cancelMutation.mutate(s.id)}
@@ -1502,7 +1518,7 @@ export function ShadowItDashboard() {
                                 <Ban size={14} />
                               </button>
                             )}
-                            {s.status !== "queued" && s.status !== "running" && (
+                            {canDelete && s.status !== "queued" && s.status !== "running" && (
                               <button
                                 className="swit-icon-btn danger"
                                 onClick={() => deleteMutation.mutate(s.id)}
@@ -1524,15 +1540,19 @@ export function ShadowItDashboard() {
         </div>
       )}
 
-      <CredentialDialog open={credDlgOpen} onOpenChange={setCredDlgOpen} />
-      <SubnetScanDialog open={subnetDlgOpen} onOpenChange={setSubnetDlgOpen} />
+      {canManage && (
+        <>
+          <CredentialDialog open={credDlgOpen} onOpenChange={setCredDlgOpen} />
+          <SubnetScanDialog open={subnetDlgOpen} onOpenChange={setSubnetDlgOpen} />
+        </>
+      )}
       <HostDetailsSheet
         open={!!selectedIp}
         onOpenChange={(o) => !o && setSelectedIp(null)}
         host={selectedHost}
         findings={selectedHost ? (findingsByIp.get(selectedHost.ip) ?? []) : []}
-        onSetStatus={(findingId, status) => statusMutation.mutate({ findingId, status })}
-        onVerify={(ip) => startMutation.mutate([ip])}
+        onSetStatus={canEdit ? (findingId, status) => statusMutation.mutate({ findingId, status }) : undefined}
+        onVerify={canEdit ? (ip) => startMutation.mutate([ip]) : undefined}
         verifying={
           startMutation.isPending &&
           !!selectedHost &&
