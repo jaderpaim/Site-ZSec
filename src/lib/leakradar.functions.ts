@@ -62,6 +62,11 @@ export type LeakApp = {
   success_type: "status" | "body_contains" | "body_not_contains" | "json_field";
   success_value: string;
   enabled: boolean;
+  prime_url: string | null;
+  post_login_url: string | null;
+  id_field: string | null;
+  access_failure_contains: string | null;
+  access_success_contains: string | null;
 };
 
 // Relatório do domínio (contagens oficiais do LeakRadar, salvas na coleta).
@@ -392,6 +397,18 @@ export const revealLeakPassword = createServerFn({ method: "POST" })
       // nunca gravamos a senha — só o contexto da ação
       detalhes: { id: data.id, categoria: row.category, dominio: row.domain },
     });
+    const { notifyThreatIntel, actorName } = await import("./leakradar-alerts.server");
+    await notifyThreatIntel("threat_intel_credential_revealed", {
+      title: "Senha de credencial vazada revelada",
+      color: "F59E0B",
+      facts: [
+        { name: "Credencial", value: String(row.username ?? "—") },
+        { name: "Categoria", value: String(row.category ?? "—") },
+        { name: "Domínio", value: String(row.domain ?? "—") },
+        { name: "Serviço", value: String(row.url_host ?? "—") },
+        { name: "Revelada por", value: await actorName(context.userId) },
+      ],
+    });
     return { password: res.password };
   });
 
@@ -538,6 +555,20 @@ export const getLeakRadarAccountInfo = createServerFn({ method: "POST" })
     return getLeakRadarAccount();
   });
 
+// Pico de credenciais por domínio de parceiro, nos domínios monitorados (o
+// mesmo cálculo do cron cti-spike-sweep). Só leitura: permissão view.
+export const getDomainSpike = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .handler(async ({ context }) => {
+    await requirePermission(context.supabase as SupabaseClient, context.userId, MODULE, "view");
+    const { getLeakRadarCreds } = await import("./leakradar.server");
+    const creds = await getLeakRadarCreds();
+    if (!creds) return { results: [] };
+    const { computeDomainSpike } = await import("./leakradar-spike.server");
+    const results = await Promise.all(creds.domains.map((d) => computeDomainSpike(d)));
+    return { results: results.filter((r) => r.domains.length > 0) };
+  });
+
 // ── Aplicações próprias (allowlist de validação) ────────────────────────────
 
 export const listLeakApps = createServerFn({ method: "POST" })
@@ -546,7 +577,7 @@ export const listLeakApps = createServerFn({ method: "POST" })
     const { data, error } = await db(context.supabase)
       .from("leakradar_apps")
       .select(
-        "id, name, host, login_url, method, username_field, password_field, extra_fields, success_type, success_value, enabled",
+        "id, name, host, login_url, method, username_field, password_field, extra_fields, success_type, success_value, enabled, prime_url, post_login_url, id_field, access_failure_contains, access_success_contains",
       )
       .order("host", { ascending: true });
     if (error) throw new Error(error.message);
@@ -570,6 +601,11 @@ const AppSchema = z.object({
   success_type: z.enum(["status", "body_contains", "body_not_contains", "json_field"]),
   success_value: z.string().min(1).max(500),
   enabled: z.boolean(),
+  prime_url: z.string().url().max(2000).nullable().optional(),
+  post_login_url: z.string().max(2000).nullable().optional(),
+  id_field: z.string().max(120).nullable().optional(),
+  access_failure_contains: z.string().max(500).nullable().optional(),
+  access_success_contains: z.string().max(500).nullable().optional(),
 });
 
 export const upsertLeakApp = createServerFn({ method: "POST" })
@@ -595,6 +631,23 @@ export const upsertLeakApp = createServerFn({ method: "POST" })
     } catch (e) {
       throw new Error((e as Error).message || "URL de login inválida.");
     }
+    // Página de login (priming) e verificação de acesso: mesmo host, https —
+    // os cookies da sessão nunca vão para outro endereço.
+    const sameHostHttps = (raw: string | null | undefined, rotulo: string) => {
+      const v = raw?.trim();
+      if (!v) return null;
+      let u: URL;
+      try {
+        u = new URL(v.replace(/\{id\}/g, "0"));
+      } catch {
+        throw new Error(`${rotulo}: URL inválida.`);
+      }
+      if (u.protocol !== "https:" || u.hostname.toLowerCase() !== data.host)
+        throw new Error(`${rotulo} precisa ser https e do mesmo host da aplicação.`);
+      return v;
+    };
+    const primeUrl = sameHostHttps(data.prime_url, "URL da página de login");
+    const postLoginUrl = sameHostHttps(data.post_login_url, "URL de verificação de acesso");
 
     const row = {
       name: data.name.trim(),
@@ -607,6 +660,11 @@ export const upsertLeakApp = createServerFn({ method: "POST" })
       success_type: data.success_type,
       success_value: data.success_value.trim(),
       enabled: data.enabled,
+      prime_url: primeUrl,
+      post_login_url: postLoginUrl,
+      id_field: data.id_field?.trim() || null,
+      access_failure_contains: data.access_failure_contains?.trim() || null,
+      access_success_contains: data.access_success_contains?.trim() || null,
       updated_at: new Date().toISOString(),
       ...(data.id ? {} : { created_by: context.userId }),
     };
@@ -673,7 +731,7 @@ export const validateLeak = createServerFn({ method: "POST" })
       const { data } = await adminDb
         .from("leakradar_apps")
         .select(
-          "host, login_url, method, username_field, password_field, extra_fields, success_type, success_value, enabled",
+          "host, login_url, method, username_field, password_field, extra_fields, success_type, success_value, enabled, prime_url, post_login_url, id_field, access_failure_contains, access_success_contains",
         )
         .eq("host", leak.url_host)
         .maybeSingle();
@@ -696,7 +754,12 @@ export const validateLeak = createServerFn({ method: "POST" })
       throw new Error("Não foi possível obter usuário e senha para validar.");
     }
 
-    let result: { status: "valida" | "invalida" | "inconclusiva"; detail: string };
+    let result: {
+      status: "valida" | "invalida" | "inconclusiva";
+      detail: string;
+      mfa?: boolean;
+      access?: "confirmado" | "sem_acesso" | null;
+    };
     if (microsoft) {
       const { data: adRow } = await adminDb
         .from("leakradar_ad_status")
@@ -762,7 +825,29 @@ export const validateLeak = createServerFn({ method: "POST" })
         resultado: result.status,
       },
     });
-    return result;
+
+    // Alerta no Teams (toggles do módulo de Alertas). Crítica = senha viva com
+    // acesso (sem MFA barrando e sem "sem acesso efetivo"); demais válidas =
+    // risco menor. Inválida/inconclusiva não alerta.
+    if (result.status === "valida") {
+      const critica = !result.mfa && result.access !== "sem_acesso";
+      const { notifyThreatIntel, actorName } = await import("./leakradar-alerts.server");
+      await notifyThreatIntel(
+        critica ? "threat_intel_credential_critical" : "threat_intel_credential_valid",
+        {
+          title: critica ? "Credencial crítica confirmada" : "Credencial válida na validação",
+          color: critica ? "DC2626" : "F59E0B",
+          facts: [
+            { name: "Credencial", value: username },
+            { name: "Categoria", value: String(leak.category ?? "—") },
+            { name: "Onde", value: alvo },
+            { name: "Resultado", value: result.detail },
+            { name: "Validado por", value: await actorName(context.userId) },
+          ],
+        },
+      );
+    }
+    return { status: result.status, detail: result.detail };
   });
 
 // Validação/marcação MANUAL: para contas que o tool não valida sozinho
@@ -789,10 +874,24 @@ export const setLeakValidationManual = createServerFn({ method: "POST" })
         validation_by: context.userId,
       })
       .eq("id", data.id)
-      .select("category")
+      .select("category, username, url_host")
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Credencial não encontrada.");
+    if (data.status === "valida") {
+      const { notifyThreatIntel, actorName } = await import("./leakradar-alerts.server");
+      await notifyThreatIntel("threat_intel_credential_valid", {
+        title: "Credencial marcada como válida (manual)",
+        color: "F59E0B",
+        facts: [
+          { name: "Credencial", value: String(row.username ?? "—") },
+          { name: "Categoria", value: String(row.category ?? "—") },
+          { name: "Serviço", value: String(row.url_host ?? "—") },
+          { name: "Justificativa", value: data.note.trim() },
+          { name: "Marcado por", value: await actorName(context.userId) },
+        ],
+      });
+    }
 
     const vLabel =
       data.status === "valida"

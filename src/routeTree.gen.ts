@@ -26,6 +26,7 @@ import { Route as ApiPublicHooksCloudflareSyncRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksCmdbDeviceAlertsRouteImport } from './routes/api/public/hooks/cmdb-device-alerts'
 import { Route as ApiPublicHooksCmdbDnsCacheRefreshRouteImport } from './routes/api/public/hooks/cmdb-dns-cache-refresh'
 import { Route as ApiPublicHooksCtiMonitorRunRouteImport } from './routes/api/public/hooks/cti-monitor-run'
+import { Route as ApiPublicHooksCtiSpikeSweepRouteImport } from './routes/api/public/hooks/cti-spike-sweep'
 import { Route as ApiPublicHooksDastCallbackRouteImport } from './routes/api/public/hooks/dast-callback'
 import { Route as ApiPublicHooksDastSchedulesRunRouteImport } from './routes/api/public/hooks/dast-schedules-run'
 import { Route as ApiPublicHooksDastStaleScanSweepRouteImport } from './routes/api/public/hooks/dast-stale-scan-sweep'
@@ -147,6 +148,12 @@ const ApiPublicHooksCtiMonitorRunRoute =
   ApiPublicHooksCtiMonitorRunRouteImport.update({
     id: '/api/public/hooks/cti-monitor-run',
     path: '/api/public/hooks/cti-monitor-run',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksCtiSpikeSweepRoute =
+  ApiPublicHooksCtiSpikeSweepRouteImport.update({
+    id: '/api/public/hooks/cti-spike-sweep',
+    path: '/api/public/hooks/cti-spike-sweep',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksDastCallbackRoute =
@@ -339,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
   '/api/public/hooks/cti-monitor-run': typeof ApiPublicHooksCtiMonitorRunRoute
+  '/api/public/hooks/cti-spike-sweep': typeof ApiPublicHooksCtiSpikeSweepRoute
   '/api/public/hooks/dast-callback': typeof ApiPublicHooksDastCallbackRoute
   '/api/public/hooks/dast-schedules-run': typeof ApiPublicHooksDastSchedulesRunRoute
   '/api/public/hooks/dast-stale-scan-sweep': typeof ApiPublicHooksDastStaleScanSweepRoute
@@ -387,6 +395,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
   '/api/public/hooks/cti-monitor-run': typeof ApiPublicHooksCtiMonitorRunRoute
+  '/api/public/hooks/cti-spike-sweep': typeof ApiPublicHooksCtiSpikeSweepRoute
   '/api/public/hooks/dast-callback': typeof ApiPublicHooksDastCallbackRoute
   '/api/public/hooks/dast-schedules-run': typeof ApiPublicHooksDastSchedulesRunRoute
   '/api/public/hooks/dast-stale-scan-sweep': typeof ApiPublicHooksDastStaleScanSweepRoute
@@ -436,6 +445,7 @@ export interface FileRoutesById {
   '/api/public/hooks/cmdb-device-alerts': typeof ApiPublicHooksCmdbDeviceAlertsRoute
   '/api/public/hooks/cmdb-dns-cache-refresh': typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
   '/api/public/hooks/cti-monitor-run': typeof ApiPublicHooksCtiMonitorRunRoute
+  '/api/public/hooks/cti-spike-sweep': typeof ApiPublicHooksCtiSpikeSweepRoute
   '/api/public/hooks/dast-callback': typeof ApiPublicHooksDastCallbackRoute
   '/api/public/hooks/dast-schedules-run': typeof ApiPublicHooksDastSchedulesRunRoute
   '/api/public/hooks/dast-stale-scan-sweep': typeof ApiPublicHooksDastStaleScanSweepRoute
@@ -486,6 +496,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
     | '/api/public/hooks/cti-monitor-run'
+    | '/api/public/hooks/cti-spike-sweep'
     | '/api/public/hooks/dast-callback'
     | '/api/public/hooks/dast-schedules-run'
     | '/api/public/hooks/dast-stale-scan-sweep'
@@ -534,6 +545,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
     | '/api/public/hooks/cti-monitor-run'
+    | '/api/public/hooks/cti-spike-sweep'
     | '/api/public/hooks/dast-callback'
     | '/api/public/hooks/dast-schedules-run'
     | '/api/public/hooks/dast-stale-scan-sweep'
@@ -582,6 +594,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/cmdb-device-alerts'
     | '/api/public/hooks/cmdb-dns-cache-refresh'
     | '/api/public/hooks/cti-monitor-run'
+    | '/api/public/hooks/cti-spike-sweep'
     | '/api/public/hooks/dast-callback'
     | '/api/public/hooks/dast-schedules-run'
     | '/api/public/hooks/dast-stale-scan-sweep'
@@ -629,6 +642,7 @@ export interface RootRouteChildren {
   ApiPublicHooksCmdbDeviceAlertsRoute: typeof ApiPublicHooksCmdbDeviceAlertsRoute
   ApiPublicHooksCmdbDnsCacheRefreshRoute: typeof ApiPublicHooksCmdbDnsCacheRefreshRoute
   ApiPublicHooksCtiMonitorRunRoute: typeof ApiPublicHooksCtiMonitorRunRoute
+  ApiPublicHooksCtiSpikeSweepRoute: typeof ApiPublicHooksCtiSpikeSweepRoute
   ApiPublicHooksDastCallbackRoute: typeof ApiPublicHooksDastCallbackRoute
   ApiPublicHooksDastSchedulesRunRoute: typeof ApiPublicHooksDastSchedulesRunRoute
   ApiPublicHooksDastStaleScanSweepRoute: typeof ApiPublicHooksDastStaleScanSweepRoute
@@ -779,6 +793,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/cti-monitor-run'
       fullPath: '/api/public/hooks/cti-monitor-run'
       preLoaderRoute: typeof ApiPublicHooksCtiMonitorRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/cti-spike-sweep': {
+      id: '/api/public/hooks/cti-spike-sweep'
+      path: '/api/public/hooks/cti-spike-sweep'
+      fullPath: '/api/public/hooks/cti-spike-sweep'
+      preLoaderRoute: typeof ApiPublicHooksCtiSpikeSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/dast-callback': {
@@ -1018,6 +1039,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksCmdbDnsCacheRefreshRoute:
     ApiPublicHooksCmdbDnsCacheRefreshRoute,
   ApiPublicHooksCtiMonitorRunRoute: ApiPublicHooksCtiMonitorRunRoute,
+  ApiPublicHooksCtiSpikeSweepRoute: ApiPublicHooksCtiSpikeSweepRoute,
   ApiPublicHooksDastCallbackRoute: ApiPublicHooksDastCallbackRoute,
   ApiPublicHooksDastSchedulesRunRoute: ApiPublicHooksDastSchedulesRunRoute,
   ApiPublicHooksDastStaleScanSweepRoute: ApiPublicHooksDastStaleScanSweepRoute,

@@ -252,9 +252,25 @@ export const updateIncident = createServerFn({ method: "POST" })
       .from("leakradar_incidents")
       .update(patch)
       .eq("id", data.id)
-      .select("leak_id, ref_code")
+      .select("leak_id, ref_code, title, severity")
       .maybeSingle();
     if (error) throw new Error(error.message);
+
+    if (data.status === "resolvido" || data.status === "cancelado") {
+      const { notifyThreatIntel, actorName } = await import("./leakradar-alerts.server");
+      await notifyThreatIntel("threat_intel_incident_closed", {
+        title: data.status === "resolvido" ? "Incidente resolvido" : "Incidente cancelado",
+        color: data.status === "resolvido" ? "10B981" : "6B7280",
+        facts: [
+          { name: "Incidente", value: `${updated?.ref_code ?? data.id} · ${updated?.title ?? ""}` },
+          { name: "Severidade", value: String(updated?.severity ?? "—") },
+          ...(data.status === "resolvido"
+            ? [{ name: "O que foi feito", value: String(patch.resolution ?? "—") }]
+            : []),
+          { name: "Por", value: await actorName(context.userId) },
+        ],
+      });
+    }
 
     // Reflete o novo status na credencial de origem e registra o evento.
     if (data.status && updated?.leak_id) {
