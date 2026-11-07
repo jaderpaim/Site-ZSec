@@ -43,7 +43,8 @@ export type ModuleAction =
   | "manage_aprovar_exclusao_dns"
   | "manage_backups_dns"
   | "manage_importar_dns"
-  | "manage_liberar_excecao_dns";
+  | "manage_liberar_excecao_dns"
+  | "manage_test_credential";
 
 /**
  * Require the calling user to have `_action` on `_module`, otherwise throw.

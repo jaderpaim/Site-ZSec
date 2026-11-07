@@ -232,3 +232,137 @@ export async function testIncidentChannel(ch: Channel): Promise<void> {
   if (ch.kind === "email") await sendIncidentEmail(ch.target, fake);
   else await postWebhook(ch, fake);
 }
+
+// ── Abertura de incidente (manual pela tela ou automática pela validação) ────
+// Mesmas regras nos dois caminhos: credencial em risco aceito / falso positivo
+// não abre; um incidente por captura (só outro se reindexada depois). No modo
+// "auto" (validação confirmou a credencial) essas situações não são erro: devolve
+// o incidente existente ou nada, sem duplicar.
+const INC_TO_LEAK_STATUS: Record<string, string> = {
+  aberto: "em_tratamento",
+  em_andamento: "em_tratamento",
+  resolvido: "resolvido",
+  cancelado: "novo",
+};
+
+export type OpenIncidentResult = {
+  id: string;
+  refCode: string;
+  created: boolean;
+  dispatch: Awaited<ReturnType<typeof dispatchIncident>>;
+};
+
+export async function openLeakIncident(args: {
+  leakId: string | null;
+  title: string;
+  severity: IncidentSeverity;
+  description: string | null;
+  userId: string;
+  mode: "manual" | "auto";
+}): Promise<OpenIncidentResult | null> {
+  const { logAudit } = await import("@/lib/audit-log.functions");
+  let account: string | null = null;
+  let category: string | null = null;
+  if (args.leakId) {
+    const { data: leak } = await adminDb
+      .from("leakradar_leaks")
+      .select("username, category, status, added_at")
+      .eq("id", args.leakId)
+      .maybeSingle();
+    if (!leak) throw new Error("Credencial não encontrada.");
+    account = (leak.username as string | null) ?? null;
+    category = (leak.category as string | null) ?? null;
+
+    // Marcada como risco aceito / falso positivo não abre incidente.
+    if (leak.status === "risco_aceito" || leak.status === "falso_positivo") {
+      if (args.mode === "auto") return null;
+      throw new Error(
+        "Credencial marcada como risco aceito ou falso positivo — não é possível abrir incidente.",
+      );
+    }
+
+    // Um incidente por captura: só abre outro se foi reindexada depois.
+    const { data: incs } = await adminDb
+      .from("leakradar_incidents")
+      .select("id, ref_code, created_at")
+      .eq("leak_id", args.leakId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const newest = (incs ?? [])[0] as { id: string; ref_code: string; created_at: string } | undefined;
+    const addedMs = leak.added_at ? new Date(leak.added_at as string).getTime() : 0;
+    if (newest && !(addedMs > new Date(newest.created_at).getTime())) {
+      if (args.mode === "auto")
+        return { id: newest.id, refCode: newest.ref_code, created: false, dispatch: [] };
+      throw new Error(
+        `Já existe o incidente ${newest.ref_code} para esta captura. Um novo só após nova indexação no CTI.`,
+      );
+    }
+  }
+
+  const { data: inc, error } = await adminDb
+    .from("leakradar_incidents")
+    .insert({
+      leak_id: args.leakId,
+      title: args.title.trim(),
+      account,
+      category,
+      severity: args.severity,
+      description: args.description?.trim() || null,
+      created_by: args.userId,
+    })
+    .select("id, ref_code, title, account, category, severity, description")
+    .single();
+  if (error) throw new Error(error.message);
+
+  // Dispara os alertas (melhor esforço) e grava o resultado.
+  const results = await dispatchIncident({
+    id: inc.id as string,
+    refCode: inc.ref_code as string,
+    title: inc.title as string,
+    account: inc.account as string | null,
+    category: inc.category as string | null,
+    severity: inc.severity as IncidentSeverity,
+    description: inc.description as string | null,
+  });
+  await adminDb
+    .from("leakradar_incidents")
+    .update({ notified_at: new Date().toISOString(), last_notify: results })
+    .eq("id", inc.id);
+
+  // Abrir incidente para uma credencial move ela para "em tratamento".
+  if (args.leakId) {
+    await adminDb
+      .from("leakradar_leaks")
+      .update({
+        status: INC_TO_LEAK_STATUS.aberto,
+        status_updated_at: new Date().toISOString(),
+        status_updated_by: args.userId,
+      })
+      .eq("id", args.leakId);
+    const { logLeakEvent } = await import("./leakradar-events.server");
+    await logLeakEvent({
+      leakId: args.leakId,
+      incidentId: inc.id as string,
+      label: `Incidente aberto${args.mode === "auto" ? " automaticamente" : ""} (${inc.ref_code})`,
+      detail: args.description?.trim() || null,
+      tone: "warn",
+      userId: args.userId,
+    });
+  }
+
+  await logAudit({
+    userId: args.userId,
+    modulo: "threat-intel",
+    acao: "abrir_incidente",
+    descricao: `Abriu incidente${args.mode === "auto" ? " (automático)" : ""} "${args.title}" (${args.severity})`,
+    status: "success",
+    detalhes: {
+      id: inc.id,
+      severidade: args.severity,
+      origem: args.mode,
+      canais_ok: results.filter((r) => r.ok).length,
+      canais_falha: results.filter((r) => !r.ok).length,
+    },
+  });
+  return { id: inc.id as string, refCode: inc.ref_code as string, created: true, dispatch: results };
+}

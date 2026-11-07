@@ -1,20 +1,35 @@
-// Server-only: validação de legitimidade de credencial vazada.
-//
-// Submete usuário+senha ao endpoint de login de uma APLICAÇÃO PRÓPRIA cadastrada
-// (leakradar_apps), nunca à URL de terceiro onde a credencial foi capturada. A
-// senha chega aqui por parâmetro (vinda do LeakRadar, em memória), é usada só na
-// requisição e nunca é gravada nem logada. NUNCA importar em código de cliente.
+// Server-only: teste de validade de credencial vazada contra APLICAÇÃO PRÓPRIA
+// cadastrada (leakradar_apps). Modelo do b-security-suite (testAppLogin): UMA
+// tentativa de login (sem força bruta), regra de sucesso configurável e
+// diagnóstico do que não chegou ao login (endpoint errado, CSRF, WAF) como
+// "inconclusiva" — nunca como "inválida". A senha chega por parâmetro, é usada só
+// na requisição e nunca é gravada nem logada. NUNCA importar em código de cliente.
 import { assertPublicHttpsUrl } from "@/lib/ssrf-guard.server";
 
 export type LeakApp = {
+  id?: string;
+  name?: string;
   host: string;
+  url_match?: string | null;
   login_url: string;
-  method: "http_form" | "http_json";
+  method: "http_form" | "http_json" | "http_basic";
   username_field: string;
   password_field: string;
   extra_fields: Record<string, unknown> | null;
-  success_type: "status" | "body_contains" | "body_not_contains" | "json_field";
+  success_type:
+    | "status"
+    | "redirect"
+    | "body_contains"
+    | "body_not_contains"
+    | "json_field"
+    | "header"
+    | "cookie";
   success_value: string;
+  // json_field: sucesso quando o campo == este valor (vazio = só presença).
+  success_json_equals?: string | null;
+  // Texto no corpo que força "inválida" (API que responde 200 mesmo em falha).
+  failure_contains?: string | null;
+  has_lockout?: boolean;
   enabled: boolean;
   // Página (GET) que emite os cookies de sessão/CSRF antes do POST (ex.:
   // XSRF-TOKEN). Vazio = usa a origem do login_url. Mesmo host, https.
@@ -28,12 +43,24 @@ export type LeakApp = {
   access_success_contains?: string | null; // texto = COM acesso (vence o de falha)
 };
 
-export type ValidationResult = {
-  status: "valida" | "invalida" | "inconclusiva";
-  detail: string;
-  // Só quando o login foi aceito e o 2º estágio decidiu: "sem_acesso" = senha
-  // viva mas o usuário não entra no sistema (risco menor que acesso completo).
-  access?: "confirmado" | "sem_acesso" | null;
+export type ValidationStatus =
+  | "valida"
+  | "valida_sem_acesso"
+  | "exposta"
+  | "mitigada"
+  | "invalida"
+  | "inconclusiva";
+export type ValidationSeverity = "critica" | "alta" | "baixa";
+
+// Resultado de um teste (aplicação, diretório ou Entra): veredito, severidade,
+// resumo legível e detalhes técnicos (nunca a senha nem o corpo enviado).
+// Detalhes só com valores JSON simples (a resposta vai serializada para a tela).
+export type OutcomeDetails = Record<string, string | number | boolean | null>;
+export type ValidationOutcome = {
+  status: ValidationStatus;
+  severity: ValidationSeverity | null;
+  summary: string;
+  details: OutcomeDetails;
 };
 
 // IdPs e SaaS de terceiros: submeter senha de colaborador aqui é acesso a
@@ -76,39 +103,6 @@ const THIRD_PARTY_IDP = [
 export function isThirdPartyIdp(host: string): boolean {
   const h = host.trim().toLowerCase().replace(/\.$/, "");
   return THIRD_PARTY_IDP.some((d) => h === d || h.endsWith(`.${d}`));
-}
-
-function evaluateSuccess(app: LeakApp, statusCode: number, body: string): boolean {
-  switch (app.success_type) {
-    case "status": {
-      const codes = app.success_value
-        .split(/[\s,]+/)
-        .map((s) => parseInt(s, 10))
-        .filter((n) => Number.isFinite(n));
-      return codes.includes(statusCode);
-    }
-    case "body_contains":
-      return body.includes(app.success_value);
-    case "body_not_contains":
-      return !body.includes(app.success_value);
-    case "json_field": {
-      try {
-        const json = JSON.parse(body) as Record<string, unknown>;
-        const val = app.success_value
-          .split(".")
-          .reduce<unknown>(
-            (acc, k) =>
-              acc && typeof acc === "object" ? (acc as Record<string, unknown>)[k] : undefined,
-            json,
-          );
-        return val != null && val !== false && val !== "";
-      } catch {
-        return false;
-      }
-    }
-    default:
-      return false;
-  }
 }
 
 // ── Sessão de navegador (cookies/CSRF) ──────────────────────────────────────
@@ -261,13 +255,18 @@ async function checkPostLoginAccess(
   app: LeakApp,
   loginBody: string,
   jar: CookieJar,
+  manualId?: string | null,
 ): Promise<{ decided: boolean; noAccess?: boolean; reason: string }> {
   const tmpl = (app.post_login_url ?? "").trim();
   if (!tmpl) return { decided: false, reason: "sem URL de verificação de acesso" };
   let raw = tmpl;
   if (tmpl.includes("{id}")) {
-    const id = extractId(loginBody, app.id_field);
-    if (!id) return { decided: false, reason: "não foi possível obter o id do usuário no login" };
+    const id = manualId?.trim() || extractId(loginBody, app.id_field);
+    if (!id)
+      return {
+        decided: false,
+        reason: "não foi possível obter o id do usuário no login (informe o id manual)",
+      };
     raw = tmpl.replace(/\{id\}/g, encodeURIComponent(id));
   }
   let url: URL;
@@ -296,26 +295,40 @@ async function checkPostLoginAccess(
   }
 }
 
-export async function validateCredentialAgainstApp(
+// Lê um campo JSON por caminho com ponto (ex.: "data.codigo").
+function jsonPath(json: unknown, path: string): unknown {
+  return path
+    .split(".")
+    .reduce<unknown>(
+      (acc, k) => (acc && typeof acc === "object" ? (acc as Record<string, unknown>)[k] : undefined),
+      json,
+    );
+}
+
+// Erros de método/endpoint/content-type: o teste não chegou à lógica de login.
+const ENDPOINT_ERRORS = new Set([400, 404, 405, 406, 415, 501, 502, 503]);
+
+export async function testAppLogin(
   app: LeakApp,
   username: string,
   password: string,
-): Promise<ValidationResult> {
-  if (!app.enabled)
-    return { status: "inconclusiva", detail: "Aplicação desabilitada para validação." };
-  if (isThirdPartyIdp(app.host)) {
-    return {
-      status: "inconclusiva",
-      detail:
-        "Host é um provedor de identidade de terceiros — valide pelo diretório (Entra/AD), não por aqui.",
-    };
-  }
+  manualId?: string | null,
+): Promise<ValidationOutcome> {
+  const nome = app.name || app.host;
+  const inconclusiva = (summary: string, details: OutcomeDetails = {}) =>
+    ({ status: "inconclusiva", severity: null, summary, details }) as ValidationOutcome;
+
+  if (!app.enabled) return inconclusiva("Aplicação desabilitada para teste.");
+  if (isThirdPartyIdp(app.host))
+    return inconclusiva(
+      "Host é um provedor de identidade de terceiros — teste pelo diretório (Entra), não por aqui.",
+    );
 
   let url: URL;
   try {
     url = await assertPublicHttpsUrl(app.login_url);
   } catch (e) {
-    return { status: "inconclusiva", detail: (e as Error).message };
+    return inconclusiva((e as Error).message);
   }
 
   // Priming (best-effort, não é tentativa de login): UM GET na página que emite
@@ -343,7 +356,17 @@ export async function validateCredentialAgainstApp(
     Referer: app.prime_url?.trim() || url.toString(),
   };
   let reqInit: RequestInit;
-  if (app.method === "http_json") {
+  if (app.method === "http_basic") {
+    reqInit = {
+      method: "GET",
+      headers: {
+        ...browser,
+        ...cookieHeaders(jar),
+        Accept: "application/json, text/html, */*",
+        Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`,
+      },
+    };
+  } else if (app.method === "http_json") {
     reqInit = {
       method: "POST",
       headers: {
@@ -375,47 +398,171 @@ export async function validateCredentialAgainstApp(
     };
   }
 
+  // UMA tentativa, sem seguir redirect (um 302 pode ser o próprio sinal, e não
+  // reenviamos a credencial para outro endereço).
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15_000);
+  let res: Response;
   try {
-    // redirect manual: um 302 pode ser justamente o sinal de sucesso/falha, e
-    // não queremos reenviar a credencial seguindo o redirect.
-    const res = await fetch(url.toString(), {
-      ...reqInit,
-      signal: ctrl.signal,
-      redirect: "manual",
-    });
-    absorbCookies(jar, res);
-    const body = await res.text().catch(() => "");
-    const ok = evaluateSuccess(app, res.status, body);
-    if (!ok) {
-      // 419 = CSRF (Laravel): quase sempre falta a página certa no priming.
-      if (res.status === 419)
-        return {
-          status: "inconclusiva",
-          detail: `${app.host} recusou por CSRF (HTTP 419). Ajuste a "URL da página de login" para a página que carrega o formulário e emite o cookie XSRF-TOKEN.`,
-        };
-      return { status: "invalida", detail: `Login recusado em ${app.host} (HTTP ${res.status}).` };
-    }
-    // Login aceito: 2º estágio opcional (acesso efetivo).
-    const access = await checkPostLoginAccess(app, body, jar);
-    if (access.decided && access.noAccess)
-      return {
-        status: "valida",
-        access: "sem_acesso",
-        detail: `Senha válida em ${app.host} (HTTP ${res.status}), mas sem acesso efetivo ao sistema: ${access.reason}.`,
-      };
-    return {
-      status: "valida",
-      access: access.decided ? "confirmado" : null,
-      detail:
-        `Login aceito em ${app.host} (HTTP ${res.status}).` +
-        (app.post_login_url ? ` Acesso: ${access.reason}.` : ""),
-    };
+    res = await fetch(url.toString(), { ...reqInit, signal: ctrl.signal, redirect: "manual" });
   } catch (e) {
     const msg = (e as Error).name === "AbortError" ? "tempo esgotado" : (e as Error).message;
-    return { status: "inconclusiva", detail: `Não foi possível concluir a validação: ${msg}.` };
+    return inconclusiva(`Não foi possível concluir o teste: ${msg}.`, { error: msg });
   } finally {
     clearTimeout(timer);
   }
+  absorbCookies(jar, res);
+
+  const status = res.status;
+  const location = res.headers.get("location") ?? "";
+  const allow = res.headers.get("allow") ?? "";
+  const cfRay = res.headers.get("cf-ray") ?? "";
+  const setCookies = getSetCookies(res);
+  const text = (await res.text().catch(() => "")).slice(0, 20_000);
+  let json: unknown = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    /* corpo não-JSON */
+  }
+  const bodyHas = (needle: string | null | undefined) => signalPresent(needle, text, "");
+
+  // Regra de sucesso. json_field com o campo presente mas outro valor é
+  // rejeição clara (ex.: codigo 401 num HTTP 200); campo ausente fica
+  // inconclusiva (corpo fora do formato esperado).
+  let success = false;
+  let jsonFieldMismatch = false;
+  const value = app.success_value.trim();
+  switch (app.success_type) {
+    case "redirect":
+      success = status >= 300 && status < 400 && (!value || location.includes(value));
+      break;
+    case "body_contains":
+      success = bodyHas(value);
+      break;
+    case "body_not_contains":
+      success = status >= 200 && status < 300 && !bodyHas(value);
+      break;
+    case "header":
+      success = !!value && [...res.headers.keys()].some((h) => h.toLowerCase() === value.toLowerCase());
+      break;
+    case "cookie":
+      success = setCookies.length > 0 && (!value || setCookies.some((c) => c.includes(value)));
+      break;
+    case "json_field": {
+      const actual = json ? jsonPath(json, value) : undefined;
+      const equals = app.success_json_equals?.trim();
+      if (equals) {
+        success = actual !== undefined && String(actual) === equals;
+        jsonFieldMismatch = actual !== undefined && !success;
+      } else {
+        success = actual != null && actual !== false && actual !== "";
+      }
+      break;
+    }
+    case "status":
+    default: {
+      const codes = value
+        .split(/[\s,]+/)
+        .map((n) => parseInt(n, 10))
+        .filter((n) => Number.isFinite(n));
+      success = (codes.length ? codes : [200]).includes(status);
+    }
+  }
+  // Marcador de falha no corpo (ou campo JSON com valor de rejeição) nunca
+  // deixa passar como válida — proteção contra API que responde 200 sempre.
+  const explicitFail = bodyHas(app.failure_contains) || jsonFieldMismatch;
+  if (explicitFail) success = false;
+
+  let snippet = text;
+  if (json !== null) {
+    try {
+      snippet = JSON.stringify(json, null, 2);
+    } catch {
+      /* mantém texto */
+    }
+  }
+  const details: OutcomeDetails = {
+    aplicacao: nome,
+    status,
+    location: location || null,
+    allow: allow || null,
+    server: res.headers.get("server") || null,
+    cfRay: cfRay || null,
+    regra: app.success_type,
+    trecho: snippet ? snippet.slice(0, 600) : null,
+  };
+
+  if (success) {
+    // 2º estágio opcional: a senha autentica, mas há acesso efetivo?
+    if (app.post_login_url && (app.access_failure_contains || app.access_success_contains)) {
+      const access = await checkPostLoginAccess(app, text, jar, manualId);
+      details.acesso = access.reason;
+      if (access.decided && access.noAccess)
+        return {
+          status: "valida_sem_acesso",
+          severity: "alta",
+          summary: `${nome} aceitou a credencial (senha válida), mas a pessoa NÃO tem acesso efetivo ao sistema (${access.reason}). A senha está viva — risco de reuso.`,
+          details,
+        };
+      return {
+        status: "valida",
+        severity: "critica",
+        summary: `${nome} aceitou a credencial em 1 tentativa (HTTP ${status})${
+          access.decided ? " e a pessoa tem acesso ao sistema" : " (acesso efetivo não verificado)"
+        }.`,
+        details,
+      };
+    }
+    return {
+      status: "valida",
+      severity: "critica",
+      summary: `${nome} aceitou a credencial em 1 tentativa (HTTP ${status}).`,
+      details,
+    };
+  }
+
+  if (explicitFail)
+    return {
+      status: "invalida",
+      severity: "baixa",
+      summary: `${nome} rejeitou a credencial (a resposta indicou falha de autenticação).`,
+      details,
+    };
+
+  // 419 = token/sessão CSRF inválido (Laravel): o priming não pegou os cookies
+  // certos — normalmente a "URL da página de login" não é a que emite o token.
+  if (status === 419)
+    return inconclusiva(
+      `${nome} recusou por CSRF (HTTP 419). Ajuste a "URL da página de login" para a página que carrega o formulário e emite o cookie XSRF-TOKEN.`,
+      details,
+    );
+
+  if (ENDPOINT_ERRORS.has(status)) {
+    const summary =
+      status === 405 && allow && !/post/i.test(allow) && app.method !== "http_basic"
+        ? `A URL cadastrada em ${nome} não é um endpoint de login: aceita só ${allow}. Use a "Request URL" exata da chamada de login (DevTools › Network › a requisição POST), não a página.`
+        : `${nome} respondeu HTTP ${status} — o teste não chegou ao login.${
+            allow ? ` O servidor aceita: ${allow}.` : ""
+          }${
+            cfRay
+              ? " A resposta passou pela Cloudflare (se o endpoint estiver certo, pode ser bloqueio de bot/WAF)."
+              : ""
+          } Confira a URL do endpoint, o formato (JSON x formulário) e os nomes dos campos.`;
+    return inconclusiva(summary, details);
+  }
+
+  if (status === 401 || status === 403)
+    return {
+      status: "invalida",
+      severity: "baixa",
+      summary: `${nome} rejeitou a credencial (HTTP ${status}).`,
+      details,
+    };
+
+  // Respondeu sem casar a regra (ex.: 200 sempre): não dá pra afirmar nada.
+  return inconclusiva(
+    `Resposta de ${nome} (HTTP ${status}) não casou a regra de sucesso. Para APIs que respondem 200 mesmo em falha, use "corpo contém" com um marcador que só aparece no sucesso, ou preencha "texto que indica falha".`,
+    details,
+  );
 }

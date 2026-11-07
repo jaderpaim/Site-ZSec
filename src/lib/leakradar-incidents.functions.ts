@@ -108,102 +108,18 @@ export const createIncident = createServerFn({ method: "POST" })
   .inputValidator((input) => CreateSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase as SupabaseClient, context.userId, MODULE, "edit");
-    const adminDb = db(supabaseAdmin);
-
-    let account: string | null = null;
-    let category: string | null = null;
-    if (data.leakId) {
-      const { data: leak } = await adminDb
-        .from("leakradar_leaks")
-        .select("username, category, status, added_at")
-        .eq("id", data.leakId)
-        .maybeSingle();
-      if (!leak) throw new Error("Credencial não encontrada.");
-      account = (leak.username as string | null) ?? null;
-      category = (leak.category as string | null) ?? null;
-
-      // Marcada como risco aceito / falso positivo não abre incidente.
-      if (leak.status === "risco_aceito" || leak.status === "falso_positivo") {
-        throw new Error(
-          "Credencial marcada como risco aceito ou falso positivo — não é possível abrir incidente.",
-        );
-      }
-
-      // Um incidente por captura: só abre outro se foi reindexada depois.
-      const { data: incs } = await adminDb
-        .from("leakradar_incidents")
-        .select("ref_code, created_at")
-        .eq("leak_id", data.leakId)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const newest = (incs ?? [])[0] as { ref_code: string; created_at: string } | undefined;
-      const addedMs = leak.added_at ? new Date(leak.added_at as string).getTime() : 0;
-      if (newest && !(addedMs > new Date(newest.created_at).getTime())) {
-        throw new Error(
-          `Já existe o incidente ${newest.ref_code} para esta captura. Um novo só após nova indexação no CTI.`,
-        );
-      }
-    }
-
-    const { data: inc, error } = await adminDb
-      .from("leakradar_incidents")
-      .insert({
-        leak_id: data.leakId ?? null,
-        title: data.title.trim(),
-        account,
-        category,
-        severity: data.severity,
-        description: data.description?.trim() || null,
-        created_by: context.userId,
-      })
-      .select("id, ref_code, title, account, category, severity, description")
-      .single();
-    if (error) throw new Error(error.message);
-
-    // Dispara os alertas (melhor esforço) e grava o resultado.
-    const { dispatchIncident } = await import("./leakradar-incidents.server");
-    const results = await dispatchIncident({
-      id: inc.id as string,
-      refCode: inc.ref_code as string,
-      title: inc.title as string,
-      account: inc.account as string | null,
-      category: inc.category as string | null,
-      severity: inc.severity as IncidentRow["severity"],
-      description: inc.description as string | null,
-    });
-    await adminDb
-      .from("leakradar_incidents")
-      .update({ notified_at: new Date().toISOString(), last_notify: results })
-      .eq("id", inc.id);
-
-    // Abrir incidente para uma credencial move ela para "em tratamento".
-    if (data.leakId) {
-      await syncLeakStatus(adminDb, data.leakId, "aberto", context.userId);
-      const { logLeakEvent } = await import("./leakradar-events.server");
-      await logLeakEvent({
-        leakId: data.leakId,
-        incidentId: inc.id as string,
-        label: `Incidente aberto (${inc.ref_code})`,
-        detail: data.description?.trim() || null,
-        tone: "warn",
-        userId: context.userId,
-      });
-    }
-
-    await logAudit({
+    const { openLeakIncident } = await import("./leakradar-incidents.server");
+    const res = await openLeakIncident({
+      leakId: data.leakId ?? null,
+      title: data.title,
+      severity: data.severity,
+      description: data.description ?? null,
       userId: context.userId,
-      modulo: MODULE,
-      acao: "abrir_incidente",
-      descricao: `Abriu incidente "${data.title}" (${data.severity})`,
-      status: "success",
-      detalhes: {
-        id: inc.id,
-        severidade: data.severity,
-        canais_ok: results.filter((r) => r.ok).length,
-        canais_falha: results.filter((r) => !r.ok).length,
-      },
+      mode: "manual",
     });
-    return { id: inc.id as string, refCode: inc.ref_code as string, dispatch: results };
+    // modo manual nunca devolve null (as recusas viram erro)
+    if (!res) throw new Error("Não foi possível abrir o incidente.");
+    return { id: res.id, refCode: res.refCode, dispatch: res.dispatch };
   });
 
 const UpdateSchema = z.object({

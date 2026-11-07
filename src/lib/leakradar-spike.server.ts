@@ -15,6 +15,10 @@ const adminDb = supabaseAdmin as unknown as { from: (t: string) => any };
 
 export const SPIKE_THRESHOLD = 5;
 
+// Resultados do teste de validade que contam como senha viva / morta.
+const VALID_SET = new Set(["valida", "valida_sem_acesso", "exposta"]);
+const INVALID_SET = new Set(["invalida", "mitigada"]);
+
 // Provedores públicos de e-mail — ignorados: só domínio corporativo/
 // personalizado conta (é o que denuncia vazamento num parceiro).
 const PUBLIC_EMAIL_DOMAINS = new Set([
@@ -161,8 +165,10 @@ export async function computeDomainSpike(
       acc.accounts.set(account, a);
     }
     if (it.url_host) a.services.add(it.url_host.toLowerCase());
-    // "valida" vence: basta um serviço com a senha viva.
-    if (it.validation_status === "valida" || !a.validation) a.validation = it.validation_status;
+    // Válida (inclui "sem acesso" e "exposta" do diretório) vence: basta um
+    // serviço com a senha viva.
+    if (VALID_SET.has(it.validation_status ?? "") || !a.validation)
+      a.validation = it.validation_status;
   }
 
   const domains = [...byRoot.entries()]
@@ -170,8 +176,8 @@ export async function computeDomainSpike(
       let validCount = 0;
       let invalidCount = 0;
       for (const a of acc.accounts.values()) {
-        if (a.validation === "valida") validCount += 1;
-        else if (a.validation === "invalida") invalidCount += 1;
+        if (VALID_SET.has(a.validation ?? "")) validCount += 1;
+        else if (INVALID_SET.has(a.validation ?? "")) invalidCount += 1;
       }
       const reused = [...acc.accounts.entries()]
         .filter(([, a]) => a.services.size > 1)
