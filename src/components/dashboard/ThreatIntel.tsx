@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import { usePermissions } from "@/lib/use-permissions";
+import { appPatterns, matchApp } from "@/lib/leakradar-match";
 import {
   listLeaks,
   getThreatIntelSyncStatus,
@@ -40,7 +41,10 @@ import {
   getLeakContext,
   revealLeakPassword,
   validateLeak,
+  confirmLeakInEntra,
+  listValidationHistory,
   setLeakValidationManual,
+  type ValidationStatus,
   listLeakApps,
   upsertLeakApp,
   deleteLeakApp,
@@ -367,10 +371,20 @@ const TONE_COR: Record<string, string> = {
   neutral: "var(--v2-fg-3)",
 };
 
+// Resultados do teste de validade (modelo do b-security-suite).
 const VALIDACAO: Record<string, { rotulo: string; cor: string }> = {
   valida: { rotulo: "Credencial válida", cor: "var(--v2-crit)" },
+  valida_sem_acesso: { rotulo: "Válida sem acesso", cor: "var(--v2-high)" },
+  exposta: { rotulo: "Exposta", cor: "var(--v2-crit)" },
+  mitigada: { rotulo: "Mitigada", cor: "var(--v2-ok)" },
   invalida: { rotulo: "Não autentica", cor: "var(--v2-ok)" },
   inconclusiva: { rotulo: "Inconclusiva", cor: "var(--v2-fg-3)" },
+};
+const METODO_TESTE: Record<string, string> = {
+  diretorio: "Diretório (Graph)",
+  entra_ropc: "Confirmação no Entra",
+  aplicacao: "Login na aplicação",
+  manual: "Marcação manual",
 };
 
 function ValidacaoPill({ v }: { v: string | null }) {
@@ -468,6 +482,7 @@ const APP_VAZIO: LeakApp = {
   id: "",
   name: "",
   host: "",
+  url_match: null,
   login_url: "",
   method: "http_form",
   username_field: "username",
@@ -475,6 +490,9 @@ const APP_VAZIO: LeakApp = {
   extra_fields: {},
   success_type: "status",
   success_value: "200",
+  success_json_equals: null,
+  failure_contains: null,
+  has_lockout: true,
   enabled: true,
   prime_url: null,
   post_login_url: null,
@@ -518,6 +536,7 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
           id: editando.id || null,
           name: editando.name,
           host: editando.host,
+          url_match: editando.url_match?.trim() || null,
           login_url: editando.login_url,
           method: editando.method,
           username_field: editando.username_field,
@@ -525,6 +544,9 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
           extra_fields,
           success_type: editando.success_type,
           success_value: editando.success_value,
+          success_json_equals: editando.success_json_equals?.trim() || null,
+          failure_contains: editando.failure_contains?.trim() || null,
+          has_lockout: editando.has_lockout,
           enabled: editando.enabled,
           prime_url: editando.prime_url?.trim() || null,
           post_login_url: editando.post_login_url?.trim() || null,
@@ -603,9 +625,10 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
             <thead>
               <tr>
                 <th>Aplicação</th>
-                <th>Host</th>
+                <th>Casa URL</th>
                 <th>Método</th>
                 <th>Sucesso</th>
+                <th>Bloqueio</th>
                 <th>Ativa</th>
                 {podeGerenciar && <th></th>}
               </tr>
@@ -614,11 +637,19 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
               {apps.map((a) => (
                 <tr key={a.id} tabIndex={0} onClick={() => podeGerenciar && abrir(a)}>
                   <td>{a.name}</td>
-                  <td className="mono dim">{a.host}</td>
-                  <td className="mono dim">{a.method === "http_json" ? "JSON" : "Form"}</td>
-                  <td className="mono dim">
-                    {a.success_type}: {a.success_value}
+                  <td className="mono dim" title={appPatterns(a).join("\n")}>
+                    {appPatterns(a)[0]}
+                    {appPatterns(a).length > 1 ? ` +${appPatterns(a).length - 1}` : ""}
                   </td>
+                  <td className="mono dim">
+                    {a.method === "http_json" ? "JSON" : a.method === "http_basic" ? "Basic" : "Form"}
+                  </td>
+                  <td className="mono dim">
+                    {a.success_type}
+                    {a.success_value ? `: ${a.success_value}` : ""}
+                    {a.success_json_equals ? ` = ${a.success_json_equals}` : ""}
+                  </td>
+                  <td className="dim">{a.has_lockout ? "Sim" : "Não"}</td>
                   <td>
                     <span
                       className="ti-pill"
@@ -695,6 +726,15 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
                 />
               </label>
               <label className="ti-field">
+                <span>Casa URL (um padrão por linha; * como curinga; vazio = o host)</span>
+                <textarea
+                  className="ti-notes mono"
+                  value={editando.url_match ?? ""}
+                  placeholder={"app.exemplo.com.br/*\n*.exemplo.com.br/login"}
+                  onChange={(e) => up({ url_match: e.target.value })}
+                />
+              </label>
+              <label className="ti-field">
                 <span>Endpoint de login (https, mesmo host)</span>
                 <input
                   className="ti-input mono"
@@ -713,6 +753,7 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
                   >
                     <option value="http_form">Formulário (urlencoded)</option>
                     <option value="http_json">JSON</option>
+                    <option value="http_basic">Basic (cabeçalho Authorization)</option>
                   </select>
                 </label>
                 <label className="ti-field">
@@ -751,22 +792,65 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
                       up({ success_type: e.target.value as LeakApp["success_type"] })
                     }
                   >
-                    <option value="status">Código HTTP</option>
+                    <option value="status">Código HTTP (lista)</option>
+                    <option value="redirect">Redirect (Location contém)</option>
                     <option value="body_contains">Corpo contém</option>
                     <option value="body_not_contains">Corpo NÃO contém</option>
-                    <option value="json_field">Campo JSON presente</option>
+                    <option value="json_field">Campo JSON</option>
+                    <option value="header">Cabeçalho presente</option>
+                    <option value="cookie">Cookie na resposta</option>
                   </select>
                 </label>
                 <label className="ti-field">
-                  <span>Valor</span>
+                  <span>
+                    {editando.success_type === "json_field"
+                      ? "Caminho do campo"
+                      : editando.success_type === "redirect" || editando.success_type === "cookie"
+                        ? "Contém (opcional)"
+                        : "Valor"}
+                  </span>
                   <input
                     className="ti-input mono"
                     value={editando.success_value}
-                    placeholder={editando.success_type === "status" ? "200" : "access_token"}
+                    placeholder={
+                      editando.success_type === "status"
+                        ? "200, 204"
+                        : editando.success_type === "json_field"
+                          ? "data.codigo"
+                          : editando.success_type === "redirect"
+                            ? "/dashboard"
+                            : editando.success_type === "header"
+                              ? "X-Auth-Token"
+                              : "access_token"
+                    }
                     onChange={(e) => up({ success_value: e.target.value })}
                   />
                 </label>
+                {editando.success_type === "json_field" && (
+                  <label className="ti-field">
+                    <span>Igual a (vazio = só presença)</span>
+                    <input
+                      className="ti-input mono"
+                      value={editando.success_json_equals ?? ""}
+                      placeholder="200"
+                      onChange={(e) => up({ success_json_equals: e.target.value })}
+                    />
+                  </label>
+                )}
               </div>
+              <label className="ti-field">
+                <span>Texto que indica falha (força &quot;Não autentica&quot;)</span>
+                <input
+                  className="ti-input mono"
+                  value={editando.failure_contains ?? ""}
+                  placeholder="Usuário ou senha inválidos"
+                  onChange={(e) => up({ failure_contains: e.target.value })}
+                />
+              </label>
+              <span className="dim" style={{ fontSize: 12.5 }}>
+                Para APIs que respondem HTTP 200 mesmo quando a senha está errada: se a resposta
+                tiver este texto, o teste dá &quot;Não autentica&quot;, nunca &quot;Válida&quot;.
+              </span>
               <div className="ti-panel-title" style={{ fontSize: 13, marginTop: 6 }}>
                 Sessão e acesso <span className="dim" style={{ fontWeight: 400 }}>(opcional)</span>
               </div>
@@ -831,6 +915,14 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
               <label className="ti-check">
                 <input
                   type="checkbox"
+                  checked={editando.has_lockout}
+                  onChange={(e) => up({ has_lockout: e.target.checked })}
+                />
+                <span>Bloqueia a conta após tentativas erradas (avisa antes de testar)</span>
+              </label>
+              <label className="ti-check">
+                <input
+                  type="checkbox"
                   checked={editando.enabled}
                   onChange={(e) => up({ enabled: e.target.checked })}
                 />
@@ -841,6 +933,111 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
           </div>
         )}
       </DetailSheet>
+    </div>
+  );
+}
+
+// ── Histórico de testes de validade da credencial ───────────────────────────
+// Toda tentativa (diretório, aplicação, Entra, manual), com o diagnóstico
+// técnico que ajuda a ajustar a aplicação cadastrada.
+const DETALHE_ROTULO: Record<string, string> = {
+  status: "HTTP",
+  location: "Location",
+  allow: "Allow",
+  server: "Server",
+  cfRay: "cf-ray",
+  regra: "Regra",
+  acesso: "Acesso",
+  upn: "UPN",
+  contaAtiva: "Conta ativa",
+  ultimaTrocaSenha: "Última troca de senha",
+  dataVazamento: "Data do vazamento",
+  mfa: "MFA registrado",
+  privilegiada: "Conta privilegiada",
+  externa: "Convidada/externa",
+  entra: "Resposta do Entra",
+  justificativa: "Justificativa",
+};
+const fmtDetalhe = (k: string, v: string | number | boolean | null) =>
+  v === null
+    ? "—"
+    : typeof v === "boolean"
+      ? v
+        ? "Sim"
+        : "Não"
+      : /Senha$|Vazamento$/.test(k) && typeof v === "string"
+        ? new Date(v).toLocaleString("pt-BR")
+        : String(v);
+
+function HistoricoValidacao({ leakId }: { leakId: string }) {
+  const fetchHist = useServerFn(listValidationHistory);
+  const { data, isLoading } = useQuery({
+    queryKey: ["threat-intel-historico", leakId],
+    queryFn: () => fetchHist({ data: { id: leakId } }),
+  });
+  const [aberto, setAberto] = React.useState<string | null>(null);
+  const rows = data?.rows ?? [];
+  if (isLoading) return <span className="dim">Carregando histórico…</span>;
+  if (rows.length === 0) return <span className="dim">Nenhum teste ainda.</span>;
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {rows.map((r) => {
+        const extra = Object.entries(r.details ?? {}).filter(
+          ([k, v]) => k !== "trecho" && k !== "aplicacao" && k !== "encontrada" && v !== null,
+        );
+        const trecho = typeof r.details?.trecho === "string" ? r.details.trecho : null;
+        return (
+          <div key={r.id} className="ti-confirm" style={{ gap: 6 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <ValidacaoPill v={r.status} />
+              <span className="dim" style={{ fontSize: 12 }}>
+                {METODO_TESTE[r.method] ?? r.method} · {fmtRel(r.tested_at)}
+                {r.tested_by_name ? ` · ${r.tested_by_name}` : ""}
+              </span>
+            </div>
+            <span style={{ fontSize: 12.5 }}>{r.summary}</span>
+            {(extra.length > 0 || trecho) && (
+              <button
+                type="button"
+                className="ti-btn sm ghost"
+                style={{ justifySelf: "start" }}
+                onClick={() => setAberto(aberto === r.id ? null : r.id)}
+              >
+                {aberto === r.id ? "Ocultar detalhes" : "Detalhes técnicos"}
+              </button>
+            )}
+            {aberto === r.id && (
+              <>
+                {extra.length > 0 && (
+                  <DetailList
+                    items={extra.map(
+                      ([k, v]) => [DETALHE_ROTULO[k] ?? k, fmtDetalhe(k, v)] as [string, string],
+                    )}
+                  />
+                )}
+                {trecho && (
+                  <pre
+                    className="mono"
+                    style={{
+                      margin: 0,
+                      fontSize: 11.5,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-all",
+                      maxHeight: 200,
+                      overflow: "auto",
+                      padding: 8,
+                      borderRadius: 8,
+                      background: "var(--v2-surface-2)",
+                    }}
+                  >
+                    {trecho}
+                  </pre>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2140,8 +2337,11 @@ function MonitoramentoTab({ podeTratar }: { podeTratar: boolean }) {
 
 export function ThreatIntelDashboard() {
   const qc = useQueryClient();
-  const { can, isModuleAdmin } = usePermissions();
+  const { can, isModuleAdmin, isAdmin } = usePermissions();
   const podeTratar = can(MODULE, "edit");
+  // Testar validade: permissão própria + perfil admin/super admin (mesma regra
+  // do servidor).
+  const podeTestar = isAdmin && can(MODULE, "manage_test_credential");
   const podeDesbloquear = can(MODULE, "execute");
   const podeGerenciarApps = isModuleAdmin(MODULE);
   const [aba, setAba] = React.useState<
@@ -2164,7 +2364,7 @@ export function ThreatIntelDashboard() {
   const [busca, setBusca] = React.useState("");
   const [buscaDeb, setBuscaDeb] = React.useState("");
   const [adRisk, setAdRisk] = React.useState(false);
-  const [validacao, setValidacao] = React.useState<"valida" | "invalida" | "inconclusiva" | null>(
+  const [validacao, setValidacao] = React.useState<ValidationStatus | null>(
     null,
   );
   const [page, setPage] = React.useState(1);
@@ -2209,8 +2409,8 @@ export function ThreatIntelDashboard() {
     queryKey: ["threat-intel-apps"],
     queryFn: () => fetchApps(),
   });
-  const hostsValidaveis = React.useMemo(
-    () => new Set((appsData?.apps ?? []).filter((a) => a.enabled).map((a) => a.host)),
+  const appsAtivas = React.useMemo(
+    () => (appsData?.apps ?? []).filter((a) => a.enabled),
     [appsData],
   );
   // Hosts de login Microsoft: validáveis pelo próprio tenant (ROPC), sem cadastro.
@@ -2223,7 +2423,14 @@ export function ThreatIntelDashboard() {
   ];
   const ehMicrosoft = (h: string | null) =>
     !!h && MS_HOSTS.some((d) => h.toLowerCase() === d || h.toLowerCase().endsWith(`.${d}`));
-  const podeValidar = (h: string | null) => !!h && (hostsValidaveis.has(h) || ehMicrosoft(h));
+  // Caminho do teste (mesma escolha automática do servidor): aplicação que casa
+  // a URL → login; senão colaborador / host Microsoft → diretório.
+  const caminhoTeste = (l: LeakRow): { kind: "aplicacao" | "diretorio"; app: LeakApp | null } | null => {
+    const app = matchApp(l.url, l.url_host, appsAtivas);
+    if (app) return { kind: "aplicacao", app };
+    if (l.category === "employees" || ehMicrosoft(l.url_host)) return { kind: "diretorio", app: null };
+    return null;
+  };
 
   // Agregações no servidor (não carregam linhas): série, top hosts e contagem
   // de status. Tudo o mais que escala com o tamanho do domínio sai daqui.
@@ -2414,23 +2621,42 @@ export function ThreatIntelDashboard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Teste de validade: tipo (auto/diretório/aplicação) e id manual opcional
+  // para a verificação de acesso pós-login.
+  const [tipoTeste, setTipoTeste] = React.useState<"auto" | "diretorio" | "aplicacao">("auto");
+  const [idManual, setIdManual] = React.useState("");
+  React.useEffect(() => {
+    setTipoTeste("auto");
+    setIdManual("");
+  }, [selId]);
+  const aposTeste = (r: {
+    outcome: { status: string; summary: string };
+    incident: { refCode: string; created: boolean } | null;
+    incidentError: string | null;
+  }) => {
+    const st = r.outcome.status;
+    const rot = VALIDACAO[st]?.rotulo ?? st;
+    if (st === "valida" || st === "exposta") toast.error(`${rot} — acione o time de resposta`);
+    else if (st === "valida_sem_acesso") toast.warning(rot);
+    else if (st === "invalida" || st === "mitigada") toast.success(rot);
+    else toast.warning(`${rot}: ${r.outcome.summary}`);
+    if (r.incident?.created) toast.info(`Incidente ${r.incident.refCode} aberto automaticamente`);
+    if (r.incidentError) toast.error(`Incidente automático falhou: ${r.incidentError}`);
+    qc.invalidateQueries({ queryKey: ["threat-intel-leaks"] });
+    qc.invalidateQueries({ queryKey: ["threat-intel-ctx"] });
+    qc.invalidateQueries({ queryKey: ["threat-intel-historico"] });
+    qc.invalidateQueries({ queryKey: ["threat-intel-incidents"] });
+  };
   const validar = useMutation({
-    mutationFn: (l: LeakRow) => validarFn({ data: { id: l.id } }),
-    onSuccess: (r) => {
-      const msg =
-        r.status === "valida"
-          ? "Credencial válida — acione o time de resposta"
-          : r.status === "invalida"
-            ? "A credencial não autentica mais"
-            : "Validação inconclusiva";
-      (r.status === "valida"
-        ? toast.error
-        : r.status === "invalida"
-          ? toast.success
-          : toast.warning)(msg);
-      qc.invalidateQueries({ queryKey: ["threat-intel-leaks"] });
-      qc.invalidateQueries({ queryKey: ["threat-intel-ctx"] });
-    },
+    mutationFn: (l: LeakRow) =>
+      validarFn({ data: { id: l.id, kind: tipoTeste, manualId: idManual.trim() || null } }),
+    onSuccess: aposTeste,
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const confirmarEntraFn = useServerFn(confirmLeakInEntra);
+  const confirmarEntra = useMutation({
+    mutationFn: (l: LeakRow) => confirmarEntraFn({ data: { id: l.id } }),
+    onSuccess: aposTeste,
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -2462,8 +2688,11 @@ export function ThreatIntelDashboard() {
         data: {
           leakId: l.id,
           title: `Credencial vazada: ${l.username ?? l.domain}`,
-          severity: l.validation_status === "valida" ? "critica" : "alta",
-          description: `Credencial de ${CATEGORIAS.find((c) => c.k === l.category)?.rotulo ?? l.category} exposta no CTI${l.url_host ? ` (login em ${l.url_host})` : ""}.${l.validation_status === "valida" ? " Validada: ainda autentica." : ""}`,
+          severity:
+            l.validation_status === "valida" || l.validation_status === "exposta"
+              ? "critica"
+              : "alta",
+          description: `Credencial de ${CATEGORIAS.find((c) => c.k === l.category)?.rotulo ?? l.category} exposta no CTI${l.url_host ? ` (login em ${l.url_host})` : ""}.${l.validation_status ? ` Teste de validade: ${VALIDACAO[l.validation_status]?.rotulo ?? l.validation_status}.` : ""}`,
         },
       }),
     onSuccess: (r) => {
@@ -2882,10 +3111,19 @@ export function ThreatIntelDashboard() {
                 type="button"
                 className="ti-chip"
                 aria-pressed={validacao === "valida"}
-                title="Confirmadas válidas na validação ativa"
+                title="Confirmadas válidas no teste de validade"
                 onClick={() => setValidacao(validacao === "valida" ? null : "valida")}
               >
                 Validada: válida
+              </button>
+              <button
+                type="button"
+                className="ti-chip"
+                aria-pressed={validacao === "exposta"}
+                title="Diretório: conta ativa e senha não trocada desde o vazamento"
+                onClick={() => setValidacao(validacao === "exposta" ? null : "exposta")}
+              >
+                Exposta
               </button>
               {adRisk && (
                 <button
@@ -3216,7 +3454,7 @@ export function ThreatIntelDashboard() {
               )}
             </DetailSection>
 
-            <DetailSection title="Validação de legitimidade">
+            <DetailSection title="Teste de validade">
               <div style={{ display: "grid", gap: 10, fontSize: 13, color: "var(--v2-fg-2)" }}>
                 {selected.validation_status ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -3227,50 +3465,132 @@ export function ThreatIntelDashboard() {
                   </div>
                 ) : (
                   <span>
-                    Sem validação ainda — a credencial é apenas um informativo. Validar confirma se
-                    ela ainda autentica, para abrir incidente.
+                    Sem teste ainda — a credencial é apenas um informativo. Testar confirma se ela
+                    ainda funciona; confirmada, o incidente abre sozinho.
                   </span>
                 )}
-                {selected.validation_status === "valida" && (
+                {(selected.validation_status === "valida" ||
+                  selected.validation_status === "exposta") && (
                   <div className="ti-confirm">
-                    Esta credencial <b>ainda autentica</b>. Acione o time de resposta: force a troca
-                    de senha e revise os acessos dessa conta.
-                  </div>
-                )}
-                {!podeDesbloquear ? (
-                  <span className="dim">
-                    Você não tem a permissão Validar/Desbloquear deste módulo.
-                  </span>
-                ) : !selected.url_host ? (
-                  <span className="dim">Sem URL de origem, não há onde validar.</span>
-                ) : !podeValidar(selected.url_host) ? (
-                  <span className="dim">
-                    {selected.url_host} não está em Aplicações. Cadastre-a (aba Aplicações) para
-                    validar — só sistemas que você opera. (Contas Microsoft/Entra não precisam de
-                    cadastro: são validadas pelo diretório.)
-                  </span>
-                ) : (
-                  <div>
-                    <button
-                      type="button"
-                      className="ti-btn sm"
-                      disabled={validar.isPending}
-                      onClick={() => validar.mutate(selected)}
-                    >
-                      <ShieldCheck size={13} />
-                      {validar.isPending ? "Validando…" : "Validar credencial"}
-                    </button>
-                    <span className="ti-reveal-note" style={{ display: "block", marginTop: 6 }}>
-                      {ehMicrosoft(selected.url_host)
-                        ? "Valida pelo seu tenant Entra (ROPC): diz se a senha ainda autentica e se o MFA barra. Pode gerar log de sign-in e, após muitas tentativas, smart lockout."
-                        : `Testa o login em ${selected.url_host} com a senha vazada. Pode gerar bloqueio na conta real conforme a política do sistema. A senha não é gravada.`}
-                    </span>
+                    Esta credencial <b>ainda representa risco</b>. Acione o time de resposta: force
+                    a troca de senha e revise os acessos e o MFA dessa conta.
                   </div>
                 )}
 
-                {/* Marcação manual: para contas que o tool não valida sozinho
-                    (convidados, contas externas) ou confirmação feita por fora. */}
-                {podeDesbloquear &&
+                {!podeTestar ? (
+                  <span className="dim">
+                    Testar validade exige a permissão &quot;Testar validade&quot; e perfil admin ou
+                    super admin.
+                  </span>
+                ) : (
+                  (() => {
+                    const auto = caminhoTeste(selected);
+                    const kind = tipoTeste === "auto" ? (auto?.kind ?? null) : tipoTeste;
+                    const app =
+                      kind === "aplicacao"
+                        ? (auto?.app ?? matchApp(selected.url, selected.url_host, appsAtivas))
+                        : null;
+                    const precisaSenha = kind === "aplicacao";
+                    const pedeId = !!app?.post_login_url?.includes("{id}");
+                    return (
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <div className="ti-seg" role="group" aria-label="Tipo de teste">
+                          {(
+                            [
+                              ["auto", "Automático"],
+                              ["diretorio", "Diretório"],
+                              ["aplicacao", "Aplicação"],
+                            ] as const
+                          ).map(([k, rot]) => (
+                            <button
+                              key={k}
+                              type="button"
+                              aria-pressed={tipoTeste === k}
+                              onClick={() => setTipoTeste(k)}
+                            >
+                              {rot}
+                            </button>
+                          ))}
+                        </div>
+                        <span className="ti-reveal-note">
+                          {kind === "diretorio"
+                            ? "Consulta a conta no Entra pelo Microsoft Graph: conta ativa, última troca de senha x data do vazamento, MFA e conta privilegiada. Não envia a senha a lugar nenhum."
+                            : kind === "aplicacao" && app
+                              ? `Uma tentativa única de login em ${app.name} (${app.host}), sem força bruta. A senha não é gravada.`
+                              : kind === "aplicacao"
+                                ? "Nenhuma aplicação cadastrada casa com a URL desta credencial — cadastre em Aplicações (use * como curinga)."
+                                : "Nenhuma aplicação casa com a URL e não é conta de colaborador: cadastre a aplicação em Aplicações ou use a marcação manual."}
+                        </span>
+                        {kind === "aplicacao" && app?.has_lockout && (
+                          <div className="ti-confirm">
+                            <span>
+                              <b>{app.name}</b> bloqueia a conta após tentativas erradas. O teste
+                              faz 1 tentativa — se a senha estiver errada, conta como uma.
+                            </span>
+                          </div>
+                        )}
+                        {precisaSenha && !selected.unlocked && (
+                          <span className="dim">
+                            Desbloqueie a credencial antes: o login precisa da senha em claro.
+                          </span>
+                        )}
+                        {pedeId && (
+                          <label className="ti-field">
+                            <span>Id do usuário (opcional, para a verificação de acesso)</span>
+                            <input
+                              className="ti-input mono"
+                              value={idManual}
+                              placeholder="vazio = lê da resposta do login"
+                              onChange={(e) => setIdManual(e.target.value)}
+                            />
+                          </label>
+                        )}
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            className="ti-btn sm"
+                            disabled={
+                              validar.isPending ||
+                              !kind ||
+                              (kind === "aplicacao" && (!app || !selected.unlocked))
+                            }
+                            onClick={() => validar.mutate(selected)}
+                          >
+                            <ShieldCheck size={13} />
+                            {validar.isPending ? "Testando…" : "Testar validade"}
+                          </button>
+                          {selected.validation_status === "exposta" && (
+                            <button
+                              type="button"
+                              className="ti-btn sm"
+                              disabled={confirmarEntra.isPending || !selected.unlocked}
+                              title={
+                                selected.unlocked
+                                  ? "Login real no Entra com a senha vazada (1 tentativa a cada 24 h por conta)"
+                                  : "Desbloqueie a credencial antes: precisa da senha em claro"
+                              }
+                              onClick={() => confirmarEntra.mutate(selected)}
+                            >
+                              {confirmarEntra.isPending ? "Confirmando…" : "Confirmar no Entra"}
+                            </button>
+                          )}
+                        </div>
+                        {selected.validation_status === "exposta" && (
+                          <span className="ti-reveal-note">
+                            &quot;Exposta&quot; é dedução do diretório (senha não trocada). Confirmar
+                            no Entra faz <b>um login real</b> como a pessoa (aparece nos logs de
+                            entrada) e diz se a senha vazada é mesmo a corporativa — máximo 1 vez a
+                            cada 24 h por conta.
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()
+                )}
+
+                {/* Marcação manual: para contas que o teste não cobre (convidados,
+                    externas) ou confirmação feita por fora. */}
+                {podeTestar &&
                   (manual ? (
                     <div className="ti-confirm">
                       <span>
@@ -3331,6 +3651,10 @@ export function ThreatIntelDashboard() {
                     </div>
                   ))}
               </div>
+            </DetailSection>
+
+            <DetailSection title="Histórico de testes">
+              <HistoricoValidacao leakId={selected.id} />
             </DetailSection>
 
             {podeDesbloquear && (

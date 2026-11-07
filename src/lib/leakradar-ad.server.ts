@@ -300,3 +300,108 @@ export async function validateEntraRopc(
     detail: code ? `Entra: ${code}` : "Entra: resposta inesperada.",
   };
 }
+
+// ── Teste de diretório por credencial (modelo do b-security-suite) ───────────
+// Lê a conta no Graph (app-only) e compara a última troca de senha com a data
+// do vazamento. NÃO envia a senha a lugar nenhum. Conta ativa com senha não
+// trocada desde o vazamento → "exposta" (pode ser confirmada no Entra depois);
+// senha trocada / conta desativada → "mitigada".
+// Permissões de aplicação: User.Read.All; UserAuthenticationMethod.Read.All
+// (MFA) e RoleManagement.Read.Directory (conta privilegiada) são opcionais.
+export async function testDirectory(args: {
+  upn: string;
+  leakedAt: string | null;
+}): Promise<import("./leakradar-validate.server").ValidationOutcome> {
+  const creds = await getEntraCreds();
+  if (!creds)
+    return {
+      status: "inconclusiva",
+      severity: null,
+      summary: "Entra/SSO não configurado — o teste de diretório usa o app do SSO.",
+      details: {},
+    };
+  let token: string;
+  try {
+    token = await graphToken(creds);
+  } catch (e) {
+    return { status: "inconclusiva", severity: null, summary: (e as Error).message, details: {} };
+  }
+  const id = encodeURIComponent(args.upn);
+  const user = await graphGet(
+    token,
+    `/users/${id}?$select=id,accountEnabled,lastPasswordChangeDateTime,userType,userPrincipalName,displayName`,
+  );
+  if (!user.ok)
+    return {
+      status: "inconclusiva",
+      severity: null,
+      summary:
+        user.status === 404
+          ? "Conta não encontrada no diretório."
+          : `Graph ${user.status}: ${graphErr(user.json)}`,
+      details: { encontrada: user.status === 404 ? false : null },
+    };
+
+  const upn: string = user.json?.userPrincipalName ?? args.upn;
+  const userType: string | null = user.json?.userType ?? null;
+  const externa = userType === "Guest" || upn.includes("#EXT#");
+  const accountEnabled = user.json?.accountEnabled !== false;
+  const lastPwd: string | null = user.json?.lastPasswordChangeDateTime ?? null;
+  const leakedAt = args.leakedAt ? new Date(args.leakedAt) : null;
+  const trocadaDepois =
+    !!lastPwd && !!leakedAt && new Date(lastPwd).getTime() > leakedAt.getTime();
+
+  // Checagens extras: dependem de permissões opcionais e nunca derrubam o teste.
+  let mfa: boolean | null = null;
+  const reg = await graphGet(token, `/users/${id}/authentication/methods`);
+  if (reg.ok) {
+    const metodos = (reg.json?.value ?? []) as Array<{ "@odata.type"?: string }>;
+    mfa = metodos.some((m) => {
+      const t = (m["@odata.type"] ?? "").toLowerCase();
+      return (
+        t.includes("microsoftauthenticator") ||
+        t.includes("phone") ||
+        t.includes("fido2") ||
+        t.includes("softwareoath") ||
+        t.includes("windowshelloforbusiness")
+      );
+    });
+  }
+  let privilegiada: boolean | null = null;
+  const roles = await graphGet(token, `/users/${id}/memberOf/microsoft.graph.directoryRole?$select=id`);
+  if (roles.ok) privilegiada = ((roles.json?.value ?? []) as unknown[]).length > 0;
+
+  const details = {
+    encontrada: true,
+    upn,
+    userType,
+    externa,
+    contaAtiva: accountEnabled,
+    ultimaTrocaSenha: lastPwd,
+    dataVazamento: args.leakedAt,
+    trocadaDepois,
+    mfa,
+    privilegiada,
+  };
+
+  if (!accountEnabled)
+    return { status: "mitigada", severity: "baixa", summary: "Conta desativada no diretório.", details };
+  if (trocadaDepois)
+    return {
+      status: "mitigada",
+      severity: "baixa",
+      summary: "Senha trocada depois do vazamento.",
+      details,
+    };
+  const extra = [mfa === false ? "sem MFA" : null, privilegiada ? "conta privilegiada" : null]
+    .filter(Boolean)
+    .join(", ");
+  return {
+    status: "exposta",
+    severity: "critica",
+    summary: `Conta ativa e senha não trocada desde o vazamento${extra ? ` (${extra})` : ""}.${
+      lastPwd ? "" : " O Graph não informou a última troca de senha."
+    }`,
+    details,
+  };
+}

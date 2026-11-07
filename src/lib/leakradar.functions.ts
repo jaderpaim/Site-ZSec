@@ -45,22 +45,45 @@ export type LeakRow = {
   status: LeakStatus;
   status_updated_at: string | null;
   notes: string | null;
-  validation_status: "valida" | "invalida" | "inconclusiva" | null;
+  validation_status: ValidationStatus | null;
+  validation_severity: "critica" | "alta" | "baixa" | null;
   validation_checked_at: string | null;
   validation_detail: string | null;
 };
+
+// Resultados do teste de validade (modelo do b-security-suite).
+export const VALIDATION_STATUSES = [
+  "valida",
+  "valida_sem_acesso",
+  "exposta",
+  "mitigada",
+  "invalida",
+  "inconclusiva",
+] as const;
+export type ValidationStatus = (typeof VALIDATION_STATUSES)[number];
 
 export type LeakApp = {
   id: string;
   name: string;
   host: string;
+  url_match: string | null;
   login_url: string;
-  method: "http_form" | "http_json";
+  method: "http_form" | "http_json" | "http_basic";
   username_field: string;
   password_field: string;
   extra_fields: Record<string, string>;
-  success_type: "status" | "body_contains" | "body_not_contains" | "json_field";
+  success_type:
+    | "status"
+    | "redirect"
+    | "body_contains"
+    | "body_not_contains"
+    | "json_field"
+    | "header"
+    | "cookie";
   success_value: string;
+  success_json_equals: string | null;
+  failure_contains: string | null;
+  has_lockout: boolean;
   enabled: boolean;
   prime_url: string | null;
   post_login_url: string | null;
@@ -112,7 +135,7 @@ const STATUS_TONE: Record<LeakStatus, "ok" | "warn" | "crit" | "neutral"> = {
 };
 
 const LEAK_COLUMNS =
-  "id, leak_id, category, domain, username, is_email, url, url_host, password_strength, unlocked, added_at, first_seen_at, last_seen_at, status, status_updated_at, notes, validation_status, validation_checked_at, validation_detail";
+  "id, leak_id, category, domain, username, is_email, url, url_host, password_strength, unlocked, added_at, first_seen_at, last_seen_at, status, status_updated_at, notes, validation_status, validation_severity, validation_checked_at, validation_detail";
 
 const ListLeaksSchema = z.object({
   category: z.enum(["employees", "customers", "third_parties"]),
@@ -122,7 +145,7 @@ const ListLeaksSchema = z.object({
   // só as contas "em risco no AD" (senha ainda válida)
   adRisk: z.boolean().optional(),
   // filtro por resultado da validação ativa (qualquer categoria)
-  validation: z.enum(["valida", "invalida", "inconclusiva"]).nullable().optional(),
+  validation: z.enum(VALIDATION_STATUSES).nullable().optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(200).default(100),
 });
@@ -577,7 +600,7 @@ export const listLeakApps = createServerFn({ method: "POST" })
     const { data, error } = await db(context.supabase)
       .from("leakradar_apps")
       .select(
-        "id, name, host, login_url, method, username_field, password_field, extra_fields, success_type, success_value, enabled, prime_url, post_login_url, id_field, access_failure_contains, access_success_contains",
+        "id, name, host, url_match, login_url, method, username_field, password_field, extra_fields, success_type, success_value, success_json_equals, failure_contains, has_lockout, enabled, prime_url, post_login_url, id_field, access_failure_contains, access_success_contains",
       )
       .order("host", { ascending: true });
     if (error) throw new Error(error.message);
@@ -593,13 +616,26 @@ const AppSchema = z.object({
     .max(253)
     .transform((h) => h.trim().toLowerCase())
     .refine((h) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(h), "Host inválido."),
+  url_match: z.string().max(2000).nullable().optional(),
   login_url: z.string().url().max(2000),
-  method: z.enum(["http_form", "http_json"]),
+  method: z.enum(["http_form", "http_json", "http_basic"]),
   username_field: z.string().min(1).max(64),
   password_field: z.string().min(1).max(64),
   extra_fields: z.record(z.string(), z.string()).default({}),
-  success_type: z.enum(["status", "body_contains", "body_not_contains", "json_field"]),
-  success_value: z.string().min(1).max(500),
+  success_type: z.enum([
+    "status",
+    "redirect",
+    "body_contains",
+    "body_not_contains",
+    "json_field",
+    "header",
+    "cookie",
+  ]),
+  // redirect/cookie aceitam valor vazio (qualquer redirect / qualquer cookie)
+  success_value: z.string().max(500),
+  success_json_equals: z.string().max(500).nullable().optional(),
+  failure_contains: z.string().max(500).nullable().optional(),
+  has_lockout: z.boolean().default(true),
   enabled: z.boolean(),
   prime_url: z.string().url().max(2000).nullable().optional(),
   post_login_url: z.string().max(2000).nullable().optional(),
@@ -646,6 +682,8 @@ export const upsertLeakApp = createServerFn({ method: "POST" })
         throw new Error(`${rotulo} precisa ser https e do mesmo host da aplicação.`);
       return v;
     };
+    if (!data.success_value.trim() && !["redirect", "cookie"].includes(data.success_type))
+      throw new Error("Informe o valor do sinal de sucesso.");
     const primeUrl = sameHostHttps(data.prime_url, "URL da página de login");
     const postLoginUrl = sameHostHttps(data.post_login_url, "URL de verificação de acesso");
 
@@ -659,6 +697,10 @@ export const upsertLeakApp = createServerFn({ method: "POST" })
       extra_fields: data.extra_fields,
       success_type: data.success_type,
       success_value: data.success_value.trim(),
+      url_match: data.url_match?.trim() || null,
+      success_json_equals: data.success_json_equals?.trim() || null,
+      failure_contains: data.failure_contains?.trim() || null,
+      has_lockout: data.has_lockout,
       enabled: data.enabled,
       prime_url: primeUrl,
       post_login_url: postLoginUrl,
@@ -701,153 +743,407 @@ export const deleteLeakApp = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ── Validação de legitimidade ───────────────────────────────────────────────
+// ── Teste de validade (modelo do b-security-suite) ──────────────────────────
+// Caminho automático: aplicação cadastrada que casa a URL → 1 login; senão,
+// colaborador → diretório (Graph, sem enviar a senha). "Confirmar no Entra"
+// (ROPC) é um passo à parte, só sobre um "exposta" do diretório. Toda tentativa
+// vai para leakradar_validation_results; confirmada abre incidente sozinha.
+
+const APP_COLUMNS =
+  "id, name, host, url_match, login_url, method, username_field, password_field, extra_fields, success_type, success_value, success_json_equals, failure_contains, has_lockout, enabled, prime_url, post_login_url, id_field, access_failure_contains, access_success_contains";
+
+// Permissão de testar + perfil global admin/super admin (piso de ação sensível:
+// o teste usa a senha vazada de uma pessoa real).
+async function requireTester(sb: SupabaseClient, userId: string): Promise<void> {
+  await requirePermission(sb, userId, MODULE, "manage_test_credential");
+  const [admin, superAdmin] = await Promise.all([
+    sb.rpc("has_role", { _user_id: userId, _role: "admin" as never }),
+    sb.rpc("has_role", { _user_id: userId, _role: "super_admin" as never }),
+  ]);
+  if (admin.data === true || superAdmin.data === true) return;
+  throw new Error("Acesso negado: testar validade exige perfil admin ou super admin.");
+}
+
+type TestMethod = "diretorio" | "entra_ropc" | "aplicacao" | "manual";
+type Outcome = import("./leakradar-validate.server").ValidationOutcome;
+
+const VALIDATION_LABEL: Record<ValidationStatus, string> = {
+  valida: "Válida",
+  valida_sem_acesso: "Válida sem acesso",
+  exposta: "Exposta",
+  mitigada: "Mitigada",
+  invalida: "Não autentica",
+  inconclusiva: "Inconclusiva",
+};
+const VALIDATION_TONE: Record<ValidationStatus, "crit" | "warn" | "ok" | "neutral"> = {
+  valida: "crit",
+  valida_sem_acesso: "warn",
+  exposta: "crit",
+  mitigada: "ok",
+  invalida: "ok",
+  inconclusiva: "neutral",
+};
+const METHOD_LABEL: Record<TestMethod, string> = {
+  diretorio: "Diretório (Graph)",
+  entra_ropc: "Confirmação no Entra (ROPC)",
+  aplicacao: "Login único na aplicação",
+  manual: "Marcação manual",
+};
+
+// Grava o resultado (resumo na credencial + histórico + linha do tempo +
+// auditoria), alerta no Teams e, se confirmada, abre incidente automático.
+async function recordOutcome(args: {
+  leakId: string;
+  subject: string;
+  urlHost: string | null;
+  method: TestMethod;
+  appId: string | null;
+  outcome: Outcome;
+  userId: string;
+  category: string | null;
+}): Promise<{ incident: { refCode: string; created: boolean } | null; incidentError: string | null }> {
+  const adminDb = db(supabaseAdmin);
+  const { outcome: o } = args;
+  const now = new Date().toISOString();
+  await adminDb
+    .from("leakradar_leaks")
+    .update({
+      validation_status: o.status,
+      validation_severity: o.severity,
+      validation_detail: o.summary,
+      validation_checked_at: now,
+      validation_by: args.userId,
+    })
+    .eq("id", args.leakId);
+  await adminDb.from("leakradar_validation_results").insert({
+    leak_id: args.leakId,
+    subject: args.subject,
+    url_host: args.urlHost,
+    method: args.method,
+    app_id: args.appId,
+    status: o.status,
+    severity: o.severity,
+    summary: o.summary,
+    details: o.details,
+    tested_by: args.userId,
+    tested_at: now,
+  });
+
+  const { logLeakEvent } = await import("./leakradar-events.server");
+  await logLeakEvent({
+    leakId: args.leakId,
+    label: `${METHOD_LABEL[args.method]}: ${VALIDATION_LABEL[o.status]}`,
+    detail: o.summary,
+    tone: VALIDATION_TONE[o.status],
+    userId: args.userId,
+  });
+  await logAudit({
+    userId: args.userId,
+    modulo: MODULE,
+    acao: args.method === "manual" ? "validar_credencial_manual" : "testar_credencial",
+    descricao: `${METHOD_LABEL[args.method]} de ${args.subject}: ${o.status}`,
+    status: "success",
+    detalhes: {
+      id: args.leakId,
+      metodo: args.method,
+      host: args.urlHost,
+      resultado: o.status,
+      severidade: o.severity,
+    },
+  });
+
+  // Teams: crítica (válida com acesso / exposta) x válida de risco menor.
+  const confirmada = ["valida", "valida_sem_acesso", "exposta"].includes(o.status);
+  if (confirmada) {
+    const critica = o.severity === "critica";
+    const { notifyThreatIntel, actorName } = await import("./leakradar-alerts.server");
+    await notifyThreatIntel(
+      critica ? "threat_intel_credential_critical" : "threat_intel_credential_valid",
+      {
+        title: critica ? "Credencial crítica confirmada" : "Credencial válida no teste",
+        color: critica ? "DC2626" : "F59E0B",
+        facts: [
+          { name: "Credencial", value: args.subject },
+          { name: "Teste", value: METHOD_LABEL[args.method] },
+          { name: "Resultado", value: o.summary },
+          { name: "Severidade", value: o.severity ?? "—" },
+          { name: "Testado por", value: await actorName(args.userId) },
+        ],
+      },
+    );
+  }
+
+  // Incidente automático quando a credencial é confirmada (sem duplicar: se já
+  // há um para esta captura, devolve o existente).
+  let incident: { refCode: string; created: boolean } | null = null;
+  let incidentError: string | null = null;
+  if (confirmada && args.method !== "manual") {
+    try {
+      const { openLeakIncident } = await import("./leakradar-incidents.server");
+      const r = await openLeakIncident({
+        leakId: args.leakId,
+        title: `Credencial vazada confirmada: ${args.subject}`,
+        severity: o.severity === "critica" ? "critica" : "alta",
+        description: `${METHOD_LABEL[args.method]} — ${o.summary}`,
+        userId: args.userId,
+        mode: "auto",
+      });
+      if (r) incident = { refCode: r.refCode, created: r.created };
+    } catch (e) {
+      incidentError = (e as Error).message;
+      console.error("[threat-intel] incidente automático falhou:", incidentError);
+    }
+  }
+  return { incident, incidentError };
+}
+
+async function loadLeakForTest(id: string) {
+  const { data: leak, error } = await db(supabaseAdmin)
+    .from("leakradar_leaks")
+    .select("id, leak_id, url, url_host, username, category, domain, unlocked, added_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!leak) throw new Error("Credencial não encontrada.");
+  if (!leak.username) throw new Error("Credencial sem usuário — não há o que testar.");
+  return leak as {
+    id: string;
+    leak_id: string;
+    url: string | null;
+    url_host: string | null;
+    username: string;
+    category: string;
+    domain: string;
+    unlocked: boolean;
+    added_at: string | null;
+  };
+}
+
+// A senha em claro só existe para credencial já desbloqueada (revelada): o
+// teste não desbloqueia sozinho nem consome ponto do LeakRadar.
+async function passwordOf(leak: Awaited<ReturnType<typeof loadLeakForTest>>): Promise<string> {
+  if (!leak.unlocked)
+    throw new Error("Desbloqueie (revele) a credencial antes de testar — é preciso a senha em claro.");
+  const { revealLeakRadarPassword } = await import("./leakradar.server");
+  const cred = await revealLeakRadarPassword(leak.leak_id, {
+    urlHost: leak.url_host,
+    username: leak.username,
+    alreadyUnlocked: true,
+  });
+  if (!cred.password) throw new Error("O CTI não devolveu a senha desta credencial.");
+  return cred.password;
+}
+
+const TestSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.enum(["auto", "diretorio", "aplicacao"]).default("auto"),
+  // id do usuário para o 2º estágio (verificação de acesso), quando a resposta
+  // do login não traz
+  manualId: z.string().max(200).nullable().optional(),
+});
 
 export const validateLeak = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .inputValidator((input) => TestSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePermission(context.supabase as SupabaseClient, context.userId, MODULE, "execute");
-    const adminDb = db(supabaseAdmin);
+    await requireTester(context.supabase as SupabaseClient, context.userId);
+    const leak = await loadLeakForTest(data.id);
 
-    const { data: leak, error } = await adminDb
-      .from("leakradar_leaks")
-      .select("leak_id, url_host, username, category, domain, unlocked")
-      .eq("id", data.id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!leak) throw new Error("Credencial não encontrada.");
-    if (!leak.url_host) {
-      throw new Error("Esta credencial não tem URL de origem, então não há onde validar.");
-    }
-
+    const { data: appRows } = await db(supabaseAdmin)
+      .from("leakradar_apps")
+      .select(APP_COLUMNS)
+      .eq("enabled", true);
+    const apps = (appRows ?? []) as LeakApp[];
+    const { matchApp, appPatterns } = await import("./leakradar-match");
+    const matched = matchApp(leak.url, leak.url_host, apps);
     const { isMsLoginHost } = await import("./leakradar-ad.server");
-    const microsoft = isMsLoginHost(leak.url_host as string);
 
-    // Contas Microsoft/Entra: validação pelo PRÓPRIO tenant (ROPC), sem cadastrar
-    // app. Demais hosts: só se cadastrados em Aplicações (allowlist própria).
-    let app: unknown = null;
-    if (!microsoft) {
-      const { data } = await adminDb
-        .from("leakradar_apps")
-        .select(
-          "host, login_url, method, username_field, password_field, extra_fields, success_type, success_value, enabled, prime_url, post_login_url, id_field, access_failure_contains, access_success_contains",
-        )
-        .eq("host", leak.url_host)
-        .maybeSingle();
-      app = data;
-      if (!app) {
-        throw new Error(
-          `A URL (${leak.url_host}) não está cadastrada em Aplicações. Cadastre a aplicação que você opera para poder validar. (Contas Microsoft/Entra são validadas pelo diretório, sem cadastro.)`,
-        );
-      }
-    }
-
-    const { revealLeakRadarPassword } = await import("./leakradar.server");
-    const cred = await revealLeakRadarPassword(leak.leak_id as string, {
-      urlHost: leak.url_host as string | null,
-      username: leak.username as string | null,
-      alreadyUnlocked: leak.unlocked === true,
-    });
-    const username = cred.username ?? (leak.username as string | null);
-    if (!cred.password || !username) {
-      throw new Error("Não foi possível obter usuário e senha para validar.");
-    }
-
-    let result: {
-      status: "valida" | "invalida" | "inconclusiva";
-      detail: string;
-      mfa?: boolean;
-      access?: "confirmado" | "sem_acesso" | null;
-    };
-    if (microsoft) {
-      const { data: adRow } = await adminDb
-        .from("leakradar_ad_status")
-        .select("user_type, user_principal_name")
-        .eq("email", username.toLowerCase())
-        .maybeSingle();
-      const upn = (adRow?.user_principal_name as string | null) ?? "";
-      const externa = adRow?.user_type === "Guest" || upn.includes("#EXT#");
-      if (externa) {
-        // Identidade externa/federada (MSA/convidada): a senha é do provedor de
-        // origem, não do tenant — ROPC não se aplica.
-        result = {
-          status: "inconclusiva",
-          detail:
-            "Identidade externa/federada — a senha é do provedor de origem (não do seu tenant). Use a marcação manual.",
-        };
-      } else {
-        // ROPC pelo UPN do Entra (pode diferir do e-mail vazado).
-        const { validateEntraRopc } = await import("./leakradar-ad.server");
-        result = await validateEntraRopc(upn || username, cred.password);
-      }
-    } else {
-      const { validateCredentialAgainstApp } = await import("./leakradar-validate.server");
-      result = await validateCredentialAgainstApp(app as never, username, cred.password);
-    }
-    // só o veredito é persistido; senha nunca encosta no banco
-    await adminDb
-      .from("leakradar_leaks")
-      .update({
-        validation_status: result.status,
-        validation_detail: result.detail,
-        validation_checked_at: new Date().toISOString(),
-        validation_by: context.userId,
-      })
-      .eq("id", data.id);
-
-    const vLabel =
-      result.status === "valida"
-        ? "Credencial válida"
-        : result.status === "invalida"
-          ? "Não autentica"
-          : "Validação inconclusiva";
-    const { logLeakEvent } = await import("./leakradar-events.server");
-    await logLeakEvent({
-      leakId: data.id,
-      label: `Validação: ${vLabel}`,
-      detail: result.detail,
-      tone: result.status === "valida" ? "crit" : result.status === "invalida" ? "ok" : "neutral",
-      userId: context.userId,
-    });
-
-    const alvo = microsoft ? "Entra (ROPC)" : (leak.url_host as string);
-    await logAudit({
-      userId: context.userId,
-      modulo: MODULE,
-      acao: "validar_credencial",
-      descricao: `Validou uma credencial vazada contra ${alvo}: ${result.status}`,
-      status: "success",
-      detalhes: {
-        id: data.id,
-        host: leak.url_host,
-        metodo: microsoft ? "ropc" : "app",
-        resultado: result.status,
-      },
-    });
-
-    // Alerta no Teams (toggles do módulo de Alertas). Crítica = senha viva com
-    // acesso (sem MFA barrando e sem "sem acesso efetivo"); demais válidas =
-    // risco menor. Inválida/inconclusiva não alerta.
-    if (result.status === "valida") {
-      const critica = !result.mfa && result.access !== "sem_acesso";
-      const { notifyThreatIntel, actorName } = await import("./leakradar-alerts.server");
-      await notifyThreatIntel(
-        critica ? "threat_intel_credential_critical" : "threat_intel_credential_valid",
-        {
-          title: critica ? "Credencial crítica confirmada" : "Credencial válida na validação",
-          color: critica ? "DC2626" : "F59E0B",
-          facts: [
-            { name: "Credencial", value: username },
-            { name: "Categoria", value: String(leak.category ?? "—") },
-            { name: "Onde", value: alvo },
-            { name: "Resultado", value: result.detail },
-            { name: "Validado por", value: await actorName(context.userId) },
-          ],
-        },
+    let kind: "diretorio" | "aplicacao";
+    if (data.kind !== "auto") kind = data.kind;
+    else if (matched) kind = "aplicacao";
+    else if (leak.category === "employees" || isMsLoginHost(leak.url_host)) kind = "diretorio";
+    else {
+      const pats = apps.flatMap((a) => appPatterns(a));
+      throw new Error(
+        `Nenhuma aplicação cadastrada casa com a URL desta credencial (${leak.url || leak.url_host || "sem URL"}). ` +
+          `Padrões cadastrados: ${pats.length ? pats.join(" | ") : "nenhum"}. ` +
+          "Cadastre a aplicação em Aplicações (use * como curinga) ou, se for conta do diretório, teste pelo diretório.",
       );
     }
-    return { status: result.status, detail: result.detail };
+
+    let outcome: Outcome;
+    let appId: string | null = null;
+    if (kind === "diretorio") {
+      // UPN do Entra quando o cruzamento do AD já achou (pode diferir do e-mail).
+      const { data: adRow } = await db(supabaseAdmin)
+        .from("leakradar_ad_status")
+        .select("user_principal_name")
+        .eq("email", leak.username.toLowerCase())
+        .maybeSingle();
+      const { testDirectory } = await import("./leakradar-ad.server");
+      outcome = await testDirectory({
+        upn: (adRow?.user_principal_name as string | null) || leak.username,
+        leakedAt: leak.added_at,
+      });
+    } else {
+      if (!matched)
+        throw new Error(
+          `Nenhuma aplicação cadastrada casa com a URL desta credencial (${leak.url || leak.url_host || "sem URL"}).`,
+        );
+      const password = await passwordOf(leak);
+      const { testAppLogin } = await import("./leakradar-validate.server");
+      appId = matched.id;
+      outcome = await testAppLogin(matched as never, leak.username, password, data.manualId ?? null);
+    }
+
+    const rec = await recordOutcome({
+      leakId: leak.id,
+      subject: leak.username,
+      urlHost: leak.url_host,
+      method: kind,
+      appId,
+      outcome,
+      userId: context.userId,
+      category: leak.category,
+    });
+    return { outcome, method: kind, ...rec };
+  });
+
+// ── Confirmação no Entra (ROPC) ──────────────────────────────────────────────
+// Só depois de o diretório dar "exposta" (conta encontrada, ativa, senha não
+// trocada): é um login real como a pessoa, então é clique explícito, nunca
+// automático, e no máximo 1 tentativa por conta a cada 24 h (smart lockout).
+const ROPC_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+export const confirmLeakInEntra = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requireTester(context.supabase as SupabaseClient, context.userId);
+    const adminDb = db(supabaseAdmin);
+    const leak = await loadLeakForTest(data.id);
+
+    const { data: dir } = await adminDb
+      .from("leakradar_validation_results")
+      .select("status, details, tested_at")
+      .eq("leak_id", leak.id)
+      .eq("method", "diretorio")
+      .order("tested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!dir || dir.status !== "exposta")
+      throw new Error(
+        'A confirmação no Entra só vale depois de o teste de diretório dar "Exposta" para esta credencial.',
+      );
+    const det = (dir.details ?? {}) as { upn?: string; externa?: boolean };
+    if (det.externa)
+      throw new Error(
+        "Conta convidada/externa: a senha é do provedor de origem, não do seu tenant — use a marcação manual.",
+      );
+    const upn = det.upn || leak.username;
+
+    const since = new Date(Date.now() - ROPC_COOLDOWN_MS).toISOString();
+    const { data: recent } = await adminDb
+      .from("leakradar_validation_results")
+      .select("tested_at")
+      .eq("method", "entra_ropc")
+      .ilike("subject", leak.username)
+      .gte("tested_at", since)
+      .order("tested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recent) {
+      const libera = new Date(new Date(recent.tested_at as string).getTime() + ROPC_COOLDOWN_MS);
+      throw new Error(
+        `Esta conta já teve uma tentativa no Entra nas últimas 24 h. Próxima liberada em ${libera.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`,
+      );
+    }
+
+    const password = await passwordOf(leak);
+    const { validateEntraRopc } = await import("./leakradar-ad.server");
+    const r = await validateEntraRopc(upn, password);
+    let outcome: Outcome;
+    if (r.status === "valida" && !r.mfa)
+      outcome = {
+        status: "valida",
+        severity: "critica",
+        summary: "Senha confirmada no Entra, sem MFA bloqueando o login.",
+        details: { upn, entra: r.detail },
+      };
+    else if (r.status === "valida")
+      outcome = {
+        status: "valida",
+        severity: "alta",
+        summary: "Senha confirmada no Entra — o login exige MFA (o 2º fator barrou).",
+        details: { upn, entra: r.detail, mfa: true },
+      };
+    else if (r.status === "invalida")
+      outcome = {
+        status: "invalida",
+        severity: "baixa",
+        summary:
+          'O Entra recusou a senha: a senha vazada não é a corporativa atual (o "exposta" do diretório era falso positivo).',
+        details: { upn, entra: r.detail },
+      };
+    else
+      outcome = {
+        status: "exposta",
+        severity: "critica",
+        summary: `Não foi possível confirmar no Entra (${r.detail}). Continua exposta pelo diretório.`,
+        details: { upn, entra: r.detail },
+      };
+
+    const rec = await recordOutcome({
+      leakId: leak.id,
+      subject: leak.username,
+      urlHost: leak.url_host,
+      method: "entra_ropc",
+      appId: null,
+      outcome,
+      userId: context.userId,
+      category: leak.category,
+    });
+    return { outcome, method: "entra_ropc" as const, ...rec };
+  });
+
+// Histórico de testes da credencial (todas as tentativas, mais recentes antes).
+export type ValidationHistoryRow = {
+  id: string;
+  method: TestMethod;
+  status: ValidationStatus;
+  severity: "critica" | "alta" | "baixa" | null;
+  summary: string;
+  details: Record<string, string | number | boolean | null>;
+  tested_at: string;
+  tested_by_name: string | null;
+};
+export const listValidationHistory = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await db(context.supabase)
+      .from("leakradar_validation_results")
+      .select("id, method, status, severity, summary, details, tested_at, tested_by")
+      .eq("leak_id", data.id)
+      .order("tested_at", { ascending: false })
+      .limit(30);
+    if (error) throw new Error(error.message);
+    const ids = [...new Set(((rows ?? []) as Array<{ tested_by: string | null }>).map((r) => r.tested_by).filter(Boolean))];
+    const nomes = new Map<string, string>();
+    if (ids.length) {
+      const { data: profs } = await db(supabaseAdmin)
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", ids);
+      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>)
+        nomes.set(p.id, p.full_name || p.email || p.id);
+    }
+    return {
+      rows: ((rows ?? []) as Array<ValidationHistoryRow & { tested_by: string | null }>).map((r) => ({
+        ...r,
+        tested_by_name: r.tested_by ? (nomes.get(r.tested_by) ?? null) : null,
+      })) as ValidationHistoryRow[],
+    };
   });
 
 // Validação/marcação MANUAL: para contas que o tool não valida sozinho
@@ -862,58 +1158,30 @@ export const setLeakValidationManual = createServerFn({ method: "POST" })
   .middleware([requireActiveSession])
   .inputValidator((input) => ManualSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePermission(context.supabase as SupabaseClient, context.userId, MODULE, "execute");
-    const adminDb = db(supabaseAdmin);
-    const detail = `Manual: ${data.note.trim()}`;
-    const { data: row, error } = await adminDb
+    await requireTester(context.supabase as SupabaseClient, context.userId);
+    const { data: row, error } = await db(supabaseAdmin)
       .from("leakradar_leaks")
-      .update({
-        validation_status: data.status,
-        validation_detail: detail,
-        validation_checked_at: new Date().toISOString(),
-        validation_by: context.userId,
-      })
+      .select("id, username, url_host, category")
       .eq("id", data.id)
-      .select("category, username, url_host")
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Credencial não encontrada.");
-    if (data.status === "valida") {
-      const { notifyThreatIntel, actorName } = await import("./leakradar-alerts.server");
-      await notifyThreatIntel("threat_intel_credential_valid", {
-        title: "Credencial marcada como válida (manual)",
-        color: "F59E0B",
-        facts: [
-          { name: "Credencial", value: String(row.username ?? "—") },
-          { name: "Categoria", value: String(row.category ?? "—") },
-          { name: "Serviço", value: String(row.url_host ?? "—") },
-          { name: "Justificativa", value: data.note.trim() },
-          { name: "Marcado por", value: await actorName(context.userId) },
-        ],
-      });
-    }
-
-    const vLabel =
-      data.status === "valida"
-        ? "Credencial válida (manual)"
-        : data.status === "invalida"
-          ? "Não autentica (manual)"
-          : "Inconclusiva (manual)";
-    const { logLeakEvent } = await import("./leakradar-events.server");
-    await logLeakEvent({
+    const severity =
+      data.status === "valida" ? "alta" : data.status === "invalida" ? "baixa" : null;
+    await recordOutcome({
       leakId: data.id,
-      label: `Validação: ${vLabel}`,
-      detail: data.note.trim(),
-      tone: data.status === "valida" ? "crit" : data.status === "invalida" ? "ok" : "neutral",
+      subject: (row.username as string | null) ?? "—",
+      urlHost: row.url_host as string | null,
+      method: "manual",
+      appId: null,
+      outcome: {
+        status: data.status,
+        severity,
+        summary: `Manual: ${data.note.trim()}`,
+        details: { justificativa: data.note.trim() },
+      },
       userId: context.userId,
-    });
-    await logAudit({
-      userId: context.userId,
-      modulo: MODULE,
-      acao: "validar_credencial_manual",
-      descricao: `Marcou manualmente a validação como "${data.status}"`,
-      status: "success",
-      detalhes: { id: data.id, resultado: data.status, justificativa: data.note.trim() },
+      category: row.category as string | null,
     });
     return { ok: true };
   });
