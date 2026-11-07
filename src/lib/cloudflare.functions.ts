@@ -1569,6 +1569,8 @@ export const listCloudflareZones = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("cloudflare_zones")
       .select("id, name, status, account_name")
+      // Zona apagada na Cloudflare (status "removed") sai do seletor.
+      .or("status.is.null,status.neq.removed")
       .order("name");
     if (error) return { ok: false as const, error: error.message };
     return { ok: true as const, zones: data ?? [] };
@@ -1773,6 +1775,8 @@ export const createDnsRecord = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_adicionar_dns");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "dns_write", (context as any).claims?.email ?? null);
     const { createCloudflareDnsRecord, notifyDnsRecordCreated, logCloudflareAudit, resolveUserEmail } =
       await import("@/lib/cloudflare.server");
     const startedAt = Date.now();
@@ -1859,6 +1863,8 @@ export const updateDnsRecord = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_editar_dns");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "dns_write", (context as any).claims?.email ?? null);
     const { updateCloudflareDnsRecord, notifyDnsRecordUpdated, logCloudflareAudit, resolveUserEmail, diffObjects, summarizeChanges } =
       await import("@/lib/cloudflare.server");
     const startedAt = Date.now();
@@ -2315,6 +2321,8 @@ export const createCustomRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_custom_rules");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const cred = await getCfToken();
     if (!cred.ok) return cred;
     const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${data.zoneId}/${CUSTOM_PHASE_PATH}/rules`, {
@@ -2377,6 +2385,8 @@ export const updateCustomRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_custom_rules");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const cred = await getCfToken();
     if (!cred.ok) return cred;
 

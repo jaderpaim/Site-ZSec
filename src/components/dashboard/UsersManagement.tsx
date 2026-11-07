@@ -1240,6 +1240,11 @@ const CF_PERM_TREE: Record<string, string[]> = {
     "manage_custom_rules",
     "manage_managed_rules",
     "manage_load_balancing",
+    "manage_solicitar_exclusao_dns",
+    "manage_aprovar_exclusao_dns",
+    "manage_liberar_excecao_dns",
+    "manage_backups_dns",
+    "manage_importar_dns",
   ],
   manage_rules: ["manage_rules_overview", "manage_rules_page_rules"],
   manage_rules_overview: [

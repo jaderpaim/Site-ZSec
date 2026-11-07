@@ -430,6 +430,8 @@ export const createRedirectRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_rules_overview_redirect");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolveRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
 
@@ -490,6 +492,8 @@ export const updateRedirectRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_rules_overview_redirect");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolveRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
     const rs = await resolveRulesetIdForPhase(ctx.apiToken, ctx.zoneId, REDIRECT_PHASE);
@@ -546,6 +550,8 @@ export const deleteRedirectRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_rules_overview_redirect");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     // Excluir é destrutivo e irreversível — exige perfil global admin/super
     // admin, além da permissão granular da categoria.
     await requireGlobalAdminRole(context.supabase, context.userId);
@@ -588,6 +594,8 @@ export const deleteCacheRule = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_rules_overview_cache");
     await requireGlobalAdminRole(context.supabase, context.userId);
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolveRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
     const rs = await resolveRulesetIdForPhase(ctx.apiToken, ctx.zoneId, RULE_CATEGORIES.cache.phase);
@@ -642,6 +650,8 @@ export const createOverviewRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", CATEGORY_PERMISSION[data.category]);
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolveRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
     const phase = RULE_CATEGORIES[data.category].phase;
@@ -704,6 +714,8 @@ export const updateOverviewRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", CATEGORY_PERMISSION[data.category]);
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolveRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
     const rs = await resolveRulesetIdForPhase(ctx.apiToken, ctx.zoneId, RULE_CATEGORIES[data.category].phase);
@@ -803,6 +815,8 @@ export const deleteOverviewRule = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", CATEGORY_PERMISSION[data.category]);
     await requireGlobalAdminRole(context.supabase, context.userId);
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolveRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
     const rs = await resolveRulesetIdForPhase(ctx.apiToken, ctx.zoneId, RULE_CATEGORIES[data.category].phase);
@@ -975,6 +989,8 @@ export const createPageRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_rules_page_rules");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolvePageRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
 
@@ -1027,6 +1043,8 @@ export const updatePageRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_rules_page_rules");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolvePageRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
 
@@ -1098,6 +1116,8 @@ export const togglePageRule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_rules_page_rules");
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolvePageRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
 
@@ -1127,6 +1147,8 @@ export const deletePageRule = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_rules_page_rules");
     await requireGlobalAdminRole(context.supabase, context.userId);
+    // Limite de volume por usuário (cloudflare.guard.server) — segura script com sessão roubada.
+    await (await import("@/lib/cloudflare.guard.server")).enforceRateLimit(context.userId, "rule_write", (context as any).claims?.email ?? null);
     const ctx = await resolvePageRulesContext(data.zoneId);
     if ("error" in ctx) return ctx;
 

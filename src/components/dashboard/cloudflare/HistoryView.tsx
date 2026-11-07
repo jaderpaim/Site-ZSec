@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Lock } from "lucide-react";
+import { AlertTriangle, Lock, RotateCcw } from "lucide-react";
 import { DetailList, DetailSection, DetailSheet } from "@/components/layout/DetailSheet";
 import type { ZoneChange } from "@/lib/cloudflare.hosts.functions";
 import {
@@ -12,6 +12,24 @@ import {
   useZoneChanges,
   type ChangeArea,
 } from "./change-utils";
+import { AuditAlertsView } from "./AuditAlertsView";
+import { RequestRestoreDialog, useCanRestoreDns } from "./RequestRestoreDialog";
+import { CfNavContext } from "./shared-zone";
+
+// Exclusão feita pelo Z-Sec (pedido aprovado ou por exceção): a cópia de antes
+// e o id do pedido ficam nos detalhes → botão Restaurar no detalhe.
+function restorableRequestId(c: ZoneChange): string | null {
+  if (c.source !== "zsec" || c.status !== "success") return null;
+  if (c.action !== "delete_dns" && c.action !== "delete_dns_exception") return null;
+  const id = (changeDetails(c) as { request_id?: unknown }).request_id;
+  return typeof id === "string" && id ? id : null;
+}
+
+// Exclusão de DNS feita fora do Z-Sec (painel da Cloudflare): sem cópia de
+// antes; o caminho é o backup diário.
+function isOutsideFlowDnsDelete(c: ZoneChange): boolean {
+  return c.source === "cloudflare" && changeArea(c) === "DNS" && /del/i.test(c.action);
+}
 
 const CSS = `
 .hs-diff { display:grid; gap:10px; }
@@ -38,14 +56,21 @@ const CSS = `
 .hs-err { color:var(--v2-crit); font-size:12px; margin-left:6px; }
 .hs-note { font-size:12.5px; color:var(--v2-fg-2); padding:10px 12px; border:1px dashed var(--v2-line-strong); border-radius:10px; }
 .hs-empty { padding:28px 16px; text-align:center; color:var(--v2-fg-3); font-size:13px; }
+.hs-restore { display:flex; flex-direction:column; gap:8px; font-size:13px; padding:10px 12px; border-radius:10px; border:1px solid color-mix(in oklch, var(--v2-ok) 35%, var(--v2-line)); background:color-mix(in oklch, var(--v2-ok) 6%, transparent); }
+.hs-warn { display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:10px 12px; border-radius:10px; border:1px solid color-mix(in oklch, var(--v2-high) 35%, var(--v2-line)); background:color-mix(in oklch, var(--v2-high) 8%, transparent); }
+.hs-warn > svg { color:var(--v2-high); flex:none; margin-top:2px; }
 `;
 
 export function ChangeDetailSheet({
   change,
   onClose,
+  onRestore,
+  onOpenBackups,
 }: {
   change: ZoneChange | null;
   onClose: () => void;
+  onRestore?: (requestId: string) => void;
+  onOpenBackups?: () => void;
 }) {
   const c = change;
   const d = c ? changeDetails(c) : {};
@@ -90,19 +115,94 @@ export function ChangeDetailSheet({
               ]}
             />
           </DetailSection>
+          {onRestore && restorableRequestId(c) && (
+            <div className="hs-restore">
+              <span>
+                Uma cópia do registro foi guardada antes da exclusão. Restaurar confere antes como
+                ele está hoje na Cloudflare; se alguém criou de novo com outro valor, substitui em
+                vez de duplicar.
+              </span>
+              <button
+                className="cf-btn sm"
+                style={{ alignSelf: "flex-start" }}
+                onClick={() => onRestore(restorableRequestId(c)!)}
+              >
+                <RotateCcw size={13} /> Restaurar registro
+              </button>
+            </div>
+          )}
+          {onOpenBackups && isOutsideFlowDnsDelete(c) && (
+            <div className="hs-warn">
+              <AlertTriangle size={15} />
+              <div>
+                Exclusão feita fora do Z-Sec: não há cópia de antes da exclusão. O registro pode
+                ser restaurado pelo backup diário anterior.{" "}
+                <button className="cf-btn sm" style={{ marginTop: 6 }} onClick={onOpenBackups}>
+                  Ver backups diários →
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </DetailSheet>
   );
 }
 
+// Histórico: sub-abas Alterações (o que mudou na zona) e Alertas de auditoria
+// (monitor do log de auditoria da conta — proteção de DNS).
 export function HistoryView({
   zoneId,
   zoneName,
+  criticalOpen = 0,
 }: {
-  zoneId: string | null;
+  zoneId: string;
   zoneName: string | null;
+  criticalOpen?: number;
 }) {
+  const [sub, setSub] = React.useState<"changes" | "alerts">(() =>
+    criticalOpen > 0 ? "alerts" : "changes",
+  );
+  return (
+    <div className="hs-root">
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="cfx-tabs" role="tablist" aria-label="Histórico">
+        <button
+          role="tab"
+          aria-selected={sub === "changes"}
+          className={`cfx-tab${sub === "changes" ? " on" : ""}`}
+          onClick={() => setSub("changes")}
+        >
+          Alterações
+        </button>
+        <button
+          role="tab"
+          aria-selected={sub === "alerts"}
+          className={`cfx-tab${sub === "alerts" ? " on" : ""}`}
+          onClick={() => setSub("alerts")}
+        >
+          Alertas de auditoria
+          {criticalOpen > 0 && (
+            <span
+              className="cfx-alert-dot"
+              aria-label={`${criticalOpen} alerta(s) crítico(s) não reconhecido(s)`}
+            />
+          )}
+        </button>
+      </div>
+      {sub === "changes" ? (
+        <ChangesView zoneId={zoneId} zoneName={zoneName} />
+      ) : (
+        <AuditAlertsView zoneId={zoneId} />
+      )}
+    </div>
+  );
+}
+
+function ChangesView({ zoneId, zoneName }: { zoneId: string; zoneName: string | null }) {
+  const canRestore = useCanRestoreDns();
+  const nav = React.useContext(CfNavContext);
+  const [restoring, setRestoring] = React.useState<string | null>(null);
   const [area, setArea] = React.useState<"Todas" | ChangeArea>("Todas");
   const [days, setDays] = React.useState(30);
   const [open, setOpen] = React.useState<ZoneChange | null>(null);
@@ -206,7 +306,27 @@ export function HistoryView({
           </table>
         )}
       </div>
-      <ChangeDetailSheet change={open} onClose={() => setOpen(null)} />
+      <ChangeDetailSheet
+        change={open}
+        onClose={() => setOpen(null)}
+        onRestore={
+          canRestore
+            ? (id) => {
+                setOpen(null);
+                setRestoring(id);
+              }
+            : undefined
+        }
+        onOpenBackups={
+          canRestore && nav
+            ? () => {
+                setOpen(null);
+                nav("dns-backups");
+              }
+            : undefined
+        }
+      />
+      <RequestRestoreDialog requestId={restoring} onClose={() => setRestoring(null)} />
     </div>
   );
 }
