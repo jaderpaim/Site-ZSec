@@ -600,3 +600,272 @@ export function normalizeRlsFinding(
     },
   };
 }
+
+// ─── Formatos genéricos: SARIF e OWASP Dependency-Check ──────────────────────
+// Portados do b-security-suite. Mesmo modelo dos demais: o script da esteira
+// achata o relatório em uma lista (SARIF: runs[].results[], cada resultado com
+// a regra e a ferramenta junto; Dependency-Check: dependencies[]
+// .vulnerabilities[], cada vulnerabilidade com o pacote junto) e aqui sai uma
+// linha por item. Nada de trecho de código (snippet/region) é guardado.
+
+const SEVERITY_FROM_WORD: Record<string, string> = {
+  critical: "critica",
+  high: "alta",
+  error: "alta",
+  medium: "media",
+  moderate: "media",
+  warning: "media",
+  low: "baixa",
+  note: "baixa",
+  info: "info",
+  informational: "info",
+  none: "info",
+};
+
+function severityFromScore(score: number | null): string | null {
+  if (score === null || !Number.isFinite(score)) return null;
+  if (score >= 9) return "critica";
+  if (score >= 7) return "alta";
+  if (score >= 4) return "media";
+  if (score > 0) return "baixa";
+  return "info";
+}
+
+const num = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+
+// Caminho relativo ao repo: tira file://, %SRCROOT%, "./" e o diretório de
+// trabalho do runner (".../s/" no agente do Azure DevOps, "D:\a\1\s\" no
+// Windows, /workspace/<dono>/<repo>/ no Gitea Actions) -- senão o mesmo
+// arquivo viraria caminhos diferentes por runner e quebraria o fingerprint.
+function repoRelativePath(raw: unknown, repository?: string): string | null {
+  let p = str(raw);
+  if (!p) return null;
+  p = p
+    .split("?")[0]
+    .replace(/^file:\/\//i, "")
+    .replace(/\\/g, "/");
+  try {
+    p = decodeURIComponent(p);
+  } catch {
+    /* mantém como veio */
+  }
+  const agentRoot = p.match(/\/(?:\d+\/)?s\/(.+)$/);
+  if (agentRoot && /\/(?:work|_work|a)\//.test(p)) p = agentRoot[1];
+  if (repository) {
+    const i = p.indexOf(`/${repository}/`);
+    if (i >= 0 && /^\/(?:workspace|github|home)\//.test(p)) p = p.slice(i + repository.length + 2);
+  }
+  p = p
+    .replace(/^%SRCROOT%\/?/i, "")
+    .replace(/^[A-Za-z]:\//, "")
+    .replace(/^\.?\/+/, "");
+  return p || null;
+}
+
+// SARIF: um item = um "result", com a regra resolvida (_rule) e o driver
+// (_driver: nome/versão da ferramenta) anexados pelo script de envio.
+export type SarifResultItem = {
+  ruleId?: unknown;
+  ruleIndex?: unknown;
+  rule?: { id?: unknown };
+  level?: unknown;
+  message?: { text?: unknown };
+  locations?: Array<{
+    physicalLocation?: { artifactLocation?: { uri?: unknown }; region?: { startLine?: unknown } };
+  }>;
+  fingerprints?: Record<string, unknown>;
+  partialFingerprints?: Record<string, unknown>;
+  properties?: Record<string, unknown>;
+  _rule?: {
+    id?: unknown;
+    name?: unknown;
+    shortDescription?: { text?: unknown };
+    helpUri?: unknown;
+    defaultConfiguration?: { level?: unknown };
+    properties?: Record<string, unknown>;
+  } | null;
+  _driver?: { name?: unknown; version?: unknown } | null;
+  [key: string]: unknown;
+};
+
+// O nome da ferramenta vem do envio (tool), não do SARIF: é ele que agrupa os
+// achados e fecha os que sumiram no próximo scan da mesma ferramenta.
+export function sarifNormalizer(toolName: string) {
+  const tool = canonicalTool(toolName);
+  const profile = toolProfile(tool);
+  // Ferramenta SARIF sem perfil conhecido: trata como análise de código.
+  const category = profile.category === "other" ? "code" : profile.category;
+  return (
+    finding: Record<string, unknown>,
+    scope: VerifiedBuildScope,
+    detectedAt: string,
+    commitAuthor: { name: string | null; email: string | null },
+  ): SastDetectionRow | null => {
+    const result = finding as SarifResultItem;
+    const rule = result._rule ?? null;
+    const ruleId = str(result.ruleId) ?? str(result.rule?.id) ?? str(rule?.id);
+    if (!ruleId) return null;
+    const loc = result.locations?.[0]?.physicalLocation;
+    const file = repoRelativePath(loc?.artifactLocation?.uri, scope.repository.split("/").pop());
+    const startLine = num(loc?.region?.startLine);
+    const line = startLine && startLine > 0 ? Math.trunc(startLine) : null;
+
+    const score =
+      num(result.properties?.["security-severity"]) ?? num(rule?.properties?.["security-severity"]);
+    const level = String(result.level ?? rule?.defaultConfiguration?.level ?? "warning").toLowerCase();
+    const severity = severityFromScore(score) ?? SEVERITY_FROM_WORD[level] ?? "media";
+
+    // Fingerprint estável do próprio scanner quando existir (sobrevive a
+    // mudança de linha); senão arquivo:regra:linha. "requires login" =
+    // placeholder do Semgrep sem conta.
+    const fpCandidates = [
+      ...Object.values(result.fingerprints ?? {}),
+      ...Object.values(result.partialFingerprints ?? {}),
+    ]
+      .map(str)
+      .filter((v): v is string => !!v && !/requires login/i.test(v));
+    const fingerprint = fpCandidates.length
+      ? `${ruleId}:${fpCandidates[0].slice(0, 64)}`
+      : `${file ?? "?"}:${ruleId}:${line ?? 0}`;
+
+    const tags = Array.isArray(rule?.properties?.tags)
+      ? (rule!.properties!.tags as unknown[]).map(String)
+      : [];
+    const cwe = [
+      ...new Set(tags.flatMap((t) => t.match(/CWE-\d+/gi) ?? []).map((c) => c.toUpperCase())),
+    ];
+    const message = str(result.message?.text)?.slice(0, 1000) ?? null;
+    const helpUri = str(rule?.helpUri);
+    const toolVersion = str(result._driver?.version);
+    const details: Record<string, unknown> = { sarif_level: level };
+    if (message) details.message = message;
+    if (cwe.length) details.cwe = cwe.slice(0, 5);
+    if (helpUri) details.help_uri = helpUri;
+    if (score !== null) details.security_severity = score;
+    if (toolVersion) details.tool_version = toolVersion;
+
+    return {
+      source_event_id: `${scope.origin}:${scope.buildId}:${tool}:${fingerprint}`,
+      ingest_source: "webhook",
+      tool,
+      category,
+      project: scope.project,
+      repository: scope.repository,
+      branch: scope.branch,
+      environment: branchToEnvironment(scope.branch),
+      rule_id: ruleId,
+      severity,
+      fingerprint,
+      file_path: file,
+      line,
+      title: (str(rule?.shortDescription?.text) ?? str(rule?.name) ?? message ?? ruleId).slice(0, 200),
+      details,
+      detected_at: detectedAt,
+      commit_sha: scope.commit,
+      build_id: scope.buildId,
+      build_url: scope.buildUrl,
+      file_url: file ? scope.fileUrlFor(file, line) : null,
+      // SARIF não diz quem escreveu a linha: fica o autor do commit analisado.
+      author: commitAuthor.name,
+      author_email: commitAuthor.email,
+      raw_event: { ruleId, level, file, line },
+    };
+  };
+}
+
+// Dependency-Check: um item = uma vulnerabilidade, com o pacote (_dependency:
+// fileName, filePath, packageId/purl) anexado pelo script de envio.
+export type DependencyCheckVuln = {
+  name?: unknown; // CVE
+  severity?: unknown;
+  cvssv2?: { score?: unknown };
+  cvssv3?: { baseScore?: unknown };
+  cvssv4?: { baseScore?: unknown };
+  cwes?: unknown;
+  description?: unknown;
+  source?: unknown;
+  references?: Array<{ url?: unknown }>;
+  _dependency?: { fileName?: unknown; filePath?: unknown; packageId?: unknown } | null;
+  [key: string]: unknown;
+};
+
+// Pacote legível a partir do purl ("pkg:npm/axios@1.7.9" -> "axios@1.7.9").
+function packageLabel(purl: string | null, fallback: string | null): string {
+  if (purl) {
+    const tail = purl.replace(/^pkg:/, "").split("?")[0];
+    const parts = tail.split("/");
+    try {
+      return decodeURIComponent(parts.slice(1).join("/") || tail);
+    } catch {
+      return parts.slice(1).join("/") || tail;
+    }
+  }
+  return fallback ?? "?";
+}
+
+// 1 achado por pacote+CVE; o fingerprint inclui a versão do pacote (no purl),
+// então atualizar a dependência fecha o achado antigo sozinho no próximo scan.
+export function normalizeDependencyCheckVuln(
+  finding: Record<string, unknown>,
+  scope: VerifiedBuildScope,
+  detectedAt: string,
+  commitAuthor: { name: string | null; email: string | null },
+): SastDetectionRow | null {
+  const v = finding as DependencyCheckVuln;
+  const cve = str(v.name);
+  if (!cve) return null;
+  const dep = v._dependency ?? {};
+  const purl = str(dep.packageId);
+  const fileName = str(dep.fileName);
+  const pkg = packageLabel(purl, fileName);
+  const file = repoRelativePath(dep.filePath, scope.repository.split("/").pop()) ?? fileName;
+  const score = num(v.cvssv3?.baseScore) ?? num(v.cvssv4?.baseScore) ?? num(v.cvssv2?.score);
+  const severity =
+    SEVERITY_FROM_WORD[String(v.severity ?? "").toLowerCase()] ?? severityFromScore(score) ?? "media";
+  const refs = Array.isArray(v.references)
+    ? v.references
+        .map((r) => str(r?.url))
+        .filter(Boolean)
+        .slice(0, 5)
+    : [];
+  const description = str(v.description);
+  const source = str(v.source);
+  const tool = canonicalTool("dependency-check");
+  const fingerprint = `${purl ?? fileName ?? "?"}:${cve}`;
+  const details: Record<string, unknown> = { package: pkg };
+  if (purl) details.package_id = purl;
+  if (score !== null) details.cvss = score;
+  if (Array.isArray(v.cwes) && v.cwes.length) details.cwe = (v.cwes as unknown[]).slice(0, 5);
+  if (source) details.source = source;
+  if (description) details.description = description.slice(0, 1000);
+  if (refs.length) details.references = refs;
+
+  return {
+    source_event_id: `${scope.origin}:${scope.buildId}:${tool}:${fingerprint}`,
+    ingest_source: "webhook",
+    tool,
+    category: toolProfile(tool).category,
+    project: scope.project,
+    repository: scope.repository,
+    branch: scope.branch,
+    environment: branchToEnvironment(scope.branch),
+    rule_id: cve,
+    severity,
+    fingerprint,
+    file_path: file,
+    line: null,
+    title: `${cve} em ${pkg}`.slice(0, 200),
+    details,
+    detected_at: detectedAt,
+    commit_sha: scope.commit,
+    build_id: scope.buildId,
+    build_url: scope.buildUrl,
+    file_url: file ? scope.fileUrlFor(file, null) : null,
+    author: commitAuthor.name,
+    author_email: commitAuthor.email,
+    raw_event: { package: purl ?? fileName, cve, severity: str(v.severity) },
+  };
+}

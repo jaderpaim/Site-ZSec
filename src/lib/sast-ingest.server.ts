@@ -36,6 +36,8 @@ import {
   normalizeSemgrepResult,
   normalizeRlsFinding,
   normalizeTrivyVulnerability,
+  normalizeDependencyCheckVuln,
+  sarifNormalizer,
 } from "@/lib/sast-normalize";
 import type { SastDetectionRow, VerifiedBuildScope } from "@/lib/sast-normalize";
 import { APP_NAME } from "@/lib/brand";
@@ -168,6 +170,9 @@ async function getAdoToken(creds: ReaderCreds): Promise<string> {
 const BaseFields = {
   schema: z.literal(1),
   tool: z.string().min(1).max(40),
+  // "sarif": relatório SARIF de qualquer ferramenta (CodeQL, Snyk, Checkov…),
+  // achatado pelo script de envio; ausente = relatório nativo da ferramenta.
+  format: z.enum(["native", "sarif"]).optional(),
   branch: z.string().min(1).max(300),
   commit: z.string().regex(/^[0-9a-f]{40}$/i),
   status: z.enum(["completed", "failed"]),
@@ -208,7 +213,11 @@ const NORMALIZERS: Record<string, Normalizer> = {
   Semgrep: normalizeSemgrepResult,
   Trivy: normalizeTrivyVulnerability,
   RLS: normalizeRlsFinding,
+  "Dependency-Check": normalizeDependencyCheckVuln,
 };
+
+// Nome de ferramenta no SARIF: vira parte da chave do achado e aparece na tela.
+const SARIF_TOOL_RE = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/;
 
 type Verified =
   | {
@@ -622,9 +631,15 @@ export async function handleSastIngest(request: Request): Promise<Response> {
     return fail(400, `Corpo fora do formato: ${detail}`.slice(0, 400));
   }
   const tool = canonicalTool(body.tool);
-  const normalize = NORMALIZERS[tool];
+  if (body.format === "sarif" && !SARIF_TOOL_RE.test(body.tool.trim()))
+    return fail(400, "Nome de ferramenta inválido para SARIF (use letras, números, espaço, . _ -).");
+  const normalize: Normalizer | undefined =
+    body.format === "sarif" ? sarifNormalizer(body.tool) : NORMALIZERS[tool];
   if (!normalize)
-    return fail(400, `Ferramenta "${body.tool}" ainda não suportada pela ingestão direta.`);
+    return fail(
+      400,
+      `Ferramenta "${body.tool}" ainda não suportada pela ingestão direta. Se ela exporta SARIF, envie com format "sarif".`,
+    );
 
   const verified = isGitea
     ? await verifyGiteaRun(body as z.infer<typeof GiteaIngestSchema>)
