@@ -398,6 +398,9 @@ const CSS = `
   .ops-dns-preview strong { color:var(--v2-fg); }
   .ops-check-label { font-size:12px; color:var(--v2-fg); cursor:pointer; font-family:var(--font-ui); }
 `;
+// Exportado para diálogos abertos fora desta tela (ex.: Adicionar domínio,
+// aberto pelo menu Ações do módulo).
+export { CSS as OPS_CSS };
 
 // ── Cache color palette (hex equivalents) ─────────────────────────────────────
 const CACHE_COLORS: Record<string, string> = {

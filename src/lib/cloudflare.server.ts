@@ -113,6 +113,7 @@ export async function logCloudflareAudit(entry: {
     | "delete_rule"
     | "update_managed"
     | "update_lb"
+    | "create_zone"
     | "request_dns_delete"
     | "delete_dns"
     | "reject_dns_delete"
@@ -1231,5 +1232,301 @@ export async function runCloudflareZoneSync(
     const msg = (e as Error).message;
     await logApi("error", null, `zone ${zoneId}: ${msg}`, Date.now() - t0);
     return { ok: false, error: msg };
+  }
+}
+
+// ─── Adicionar domínio (zona) — espelha o fluxo "Connect a domain" do painel ──
+// da Cloudflare: cria a zona, aplica as políticas de IA (Search/Agent/Training
+// + Bot Preference Sync) e importa os registros DNS. Só a criação da zona é
+// bloqueante; falha nas etapas seguintes vira aviso (a zona já existe e o
+// usuário consegue ajustar no painel), nunca rollback.
+
+// Valores aceitos pela API em PUT /zones/{id}/bot_management (ai_search /
+// ai_user / ai_training). "disabled" = Allow (não bloquear). "disallow" só
+// existe pra Training (sinaliza no robots.txt sem bloquear os crawlers de busca).
+export type AiCrawlerPolicy = "disabled" | "block" | "only_on_ad_pages" | "disallow";
+export type DnsImportMode = "auto" | "manual" | "zone_file";
+
+export type CreateZoneResult =
+  | {
+      ok: true;
+      zoneId: string;
+      zoneName: string;
+      status: string | null;
+      nameServers: string[];
+      dnsImported: number | null;
+      dnsImportNote: string;
+      warnings: string[];
+    }
+  | { ok: false; error: string };
+
+// Contas conhecidas a partir das zonas já sincronizadas — o token da
+// integração nem sempre tem "Account Settings: Read" pra listar /accounts.
+export async function listKnownCloudflareAccounts(): Promise<Array<{ id: string; name: string | null }>> {
+  const { data } = await supabaseAdmin.from("cloudflare_zones").select("account_id, account_name");
+  const byId = new Map<string, string | null>();
+  for (const r of (data ?? []) as any[]) {
+    if (r.account_id && !byId.has(r.account_id)) byId.set(r.account_id, r.account_name ?? null);
+  }
+  return Array.from(byId, ([id, name]) => ({ id, name })).sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));
+}
+
+export async function createCloudflareZone(args: {
+  name: string;
+  accountId: string;
+  aiSearch: AiCrawlerPolicy;
+  aiUser: AiCrawlerPolicy;
+  aiTraining: AiCrawlerPolicy;
+  botPreferenceSync: boolean;
+  dnsImport: DnsImportMode;
+  zoneFile?: string;
+  zoneFileProxied?: boolean;
+}): Promise<CreateZoneResult> {
+  const creds = await getCredentials();
+  if ("ok" in creds && creds.ok === false) return creds;
+  const token = (creds as Credentials).apiToken;
+  const t0 = Date.now();
+
+  const r = await cfFetch(`/zones`, token, {
+    method: "POST",
+    body: JSON.stringify({ name: args.name, account: { id: args.accountId }, type: "full" }),
+  });
+  if (!r.ok) {
+    const msg = r.json?.errors?.[0]?.message ?? `HTTP ${r.status}`;
+    await logApi("error", r.status, `create zone ${args.name}: ${msg}`, Date.now() - t0);
+    // Criar zona exige permissão de conta ("Zone: Edit" em "All zones from an
+    // account"), diferente do resto do módulo que usa permissões por zona.
+    const hint =
+      r.status === 401 || r.status === 403
+        ? " — o API Token da integração precisa de \"Zone: Edit\" com escopo de conta (All zones from an account)."
+        : "";
+    return { ok: false, error: `${msg}${hint}` };
+  }
+  const zone = r.json?.result ?? {};
+  const zoneId: string = zone.id;
+  const zoneName: string = zone.name ?? args.name;
+  const warnings: string[] = [];
+
+  await supabaseAdmin.from("cloudflare_zones").upsert(
+    {
+      id: zoneId,
+      name: zoneName,
+      status: zone.status ?? null,
+      account_id: zone.account?.id ?? args.accountId,
+      account_name: zone.account?.name ?? null,
+      paused: zone.paused ?? null,
+      type: zone.type ?? null,
+      raw: zone,
+      synced_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
+
+  // Políticas de IA
+  const bm = await cfFetch(`/zones/${zoneId}/bot_management`, token, {
+    method: "PUT",
+    body: JSON.stringify({
+      ai_search: args.aiSearch,
+      ai_user: args.aiUser,
+      ai_training: args.aiTraining,
+      bot_preference_sync_enabled: args.botPreferenceSync,
+    }),
+  });
+  if (!bm.ok) {
+    warnings.push(
+      `Políticas de IA não aplicadas (${bm.json?.errors?.[0]?.message ?? `HTTP ${bm.status}`}) — ajuste em Security → Settings → Bot traffic no painel da Cloudflare.`,
+    );
+  }
+
+  // Importação de DNS
+  let dnsImported: number | null = null;
+  let dnsImportNote = "Manual (nenhum registro importado)";
+  if (args.dnsImport === "auto") {
+    const scan = await cfFetch(`/zones/${zoneId}/dns_records/scan`, token, { method: "POST" });
+    if (scan.ok) {
+      dnsImported = Number(scan.json?.result?.recs_added ?? 0);
+      dnsImportNote = `Automática (${dnsImported} registro(s))`;
+    } else {
+      // O scan síncrono está deprecado — cai pro assíncrono, cujos registros
+      // ficam aguardando revisão no painel da Cloudflare.
+      const trig = await cfFetch(`/zones/${zoneId}/dns_records/scan/trigger`, token, { method: "POST" });
+      if (trig.ok) {
+        dnsImportNote = "Automática (scan disparado — revisar registros encontrados no painel da Cloudflare)";
+      } else {
+        dnsImportNote = "Automática (falhou)";
+        warnings.push(
+          `Scan de DNS falhou (${trig.json?.errors?.[0]?.message ?? scan.json?.errors?.[0]?.message ?? `HTTP ${trig.status}`}) — adicione os registros manualmente.`,
+        );
+      }
+    }
+  } else if (args.dnsImport === "zone_file" && args.zoneFile) {
+    const form = new FormData();
+    form.append("file", new Blob([args.zoneFile], { type: "text/plain" }), "zone.txt");
+    form.append("proxied", args.zoneFileProxied ? "true" : "false");
+    const res = await fetch(`${CF_API}/zones/${zoneId}/dns_records/import`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const json: any = await res.json().catch(() => ({}));
+    if (res.ok) {
+      dnsImported = Number(json?.result?.recs_added ?? 0);
+      const parsed = Number(json?.result?.total_records_parsed ?? dnsImported);
+      dnsImportNote = `Arquivo de zona BIND (${dnsImported} de ${parsed} registro(s))`;
+    } else {
+      dnsImportNote = "Arquivo de zona BIND (falhou)";
+      warnings.push(`Importação do arquivo de zona falhou (${json?.errors?.[0]?.message ?? `HTTP ${res.status}`}).`);
+    }
+  }
+
+  await logApi("success", 200, `zone created ${zoneName}${warnings.length ? ` (${warnings.length} aviso(s))` : ""}`, Date.now() - t0);
+
+  return {
+    ok: true,
+    zoneId,
+    zoneName,
+    status: zone.status ?? null,
+    nameServers: Array.isArray(zone.name_servers) ? zone.name_servers : [],
+    dnsImported,
+    dnsImportNote,
+    warnings,
+  };
+}
+
+// ─── Notificação: novo domínio (zona) adicionado — Teams + e-mail p/ admins
+// globais, reaproveitando o template compartilhado buildRuleAlertHtml.
+export async function notifyZoneCreated(args: {
+  zoneName: string;
+  status: string | null;
+  nameServers: string[];
+  dnsImportNote: string;
+  aiSummary: string;
+  actorUserId: string | null;
+}): Promise<void> {
+  try {
+    let actorName = "—";
+    if (args.actorUserId) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", args.actorUserId)
+        .maybeSingle();
+      actorName = (profile as any)?.full_name || (profile as any)?.email || "—";
+    }
+    const alertKey = "cloudflare_zone_created" as const;
+    const alertEnabled = await isAlertModuleEnabled(alertKey);
+    if (!alertEnabled) return;
+
+    const nameservers = args.nameServers.join(", ") || "—";
+    const status = args.status ?? "—";
+
+    const { data: integ } = await supabaseAdmin
+      .from("integrations")
+      .select("config, enabled")
+      .eq("provider", "disponibilidade_alerts")
+      .eq("name", "config")
+      .maybeSingle();
+    type TeamsCfg = { teams_enabled?: boolean; teams_webhook_url?: string | null };
+    const teamsCfg = integ?.enabled ? ((integ.config as TeamsCfg) ?? null) : null;
+    if (teamsCfg?.teams_enabled && teamsCfg.teams_webhook_url) {
+      const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      await postTeamsWebhook(teamsCfg.teams_webhook_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "@type": "MessageCard",
+          "@context": "http://schema.org/extensions",
+          themeColor: "3B82F6",
+          summary: `Novo domínio adicionado: ${args.zoneName}`,
+          sections: [
+            {
+              activityTitle: `🌍 ${APP_NAME} · Novo domínio adicionado à Cloudflare`,
+              activitySubtitle: now,
+              facts: [
+                { name: "Domínio", value: args.zoneName },
+                { name: "Status", value: status },
+                { name: "Nameservers", value: nameservers },
+                { name: "Importação DNS", value: args.dnsImportNote },
+                { name: "Políticas de IA", value: args.aiSummary },
+                { name: "Adicionado por", value: actorName },
+              ],
+              markdown: true,
+            },
+          ],
+        }),
+      }).catch(() => {});
+    }
+
+    const recipients = await getGlobalAdminEmails();
+    if (recipients.length === 0) return;
+    const { data: smtpCfg } = await supabaseAdmin.from("smtp_config").select("*").limit(1).maybeSingle();
+    if (!smtpCfg?.host) return;
+    const password = (smtpCfg as any).password || process.env.SMTP_PASSWORD;
+    if (!password) return;
+
+    const link = `${appUrl()}/app/cloudflare-waf`;
+    const subject = `${APP_NAME} · Novo domínio adicionado: ${args.zoneName}`;
+    const vars: Record<string, string> = {
+      zona: args.zoneName,
+      status,
+      nameservers,
+      importacao_dns: args.dnsImportNote,
+      politicas_ia: args.aiSummary,
+      adicionado_por: actorName,
+      link,
+    };
+    const defaultHtml = buildRuleAlertHtml({
+      badge: "DOMÍNIO ADICIONADO",
+      heroTitle: "Novo domínio adicionado à Cloudflare",
+      accentColor: "#2563eb",
+      accentBg: "#0a1530",
+      zona: args.zoneName,
+      categoria: "Nova zona",
+      descricao: `Status ${status} — aponte os nameservers no registrador para ativar.`,
+      extraFacts: [
+        { label: "NAMESERVERS", value: nameservers },
+        { label: "IMPORTAÇÃO DNS", value: args.dnsImportNote },
+        { label: "POLÍTICAS DE IA", value: args.aiSummary },
+      ],
+      atorLabel: "ADICIONADO POR",
+      ator: actorName,
+      atorColor: "#93c5fd",
+      link,
+    });
+    const override = await getEmailTemplateOverride(supabaseAdmin, alertKey);
+    const html = applyEmailTemplate(alertKey, override, vars, defaultHtml);
+
+    for (const to of recipients) {
+      try {
+        const out: any = await sendMail({
+          host: smtpCfg.host,
+          port: smtpCfg.port || 587,
+          secure: !!smtpCfg.secure,
+          username: smtpCfg.username || null,
+          password,
+          from: { name: smtpCfg.from_name || APP_NAME, email: smtpCfg.from_email },
+          to,
+          subject,
+          html,
+        });
+        await supabaseAdmin.from("email_logs").insert({
+          to_email: to,
+          subject,
+          template: alertKey,
+          status: out.ok ? "success" : "error",
+          error_message: out.ok ? null : String(out.error ?? "falha no envio"),
+        });
+      } catch (e: any) {
+        await supabaseAdmin.from("email_logs").insert({
+          to_email: to,
+          subject,
+          template: alertKey,
+          status: "error",
+          error_message: String(e?.message ?? e),
+        });
+      }
+    }
+  } catch {
+    // notificações não bloqueiam a criação da zona
   }
 }

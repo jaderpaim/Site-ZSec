@@ -48,6 +48,13 @@ export const ALERT_MODULES = [
     channels: ["Teams"],
   },
   {
+    key: "cloudflare_zone_created",
+    label: "Cloudflare — Novo Domínio Adicionado",
+    description:
+      "Notifica o time quando um novo domínio (zona) é conectado à conta Cloudflare pelo módulo Cloudflare WAF.",
+    channels: ["Teams"],
+  },
+  {
     key: "cloudflare_dns_delete_request",
     label: "Cloudflare — Solicitação de Exclusão de DNS",
     description:
