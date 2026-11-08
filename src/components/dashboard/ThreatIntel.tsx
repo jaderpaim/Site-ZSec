@@ -43,7 +43,6 @@ import {
   validateLeak,
   confirmLeakInEntra,
   listValidationHistory,
-  setLeakValidationManual,
   type ValidationStatus,
   listLeakApps,
   upsertLeakApp,
@@ -384,7 +383,6 @@ const METODO_TESTE: Record<string, string> = {
   diretorio: "Diretório (Graph)",
   entra_ropc: "Confirmação no Entra",
   aplicacao: "Login na aplicação",
-  manual: "Marcação manual",
 };
 
 function ValidacaoPill({ v }: { v: string | null }) {
@@ -938,7 +936,7 @@ function AplicacoesTab({ podeGerenciar }: { podeGerenciar: boolean }) {
 }
 
 // ── Histórico de testes de validade da credencial ───────────────────────────
-// Toda tentativa (diretório, aplicação, Entra, manual), com o diagnóstico
+// Toda tentativa (diretório, aplicação, Entra), com o diagnóstico
 // técnico que ajuda a ajustar a aplicação cadastrada.
 const DETALHE_ROTULO: Record<string, string> = {
   status: "HTTP",
@@ -956,7 +954,6 @@ const DETALHE_ROTULO: Record<string, string> = {
   privilegiada: "Conta privilegiada",
   externa: "Convidada/externa",
   entra: "Resposta do Entra",
-  justificativa: "Justificativa",
 };
 const fmtDetalhe = (k: string, v: string | number | boolean | null) =>
   v === null
@@ -2660,27 +2657,6 @@ export function ThreatIntelDashboard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Validação/marcação manual (contas não auto-validáveis). Exige justificativa.
-  const [manual, setManual] = React.useState<"valida" | "invalida" | "inconclusiva" | null>(null);
-  const [manualNota, setManualNota] = React.useState("");
-  React.useEffect(() => {
-    setManual(null);
-    setManualNota("");
-  }, [selId]);
-  const marcarManualFn = useServerFn(setLeakValidationManual);
-  const marcarManual = useMutation({
-    mutationFn: (l: LeakRow) =>
-      marcarManualFn({ data: { id: l.id, status: manual!, note: manualNota.trim() } }),
-    onSuccess: () => {
-      toast.success("Validação registrada manualmente");
-      setManual(null);
-      setManualNota("");
-      qc.invalidateQueries({ queryKey: ["threat-intel-leaks"] });
-      qc.invalidateQueries({ queryKey: ["threat-intel-ctx"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const criarIncidenteFn = useServerFn(createIncident);
   const abrirIncidente = useMutation({
     mutationFn: (l: LeakRow) =>
@@ -3424,8 +3400,8 @@ export function ThreatIntelDashboard() {
                             <span className="ti-reveal-note">
                               Identidade externa/federada (ex.: conta Microsoft pessoal): a senha é
                               do provedor de origem, não do seu tenant. O "senha ainda válida" e a
-                              validação por ROPC não se aplicam — use a marcação manual e troque a
-                              senha no provedor (ex.: account.microsoft.com).
+                              confirmação no Entra não se aplicam — trate pelo status ou por um
+                              incidente e troque a senha no provedor (ex.: account.microsoft.com).
                             </span>
                           )}
                           {aindaValida && (
@@ -3519,7 +3495,7 @@ export function ThreatIntelDashboard() {
                               ? `Uma tentativa única de login em ${app.name} (${app.host}), sem força bruta. A senha não é gravada.`
                               : kind === "aplicacao"
                                 ? "Nenhuma aplicação cadastrada casa com a URL desta credencial — cadastre em Aplicações (use * como curinga)."
-                                : "Nenhuma aplicação casa com a URL e não é conta de colaborador: cadastre a aplicação em Aplicações ou use a marcação manual."}
+                                : "Nenhuma aplicação casa com a URL e não é conta de colaborador: cadastre a aplicação em Aplicações, ou trate pelo status ou por um incidente."}
                         </span>
                         {kind === "aplicacao" && app?.has_lockout && (
                           <div className="ti-confirm">
@@ -3588,68 +3564,6 @@ export function ThreatIntelDashboard() {
                   })()
                 )}
 
-                {/* Marcação manual: para contas que o teste não cobre (convidados,
-                    externas) ou confirmação feita por fora. */}
-                {podeTestar &&
-                  (manual ? (
-                    <div className="ti-confirm">
-                      <span>
-                        Marcar manualmente como <b>{VALIDACAO[manual]?.rotulo}</b>. Justificativa
-                        obrigatória (não submete senha a lugar nenhum):
-                      </span>
-                      <textarea
-                        className="ti-notes"
-                        autoFocus
-                        value={manualNota}
-                        placeholder="Ex.: conta owner guest; senha confirmada válida fora do tenant; trocar no account.microsoft.com."
-                        onChange={(e) => setManualNota(e.target.value)}
-                      />
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          className="ti-btn sm pri"
-                          disabled={!manualNota.trim() || marcarManual.isPending}
-                          onClick={() => marcarManual.mutate(selected)}
-                        >
-                          {marcarManual.isPending ? "Salvando…" : "Confirmar"}
-                        </button>
-                        <button
-                          type="button"
-                          className="ti-btn sm ghost"
-                          onClick={() => setManual(null)}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}
-                    >
-                      <span className="ti-reveal-note">Marcação manual:</span>
-                      <button
-                        type="button"
-                        className="ti-btn sm ghost"
-                        onClick={() => setManual("valida")}
-                      >
-                        Válida
-                      </button>
-                      <button
-                        type="button"
-                        className="ti-btn sm ghost"
-                        onClick={() => setManual("invalida")}
-                      >
-                        Não autentica
-                      </button>
-                      <button
-                        type="button"
-                        className="ti-btn sm ghost"
-                        onClick={() => setManual("inconclusiva")}
-                      >
-                        Inconclusiva
-                      </button>
-                    </div>
-                  ))}
               </div>
             </DetailSection>
 

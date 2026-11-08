@@ -7,7 +7,9 @@ import {
   Check,
   ChevronDown,
   ChevronsUpDown,
+  Gauge,
   Globe,
+  Plus,
   History,
   Inbox,
   Search,
@@ -51,12 +53,14 @@ import { getGuardStatus } from "@/lib/cloudflare.guard.functions";
 import { RequestsView } from "@/components/dashboard/cloudflare/RequestsView";
 import { BackupsView } from "@/components/dashboard/cloudflare/BackupsView";
 import { CFX_CSS } from "@/components/dashboard/cloudflare/cf-ui";
+import { ZoneOverview } from "@/components/dashboard/cloudflare/ZoneOverview";
+import { AddDomainDialog } from "@/components/dashboard/cloudflare/AddDomainDialog";
 import { useOrganizacao } from "@/lib/use-organizacao";
 import { pickDefaultZone } from "@/lib/cloudflare-zones";
 
 // Visões do módulo: as abas fixas + as telas abertas pelo menu Ações
-type TabView = "hosts" | "analytics" | "history" | "requests";
-const TAB_VIEWS: TabView[] = ["hosts", "analytics", "history", "requests"];
+type TabView = "overview" | "hosts" | "analytics" | "history" | "requests";
+const TAB_VIEWS: TabView[] = ["overview", "hosts", "analytics", "history", "requests"];
 type ExtraView = "managed" | "lb" | "dns-backups";
 type ConfigKey = ZoneConfigView | ExtraView;
 type View = TabView | ConfigKey;
@@ -127,6 +131,9 @@ export function CloudflareDashboardReal() {
     "view_analytics_loadbalancing",
   ].some(cf);
   const canHistory = cf("view_history");
+  const canOverview = cf("manage_overview_zona");
+  const canAddDomain = cf("manage_adicionar_dominio");
+  const [addDomainOpen, setAddDomainOpen] = React.useState(false);
   // Aba Solicitações: quem vê (view_solicitacoes), quem pode pedir exclusão
   // (acompanha os próprios pedidos) ou quem libera exceção de aprovação.
   const canExceptions = isAdmin && cf("manage_liberar_excecao_dns");
@@ -234,7 +241,9 @@ export function CloudflareDashboardReal() {
   React.useEffect(() => {
     if (permLoading) return;
     const ok = (v: View) =>
-      v === "hosts"
+      v === "overview"
+        ? canOverview
+        : v === "hosts"
         ? canHosts
         : v === "analytics"
           ? canAnalytics
@@ -248,7 +257,7 @@ export function CloudflareDashboardReal() {
       if (first) setView(first);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [permLoading, canHosts, canAnalytics, canHistory, canRequests]);
+  }, [permLoading, canOverview, canHosts, canAnalytics, canHistory, canRequests]);
 
   // Balões das abas: pedidos de exclusão pendentes (Solicitações) e alerta
   // crítico não reconhecido (Histórico). Atualiza a cada minuto.
@@ -369,7 +378,7 @@ export function CloudflareDashboardReal() {
               )}
               <div className="cf-right">
                 <SyncActions moduleSlug="cloudflare-waf" />
-                {(visibleConfig.length > 0 || visibleActions.length > 0) && (
+                {(visibleConfig.length > 0 || visibleActions.length > 0 || canAddDomain) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="cf-btn">
@@ -396,6 +405,17 @@ export function CloudflareDashboardReal() {
                           {l}
                         </DropdownMenuItem>
                       ))}
+                      {canAddDomain && (
+                        <>
+                          {(visibleConfig.length > 0 || visibleActions.length > 0) && (
+                            <DropdownMenuSeparator />
+                          )}
+                          <DropdownMenuLabel>Conta Cloudflare</DropdownMenuLabel>
+                          <DropdownMenuItem onSelect={() => setAddDomainOpen(true)}>
+                            <Plus size={14} /> Adicionar domínio
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
@@ -404,6 +424,11 @@ export function CloudflareDashboardReal() {
 
             {/* ── Abas: Hosts · Analytics · Histórico ── */}
             <nav className="cf-tabs2" aria-label="Seções do módulo">
+              {canOverview && (
+                <button aria-current={view === "overview"} onClick={() => go("overview")}>
+                  <Gauge size={15} /> Overview
+                </button>
+              )}
               {canHosts && (
                 <button aria-current={view === "hosts"} onClick={() => go("hosts")}>
                   <Server size={15} /> Hosts
@@ -472,6 +497,8 @@ export function CloudflareDashboardReal() {
 
             {!zoneId ? (
               <div className="cf-denied">Selecione uma zona para começar.</div>
+            ) : view === "overview" && canOverview ? (
+              <ZoneOverview zoneId={zoneId} />
             ) : view === "hosts" && canHosts ? (
               <HostsView
                 zoneId={zoneId}
@@ -512,6 +539,7 @@ export function CloudflareDashboardReal() {
           </div>
         </CfNavContext.Provider>
       </SharedZoneContext.Provider>
+      {canAddDomain && <AddDomainDialog open={addDomainOpen} onOpenChange={setAddDomainOpen} />}
     </div>
   );
 }

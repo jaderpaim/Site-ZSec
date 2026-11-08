@@ -269,6 +269,7 @@ export const CFX_CSS = `
 @keyframes cfx-shimmer { from { background-position:100% 0; } to { background-position:-100% 0; } }
 @keyframes cfx-fadein { from { opacity:0; transform:translateY(2px); } to { opacity:1; transform:none; } }
 @media (max-width:860px) { .cfx-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:560px) { .zo-metric { grid-template-columns:1fr !important; } }
 @media (prefers-reduced-motion:reduce) {
   .cfx-skel, .cfx-load-bar::after, .cfx-load-spin, .cfx-fade { animation:none; }
   .cfx-block-b { transition:none; }

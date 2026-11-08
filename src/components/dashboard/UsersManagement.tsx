@@ -1245,6 +1245,7 @@ const CF_PERM_TREE: Record<string, string[]> = {
     "manage_liberar_excecao_dns",
     "manage_backups_dns",
     "manage_importar_dns",
+    "manage_adicionar_dominio",
   ],
   manage_rules: ["manage_rules_overview", "manage_rules_page_rules"],
   manage_rules_overview: [

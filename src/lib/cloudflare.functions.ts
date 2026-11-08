@@ -1559,6 +1559,296 @@ export const syncCloudflareZone = createServerFn({ method: "POST" })
     return runCloudflareZoneSync(data.zoneId, { fullResync: data.fullResync });
   });
 
+/**
+ * O zoneId vem do cliente e vai direto pra URL da API da Cloudflare com o token
+ * da integração: só aceita zona já sincronizada no app.
+ */
+async function requireSyncedZone(zoneId: string): Promise<string | null> {
+  if (!/^[a-f0-9]{32}$/i.test(zoneId)) return "Zone ID inválido.";
+  const { data } = await makeSupabase().from("cloudflare_zones").select("id").eq("id", zoneId).maybeSingle();
+  return data?.id ? null : "Zona não sincronizada. Rode um sync primeiro.";
+}
+
+// ─── Adicionar domínio (zona) ──────────────────────────────────────────────────
+
+export const listZoneAccounts = createServerFn({ method: "GET" })
+  .middleware([requireActiveSession])
+  .handler(async ({ context }) => {
+    await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_adicionar_dominio");
+    const { listKnownCloudflareAccounts } = await import("@/lib/cloudflare.server");
+    return { ok: true as const, accounts: await listKnownCloudflareAccounts() };
+  });
+
+const AI_POLICY_LABEL: Record<string, string> = {
+  disabled: "Permitir",
+  block: "Bloquear",
+  only_on_ad_pages: "Bloquear em páginas com anúncios",
+  disallow: "Disallow (robots.txt)",
+};
+
+export const createCloudflareZone = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .inputValidator(
+    (input: {
+      name: string;
+      accountId: string;
+      aiSearch: "disabled" | "block" | "only_on_ad_pages";
+      aiUser: "disabled" | "block" | "only_on_ad_pages";
+      aiTraining: "disabled" | "block" | "only_on_ad_pages" | "disallow";
+      botPreferenceSync: boolean;
+      dnsImport: "auto" | "manual" | "zone_file";
+      zoneFile?: string;
+      zoneFileProxied?: boolean;
+    }) =>
+      z
+        .object({
+          name: z
+            .string()
+            .trim()
+            .toLowerCase()
+            .min(3)
+            .max(253)
+            .regex(/^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/, "Domínio inválido"),
+          accountId: z.string().min(1).max(32),
+          aiSearch: z.enum(["disabled", "block", "only_on_ad_pages"]),
+          aiUser: z.enum(["disabled", "block", "only_on_ad_pages"]),
+          aiTraining: z.enum(["disabled", "block", "only_on_ad_pages", "disallow"]),
+          botPreferenceSync: z.boolean(),
+          dnsImport: z.enum(["auto", "manual", "zone_file"]),
+          zoneFile: z.string().max(1_000_000).optional(),
+          zoneFileProxied: z.boolean().optional(),
+        })
+        .refine((d) => d.dnsImport !== "zone_file" || !!d.zoneFile?.trim(), {
+          message: "Arquivo de zona vazio",
+          path: ["zoneFile"],
+        })
+        .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_adicionar_dominio");
+    const { createCloudflareZone: createZone, listKnownCloudflareAccounts, notifyZoneCreated, logCloudflareAudit, resolveUserEmail } =
+      await import("@/lib/cloudflare.server");
+
+    // Só aceita contas que já aparecem nas zonas sincronizadas — o accountId
+    // vem do cliente e não deve apontar pra uma conta arbitrária.
+    const accounts = await listKnownCloudflareAccounts();
+    if (!accounts.some((a) => a.id === data.accountId)) {
+      return { ok: false as const, error: "Conta Cloudflare desconhecida." };
+    }
+
+    const startedAt = Date.now();
+    const result = await createZone(data);
+    const durationMs = Date.now() - startedAt;
+    const userEmail = await resolveUserEmail(context.userId, (context as any).claims?.email ?? null);
+    const aiSummary = `Search: ${AI_POLICY_LABEL[data.aiSearch]} · Agent: ${AI_POLICY_LABEL[data.aiUser]} · Training: ${AI_POLICY_LABEL[data.aiTraining]} · Bot Preference Sync: ${data.botPreferenceSync ? "ativo" : "desativado"}`;
+    const details = {
+      name: data.name,
+      account_id: data.accountId,
+      ai_search: data.aiSearch,
+      ai_user: data.aiUser,
+      ai_training: data.aiTraining,
+      bot_preference_sync: data.botPreferenceSync,
+      dns_import: data.dnsImport,
+      zone_file_proxied: data.dnsImport === "zone_file" ? (data.zoneFileProxied ?? false) : null,
+    };
+    if (result.ok) {
+      await notifyZoneCreated({
+        zoneName: result.zoneName,
+        status: result.status,
+        nameServers: result.nameServers,
+        dnsImportNote: result.dnsImportNote,
+        aiSummary,
+        actorUserId: context.userId ?? null,
+      });
+      await logCloudflareAudit({
+        action: "create_zone",
+        status: "success",
+        zoneId: result.zoneId,
+        zoneName: result.zoneName,
+        durationMs,
+        userEmail,
+        details: {
+          ...details,
+          status: result.status,
+          name_servers: result.nameServers,
+          dns_import_result: result.dnsImportNote,
+          warnings: result.warnings,
+        },
+        message: `Domínio ${result.zoneName} adicionado (${result.status ?? "—"})`,
+      });
+    } else {
+      await logCloudflareAudit({
+        action: "create_zone",
+        status: "error",
+        zoneId: null,
+        zoneName: data.name,
+        durationMs,
+        userEmail,
+        details,
+        message: result.error,
+      });
+    }
+    return result;
+  });
+
+// ─── Overview da zona (aba Overview do módulo) ────────────────────────────────
+// Espelha a página "Overview" do painel da Cloudflare: zona pendente mostra o
+// passo-a-passo de nameservers; zona ativa mostra Unique Visitors / Total
+// Requests / Percent Cached / Total Data Served / Data Cached em 24h/7d/30d.
+// 24h usa httpRequests1hGroups; 7d/30d usam httpRequests1dGroups (o 1h tem
+// janela curta em plano Free).
+
+export type ZoneOverviewPoint = {
+  t: string;
+  uniques: number;
+  requests: number;
+  cachedRequests: number;
+  bytes: number;
+  cachedBytes: number;
+};
+
+export type ZoneOverviewResult =
+  | {
+      ok: true;
+      zone: {
+        id: string;
+        name: string;
+        status: string | null;
+        paused: boolean;
+        plan: string | null;
+        accountId: string | null;
+        nameServers: string[];
+        originalNameServers: string[];
+        originalRegistrar: string | null;
+        activatedOn: string | null;
+        createdOn: string | null;
+      };
+      range: { key: "24h" | "7d" | "30d"; since: string; until: string };
+      totals: Omit<ZoneOverviewPoint, "t"> | null;
+      series: ZoneOverviewPoint[];
+      analyticsError: string | null;
+    }
+  | { ok: false; error: string };
+
+export const getZoneOverview = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .inputValidator((input: { zoneId: string; range: "24h" | "7d" | "30d" }) =>
+    z.object({ zoneId: z.string().min(1).max(64), range: z.enum(["24h", "7d", "30d"]) }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<ZoneOverviewResult> => {
+    await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_overview_zona");
+    const zoneErr = await requireSyncedZone(data.zoneId);
+    if (zoneErr) return { ok: false, error: zoneErr };
+    const tok = await getCfToken();
+    if (!tok.ok) return tok;
+    const headers = { "Content-Type": "application/json", Authorization: `Bearer ${tok.token}` };
+
+    const zr = await fetch(`https://api.cloudflare.com/client/v4/zones/${encodeURIComponent(data.zoneId)}`, { headers });
+    const zj: any = await zr.json().catch(() => ({}));
+    if (!zr.ok || !zj?.result) return { ok: false, error: zj?.errors?.[0]?.message ?? `Cloudflare API ${zr.status}` };
+    const z0 = zj.result;
+    const zone = {
+      id: z0.id,
+      name: z0.name,
+      status: z0.status ?? null,
+      paused: !!z0.paused,
+      plan: z0.plan?.name ?? null,
+      accountId: z0.account?.id ?? null,
+      nameServers: Array.isArray(z0.name_servers) ? z0.name_servers : [],
+      originalNameServers: Array.isArray(z0.original_name_servers) ? z0.original_name_servers : [],
+      originalRegistrar: z0.original_registrar ?? null,
+      activatedOn: z0.activated_on ?? null,
+      createdOn: z0.created_on ?? null,
+    };
+
+    // Mantém o status local em dia (ex.: zona que saiu de pending pra active).
+    const supabase = makeSupabase();
+    await supabase.from("cloudflare_zones").update({ status: zone.status, paused: zone.paused }).eq("id", zone.id);
+
+    const now = new Date();
+    let since: Date;
+    let until: Date;
+    let query: string;
+    let variables: Record<string, string>;
+    const fields = "sum { requests cachedRequests bytes cachedBytes } uniq { uniques }";
+    if (data.range === "24h") {
+      until = new Date(Math.ceil(now.getTime() / 3_600_000) * 3_600_000);
+      since = new Date(until.getTime() - 24 * 3_600_000);
+      query = `query O($zone:String!,$since:Time!,$until:Time!){viewer{zones(filter:{zoneTag:$zone}){
+        totals: httpRequests1hGroups(limit:1, filter:{datetime_geq:$since, datetime_lt:$until}) { ${fields} }
+        series: httpRequests1hGroups(limit:48, orderBy:[datetime_ASC], filter:{datetime_geq:$since, datetime_lt:$until}) { dimensions { t: datetime } ${fields} }
+      }}}`;
+      variables = { zone: zone.id, since: since.toISOString(), until: until.toISOString() };
+    } else {
+      const days = data.range === "7d" ? 7 : 30;
+      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      until = today;
+      since = new Date(today.getTime() - (days - 1) * 86_400_000);
+      query = `query O($zone:String!,$since:Date!,$until:Date!){viewer{zones(filter:{zoneTag:$zone}){
+        totals: httpRequests1dGroups(limit:1, filter:{date_geq:$since, date_leq:$until}) { ${fields} }
+        series: httpRequests1dGroups(limit:31, orderBy:[date_ASC], filter:{date_geq:$since, date_leq:$until}) { dimensions { t: date } ${fields} }
+      }}}`;
+      variables = { zone: zone.id, since: since.toISOString().slice(0, 10), until: until.toISOString().slice(0, 10) };
+    }
+
+    const toPoint = (g: any) => ({
+      uniques: Number(g?.uniq?.uniques ?? 0),
+      requests: Number(g?.sum?.requests ?? 0),
+      cachedRequests: Number(g?.sum?.cachedRequests ?? 0),
+      bytes: Number(g?.sum?.bytes ?? 0),
+      cachedBytes: Number(g?.sum?.cachedBytes ?? 0),
+    });
+
+    let totals: Omit<ZoneOverviewPoint, "t"> | null = null;
+    let series: ZoneOverviewPoint[] = [];
+    let analyticsError: string | null = null;
+    // Zona pendente ainda não recebe tráfego — não adianta consultar analytics.
+    if (zone.status === "active") {
+      const gr = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query, variables }),
+      });
+      const gj: any = await gr.json().catch(() => ({}));
+      if (!gr.ok || gj?.errors?.length) {
+        analyticsError = gj?.errors?.map((e: any) => e.message).join("; ") || `GraphQL ${gr.status}`;
+      } else {
+        const zz = gj?.data?.viewer?.zones?.[0];
+        totals = zz?.totals?.[0] ? toPoint(zz.totals[0]) : toPoint(null);
+        series = (zz?.series ?? []).map((g: any) => ({ t: String(g.dimensions?.t ?? ""), ...toPoint(g) }));
+      }
+    }
+
+    return {
+      ok: true,
+      zone,
+      range: { key: data.range, since: since.toISOString(), until: until.toISOString() },
+      totals,
+      series,
+      analyticsError,
+    };
+  });
+
+// "Check nameservers now" — PUT /zones/{id}/activation_check. Só dispara a
+// verificação na Cloudflare (que limita a frequência); não altera config.
+export const checkZoneActivation = createServerFn({ method: "POST" })
+  .middleware([requireActiveSession])
+  .inputValidator((input: { zoneId: string }) => z.object({ zoneId: z.string().min(1).max(64) }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requirePermission(context.supabase, context.userId, "cloudflare-waf", "manage_overview_zona");
+    const zoneErr = await requireSyncedZone(data.zoneId);
+    if (zoneErr) return { ok: false as const, error: zoneErr };
+    const tok = await getCfToken();
+    if (!tok.ok) return tok;
+    const r = await fetch(`https://api.cloudflare.com/client/v4/zones/${encodeURIComponent(data.zoneId)}/activation_check`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${tok.token}` },
+    });
+    const j: any = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false as const, error: j?.errors?.[0]?.message ?? `Cloudflare API ${r.status}` };
+    return { ok: true as const };
+  });
+
 // ─── listCloudflareZones ───────────────────────────────────────────────────────
 
 export const listCloudflareZones = createServerFn({ method: "GET" })

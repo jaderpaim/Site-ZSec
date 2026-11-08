@@ -283,7 +283,7 @@ export async function validateEntraRopc(
     return {
       status: "inconclusiva",
       detail:
-        "Identidade externa/federada (ex.: conta Microsoft pessoal) — a senha é do provedor de origem, não do seu tenant. Use a marcação manual.",
+        "Identidade externa/federada (ex.: conta Microsoft pessoal) — a senha é do provedor de origem, não do seu tenant. Trate pelo status ou por um incidente.",
     };
   if (/AADSTS50057/.test(err))
     return { status: "inconclusiva", detail: "Conta desabilitada no Entra." };

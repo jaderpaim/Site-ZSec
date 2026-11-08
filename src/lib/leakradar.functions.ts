@@ -764,7 +764,7 @@ async function requireTester(sb: SupabaseClient, userId: string): Promise<void> 
   throw new Error("Acesso negado: testar validade exige perfil admin ou super admin.");
 }
 
-type TestMethod = "diretorio" | "entra_ropc" | "aplicacao" | "manual";
+type TestMethod = "diretorio" | "entra_ropc" | "aplicacao";
 type Outcome = import("./leakradar-validate.server").ValidationOutcome;
 
 const VALIDATION_LABEL: Record<ValidationStatus, string> = {
@@ -787,7 +787,6 @@ const METHOD_LABEL: Record<TestMethod, string> = {
   diretorio: "Diretório (Graph)",
   entra_ropc: "Confirmação no Entra (ROPC)",
   aplicacao: "Login único na aplicação",
-  manual: "Marcação manual",
 };
 
 // Grava o resultado (resumo na credencial + histórico + linha do tempo +
@@ -840,7 +839,7 @@ async function recordOutcome(args: {
   await logAudit({
     userId: args.userId,
     modulo: MODULE,
-    acao: args.method === "manual" ? "validar_credencial_manual" : "testar_credencial",
+    acao: "testar_credencial",
     descricao: `${METHOD_LABEL[args.method]} de ${args.subject}: ${o.status}`,
     status: "success",
     detalhes: {
@@ -877,7 +876,7 @@ async function recordOutcome(args: {
   // há um para esta captura, devolve o existente).
   let incident: { refCode: string; created: boolean } | null = null;
   let incidentError: string | null = null;
-  if (confirmada && args.method !== "manual") {
+  if (confirmada) {
     try {
       const { openLeakIncident } = await import("./leakradar-incidents.server");
       const r = await openLeakIncident({
@@ -1038,7 +1037,7 @@ export const confirmLeakInEntra = createServerFn({ method: "POST" })
     const det = (dir.details ?? {}) as { upn?: string; externa?: boolean };
     if (det.externa)
       throw new Error(
-        "Conta convidada/externa: a senha é do provedor de origem, não do seu tenant — use a marcação manual.",
+        "Conta convidada/externa: a senha é do provedor de origem, não do seu tenant. Trate pelo status ou por um incidente.",
       );
     const upn = det.upn || leak.username;
 
@@ -1146,42 +1145,3 @@ export const listValidationHistory = createServerFn({ method: "POST" })
     };
   });
 
-// Validação/marcação MANUAL: para contas que o tool não valida sozinho
-// (convidados, terceiros, ou confirmação feita por fora). Exige justificativa.
-// Não submete senha a lugar nenhum — é um registro manual, auditado.
-const ManualSchema = z.object({
-  id: z.string().uuid(),
-  status: z.enum(["valida", "invalida", "inconclusiva"]),
-  note: z.string().min(1).max(1000),
-});
-export const setLeakValidationManual = createServerFn({ method: "POST" })
-  .middleware([requireActiveSession])
-  .inputValidator((input) => ManualSchema.parse(input))
-  .handler(async ({ data, context }) => {
-    await requireTester(context.supabase as SupabaseClient, context.userId);
-    const { data: row, error } = await db(supabaseAdmin)
-      .from("leakradar_leaks")
-      .select("id, username, url_host, category")
-      .eq("id", data.id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!row) throw new Error("Credencial não encontrada.");
-    const severity =
-      data.status === "valida" ? "alta" : data.status === "invalida" ? "baixa" : null;
-    await recordOutcome({
-      leakId: data.id,
-      subject: (row.username as string | null) ?? "—",
-      urlHost: row.url_host as string | null,
-      method: "manual",
-      appId: null,
-      outcome: {
-        status: data.status,
-        severity,
-        summary: `Manual: ${data.note.trim()}`,
-        details: { justificativa: data.note.trim() },
-      },
-      userId: context.userId,
-      category: row.category as string | null,
-    });
-    return { ok: true };
-  });

@@ -153,6 +153,21 @@ export const EMAIL_TEMPLATE_DEFS: EmailTemplateDef[] = [
     ],
   },
   {
+    key: "cloudflare_zone_created",
+    module_slug: "cloudflare-waf",
+    module_label: "Cloudflare WAF",
+    label: "Novo domínio adicionado",
+    variables: [
+      { token: "zona", description: "Domínio (zona) adicionado à conta Cloudflare", sample: "exemplo.com.br" },
+      { token: "status", description: "Status da zona logo após a criação", sample: "pending" },
+      { token: "nameservers", description: "Nameservers da Cloudflare a configurar no registrador", sample: "ana.ns.cloudflare.com, bob.ns.cloudflare.com" },
+      { token: "importacao_dns", description: "Como os registros DNS foram importados", sample: "Automática (12 registros)" },
+      { token: "politicas_ia", description: "Políticas de IA aplicadas (Search/Agent/Training)", sample: "Search: Permitir · Agent: Permitir · Training: Bloquear" },
+      { token: "adicionado_por", description: "Nome ou e-mail de quem adicionou o domínio", sample: "Maria Souza" },
+      { token: "link", description: "Link para abrir o módulo Cloudflare WAF no sistema", sample: "https://app.exemplo.com/app/cloudflare-waf" },
+    ],
+  },
+  {
     key: "cloudflare_dns_delete_request",
     module_slug: "cloudflare-waf",
     module_label: "Cloudflare WAF",
